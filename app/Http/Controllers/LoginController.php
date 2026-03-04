@@ -34,13 +34,6 @@ class LoginController extends Controller
             ], 401);
         }
 
-        // Restrict login for employees based on department
-        if ($user->role === 'Employee' && !$this->isAllowedDepartment($user->department)) {
-            return response()->json([
-                'message' => 'Access denied. You are not authorized to log in from this department.'
-            ], 403);
-        }
-
         // Attempt authentication
         if (!Auth::attempt($credentials)) {
             return response()->json(['message' => 'Invalid credentials'], 401);
@@ -159,12 +152,4 @@ class LoginController extends Controller
         };
     }
 
-    /**
-     * Check if the department is allowed for login.
-     */
-    private function isAllowedDepartment(?string $department): bool
-    {
-        $allowedDepartments = ['IT', 'HR', 'Finance']; // Add allowed departments here
-        return in_array($department, $allowedDepartments);
-    }
 }

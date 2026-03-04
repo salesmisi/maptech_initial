@@ -32,6 +32,10 @@ class Module extends Model
         if (!$this->content_path) {
             return null;
         }
+        // If content_path is already a full URL (http/https), return as-is
+        if (preg_match('#^https?://#i', $this->content_path)) {
+            return $this->content_path;
+        }
         return url('/storage/' . $this->content_path);
     }
 
@@ -43,9 +47,9 @@ class Module extends Model
         if (!$this->content_path) {
             return null;
         }
-        
+
         $extension = strtolower(pathinfo($this->content_path, PATHINFO_EXTENSION));
-        
+
         $types = [
             'pdf' => 'pdf',
             'doc' => 'document',
@@ -56,7 +60,7 @@ class Module extends Model
             'mp3' => 'audio',
             'txt' => 'text',
         ];
-        
+
         return $types[$extension] ?? 'file';
     }
 

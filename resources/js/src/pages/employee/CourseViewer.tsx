@@ -48,6 +48,9 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
   const [course, setCourse] = useState<CourseData | null>(null);
   const [modules, setModules] = useState<ModuleData[]>([]);
   const [currentModule, setCurrentModule] = useState<ModuleData | null>(null);
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
+  const [quizResult, setQuizResult] = useState<{score:number,total:number} | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -167,6 +170,12 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
             controls
             className="w-full h-full"
             src={content_url}
+            onEnded={() => {
+              // when video ends, show pre-assessment if present
+              if ((currentModule as any)?.pre_assessment) {
+                setShowQuiz(true);
+              }
+            }}
           >
             Your browser does not support the video tag.
           </video>
@@ -411,6 +420,72 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
                 </button>
               </div>
             )}
+            {/* Quiz Panel */}
+            {showQuiz && currentModule && (function renderQuiz() {
+              // pre_assessment may be stored as JSON string or object
+              let quiz = (currentModule as any).pre_assessment || null;
+              try {
+                if (typeof quiz === 'string') quiz = JSON.parse(quiz);
+              } catch (e) {
+                quiz = null;
+              }
+
+              if (!quiz || !Array.isArray(quiz) || quiz.length === 0) {
+                return (
+                  <div className="mt-8 p-6 bg-yellow-50 rounded">No assessment available.</div>
+                );
+              }
+
+              const total = quiz.length;
+
+              const submitQuiz = () => {
+                let correct = 0;
+                for (const q of quiz) {
+                  const selected = quizAnswers[q.id];
+                  if (selected !== undefined && selected === q.answer) correct++;
+                }
+                setQuizResult({ score: correct, total });
+              };
+
+              return (
+                <div className="mt-8 p-6 bg-white border rounded-lg">
+                  <h3 className="text-lg font-bold mb-4">Pre-assessment</h3>
+                  {quiz.map((q: any) => (
+                    <div key={q.id} className="mb-4">
+                      <p className="font-medium">{q.id}. {q.question}</p>
+                      <div className="mt-2 space-y-2">
+                        {q.options.map((opt: string, idx: number) => (
+                          <label key={idx} className={`flex items-center space-x-3 cursor-pointer ${quizResult ? 'opacity-70' : ''}`}>
+                            <input
+                              type="radio"
+                              name={`q_${q.id}`}
+                              value={idx}
+                              checked={quizAnswers[q.id] === idx}
+                              disabled={!!quizResult}
+                              onChange={() => setQuizAnswers(prev => ({ ...prev, [q.id]: idx }))}
+                            />
+                            <span>{opt}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {!quizResult ? (
+                    <div className="flex items-center space-x-3">
+                      <button onClick={submitQuiz} className="px-4 py-2 bg-green-600 text-white rounded">Submit Assessment</button>
+                      <button onClick={() => { setShowQuiz(false); setQuizAnswers({}); }} className="px-4 py-2 border rounded">Close</button>
+                    </div>
+                  ) : (
+                    <div className="mt-4">
+                      <p className="font-semibold">Result: {quizResult.score} / {quizResult.total}</p>
+                      <button onClick={() => { setQuizResult(null); setQuizAnswers({}); }} className="mt-2 px-3 py-1 border rounded">Retry</button>
+                      <button onClick={() => setShowQuiz(false)} className="mt-2 ml-2 px-3 py-1 bg-green-600 text-white rounded">Close</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
