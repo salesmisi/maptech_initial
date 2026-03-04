@@ -35,7 +35,7 @@ class CourseController extends Controller
         return response()->json([
             'user' => [
                 'id' => $user->id,
-                'name' => $user->fullName ?? $user->name,
+                'name' => $user->fullname,
                 'email' => $user->email,
                 'role' => $user->role,
             ],

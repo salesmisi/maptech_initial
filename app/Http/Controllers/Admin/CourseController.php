@@ -18,7 +18,7 @@ class CourseController extends Controller
     public function index(Request $request)
     {
         // Eager-load instructor and modules so API returns module data/count
-        $query = Course::with(['instructor:id,fullName,email', 'modules']);
+        $query = Course::with(['instructor:id,fullname,email', 'modules']);
 
         // Filter by department
         if ($request->has('department')) {
@@ -89,7 +89,7 @@ class CourseController extends Controller
                         'title' => $module['title'] ?? 'NO TITLE',
                         'has_content' => isset($module['content']),
                     ]);
-                    
+
                     if (isset($module['content']) && $module['content'] instanceof \Illuminate\Http\UploadedFile) {
                         $filePath = $module['content']->store('course-content', 'public');
                         \Log::info("File stored at: {$filePath}");
@@ -107,7 +107,7 @@ class CourseController extends Controller
 
             return response()->json([
                 'message' => 'Course created successfully',
-                'course' => $course->load('instructor:id,fullName,email', 'modules')
+                'course' => $course->load('instructor:id,fullname,email', 'modules')
             ], 201);
         } catch (ValidationException $e) {
             \Log::error('Validation failed', $e->errors());
@@ -129,7 +129,7 @@ class CourseController extends Controller
      */
     public function show(string $id)
     {
-        $course = Course::with(['instructor:id,fullName,email', 'modules'])->findOrFail($id);
+        $course = Course::with(['instructor:id,fullname,email', 'modules'])->findOrFail($id);
 
         return response()->json($course);
     }
@@ -188,7 +188,7 @@ class CourseController extends Controller
 
             return response()->json([
                 'message' => 'Course updated successfully',
-                'course' => $course->load('instructor:id,fullName,email', 'modules')
+                'course' => $course->load('instructor:id,fullname,email', 'modules')
             ]);
         } catch (ValidationException $e) {
             \Log::error('Validation failed on update', $e->errors());

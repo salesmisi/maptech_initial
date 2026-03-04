@@ -12,8 +12,7 @@ import {
 
 interface User {
   id: number;
-  name: string;
-  fullName?: string;
+  fullname: string;
   email: string;
   department: string | null;
   role: 'Admin' | 'Instructor' | 'Employee';
@@ -51,6 +50,19 @@ export function UserManagement() {
   const roleRef = useRef<HTMLSelectElement>(null);
   const statusRef = useRef<HTMLInputElement>(null);
 
+  // Helper to read a cookie value
+  const getCookie = (name: string) => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
+  };
+
+  // Fetch CSRF cookie then return decoded XSRF token
+  const getXsrfToken = async (): Promise<string> => {
+    await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+    return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
+  };
+
   // Load users on mount
   useEffect(() => {
     loadUsers();
@@ -87,7 +99,7 @@ export function UserManagement() {
 
   // Filter users
   const filteredUsers = users.filter((user) => {
-    const name = user.fullName || user.name || '';
+    const name = user.fullname || '';
     const matchesSearch =
       name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase());
@@ -103,12 +115,14 @@ export function UserManagement() {
     }
 
     try {
+      const xsrfToken = await getXsrfToken();
       const response = await fetch(`${API_BASE}/admin/users/${id}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrfToken,
         },
       });
 
@@ -172,15 +186,8 @@ export function UserManagement() {
       return;
     }
 
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-    console.log('CSRF Token:', csrfToken); // Debugging CSRF token
-    if (!csrfToken) {
-      setFormError('CSRF token not found. Please refresh the page and try again.');
-      setSubmitting(false);
-      return;
-    }
-
     try {
+      const xsrfToken = await getXsrfToken();
       const url = editingUser
         ? `${API_BASE}/admin/users/${editingUser.id}`
         : `${API_BASE}/admin/users`;
@@ -207,7 +214,7 @@ export function UserManagement() {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
-          'X-CSRF-TOKEN': csrfToken,
+          'X-XSRF-TOKEN': xsrfToken,
         },
         body: JSON.stringify(body),
       });
@@ -338,12 +345,12 @@ export function UserManagement() {
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
                           <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold">
-                            {(user.fullName || user.name || '?').charAt(0).toUpperCase()}
+                            {(user.fullname || '?').charAt(0).toUpperCase()}
                           </div>
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-slate-900">
-                            {user.fullName || user.name}
+                            {user.fullname}
                           </div>
                           <div className="text-sm text-slate-500">{user.email}</div>
                         </div>
@@ -438,7 +445,7 @@ export function UserManagement() {
                     <input
                       ref={fullNameRef}
                       type="text"
-                      defaultValue={editingUser?.fullName || editingUser?.name || ''}
+                      defaultValue={editingUser?.fullname || ''}
                       className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     />
                   </div>

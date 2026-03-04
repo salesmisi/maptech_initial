@@ -34,7 +34,7 @@ class UserController extends Controller
         }
 
         $users = $query->select([
-            'id', 'fullName', 'email', 'role', 'department', 'status', 'created_at'
+            'id', 'fullname', 'email', 'role', 'department', 'status', 'created_at'
         ])->orderBy('created_at', 'desc')->get();
 
         return response()->json($users);
@@ -63,8 +63,7 @@ class UserController extends Controller
         }
 
         $user = User::create([
-            'name' => $validated['fullName'],
-            'fullName' => $validated['fullName'],
+            'fullname' => $validated['fullName'],
             'email' => $validated['email'],
             'password' => $validated['password'], // Auto-hashed by model
             'role' => $validated['role'],
@@ -115,8 +114,7 @@ class UserController extends Controller
 
         // Update fields
         if (isset($validated['fullName'])) {
-            $user->name = $validated['fullName'];
-            $user->fullName = $validated['fullName'];
+            $user->fullname = $validated['fullName'];
         }
         if (isset($validated['email'])) {
             $user->email = $validated['email'];

@@ -21,7 +21,7 @@ class DashboardController extends Controller
         // Get courses for employee's department only
         $courses = Course::forDepartment($department)
             ->active()
-            ->with('instructor:id,fullName,email')
+            ->with('instructor:id,fullname,email')
             ->with('modules:id,title,content_path,course_id')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -29,7 +29,7 @@ class DashboardController extends Controller
         return response()->json([
             'user' => [
                 'id' => $user->id,
-                'name' => $user->fullName,
+                'name' => $user->fullname,
                 'email' => $user->email,
                 'department' => $user->department,
             ],
@@ -48,7 +48,7 @@ class DashboardController extends Controller
 
         $courses = Course::forDepartment($department)
             ->active()
-            ->with('instructor:id,fullName,email')
+            ->with('instructor:id,fullname,email')
             ->with('modules:id,title,content_path,course_id')
             ->orderBy('title')
             ->get();
@@ -65,7 +65,7 @@ class DashboardController extends Controller
         $department = $user->department;
 
         $course = Course::forDepartment($department)
-            ->with('instructor:id,fullName,email')
+            ->with('instructor:id,fullname,email')
             ->with('modules:id,title,content_path,course_id')
             ->find($id);
 
