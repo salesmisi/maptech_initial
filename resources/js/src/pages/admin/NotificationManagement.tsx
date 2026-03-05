@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, Send, Clock, CheckCircle, Plus, Trash2 } from 'lucide-react';
 interface Notification {
   id: number;
@@ -38,6 +38,15 @@ export function NotificationManagement() {
   const [notifications, setNotifications] =
   useState<Notification[]>(initialNotifications);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [departments, setDepartments] = useState<{id: number; name: string}[]>([]);
+
+  // Load departments from API for target audience
+  useEffect(() => {
+    fetch('/api/departments')
+      .then(res => res.json())
+      .then(data => setDepartments(Array.isArray(data) ? data : []))
+      .catch(err => console.error('Failed to load departments:', err));
+  }, []);
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     setIsModalOpen(false);
@@ -182,8 +191,9 @@ export function NotificationManagement() {
                       <option>All Users</option>
                       <option>All Employees</option>
                       <option>All Admins</option>
-                      <option>IT Department</option>
-                      <option>HR Department</option>
+                      {departments.map(dept => (
+                        <option key={dept.id} value={dept.name}>{dept.name} Department</option>
+                      ))}
                     </select>
                   </div>
                   <div className="flex items-center">

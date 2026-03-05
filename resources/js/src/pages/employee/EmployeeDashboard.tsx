@@ -5,10 +5,12 @@ import {
   Award,
   CheckCircle,
   PlayCircle,
-  ArrowRight } from
+  ArrowRight,
+  Bell,
+  FileQuestion } from
 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = '/api';
 
 interface Course {
   id: string;
@@ -27,6 +29,18 @@ interface DashboardData {
   };
   courses: Course[];
   total_courses: number;
+}
+
+interface NotificationItem {
+  id: number;
+  type: string;
+  title: string;
+  message: string;
+  data: any;
+  course_id: string | null;
+  module_id: number | null;
+  read: boolean;
+  created_at: string;
 }
 
 const upcomingDeadlines = [
@@ -50,6 +64,37 @@ interface EmployeeDashboardProps {
 export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  const loadNotifications = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/employee/notifications`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data);
+      }
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    }
+  };
+
+  const markAsRead = async (id: number) => {
+    try {
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      await fetch(`${API_BASE}/employee/notifications/${id}/read`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+      });
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+    }
+  };
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -61,13 +106,13 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             'Accept': 'application/json',
           },
         });
-        
+
         if (!response.ok) {
           throw new Error('Failed to load dashboard');
         }
-        
+
         const data = await response.json();
-        
+
         // Map courses to include thumbnail colors
         const mappedCourses = data.courses.map((course: any) => ({
           id: course.id,
@@ -76,7 +121,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
           nextLesson: course.modules?.[0]?.title || 'Start Course',
           thumbnail: getThumbnailColor(course.department),
         }));
-        
+
         setDashboardData({
           user: data.user,
           courses: mappedCourses,
@@ -90,6 +135,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     };
 
     loadDashboard();
+    loadNotifications();
   }, []);
 
   const getThumbnailColor = (department: string) => {
@@ -188,6 +234,48 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
         </div>
       </div>
 
+      {/* Quiz Notifications */}
+      {notifications.filter(n => !n.read).length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-orange-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Bell className="h-5 w-5 text-orange-600" />
+            <h2 className="text-lg font-bold text-slate-900">
+              Notifications ({notifications.filter(n => !n.read).length} new)
+            </h2>
+          </div>
+          <div className="space-y-3">
+            {notifications.filter(n => !n.read).map(notif => (
+              <div key={notif.id} className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-100 rounded-lg">
+                <FileQuestion className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-slate-900">{notif.title}</p>
+                  <p className="text-xs text-slate-600 mt-1">{notif.message}</p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {new Date(notif.created_at).toLocaleDateString()} at {new Date(notif.created_at).toLocaleTimeString()}
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  {notif.course_id && (
+                    <button
+                      onClick={() => { markAsRead(notif.id); onNavigate?.('course-viewer', notif.course_id!); }}
+                      className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-700"
+                    >
+                      Take Quiz
+                    </button>
+                  )}
+                  <button
+                    onClick={() => markAsRead(notif.id)}
+                    className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-md hover:bg-slate-200"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Current Courses */}
         <div className="lg:col-span-2 space-y-6">
@@ -247,7 +335,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                   </div>
                 </div>
                 <div className="flex items-center justify-end sm:justify-center">
-                  <button 
+                  <button
                     onClick={() => onNavigate?.('course-viewer', course.id)}
                     className="px-4 py-2 bg-slate-50 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-100 border border-slate-200">
                     Continue

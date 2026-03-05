@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
+use App\Models\CourseEnrollment;
+use App\Models\Notification;
+use App\Models\Module;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -17,8 +20,12 @@ class CourseController extends Controller
      */
     public function index(Request $request)
     {
-        // Eager-load instructor and modules so API returns module data/count
-        $query = Course::with(['instructor:id,fullName,email', 'modules']);
+        // Eager-load instructor, modules, and enrollments with user data
+        $query = Course::with([
+            'instructor:id,fullName,email',
+            'modules',
+            'enrollments.user:id,fullName,email,department'
+        ]);
 
         // Filter by department
         if ($request->has('department')) {
@@ -36,6 +43,12 @@ class CourseController extends Controller
         }
 
         $courses = $query->orderBy('created_at', 'desc')->get();
+
+        // Transform the data to include enrollment counts
+        $courses->each(function ($course) {
+            $course->enrolled_count = $course->enrollments->count();
+            $course->completed_count = $course->enrollments->where('status', 'Completed')->count();
+        });
 
         return response()->json($courses);
     }
@@ -89,7 +102,7 @@ class CourseController extends Controller
                         'title' => $module['title'] ?? 'NO TITLE',
                         'has_content' => isset($module['content']),
                     ]);
-                    
+
                     if (isset($module['content']) && $module['content'] instanceof \Illuminate\Http\UploadedFile) {
                         $filePath = $module['content']->store('course-content', 'public');
                         \Log::info("File stored at: {$filePath}");
@@ -129,7 +142,15 @@ class CourseController extends Controller
      */
     public function show(string $id)
     {
-        $course = Course::with(['instructor:id,fullName,email', 'modules'])->findOrFail($id);
+        $course = Course::with([
+            'instructor:id,fullName,email',
+            'modules',
+            'enrollments.user:id,fullName,email,department'
+        ])->findOrFail($id);
+
+        // Add enrollment counts
+        $course->enrolled_count = $course->enrollments->count();
+        $course->completed_count = $course->enrollments->where('status', 'Completed')->count();
 
         return response()->json($course);
     }
@@ -215,6 +236,162 @@ class CourseController extends Controller
 
         return response()->json([
             'message' => 'Course deleted successfully'
+        ]);
+    }
+
+    /**
+     * Get enrolled students for a specific course.
+     */
+    public function getEnrolledStudents(string $id)
+    {
+        $course = Course::findOrFail($id);
+
+        $enrollments = $course->enrollments()
+            ->with('user:id,fullName,email,department')
+            ->orderBy('enrolled_at', 'desc')
+            ->get();
+
+        $students = $enrollments->map(function ($enrollment) {
+            return [
+                'enrollment_id' => $enrollment->id,
+                'id' => $enrollment->user->id,
+                'name' => $enrollment->user->fullName,
+                'email' => $enrollment->user->email,
+                'department' => $enrollment->user->department,
+                'enrolledDate' => $enrollment->enrolled_at->format('Y-m-d'),
+                'progress' => $enrollment->progress,
+                'status' => $enrollment->status === 'Active' ? 'Active' :
+                           ($enrollment->status === 'Completed' ? 'Completed' : 'Inactive'),
+                'completed_at' => $enrollment->completed_at?->format('Y-m-d'),
+            ];
+        });
+
+        return response()->json($students);
+    }
+
+    /**
+     * Enroll a user in a course.
+     */
+    public function enrollStudent(Request $request, string $courseId)
+    {
+        $validated = $request->validate([
+            'user_id' => 'required|exists:users,id',
+        ]);
+
+        $course = Course::findOrFail($courseId);
+
+        try {
+            $enrollment = $course->enrollments()->create([
+                'user_id' => $validated['user_id'],
+                'enrolled_at' => now(),
+            ]);
+
+            return response()->json([
+                'message' => 'Student enrolled successfully',
+                'enrollment' => $enrollment->load('user:id,fullName,email,department')
+            ], 201);
+        } catch (\Exception $e) {
+            if (str_contains($e->getMessage(), 'Duplicate entry')) {
+                return response()->json([
+                    'message' => 'Student is already enrolled in this course'
+                ], 409);
+            }
+
+            return response()->json([
+                'message' => 'Failed to enroll student'
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove a student from a course.
+     */
+    public function unenrollStudent(string $courseId, int $userId)
+    {
+        $course = Course::findOrFail($courseId);
+
+        $enrollment = $course->enrollments()->where('user_id', $userId)->first();
+
+        if (!$enrollment) {
+            return response()->json([
+                'message' => 'Student is not enrolled in this course'
+            ], 404);
+        }
+
+        $enrollment->delete();
+
+        return response()->json([
+            'message' => 'Student removed from course successfully'
+        ]);
+    }
+
+    /**
+     * Send a quiz to enrolled students filtered by department.
+     */
+    public function sendQuiz(Request $request, string $courseId)
+    {
+        $course = Course::findOrFail($courseId);
+
+        $validated = $request->validate([
+            'module_id' => 'required|exists:modules,id',
+        ]);
+
+        $module = Module::where('id', $validated['module_id'])
+            ->where('course_id', $course->id)
+            ->firstOrFail();
+
+        if (empty($module->pre_assessment)) {
+            return response()->json([
+                'message' => 'This module has no quiz to send.'
+            ], 422);
+        }
+
+        // Get enrolled students whose department matches the course department
+        $enrollments = $course->enrollments()
+            ->with('user')
+            ->get()
+            ->filter(function ($enrollment) use ($course) {
+                return $enrollment->user
+                    && strcasecmp($enrollment->user->department, $course->department) === 0;
+            });
+
+        if ($enrollments->isEmpty()) {
+            return response()->json([
+                'message' => 'No enrolled students match the course department (' . $course->department . ').'
+            ], 422);
+        }
+
+        $sent = 0;
+        foreach ($enrollments as $enrollment) {
+            // Prevent duplicate notifications for the same quiz
+            $exists = Notification::where('user_id', $enrollment->user_id)
+                ->where('course_id', $course->id)
+                ->where('module_id', $module->id)
+                ->where('type', 'quiz')
+                ->exists();
+
+            if (!$exists) {
+                Notification::create([
+                    'user_id' => $enrollment->user_id,
+                    'course_id' => $course->id,
+                    'module_id' => $module->id,
+                    'type' => 'quiz',
+                    'title' => 'New Quiz: ' . $module->title,
+                    'message' => 'You have a new pre-assessment quiz for "' . $module->title . '" in course "' . $course->title . '".',
+                    'data' => [
+                        'quiz_questions' => $module->pre_assessment,
+                        'course_title' => $course->title,
+                        'module_title' => $module->title,
+                    ],
+                ]);
+                $sent++;
+            }
+        }
+
+        return response()->json([
+            'message' => "Quiz sent to {$sent} {$course->department} department student(s).",
+            'sent_count' => $sent,
+            'department' => $course->department,
         ]);
     }
 }

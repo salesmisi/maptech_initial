@@ -16,6 +16,15 @@ class Module extends Model
         'title',
         'content_path',
         'course_id',
+        'order',
+        'pre_assessment',
+    ];
+
+    /**
+     * The attributes that should be cast.
+     */
+    protected $casts = [
+        'pre_assessment' => 'array',
     ];
 
     /**
@@ -32,7 +41,12 @@ class Module extends Model
             return null;
         }
 
-        // Always serve module files through the authenticated API endpoint.
+        // If content_path is already a full URL (http/https), return as-is
+        if (preg_match('#^https?://#i', $this->content_path)) {
+            return $this->content_path;
+        }
+
+        // Serve local module files through the authenticated API endpoint.
         return url('/api/modules/' . $this->id . '/content');
     }
 
@@ -67,5 +81,13 @@ class Module extends Model
     public function course()
     {
         return $this->belongsTo(Course::class);
+    }
+
+    /**
+     * Get the lessons for the module.
+     */
+    public function lessons()
+    {
+        return $this->hasMany(Lesson::class)->orderBy('order');
     }
 }

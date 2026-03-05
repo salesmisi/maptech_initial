@@ -13,7 +13,7 @@ use App\Models\Subdepartment;
 
 // GET ALL DEPARTMENTS (with subdepartments)
 Route::get('/departments', function () {
-    return Department::with('subdepartments')->get();
+    return Department::with('subdepartments')->orderBy('id', 'asc')->get();
 });
 
 // CREATE DEPARTMENT
@@ -138,6 +138,20 @@ Route::post('/logout', [LoginController::class, 'logout'])
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\CourseController as AdminCourseController;
 
+// Test route for debugging
+Route::get('/test-auth', function () {
+    return response()->json([
+        'message' => 'API is working',
+        'timestamp' => now(),
+        'user' => auth()->user() ? [
+            'id' => auth()->user()->id,
+            'name' => auth()->user()->fullName,
+            'role' => auth()->user()->role,
+            'status' => auth()->user()->status,
+        ] : null
+    ]);
+});
+
 Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->group(function () {
 
     // Dashboard
@@ -156,6 +170,14 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::get('/courses/{id}', [AdminCourseController::class, 'show']);
     Route::put('/courses/{id}', [AdminCourseController::class, 'update']);
     Route::delete('/courses/{id}', [AdminCourseController::class, 'destroy']);
+
+    // Course Enrollment Management
+    Route::get('/courses/{id}/students', [AdminCourseController::class, 'getEnrolledStudents']);
+    Route::post('/courses/{id}/enroll', [AdminCourseController::class, 'enrollStudent']);
+    Route::delete('/courses/{courseId}/students/{userId}', [AdminCourseController::class, 'unenrollStudent']);
+
+    // Send Quiz to Department-Filtered Students
+    Route::post('/courses/{id}/send-quiz', [AdminCourseController::class, 'sendQuiz']);
 });
 
 
@@ -194,6 +216,10 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
     // Courses (auto-filtered by department)
     Route::get('/courses', [DashboardController::class, 'courses']);
     Route::get('/courses/{id}', [DashboardController::class, 'showCourse']);
+
+    // Notifications
+    Route::get('/notifications', [DashboardController::class, 'notifications']);
+    Route::put('/notifications/{id}/read', [DashboardController::class, 'markNotificationRead']);
 });
 
 /*
@@ -231,6 +257,8 @@ Route::prefix('qa')->middleware(['auth:sanctum', 'status'])->group(function () {
 |--------------------------------------------------------------------------
 */
 
+use App\Http\Controllers\ContentController;
+
 // Serve module content for authenticated users
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/modules/{module}/content', function (\App\Models\Module $module) {
@@ -242,5 +270,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         return response()->file($path);
     });
+
+    // ── Module CRUD ──
+    Route::get('/courses/{courseId}/modules', [ContentController::class, 'modulesByCourse']);
+    Route::post('/courses/{courseId}/modules', [ContentController::class, 'storeModule']);
+    Route::put('/modules/{moduleId}', [ContentController::class, 'updateModule']);
+    Route::delete('/modules/{moduleId}', [ContentController::class, 'destroyModule']);
+
+    // ── Lesson / Content CRUD ──
+    Route::post('/modules/{moduleId}/lessons', [ContentController::class, 'storeLesson']);
+    Route::post('/lessons/{lessonId}', [ContentController::class, 'updateLesson']);
+    Route::delete('/lessons/{lessonId}', [ContentController::class, 'destroyLesson']);
 });
 

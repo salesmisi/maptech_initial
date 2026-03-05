@@ -10,7 +10,7 @@ import { EmployeeLayout } from './components/layout/EmployeeLayout';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import DepartmentManagement from './pages/admin/DepartmentManagement';
 import { UserManagement } from './pages/admin/UserManagement';
-import { CourseManagement } from './pages/admin/CourseManagement';
+import { CoursesAndContent } from './pages/admin/CoursesAndContent';
 import { EnrollmentManagement } from './pages/admin/EnrollmentManagement';
 import { ReportsAnalytics } from './pages/admin/ReportsAnalytics';
 import { NotificationManagement } from './pages/admin/NotificationManagement';
@@ -49,7 +49,7 @@ export function App() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await fetch('http://127.0.0.1:8000/user', {
+        const response = await fetch('/user', {
           credentials: 'include',
           headers: {
             'Accept': 'application/json',
@@ -102,13 +102,13 @@ export function App() {
   const handleLogout = async () => {
     try {
       // Get CSRF token
-      await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', {
+      await fetch('/sanctum/csrf-cookie', {
         credentials: 'include',
       });
 
       const xsrfToken = getCookie('XSRF-TOKEN');
 
-      await fetch('http://127.0.0.1:8000/logout', {
+      await fetch('/logout', {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -164,8 +164,7 @@ export function App() {
         {currentPage === 'dashboard' && <AdminDashboard />}
         {currentPage === 'departments' && <DepartmentManagement />}
         {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
-        {currentPage === 'courses' && <CourseManagement />}
-        {currentPage === 'content-upload' && <LessonVideoUpload />}
+        {currentPage === 'courses' && <CoursesAndContent />}
         {currentPage === 'enrollments' && <EnrollmentManagement />}
         {currentPage === 'reports' && <ReportsAnalytics />}
         {currentPage === 'notifications' && <NotificationManagement />}

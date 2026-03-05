@@ -55,7 +55,7 @@ async function getCsrf() {
   );
 }
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = '/api';
 
 export function CourseManagement() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -67,6 +67,15 @@ export function CourseManagement() {
   const [modules, setModules] = useState<ModuleInput[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
+  const [departments, setDepartments] = useState<{id: number; name: string}[]>([]);
+
+  // Load departments from API
+  useEffect(() => {
+    fetch('/api/departments')
+      .then(res => res.json())
+      .then(data => setDepartments(Array.isArray(data) ? data : []))
+      .catch(err => console.error('Failed to load departments:', err));
+  }, []);
 
   // Module management functions
   const addModule = () => {
@@ -252,7 +261,6 @@ export function CourseManagement() {
         },
         body: formData,
       });
-
       const responseText = await response.text();
 
       if (!response.ok) {
@@ -456,15 +464,14 @@ export function CourseManagement() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
                   <select
                     name="department"
-                    defaultValue={editingCourse?.department || 'IT'}
+                    defaultValue={editingCourse?.department || ''}
                     required
                     className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
-                    <option value="IT">IT</option>
-                    <option value="HR">HR</option>
-                    <option value="Operations">Operations</option>
-                    <option value="Finance">Finance</option>
-                    <option value="Marketing">Marketing</option>
+                    <option value="" disabled>Select Department</option>
+                    {departments.map(dept => (
+                      <option key={dept.id} value={dept.name}>{dept.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div>

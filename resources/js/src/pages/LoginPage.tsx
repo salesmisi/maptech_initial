@@ -30,7 +30,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
     try {
       // ✅ 1. Get CSRF cookie
-      await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', {
+      await fetch('/sanctum/csrf-cookie', {
         credentials: 'include',
       });
 
@@ -38,7 +38,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       const xsrfToken = getCookie('XSRF-TOKEN');
 
       // ✅ 3. Login request WITH X-XSRF-TOKEN header
-      const response = await fetch('http://127.0.0.1:8000/login', {
+      const response = await fetch('/login', {
         method: 'POST',
         credentials: 'include',
         headers: {

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Course extends Model
 {
@@ -62,5 +63,23 @@ class Course extends Model
     public function modules()
     {
         return $this->hasMany(Module::class);
+    }
+
+    /**
+     * Get the enrollments for the course.
+     */
+    public function enrollments(): HasMany
+    {
+        return $this->hasMany(CourseEnrollment::class);
+    }
+
+    /**
+     * Get the enrolled users for the course.
+     */
+    public function enrolledUsers()
+    {
+        return $this->belongsToMany(User::class, 'course_enrollments')
+                    ->withPivot(['progress', 'status', 'enrolled_at', 'completed_at'])
+                    ->withTimestamps();
     }
 }

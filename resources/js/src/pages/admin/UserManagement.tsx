@@ -30,7 +30,22 @@ interface FormData {
   status: 'Active' | 'Inactive';
 }
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = '/api';
+
+// Helper function to get cookie value
+const getCookie = (name: string) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift();
+};
+
+// Helper function to get headers with XSRF token
+const getHeaders = () => ({
+  'Accept': 'application/json',
+  'Content-Type': 'application/json',
+  'X-Requested-With': 'XMLHttpRequest',
+  'X-XSRF-TOKEN': decodeURIComponent(getCookie('XSRF-TOKEN') || ''),
+});
 
 interface UserManagementProps {
   currentUserEmail?: string;
@@ -68,10 +83,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
 
       const response = await fetch(`${API_BASE}/admin/users`, {
         credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
+        headers: getHeaders(),
       });
 
       if (!response.ok) {

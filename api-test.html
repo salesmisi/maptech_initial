@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>API Test Page</h1>
+    <button onclick="testAPI()">Test Courses API</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Testing API...</p>';
+
+            try {
+                // First get CSRF cookie
+                console.log('Getting CSRF cookie...');
+                await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', {
+                    credentials: 'include',
+                });
+
+                // Get XSRF token from cookie
+                const getCookie = (name) => {
+                    const value = `; ${document.cookie}`;
+                    const parts = value.split(`; ${name}=`);
+                    if (parts.length === 2) return parts.pop().split(';').shift();
+                };
+
+                const headers = {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-XSRF-TOKEN': decodeURIComponent(getCookie('XSRF-TOKEN') || ''),
+                };
+
+                console.log('Headers:', headers);
+
+                // Test the admin courses endpoint
+                console.log('Testing /admin/courses endpoint...');
+                const response = await fetch('http://127.0.0.1:8000/api/admin/courses', {
+                    credentials: 'include',
+                    headers: headers,
+                });
+
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API Error:', errorText);
+                    resultDiv.innerHTML = `<p style="color: red;">API Error: ${response.status} - ${errorText}</p>`;
+                    return;
+                }
+
+                const data = await response.json();
+                console.log('Courses data:', data);
+
+                resultDiv.innerHTML = `<p style="color: green;">Success! Found ${data.length} courses</p><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (err) {
+                console.error('Error:', err);
+                resultDiv.innerHTML = `<p style="color: red;">Error: ${err.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
