@@ -198,6 +198,35 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
 
 /*
 |--------------------------------------------------------------------------
+| Q&A ROUTES - All authenticated users
+|--------------------------------------------------------------------------
+*/
+
+use App\Http\Controllers\QAController;
+
+Route::prefix('qa')->middleware(['auth:sanctum', 'status'])->group(function () {
+
+    // Get questions (employees see own; instructor/admin see all)
+    Route::get('/questions', [QAController::class, 'index']);
+
+    // Ask a question (any role)
+    Route::post('/questions', [QAController::class, 'store']);
+
+    // Edit own question (employee only, unanswered)
+    Route::put('/questions/{id}', [QAController::class, 'update']);
+
+    // Delete question (employee: own unanswered; admin: any)
+    Route::delete('/questions/{id}', [QAController::class, 'destroy']);
+
+    // Post/update answer (instructor or admin)
+    Route::post('/questions/{id}/answer', [QAController::class, 'answer']);
+
+    // Remove answer (instructor: own answers; admin: any)
+    Route::delete('/questions/{id}/answer', [QAController::class, 'deleteAnswer']);
+});
+
+/*
+|--------------------------------------------------------------------------
 | MODULE CONTENT ROUTES - Authenticated Users Only
 |--------------------------------------------------------------------------
 */
@@ -206,11 +235,11 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/modules/{module}/content', function (\App\Models\Module $module) {
         $path = storage_path('app/public/' . $module->content_path);
-        
+
         if (!file_exists($path)) {
             return response()->json(['message' => 'File not found'], 404);
         }
-        
+
         return response()->file($path);
     });
 });

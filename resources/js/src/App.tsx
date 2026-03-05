@@ -163,7 +163,7 @@ export function App() {
       >
         {currentPage === 'dashboard' && <AdminDashboard />}
         {currentPage === 'departments' && <DepartmentManagement />}
-        {currentPage === 'users' && <UserManagement />}
+        {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
         {currentPage === 'courses' && <CourseManagement />}
         {currentPage === 'content-upload' && <LessonVideoUpload />}
         {currentPage === 'enrollments' && <EnrollmentManagement />}
@@ -210,9 +210,9 @@ export function App() {
           <MyCourses onNavigate={handleNavigate} />
         )}
         {currentPage === 'course-viewer' && (
-          <CourseViewer 
-            courseId={selectedCourseId || undefined} 
-            onBack={() => handleNavigate('my-courses')} 
+          <CourseViewer
+            courseId={selectedCourseId || undefined}
+            onBack={() => handleNavigate('my-courses')}
           />
         )}
         {currentPage === 'progress' && <MyProgress />}

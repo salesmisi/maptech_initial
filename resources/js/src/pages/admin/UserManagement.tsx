@@ -32,7 +32,12 @@ interface FormData {
 
 const API_BASE = 'http://127.0.0.1:8000/api';
 
-export function UserManagement() {
+interface UserManagementProps {
+  currentUserEmail?: string;
+  onLogout?: () => void;
+}
+
+export function UserManagement({ currentUserEmail, onLogout }: UserManagementProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,10 +75,14 @@ export function UserManagement() {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Session expired. Please log out and log in again.');
+        }
         if (response.status === 403) {
           throw new Error('Access denied. You are not authorized to view this data.');
         }
-        throw new Error('Failed to load data');
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || `Failed to load data (HTTP ${response.status})`);
       }
 
       const data = await response.json();
@@ -103,12 +112,18 @@ export function UserManagement() {
     }
 
     try {
+      await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+      const xsrfToken = decodeURIComponent(
+        document.cookie.split('; ').find(r => r.startsWith('XSRF-TOKEN='))?.split('=')[1] || ''
+      );
+
       const response = await fetch(`${API_BASE}/admin/users/${id}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrfToken,
         },
       });
 
@@ -172,15 +187,19 @@ export function UserManagement() {
       return;
     }
 
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-    console.log('CSRF Token:', csrfToken); // Debugging CSRF token
-    if (!csrfToken) {
-      setFormError('CSRF token not found. Please refresh the page and try again.');
-      setSubmitting(false);
-      return;
-    }
-
     try {
+      // Get fresh CSRF cookie and extract XSRF-TOKEN
+      await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+      const xsrfToken = decodeURIComponent(
+        document.cookie.split('; ').find(r => r.startsWith('XSRF-TOKEN='))?.split('=')[1] || ''
+      );
+
+      if (!xsrfToken) {
+        setFormError('CSRF token not found. Please refresh the page and try again.');
+        setSubmitting(false);
+        return;
+      }
+
       const url = editingUser
         ? `${API_BASE}/admin/users/${editingUser.id}`
         : `${API_BASE}/admin/users`;
@@ -207,7 +226,7 @@ export function UserManagement() {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
-          'X-CSRF-TOKEN': csrfToken,
+          'X-XSRF-TOKEN': xsrfToken,
         },
         body: JSON.stringify(body),
       });
@@ -220,6 +239,16 @@ export function UserManagement() {
       // Reload users
       await loadUsers();
       handleCloseModal();
+
+      // If the current user changed their own password, log them out
+      const changedOwnPassword =
+        editingUser &&
+        editingUser.email === currentUserEmail &&
+        !!formData.password;
+
+      if (changedOwnPassword && onLogout) {
+        onLogout();
+      }
     } catch (err: any) {
       setFormError(err.message || 'Failed to save user');
     } finally {

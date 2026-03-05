@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   MessageCircle,
   Send,
@@ -7,74 +7,170 @@ import {
   Plus,
   X,
   Clock,
-  CheckCircle } from
+  CheckCircle,
+  Loader2,
+  AlertCircle } from
 'lucide-react';
+
+const API_BASE = 'http://127.0.0.1:8000/api';
+
 interface Question {
   id: number;
   course: string;
+  department: string | null;
   question: string;
-  askedAt: string;
-  instructorName: string | null;
   answer: string | null;
-  answeredAt: string | null;
+  asked_by: string;
+  asked_by_id: number;
+  answered_by: string | null;
+  answered_by_id: number | null;
+  answered_at: string | null;
+  created_at: string;
 }
-const initialQuestions: Question[] = [
-{
-  id: 1,
-  course: 'Cybersecurity Fundamentals',
-  question: 'Is it true that VPNs make you completely anonymous online?',
-  askedAt: '1 day ago',
-  instructorName: 'Prof. Ana Reyes',
-  answer:
-  "Not exactly. A VPN encrypts your traffic and hides your IP from websites, but the VPN provider can still see your activity. For true anonymity, you'd need additional tools like Tor. VPNs are great for privacy and security on public networks, but they're not a silver bullet for anonymity.",
-  answeredAt: '20 hours ago'
-},
-{
-  id: 2,
-  course: 'Cybersecurity Fundamentals',
-  question: "What's the difference between a virus and a worm?",
-  askedAt: '3 days ago',
-  instructorName: null,
-  answer: null,
-  answeredAt: null
-}];
+
+async function getCsrf() {
+  await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+  return decodeURIComponent(
+    document.cookie.split('; ').find(r => r.startsWith('XSRF-TOKEN='))?.split('=')[1] || ''
+  );
+}
 
 export function QAModule() {
-  const [questions, setQuestions] = useState<Question[]>(initialQuestions);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
-  const handleAsk = (e: React.FormEvent) => {
+  const [askCourse, setAskCourse] = useState('');
+  const [askQuestion, setAskQuestion] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [courses, setCourses] = useState<string[]>([
+    'Cybersecurity Fundamentals',
+    'Leadership Training 101',
+    'Data Privacy Compliance',
+  ]);
+
+  useEffect(() => { loadQuestions(); }, []);
+
+  const loadQuestions = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch(`${API_BASE}/qa/questions`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      if (!res.ok) throw new Error('Failed to load questions');
+      const data: Question[] = await res.json();
+      setQuestions(data);
+      const uniqueCourses = [...new Set(data.map(q => q.course))];
+      if (uniqueCourses.length > 0) setCourses(prev => [...new Set([...prev, ...uniqueCourses])]);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAsk = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsModalOpen(false);
-    alert('Question submitted! Your instructor will respond soon.');
-  };
-  const handleDelete = (id: number) => {
-    if (window.confirm('Delete this question?')) {
-      setQuestions(questions.filter((q) => q.id !== id));
+    if (!askCourse || !askQuestion.trim()) return;
+    setSubmitting(true);
+    try {
+      const xsrf = await getCsrf();
+      const res = await fetch(`${API_BASE}/qa/questions`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrf,
+        },
+        body: JSON.stringify({ course: askCourse, question: askQuestion }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as any).message || 'Failed to submit question');
+      }
+      setAskCourse('');
+      setAskQuestion('');
+      setIsModalOpen(false);
+      await loadQuestions();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
-  const handleEdit = (id: number) => {
-    const q = questions.find((q) => q.id === id);
-    if (q) {
-      setEditingId(id);
-      setEditText(q.question);
+
+  const handleSaveEdit = async (id: number) => {
+    if (!editText.trim()) return;
+    try {
+      const xsrf = await getCsrf();
+      const res = await fetch(`${API_BASE}/qa/questions/${id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrf,
+        },
+        body: JSON.stringify({ question: editText }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as any).message || 'Failed to update question');
+      }
+      setEditingId(null);
+      setEditText('');
+      await loadQuestions();
+    } catch (err: any) {
+      alert(err.message);
     }
   };
-  const handleSaveEdit = (id: number) => {
-    setQuestions(
-      questions.map((q) =>
-      q.id === id ?
-      {
-        ...q,
-        question: editText
-      } :
-      q
-      )
-    );
-    setEditingId(null);
-    setEditText('');
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Delete this question?')) return;
+    try {
+      const xsrf = await getCsrf();
+      const res = await fetch(`${API_BASE}/qa/questions/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrf,
+        },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as any).message || 'Failed to delete question');
+      }
+      await loadQuestions();
+    } catch (err: any) {
+      alert(err.message);
+    }
   };
+  if (loading) return (
+    <div className="flex items-center justify-center p-12">
+      <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+      <span className="ml-2 text-slate-600">Loading questions...</span>
+    </div>
+  );
+
+  if (error) return (
+    <div className="p-6">
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center">
+        <AlertCircle className="h-5 w-5 text-red-500 mr-2 flex-shrink-0" />
+        <span className="text-red-700">{error}</span>
+        <button onClick={loadQuestions} className="ml-auto text-red-600 underline text-sm">Retry</button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -94,7 +190,13 @@ export function QAModule() {
       </div>
 
       <div className="space-y-4">
-        {questions.map((q) =>
+        {questions.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-lg border border-slate-200">
+            <MessageCircle className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+            <p className="text-slate-500">No questions yet. Ask your first question!</p>
+          </div>
+        ) : (
+          questions.map((q) =>
         <div
           key={q.id}
           className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
@@ -105,12 +207,12 @@ export function QAModule() {
                   <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded">
                     {q.course}
                   </span>
-                  <span className="text-xs text-slate-400">{q.askedAt}</span>
+                  <span className="text-xs text-slate-400">{q.created_at}</span>
                 </div>
                 {!q.answer &&
               <div className="flex gap-1">
                     <button
-                  onClick={() => handleEdit(q.id)}
+                  onClick={() => { setEditingId(q.id); setEditText(q.question); }}
                   className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded">
 
                       <Edit2 className="h-3.5 w-3.5" />
@@ -162,13 +264,13 @@ export function QAModule() {
             <div className="mt-4 ml-8 p-4 bg-green-50 rounded-lg border border-green-100">
                   <div className="flex items-center gap-2 mb-2">
                     <div className="h-6 w-6 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-xs">
-                      A
+                      {q.answered_by?.charAt(0) || 'A'}
                     </div>
                     <p className="text-xs font-medium text-slate-700">
-                      {q.instructorName}
+                      {q.answered_by}
                     </p>
                     <span className="text-xs text-slate-400">
-                      • {q.answeredAt}
+                      • {q.answered_at}
                     </span>
                     <CheckCircle className="h-3.5 w-3.5 text-green-500 ml-auto" />
                   </div>
@@ -184,6 +286,7 @@ export function QAModule() {
             }
             </div>
           </div>
+        )
         )}
       </div>
 
@@ -221,10 +324,13 @@ export function QAModule() {
                     <label className="block text-sm font-medium text-slate-700">
                       Course
                     </label>
-                    <select className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
-                      <option>Cybersecurity Fundamentals</option>
-                      <option>Leadership Training 101</option>
-                      <option>Data Privacy Compliance</option>
+                    <select
+                      required
+                      value={askCourse}
+                      onChange={(e) => setAskCourse(e.target.value)}
+                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
+                      <option value="">Select a course</option>
+                      {courses.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div>
@@ -233,6 +339,9 @@ export function QAModule() {
                     </label>
                     <textarea
                     rows={4}
+                    required
+                    value={askQuestion}
+                    onChange={(e) => setAskQuestion(e.target.value)}
                     className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     placeholder="Type your question here..." />
 
@@ -240,9 +349,12 @@ export function QAModule() {
                   <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
                     <button
                     type="submit"
-                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 sm:col-start-2 sm:text-sm">
+                    disabled={submitting}
+                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 sm:col-start-2 sm:text-sm disabled:opacity-50">
 
-                      <Send className="h-4 w-4 mr-2" />
+                      {submitting
+                        ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        : <Send className="h-4 w-4 mr-2" />}
                       Submit Question
                     </button>
                     <button

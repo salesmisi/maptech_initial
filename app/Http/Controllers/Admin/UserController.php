@@ -63,7 +63,6 @@ class UserController extends Controller
         }
 
         $user = User::create([
-            'name' => $validated['fullName'],
             'fullName' => $validated['fullName'],
             'email' => $validated['email'],
             'password' => $validated['password'], // Auto-hashed by model
@@ -115,7 +114,6 @@ class UserController extends Controller
 
         // Update fields
         if (isset($validated['fullName'])) {
-            $user->name = $validated['fullName'];
             $user->fullName = $validated['fullName'];
         }
         if (isset($validated['email'])) {

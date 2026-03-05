@@ -60,6 +60,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
       const data = await response.json();
 
+      // ✅ 4. Refresh CSRF cookie after login (session()->regenerate() creates a new token)
+      await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', {
+        credentials: 'include',
+      });
+
       setEmail('');
       setPassword('');
 

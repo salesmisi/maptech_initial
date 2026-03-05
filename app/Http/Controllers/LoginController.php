@@ -50,7 +50,7 @@ class LoginController extends Controller
 
         return response()->json([
             'id' => $user->id,
-            'name' => $user->fullName ?? $user->name,
+            'name' => $user->fullName,
             'email' => $user->email,
             'role' => $user->role,
             'department' => $user->department,
@@ -96,7 +96,7 @@ class LoginController extends Controller
             'token_type' => 'Bearer',
             'user' => [
                 'id' => $user->id,
-                'name' => $user->fullName ?? $user->name,
+                'name' => $user->fullName,
                 'email' => $user->email,
                 'role' => $user->role,
                 'department' => $user->department,
@@ -136,7 +136,7 @@ class LoginController extends Controller
 
         return response()->json([
             'id' => $user->id,
-            'name' => $user->fullName ?? $user->name,
+            'name' => $user->fullName,
             'email' => $user->email,
             'role' => $user->role,
             'department' => $user->department,
