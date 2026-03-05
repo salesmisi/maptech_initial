@@ -93,7 +93,7 @@ class QuizController extends Controller
             'description'  => $quiz->description,
             'course_id'    => $quiz->course_id,
             'course_title' => $quiz->course->title,
-            'questions'    => $quiz->questions->map(fn($q) => $this->formatQuestion($q)),
+            'questions'    => $quiz->questions->map(fn($question) => $this->formatQuestion($question)),
             'created_at'   => $quiz->created_at,
         ]);
     }

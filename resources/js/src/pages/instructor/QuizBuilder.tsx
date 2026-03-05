@@ -268,7 +268,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
   // Delete question
   const [deletingQuestionId, setDeletingQuestionId] = useState<number | null>(null);
 
-  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null) as React.RefObject<HTMLInputElement>;
 
   // ─── Load ───────────────────────────────────────────────────────────────────
 
