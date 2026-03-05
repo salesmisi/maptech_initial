@@ -118,7 +118,7 @@ const getXsrfToken = async (): Promise<string> => {
   return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
 };
 
-export function CourseManagement() {
+export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, courseId?: string) => void }) {
   const [courses, setCourses] = useState<Course[]>(initialCourses);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -402,7 +402,9 @@ export function CourseManagement() {
                     Instructor: {course.instructor}
                   </p>
                 </div>
-                <button className="text-sm font-medium text-green-600 hover:text-green-700">
+                <button
+                  onClick={() => onNavigate?.('course-detail', String(course.id))}
+                  className="text-sm font-medium text-green-600 hover:text-green-700">
                   Manage Content &rarr;
                 </button>
               </div>
@@ -478,6 +480,18 @@ export function CourseManagement() {
                     <option value="Archived">Archived</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Deadline <span className="text-slate-400 text-xs">(optional)</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  name="deadline"
+                  defaultValue={editingCourse?.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                />
               </div>
 
               <div>

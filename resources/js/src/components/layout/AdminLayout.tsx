@@ -10,7 +10,6 @@ import {
   LogOut,
   Search,
   Menu,
-  Video,
   MessageCircle
 } from 'lucide-react';
 interface AdminLayoutProps {
@@ -48,13 +47,8 @@ export function AdminLayout({
   },
   {
     id: 'courses',
-    label: 'Course Structure',
+    label: 'Courses & Content',
     icon: BookOpen
-  },
-  {
-    id: 'content-upload',
-    label: 'Content Upload',
-    icon: Video
   },
   {
     id: 'qa',
@@ -98,7 +92,7 @@ export function AdminLayout({
             <nav className="mt-5 flex-1 px-2 space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = currentPage === item.id;
+                const isActive = currentPage === item.id || (item.id === 'courses' && currentPage === 'course-detail');
                 return (
                   <button
                     key={item.id}
@@ -117,7 +111,7 @@ export function AdminLayout({
           <div className="flex-shrink-0 flex border-t border-slate-800 p-4">
             <div className="flex-shrink-0 w-full group block">
               <div className="flex items-center">
-                <div className="inline-block h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
+                <div className="h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
                   {user.name.charAt(0)}
                 </div>
                 <div className="ml-3">

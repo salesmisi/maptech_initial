@@ -137,6 +137,7 @@ Route::post('/logout', [LoginController::class, 'logout'])
 
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\CourseController as AdminCourseController;
+use App\Http\Controllers\Admin\QuizController as AdminQuizController;
 
 Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->group(function () {
 
@@ -156,6 +157,26 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::get('/courses/{id}', [AdminCourseController::class, 'show']);
     Route::put('/courses/{id}', [AdminCourseController::class, 'update']);
     Route::delete('/courses/{id}', [AdminCourseController::class, 'destroy']);
+
+    // Course Enrollment Management
+    Route::get('/courses/{id}/enrollments', [AdminCourseController::class, 'enrollments']);
+    Route::post('/courses/{id}/enrollments', [AdminCourseController::class, 'enroll']);
+    Route::delete('/courses/{courseId}/enrollments/{userId}', [AdminCourseController::class, 'unenroll']);
+
+    // Course Module Management
+    Route::post('/courses/{id}/modules', [AdminCourseController::class, 'addModule']);
+    Route::delete('/courses/{courseId}/modules/{moduleId}', [AdminCourseController::class, 'deleteModule']);
+
+    // Quiz Management
+    Route::get('/quizzes', [AdminQuizController::class, 'index']);
+    Route::get('/courses/{courseId}/quizzes', [AdminQuizController::class, 'forCourse']);
+    Route::post('/courses/{courseId}/quizzes', [AdminQuizController::class, 'store']);
+    Route::get('/quizzes/{id}', [AdminQuizController::class, 'show']);
+    Route::put('/quizzes/{id}', [AdminQuizController::class, 'update']);
+    Route::delete('/quizzes/{id}', [AdminQuizController::class, 'destroy']);
+    Route::post('/quizzes/{quizId}/questions', [AdminQuizController::class, 'addQuestion']);
+    Route::put('/quizzes/{quizId}/questions/{questionId}', [AdminQuizController::class, 'updateQuestion']);
+    Route::delete('/quizzes/{quizId}/questions/{questionId}', [AdminQuizController::class, 'deleteQuestion']);
 });
 
 
@@ -166,15 +187,34 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 */
 
 use App\Http\Controllers\Instructor\CourseController as InstructorCourseController;
+use App\Http\Controllers\Instructor\QuizController as InstructorQuizController;
 
 Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instructor'])->group(function () {
 
     // Dashboard
     Route::get('/dashboard', [InstructorCourseController::class, 'dashboard']);
 
-    // Instructor's own courses
+    // Course CRUD
     Route::get('/courses', [InstructorCourseController::class, 'index']);
+    Route::post('/courses', [InstructorCourseController::class, 'store']);
+    Route::get('/courses/{id}', [InstructorCourseController::class, 'show']);
     Route::put('/courses/{id}', [InstructorCourseController::class, 'update']);
+    Route::delete('/courses/{id}', [InstructorCourseController::class, 'destroy']);
+
+    // Module Management
+    Route::post('/courses/{id}/modules', [InstructorCourseController::class, 'addModule']);
+    Route::delete('/courses/{courseId}/modules/{moduleId}', [InstructorCourseController::class, 'deleteModule']);
+
+    // Quiz Management
+    Route::get('/quizzes', [InstructorQuizController::class, 'index']);
+    Route::get('/courses/{courseId}/quizzes', [InstructorQuizController::class, 'forCourse']);
+    Route::post('/courses/{courseId}/quizzes', [InstructorQuizController::class, 'store']);
+    Route::get('/quizzes/{id}', [InstructorQuizController::class, 'show']);
+    Route::put('/quizzes/{id}', [InstructorQuizController::class, 'update']);
+    Route::delete('/quizzes/{id}', [InstructorQuizController::class, 'destroy']);
+    Route::post('/quizzes/{quizId}/questions', [InstructorQuizController::class, 'addQuestion']);
+    Route::put('/quizzes/{quizId}/questions/{questionId}', [InstructorQuizController::class, 'updateQuestion']);
+    Route::delete('/quizzes/{quizId}/questions/{questionId}', [InstructorQuizController::class, 'deleteQuestion']);
 });
 
 
@@ -191,9 +231,15 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
     // Dashboard (auto-filtered by department)
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
-    // Courses (auto-filtered by department)
+    // All active courses in employee's department (with enrollment status)
+    Route::get('/all-courses', [DashboardController::class, 'allCourses']);
+
+    // Only enrolled courses (My Courses)
     Route::get('/courses', [DashboardController::class, 'courses']);
     Route::get('/courses/{id}', [DashboardController::class, 'showCourse']);
+
+    // Self-enroll
+    Route::post('/courses/{id}/enroll', [DashboardController::class, 'enroll']);
 });
 
 /*
@@ -206,11 +252,11 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/modules/{module}/content', function (\App\Models\Module $module) {
         $path = storage_path('app/public/' . $module->content_path);
-        
+
         if (!file_exists($path)) {
             return response()->json(['message' => 'File not found'], 404);
         }
-        
+
         return response()->file($path);
     });
 });

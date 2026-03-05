@@ -54,33 +54,34 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   useEffect(() => {
     const loadDashboard = async () => {
       try {
-        const response = await fetch(`${API_BASE}/employee/dashboard`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Accept': 'application/json',
-          },
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to load dashboard');
-        }
-        
-        const data = await response.json();
-        
-        // Map courses to include thumbnail colors
-        const mappedCourses = data.courses.map((course: any) => ({
+        // Fetch enrolled courses and user info in parallel
+        const [enrolledRes, dashRes] = await Promise.all([
+          fetch(`${API_BASE}/employee/courses`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' },
+          }),
+          fetch(`${API_BASE}/employee/dashboard`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' },
+          }),
+        ]);
+
+        if (!enrolledRes.ok) throw new Error('Failed to load courses');
+        const enrolledData = await enrolledRes.json();
+        const dashData = dashRes.ok ? await dashRes.json() : null;
+
+        const mappedCourses = enrolledData.map((course: any) => ({
           id: course.id,
           title: course.title,
-          progress: course.progress || 0,
-          nextLesson: course.modules?.[0]?.title || 'Start Course',
+          progress: course.my_progress ?? course.progress ?? 0,
+          nextLesson: course.modules?.[0]?.title || 'Start Learning',
           thumbnail: getThumbnailColor(course.department),
         }));
-        
+
         setDashboardData({
-          user: data.user,
+          user: dashData?.user ?? { id: 0, name: 'Employee', email: '', department: '' },
           courses: mappedCourses,
-          total_courses: data.total_courses,
+          total_courses: mappedCourses.length,
         });
       } catch (error) {
         console.error('Error loading dashboard:', error);
@@ -124,7 +125,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             Welcome back, {userName}! 👋
           </h1>
           <p className="text-slate-500 mt-1">
-            You have {totalCourses} course{totalCourses !== 1 ? 's' : ''} available in your department.
+            You are enrolled in {totalCourses} course{totalCourses !== 1 ? 's' : ''}.
           </p>
         </div>
         <div className="hidden sm:block">
@@ -204,9 +205,9 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             {myCourses.length === 0 ? (
               <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-8 text-center">
                 <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
-                <h3 className="mt-2 text-sm font-medium text-slate-900">No courses available</h3>
+                <h3 className="mt-2 text-sm font-medium text-slate-900">No enrolled courses yet</h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  There are no courses assigned to your department yet.
+                  Search for courses using the bar at the top to enroll.
                 </p>
               </div>
             ) : (
@@ -247,7 +248,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                   </div>
                 </div>
                 <div className="flex items-center justify-end sm:justify-center">
-                  <button 
+                  <button
                     onClick={() => onNavigate?.('course-viewer', course.id)}
                     className="px-4 py-2 bg-slate-50 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-100 border border-slate-200">
                     Continue

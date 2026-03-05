@@ -6,6 +6,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * @property int $id
+ * @property string $title
+ * @property string|null $content_path
+ * @property string $course_id
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ */
 class Module extends Model
 {
     use HasFactory;
@@ -43,9 +51,9 @@ class Module extends Model
         if (!$this->content_path) {
             return null;
         }
-        
+
         $extension = strtolower(pathinfo($this->content_path, PATHINFO_EXTENSION));
-        
+
         $types = [
             'pdf' => 'pdf',
             'doc' => 'document',
@@ -56,7 +64,7 @@ class Module extends Model
             'mp3' => 'audio',
             'txt' => 'text',
         ];
-        
+
         return $types[$extension] ?? 'file';
     }
 
