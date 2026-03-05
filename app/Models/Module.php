@@ -44,9 +44,9 @@ class Module extends Model
         if (!$this->content_path) {
             return null;
         }
-        
+
         $extension = strtolower(pathinfo($this->content_path, PATHINFO_EXTENSION));
-        
+
         $types = [
             'pdf' => 'pdf',
             'doc' => 'document',
@@ -57,7 +57,7 @@ class Module extends Model
             'mp3' => 'audio',
             'txt' => 'text',
         ];
-        
+
         return $types[$extension] ?? 'file';
     }
 

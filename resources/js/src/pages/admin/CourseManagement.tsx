@@ -252,7 +252,7 @@ export function CourseManagement() {
         },
         body: formData,
       });
-      
+
       const responseText = await response.text();
 
       if (!response.ok) {
@@ -428,7 +428,7 @@ export function CourseManagement() {
                 <X className="h-6 w-6" />
               </button>
             </div>
-            
+
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Course Title</label>
@@ -440,7 +440,7 @@ export function CourseManagement() {
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
                 <textarea
@@ -450,7 +450,7 @@ export function CourseManagement() {
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
@@ -480,7 +480,7 @@ export function CourseManagement() {
                   </select>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Assign Instructor</label>
                 <select
@@ -516,7 +516,7 @@ export function CourseManagement() {
                     Add Module
                   </button>
                 </div>
-                
+
                 {modules.length === 0 ? (
                   <p className="text-sm text-slate-500 italic">No modules added yet. Click "Add Module" to add course content.</p>
                 ) : (
