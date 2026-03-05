@@ -48,13 +48,8 @@ export function AdminLayout({
   },
   {
     id: 'courses',
-    label: 'Course Structure',
+    label: 'Courses and Content',
     icon: BookOpen
-  },
-  {
-    id: 'content-upload',
-    label: 'Content Upload',
-    icon: Video
   },
   {
     id: 'qa',
@@ -117,7 +112,7 @@ export function AdminLayout({
           <div className="flex-shrink-0 flex border-t border-slate-800 p-4">
             <div className="flex-shrink-0 w-full group block">
               <div className="flex items-center">
-                <div className="inline-block h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
+                <div className="h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
                   {user.name.charAt(0)}
                 </div>
                 <div className="ml-3">

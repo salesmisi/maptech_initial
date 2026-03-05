@@ -30,7 +30,22 @@ interface FormData {
   status: 'Active' | 'Inactive';
 }
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = '/api';
+
+// Helper function to get cookie value
+const getCookie = (name: string) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift();
+};
+
+// Helper function to get headers with XSRF token
+const getHeaders = () => ({
+  'Accept': 'application/json',
+  'Content-Type': 'application/json',
+  'X-Requested-With': 'XMLHttpRequest',
+  'X-XSRF-TOKEN': decodeURIComponent(getCookie('XSRF-TOKEN') || ''),
+});
 
 export function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
@@ -63,10 +78,7 @@ export function UserManagement() {
 
       const response = await fetch(`${API_BASE}/admin/users`, {
         credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
+        headers: getHeaders(),
       });
 
       if (!response.ok) {
@@ -106,10 +118,7 @@ export function UserManagement() {
       const response = await fetch(`${API_BASE}/admin/users/${id}`, {
         method: 'DELETE',
         credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
+        headers: getHeaders(),
       });
 
       if (!response.ok) {
@@ -172,14 +181,6 @@ export function UserManagement() {
       return;
     }
 
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-    console.log('CSRF Token:', csrfToken); // Debugging CSRF token
-    if (!csrfToken) {
-      setFormError('CSRF token not found. Please refresh the page and try again.');
-      setSubmitting(false);
-      return;
-    }
-
     try {
       const url = editingUser
         ? `${API_BASE}/admin/users/${editingUser.id}`
@@ -203,12 +204,7 @@ export function UserManagement() {
       const response = await fetch(url, {
         method,
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-CSRF-TOKEN': csrfToken,
-        },
+        headers: getHeaders(),
         body: JSON.stringify(body),
       });
 

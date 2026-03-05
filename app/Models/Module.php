@@ -17,6 +17,15 @@ class Module extends Model
         'title',
         'content_path',
         'course_id',
+        'order',
+        'pre_assessment',
+    ];
+
+    /**
+     * The attributes that should be cast.
+     */
+    protected $casts = [
+        'pre_assessment' => 'array',
     ];
 
     /**
@@ -70,5 +79,13 @@ class Module extends Model
     public function course()
     {
         return $this->belongsTo(Course::class);
+    }
+
+    /**
+     * Get the lessons for the module.
+     */
+    public function lessons()
+    {
+        return $this->hasMany(Lesson::class)->orderBy('order');
     }
 }

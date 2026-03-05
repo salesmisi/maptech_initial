@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
+use App\Models\Notification;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
@@ -22,7 +23,11 @@ class DashboardController extends Controller
         $courses = Course::forDepartment($department)
             ->active()
             ->with('instructor:id,fullName,email')
-            ->with('modules:id,title,content_path,course_id')
+            ->with(['modules' => function ($q) {
+                $q->orderBy('order');
+            }, 'modules.lessons' => function ($q) {
+                $q->where('status', 'Published')->orderBy('order');
+            }])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -49,7 +54,11 @@ class DashboardController extends Controller
         $courses = Course::forDepartment($department)
             ->active()
             ->with('instructor:id,fullName,email')
-            ->with('modules:id,title,content_path,course_id')
+            ->with(['modules' => function ($q) {
+                $q->orderBy('order');
+            }, 'modules.lessons' => function ($q) {
+                $q->where('status', 'Published')->orderBy('order');
+            }])
             ->orderBy('title')
             ->get();
 
@@ -66,7 +75,11 @@ class DashboardController extends Controller
 
         $course = Course::forDepartment($department)
             ->with('instructor:id,fullName,email')
-            ->with('modules:id,title,content_path,course_id')
+            ->with(['modules' => function ($q) {
+                $q->orderBy('order');
+            }, 'modules.lessons' => function ($q) {
+                $q->where('status', 'Published')->orderBy('order');
+            }])
             ->find($id);
 
         if (!$course) {
@@ -76,5 +89,47 @@ class DashboardController extends Controller
         }
 
         return response()->json($course);
+    }
+
+    /**
+     * Get notifications for the authenticated employee.
+     */
+    public function notifications(Request $request)
+    {
+        $user = $request->user();
+
+        $notifications = Notification::where('user_id', $user->id)
+            ->orderByRaw('read_at IS NOT NULL')  // unread first
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($n) {
+                return [
+                    'id' => $n->id,
+                    'type' => $n->type,
+                    'title' => $n->title,
+                    'message' => $n->message,
+                    'data' => $n->data,
+                    'course_id' => $n->course_id,
+                    'module_id' => $n->module_id,
+                    'read' => $n->read_at !== null,
+                    'created_at' => $n->created_at->toISOString(),
+                ];
+            });
+
+        return response()->json($notifications);
+    }
+
+    /**
+     * Mark a notification as read.
+     */
+    public function markNotificationRead(Request $request, int $id)
+    {
+        $notification = Notification::where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        $notification->update(['read_at' => now()]);
+
+        return response()->json(['message' => 'Notification marked as read.']);
     }
 }

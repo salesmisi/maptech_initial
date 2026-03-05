@@ -100,6 +100,24 @@ class User extends Authenticatable
     }
 
     /**
+     * Get the enrollments for the user.
+     */
+    public function enrollments(): HasMany
+    {
+        return $this->hasMany(CourseEnrollment::class);
+    }
+
+    /**
+     * Get the courses the user is enrolled in.
+     */
+    public function enrolledCourses()
+    {
+        return $this->belongsToMany(Course::class, 'course_enrollments')
+                    ->withPivot(['progress', 'status', 'enrolled_at', 'completed_at'])
+                    ->withTimestamps();
+    }
+
+    /**
      * Get courses available for this employee based on department.
      */
     public function availableCourses()

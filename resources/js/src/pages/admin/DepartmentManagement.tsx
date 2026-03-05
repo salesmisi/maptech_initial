@@ -18,7 +18,7 @@ interface Department {
   id: number;
   name: string;
   code: string;
-  description: string;
+  description: string | null;
   head: string;
   employee_count: number;
   course_count: number;
@@ -27,11 +27,27 @@ interface Department {
 }
 
 export default function DepartmentManagement() {
-  const API = "http://127.0.0.1:8000/api";
+  const API = "/api";
+
+  // Helper function to get cookie value
+  const getCookie = (name: string) => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
+  };
+
+  // Helper function to get headers with XSRF token
+  const getHeaders = () => ({
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
+    'X-XSRF-TOKEN': decodeURIComponent(getCookie('XSRF-TOKEN') || ''),
+  });
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const [showDeptModal, setShowDeptModal] = useState(false);
   const [showSubModal, setShowSubModal] = useState(false);
@@ -56,7 +72,15 @@ export default function DepartmentManagement() {
   const loadDepartments = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API}/departments`);
+      // Ensure CSRF cookie is set
+      await fetch('/sanctum/csrf-cookie', {
+        credentials: 'include',
+      });
+
+      const res = await fetch(`${API}/departments`, {
+        credentials: 'include',
+        headers: getHeaders(),
+      });
       if (!res.ok) throw new Error("Failed to load");
       const data = await res.json();
       setDepartments(data);
@@ -73,53 +97,134 @@ export default function DepartmentManagement() {
 
   // ================= SAVE DEPARTMENT =================
   const handleSaveDepartment = async () => {
+    // Log form state
+    console.log('handleSaveDepartment called');
+    console.log('Form data:', deptForm);
+
+    // Validate required fields
+    if (!deptForm.name || !deptForm.name.trim()) {
+      alert('Department Name is required');
+      return;
+    }
+    if (!deptForm.code || !deptForm.code.trim()) {
+      alert('Department Code is required');
+      return;
+    }
+
     const url = editing
       ? `${API}/departments/${editing.id}`
       : `${API}/departments`;
 
     const method = editing ? "PUT" : "POST";
 
-    await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...deptForm,
-        status: "Active",
-      }),
-    });
+    setSaving(true);
+    console.log('Saving to:', url, 'Method:', method);
 
-    setShowDeptModal(false);
-    setEditing(null);
-    loadDepartments();
+    try {
+      // Ensure CSRF cookie is fresh
+      console.log('Fetching CSRF cookie...');
+      await fetch('/sanctum/csrf-cookie', {
+        credentials: 'include',
+      });
+
+      const xsrfToken = getCookie('XSRF-TOKEN');
+      console.log('XSRF-TOKEN:', xsrfToken ? 'Found' : 'NOT FOUND');
+
+      const requestBody = {
+        name: deptForm.name.trim(),
+        code: deptForm.code.trim(),
+        head: deptForm.head ? deptForm.head.trim() : '',
+        description: deptForm.description ? deptForm.description.trim() : '',
+        status: "Active",
+      };
+      console.log('Request body:', requestBody);
+
+      const res = await fetch(url, {
+        method,
+        credentials: 'include',
+        headers: getHeaders(),
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('Response status:', res.status);
+      const responseText = await res.text();
+      console.log('Response body:', responseText);
+
+      if (!res.ok) {
+        let errData = {};
+        try {
+          errData = JSON.parse(responseText);
+        } catch (e) {
+          throw new Error(`Failed to save: ${res.status} - ${responseText}`);
+        }
+
+        // Show validation errors if any
+        if ((errData as any).errors) {
+          const errorMessages = Object.values((errData as any).errors).flat().join('\n');
+          throw new Error(errorMessages);
+        }
+        throw new Error((errData as any).message || `Failed to save: ${res.status}`);
+      }
+
+      console.log('Save successful!');
+      setShowDeptModal(false);
+      setEditing(null);
+      setDeptForm({ name: "", code: "", head: "", description: "" });
+      await loadDepartments();
+    } catch (err: any) {
+      console.error('Save error:', err);
+      alert(err.message || "An error occurred");
+    } finally {
+      setSaving(false);
+    }
   };
 
   // ================= ADD/EDIT SUB =================
   const handleSaveSub = async () => {
-    if (editingSub) {
-      // Edit existing subdepartment
-      await fetch(`${API}/subdepartments/${editingSub.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: subName }),
-      });
-    } else {
-      // Add new subdepartment
-      if (!selectedDeptId) return;
-
-      await fetch(
-        `${API}/departments/${selectedDeptId}/subdepartments`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: subName }),
-        }
-      );
+    if (!subName.trim()) {
+      alert("Please enter a subdepartment name");
+      return;
     }
 
-    setSubName("");
-    setEditingSub(null);
-    setShowSubModal(false);
-    loadDepartments();
+    try {
+      if (editingSub) {
+        // Edit existing subdepartment
+        const res = await fetch(`${API}/subdepartments/${editingSub.id}`, {
+          method: "PUT",
+          credentials: 'include',
+          headers: getHeaders(),
+          body: JSON.stringify({ name: subName.trim() }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || `Failed to update: ${res.status}`);
+        }
+      } else {
+        // Add new subdepartment
+        if (!selectedDeptId) return;
+
+        const res = await fetch(
+          `${API}/departments/${selectedDeptId}/subdepartments`,
+          {
+            method: "POST",
+            credentials: 'include',
+            headers: getHeaders(),
+            body: JSON.stringify({ name: subName.trim() }),
+          }
+        );
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || `Failed to add: ${res.status}`);
+        }
+      }
+
+      setSubName("");
+      setEditingSub(null);
+      setShowSubModal(false);
+      loadDepartments();
+    } catch (err: any) {
+      alert(err.message || "An error occurred");
+    }
   };
 
   // ================= DELETE SUB =================
@@ -128,6 +233,8 @@ export default function DepartmentManagement() {
 
     await fetch(`${API}/subdepartments/${selectedSubId}`, {
       method: "DELETE",
+      credentials: 'include',
+      headers: getHeaders(),
     });
 
     setShowDeleteSubModal(false);
@@ -141,6 +248,8 @@ export default function DepartmentManagement() {
 
     await fetch(`${API}/departments/${selectedDeptId}`, {
       method: "DELETE",
+      credentials: 'include',
+      headers: getHeaders(),
     });
 
     setShowDeleteModal(false);
@@ -236,6 +345,8 @@ export default function DepartmentManagement() {
                 <button
                   onClick={() => {
                     setSelectedDeptId(dept.id);
+                    setSubName("");
+                    setEditingSub(null);
                     setShowSubModal(true);
                   }}
                   className="text-green-600 text-xs"
@@ -247,10 +358,10 @@ export default function DepartmentManagement() {
                   onClick={() => {
                     setEditing(dept);
                     setDeptForm({
-                      name: dept.name,
-                      code: dept.code,
-                      head: dept.head,
-                      description: dept.description,
+                      name: dept.name || "",
+                      code: dept.code || "",
+                      head: dept.head || "",
+                      description: dept.description || "",
                     });
                     setShowDeptModal(true);
                   }}
@@ -302,9 +413,10 @@ export default function DepartmentManagement() {
 
           <button
             onClick={handleSaveDepartment}
-            className="w-full mt-4 bg-green-600 text-white py-2 rounded-md"
+            disabled={saving}
+            className="w-full mt-4 bg-green-600 text-white py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-700"
           >
-            Save
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </Modal>
       )}

@@ -12,7 +12,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Add Sanctum stateful middleware for API routes (session-based SPA auth)
+        // Enable Sanctum stateful authentication for API routes
         $middleware->statefulApi();
 
         // Register middleware aliases

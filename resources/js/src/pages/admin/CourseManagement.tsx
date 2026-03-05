@@ -103,7 +103,7 @@ const initialCourses: Course[] = [
   modules: [],
 }];
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = '/api';
 
 export function CourseManagement() {
   const [courses, setCourses] = useState<Course[]>(initialCourses);
@@ -113,6 +113,15 @@ export function CourseManagement() {
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [modules, setModules] = useState<ModuleInput[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [departments, setDepartments] = useState<{id: number; name: string}[]>([]);
+
+  // Load departments from API
+  useEffect(() => {
+    fetch('/api/departments')
+      .then(res => res.json())
+      .then(data => setDepartments(Array.isArray(data) ? data : []))
+      .catch(err => console.error('Failed to load departments:', err));
+  }, []);
 
   // Debug: Monitor modules state changes
   useEffect(() => {
@@ -288,7 +297,7 @@ export function CourseManagement() {
 
       console.log('Response status:', response.status);
       console.log('Response URL:', response.url);
-      
+
       const responseText = await response.text();
       console.log('Response body:', responseText.substring(0, 500));
 
@@ -453,7 +462,7 @@ export function CourseManagement() {
                 <X className="h-6 w-6" />
               </button>
             </div>
-            
+
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Course Title</label>
@@ -465,7 +474,7 @@ export function CourseManagement() {
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
                 <textarea
@@ -475,21 +484,20 @@ export function CourseManagement() {
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
                   <select
                     name="department"
-                    defaultValue={editingCourse?.department || 'IT'}
+                    defaultValue={editingCourse?.department || ''}
                     required
                     className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
-                    <option value="IT">IT</option>
-                    <option value="HR">HR</option>
-                    <option value="Operations">Operations</option>
-                    <option value="Finance">Finance</option>
-                    <option value="Marketing">Marketing</option>
+                    <option value="" disabled>Select Department</option>
+                    {departments.map(dept => (
+                      <option key={dept.id} value={dept.name}>{dept.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -505,7 +513,7 @@ export function CourseManagement() {
                   </select>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Assign Instructor</label>
                 <select
@@ -539,7 +547,7 @@ export function CourseManagement() {
                     Add Module
                   </button>
                 </div>
-                
+
                 {modules.length === 0 ? (
                   <p className="text-sm text-slate-500 italic">No modules added yet. Click "Add Module" to add course content.</p>
                 ) : (

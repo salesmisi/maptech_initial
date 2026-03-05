@@ -8,7 +8,7 @@ import {
   BookOpen } from
 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = '/api';
 
 interface Course {
   id: string;
@@ -42,13 +42,13 @@ export function MyCourses({ onNavigate }: MyCoursesProps) {
             'Accept': 'application/json',
           },
         });
-        
+
         if (!response.ok) {
           throw new Error('Failed to load courses');
         }
-        
+
         const data = await response.json();
-        
+
         // Map API response to Course interface
         const mappedCourses = data.map((course: any) => ({
           id: course.id,
@@ -60,7 +60,7 @@ export function MyCourses({ onNavigate }: MyCoursesProps) {
           status: course.progress === 100 ? 'Completed' : course.progress > 0 ? 'In Progress' : 'Not Started',
           thumbnail: getThumbnailColor(course.department),
         }));
-        
+
         setCourses(mappedCourses);
       } catch (error) {
         console.error('Error loading courses:', error);
@@ -135,8 +135,8 @@ export function MyCourses({ onNavigate }: MyCoursesProps) {
           <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
           <h3 className="mt-2 text-sm font-medium text-slate-900">No courses available</h3>
           <p className="mt-1 text-sm text-slate-500">
-            {courses.length === 0 
-              ? "There are no courses assigned to your department yet." 
+            {courses.length === 0
+              ? "There are no courses assigned to your department yet."
               : "No courses match your search criteria."}
           </p>
         </div>

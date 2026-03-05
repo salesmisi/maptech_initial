@@ -15,7 +15,19 @@ import {
   Loader } from
 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = '/api';
+
+interface LessonData {
+  id: number;
+  title: string;
+  type: string;
+  content_path: string | null;
+  content_url: string | null;
+  text_content: string | null;
+  duration: string | null;
+  file_size: string | null;
+  status: string;
+}
 
 interface ModuleData {
   id: number;
@@ -24,6 +36,8 @@ interface ModuleData {
   content_url: string;
   file_type: string;
   isOpen?: boolean;
+  pre_assessment?: any;
+  lessons?: LessonData[];
 }
 
 interface CourseData {
