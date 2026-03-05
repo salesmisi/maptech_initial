@@ -21,6 +21,11 @@ interface Course {
   thumbnail: string;
 }
 
+interface Department {
+  id: number;
+  name: string;
+}
+
 interface MyCoursesProps {
   onNavigate: (page: string, courseId?: string) => void;
 }
@@ -30,12 +35,38 @@ export function MyCourses({ onNavigate }: MyCoursesProps) {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('All');
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState('');
 
-  // Fetch courses from API on mount
+  // Load departments on mount
+  useEffect(() => {
+    const loadDepartments = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/departments`, {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDepartments(data);
+        }
+      } catch (err) {
+        console.error('Error loading departments:', err);
+      }
+    };
+    loadDepartments();
+  }, []);
+
+  // Fetch courses from API when selectedDepartment changes
   useEffect(() => {
     const loadCourses = async () => {
+      setLoading(true);
       try {
-        const response = await fetch(`${API_BASE}/employee/courses`, {
+        const url = selectedDepartment
+          ? `${API_BASE}/employee/courses?department=${encodeURIComponent(selectedDepartment)}`
+          : `${API_BASE}/employee/courses`;
+
+        const response = await fetch(url, {
           method: 'GET',
           credentials: 'include',
           headers: {
@@ -70,7 +101,7 @@ export function MyCourses({ onNavigate }: MyCoursesProps) {
     };
 
     loadCourses();
-  }, []);
+  }, [selectedDepartment]);
 
   // Helper function to get thumbnail color based on department
   const getThumbnailColor = (department: string) => {
@@ -97,6 +128,18 @@ export function MyCourses({ onNavigate }: MyCoursesProps) {
         <h1 className="text-2xl font-bold text-slate-900">My Courses</h1>
 
         <div className="flex gap-4 w-full sm:w-auto">
+          <div className="relative w-48">
+            <select
+              className="block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm rounded-md"
+              value={selectedDepartment}
+              onChange={(e) => setSelectedDepartment(e.target.value)}>
+              <option value="">My Department</option>
+              {departments.map((dept) => (
+                <option key={dept.id} value={dept.name}>{dept.name}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="relative flex-1 sm:w-64">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-5 w-5 text-slate-400" />

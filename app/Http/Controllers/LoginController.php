@@ -48,6 +48,7 @@ class LoginController extends Controller
             'role' => $user->role,
             'department' => $user->department,
             'status' => $user->status,
+            'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
         ]);
     }
 
@@ -134,6 +135,7 @@ class LoginController extends Controller
             'role' => $user->role,
             'department' => $user->department,
             'status' => $user->status,
+            'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
         ]);
     }
 

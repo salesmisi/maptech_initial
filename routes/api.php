@@ -252,5 +252,80 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/modules/{moduleId}/lessons', [ContentController::class, 'storeLesson']);
     Route::post('/lessons/{lessonId}', [ContentController::class, 'updateLesson']);
     Route::delete('/lessons/{lessonId}', [ContentController::class, 'destroyLesson']);
+
+    // ── Profile Settings ──
+    Route::get('/profile', function (Request $request) {
+        $user = $request->user();
+        return response()->json([
+            'id' => $user->id,
+            'fullName' => $user->fullName,
+            'email' => $user->email,
+            'role' => $user->role,
+            'department' => $user->department,
+            'status' => $user->status,
+            'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
+        ]);
+    });
+
+    Route::post('/profile', function (Request $request) {
+        $user = $request->user();
+
+        $rules = [
+            'fullName' => 'sometimes|string|max:255',
+        ];
+
+        // Only admins can change email and password
+        if ($user->isAdmin()) {
+            $rules['email'] = 'sometimes|email|max:255|unique:users,email,' . $user->id;
+            $rules['password'] = 'sometimes|string|min:8|confirmed';
+        }
+
+        $validated = $request->validate($rules);
+
+        // Strip email and password if a non-admin somehow submitted them
+        if (!$user->isAdmin()) {
+            unset($validated['email']);
+            unset($validated['password']);
+        }
+
+        if (isset($validated['password'])) {
+            $validated['password'] = bcrypt($validated['password']);
+        }
+
+        $user->update($validated);
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
+            'user' => [
+                'id' => $user->id,
+                'fullName' => $user->fullName,
+                'email' => $user->email,
+                'role' => $user->role,
+                'department' => $user->department,
+                'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
+            ],
+        ]);
+    });
+
+    Route::post('/profile/picture', function (Request $request) {
+        $request->validate([
+            'profile_picture' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+
+        $user = $request->user();
+
+        // Delete old picture if exists
+        if ($user->profile_picture && \Illuminate\Support\Facades\Storage::disk('public')->exists($user->profile_picture)) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($user->profile_picture);
+        }
+
+        $path = $request->file('profile_picture')->store('profile-pictures', 'public');
+        $user->update(['profile_picture' => $path]);
+
+        return response()->json([
+            'message' => 'Profile picture updated successfully.',
+            'profile_picture' => asset('storage/' . $path),
+        ]);
+    });
 });
 

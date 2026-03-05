@@ -44,12 +44,13 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get employee's available courses filtered by their department.
+     * Get employee's available courses filtered by department.
+     * Accepts optional ?department= query parameter to browse other departments.
      */
     public function courses(Request $request)
     {
         $user = $request->user();
-        $department = $user->department;
+        $department = $request->query('department', $user->department);
 
         $courses = Course::forDepartment($department)
             ->active()

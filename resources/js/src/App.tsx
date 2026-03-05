@@ -30,11 +30,15 @@ import { MyCertificates } from './pages/employee/MyCertificates';
 import { QAModule } from './pages/employee/QAModule';
 import { MyFeedback } from './pages/employee/MyFeedback';
 
+// Shared Pages
+import { ProfileSettings } from './pages/shared/ProfileSettings';
+
 interface User {
   role: 'admin' | 'instructor' | 'employee';
   name: string;
   email: string;
   department?: string;
+  profile_picture?: string | null;
 }
 
 export function App() {
@@ -59,12 +63,20 @@ export function App() {
 
         if (response.ok) {
           const data = await response.json();
+          const role = data.role?.toLowerCase();
           setUser({
-            role: data.role?.toLowerCase(),
+            role,
             name: data.name,
             email: data.email,
             department: data.department,
+            profile_picture: data.profile_picture,
           });
+
+          // Restore saved page for this role
+          const savedPage = localStorage.getItem(`maptech_page_${role}`);
+          const savedCourseId = localStorage.getItem(`maptech_courseId_${role}`);
+          if (savedPage) setCurrentPage(savedPage);
+          if (savedCourseId) setSelectedCourseId(savedCourseId);
         }
       } catch (error) {
         console.error('Auth check failed:', error);
@@ -83,10 +95,13 @@ export function App() {
     role: 'admin' | 'instructor' | 'employee',
     name: string,
     email: string,
-    department?: string
+    department?: string,
+    profile_picture?: string | null
   ) => {
-    setUser({ role, name, email, department });
+    setUser({ role, name, email, department, profile_picture });
     setCurrentPage('dashboard');
+    localStorage.setItem(`maptech_page_${role}`, 'dashboard');
+    localStorage.removeItem(`maptech_courseId_${role}`);
   };
 
   // ✅ Function to get cookie value
@@ -127,8 +142,14 @@ export function App() {
 
   const handleNavigate = (page: string, courseId?: string) => {
     setCurrentPage(page);
+    if (user) {
+      localStorage.setItem(`maptech_page_${user.role}`, page);
+    }
     if (courseId) {
       setSelectedCourseId(courseId);
+      if (user) {
+        localStorage.setItem(`maptech_courseId_${user.role}`, courseId);
+      }
     }
   };
 
@@ -169,6 +190,7 @@ export function App() {
         {currentPage === 'reports' && <ReportsAnalytics />}
         {currentPage === 'notifications' && <NotificationManagement />}
         {currentPage === 'qa' && <AdminQADiscussion />}
+        {currentPage === 'settings' && <ProfileSettings />}
       </AdminLayout>
     );
   }
@@ -189,6 +211,7 @@ export function App() {
         {currentPage === 'quizzes' && <QuizAssessmentManagement />}
         {currentPage === 'evaluation' && <QuizEvaluation />}
         {currentPage === 'qa-discussion' && <InstructorQADiscussion />}
+        {currentPage === 'settings' && <ProfileSettings />}
       </InstructorLayout>
     );
   }
@@ -218,6 +241,7 @@ export function App() {
         {currentPage === 'certificates' && <MyCertificates />}
         {currentPage === 'qa' && <QAModule />}
         {currentPage === 'feedback' && <MyFeedback />}
+        {currentPage === 'settings' && <ProfileSettings />}
       </EmployeeLayout>
     );
   }

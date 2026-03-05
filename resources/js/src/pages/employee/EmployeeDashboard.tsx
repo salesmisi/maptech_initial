@@ -84,11 +84,13 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const markAsRead = async (id: number) => {
     try {
       await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      const v = `; ${document.cookie}`;
+      const parts = v.split('; XSRF-TOKEN=');
+      const xsrf = parts.length === 2 ? decodeURIComponent(parts.pop()?.split(';').shift() || '') : '';
       await fetch(`${API_BASE}/employee/notifications/${id}/read`, {
         method: 'PUT',
         credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+        headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': xsrf },
       });
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     } catch (err) {

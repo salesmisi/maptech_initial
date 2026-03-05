@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -11,7 +11,8 @@ import {
   Search,
   Menu,
   Video,
-  MessageCircle
+  MessageCircle,
+  Settings
 } from 'lucide-react';
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -21,6 +22,7 @@ interface AdminLayoutProps {
   user: {
     name: string;
     email: string;
+    profile_picture?: string | null;
   };
 }
 export function AdminLayout({
@@ -30,6 +32,7 @@ export function AdminLayout({
   onLogout,
   user
 }: AdminLayoutProps) {
+  const [showPicPreview, setShowPicPreview] = useState(false);
   const navItems = [
   {
     id: 'dashboard',
@@ -70,6 +73,11 @@ export function AdminLayout({
     id: 'notifications',
     label: 'Notifications',
     icon: Bell
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    icon: Settings
   }];
 
   return (
@@ -112,9 +120,18 @@ export function AdminLayout({
           <div className="flex-shrink-0 flex border-t border-slate-800 p-4">
             <div className="flex-shrink-0 w-full group block">
               <div className="flex items-center">
-                <div className="h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
-                  {user.name.charAt(0)}
-                </div>
+                {user.profile_picture ? (
+                  <img
+                    src={user.profile_picture}
+                    alt={user.name}
+                    className="h-9 w-9 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-green-400 transition"
+                    onClick={() => setShowPicPreview(true)}
+                  />
+                ) : (
+                  <div className="h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
+                    {user.name.charAt(0)}
+                  </div>
+                )}
                 <div className="ml-3">
                   <p className="text-sm font-medium text-white">{user.name}</p>
                   <p className="text-xs font-medium text-slate-400">
@@ -177,6 +194,25 @@ export function AdminLayout({
           {children}
         </main>
       </div>
+
+      {/* Profile Picture Preview Modal */}
+      {showPicPreview && user.profile_picture && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setShowPicPreview(false)}>
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={user.profile_picture}
+              alt={user.name}
+              className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl object-contain"
+            />
+            <button
+              onClick={() => setShowPicPreview(false)}
+              className="absolute -top-3 -right-3 h-8 w-8 rounded-full bg-white text-slate-700 flex items-center justify-center shadow-md hover:bg-slate-100 text-lg font-bold"
+            >
+              &times;
+            </button>
+          </div>
+        </div>
+      )}
     </div>);
 
 }
