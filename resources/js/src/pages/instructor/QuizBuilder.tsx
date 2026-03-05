@@ -52,6 +52,7 @@ interface QuizData {
   id: number;
   title: string;
   description: string | null;
+  pass_percentage: number;
   course_id: string;
   course_title: string;
   questions: QuizQuestion[];
@@ -250,6 +251,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
   const [editingMeta, setEditingMeta] = useState(false);
   const [metaTitle, setMetaTitle] = useState('');
   const [metaDesc, setMetaDesc] = useState('');
+  const [metaPassPct, setMetaPassPct] = useState(70);
   const [savingMeta, setSavingMeta] = useState(false);
 
   // Add question form
@@ -284,6 +286,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
       setQuiz(data);
       setMetaTitle(data.title);
       setMetaDesc(data.description || '');
+      setMetaPassPct(data.pass_percentage || 70);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -308,7 +311,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
           'Content-Type': 'application/json',
           'X-XSRF-TOKEN': token,
         },
-        body: JSON.stringify({ title: metaTitle.trim(), description: metaDesc.trim() || null }),
+        body: JSON.stringify({ title: metaTitle.trim(), description: metaDesc.trim() || null, pass_percentage: metaPassPct }),
       });
       if (!res.ok) throw new Error('Failed to update quiz.');
       await loadQuiz();
@@ -506,6 +509,17 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
               placeholder="Description (optional)"
               className="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-green-500 focus:border-green-500 resize-none"
             />
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-medium text-slate-600 whitespace-nowrap">Pass Percentage (%)</label>
+              <input
+                type="number"
+                min={1} max={100}
+                value={metaPassPct}
+                onChange={(e) => setMetaPassPct(Number(e.target.value))}
+                className="w-20 border border-slate-300 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-green-500"
+              />
+              <span className="text-xs text-slate-500">employees must reach this score to unlock the next lesson</span>
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={handleSaveMeta}
@@ -516,7 +530,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
                 {savingMeta ? 'Saving...' : 'Save'}
               </button>
               <button
-                onClick={() => { setEditingMeta(false); setMetaTitle(quiz.title); setMetaDesc(quiz.description || ''); }}
+                onClick={() => { setEditingMeta(false); setMetaTitle(quiz.title); setMetaDesc(quiz.description || ''); setMetaPassPct(quiz.pass_percentage || 70); }}
                 className="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50"
               >Cancel</button>
             </div>
@@ -530,7 +544,13 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
               <div>
                 <h1 className="text-xl font-bold text-slate-900">{quiz.title}</h1>
                 {quiz.description && <p className="text-sm text-slate-500 mt-0.5">{quiz.description}</p>}
-                <p className="text-xs text-slate-400 mt-1">Course: {quiz.course_title} · {quiz.questions.length} question{quiz.questions.length !== 1 ? 's' : ''}</p>
+                <div className="flex flex-wrap gap-3 mt-1 text-xs text-slate-400">
+                  <span>Course: {quiz.course_title}</span>
+                  <span>·</span>
+                  <span>{quiz.questions.length} question{quiz.questions.length !== 1 ? 's' : ''}</span>
+                  <span>·</span>
+                  <span className="text-amber-600 font-medium">Pass: {quiz.pass_percentage ?? 80}%</span>
+                </div>
               </div>
             </div>
             <button

@@ -167,10 +167,16 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::post('/courses/{id}/modules', [AdminCourseController::class, 'addModule']);
     Route::delete('/courses/{courseId}/modules/{moduleId}', [AdminCourseController::class, 'deleteModule']);
 
+    // Lesson Management
+    Route::post('/modules/{moduleId}/lessons', [AdminCourseController::class, 'addLesson']);
+    Route::delete('/modules/{moduleId}/lessons/{lessonId}', [AdminCourseController::class, 'deleteLesson']);
+
     // Quiz Management
     Route::get('/quizzes', [AdminQuizController::class, 'index']);
     Route::get('/courses/{courseId}/quizzes', [AdminQuizController::class, 'forCourse']);
     Route::post('/courses/{courseId}/quizzes', [AdminQuizController::class, 'store']);
+    Route::get('/modules/{moduleId}/quizzes', [AdminQuizController::class, 'forModule']);
+    Route::post('/modules/{moduleId}/quizzes', [AdminQuizController::class, 'storeForModule']);
     Route::get('/quizzes/{id}', [AdminQuizController::class, 'show']);
     Route::put('/quizzes/{id}', [AdminQuizController::class, 'update']);
     Route::delete('/quizzes/{id}', [AdminQuizController::class, 'destroy']);
@@ -205,10 +211,16 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::post('/courses/{id}/modules', [InstructorCourseController::class, 'addModule']);
     Route::delete('/courses/{courseId}/modules/{moduleId}', [InstructorCourseController::class, 'deleteModule']);
 
+    // Lesson Management
+    Route::post('/modules/{moduleId}/lessons', [InstructorCourseController::class, 'addLesson']);
+    Route::delete('/modules/{moduleId}/lessons/{lessonId}', [InstructorCourseController::class, 'deleteLesson']);
+
     // Quiz Management
     Route::get('/quizzes', [InstructorQuizController::class, 'index']);
     Route::get('/courses/{courseId}/quizzes', [InstructorQuizController::class, 'forCourse']);
     Route::post('/courses/{courseId}/quizzes', [InstructorQuizController::class, 'store']);
+    Route::get('/modules/{moduleId}/quizzes', [InstructorQuizController::class, 'forModule']);
+    Route::post('/modules/{moduleId}/quizzes', [InstructorQuizController::class, 'storeForModule']);
     Route::get('/quizzes/{id}', [InstructorQuizController::class, 'show']);
     Route::put('/quizzes/{id}', [InstructorQuizController::class, 'update']);
     Route::delete('/quizzes/{id}', [InstructorQuizController::class, 'destroy']);
@@ -225,6 +237,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
 */
 
 use App\Http\Controllers\Employee\DashboardController;
+use App\Http\Controllers\Employee\QuizController as EmployeeQuizController;
 
 Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee', 'department'])->group(function () {
 
@@ -240,6 +253,11 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
 
     // Self-enroll
     Route::post('/courses/{id}/enroll', [DashboardController::class, 'enroll']);
+
+    // Quiz taking
+    Route::get('/quizzes/{quizId}', [EmployeeQuizController::class, 'show']);
+    Route::post('/quizzes/{quizId}/submit', [EmployeeQuizController::class, 'submit']);
+    Route::get('/quizzes/{quizId}/attempts', [EmployeeQuizController::class, 'myAttempts']);
 });
 
 /*

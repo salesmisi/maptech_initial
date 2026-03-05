@@ -25,6 +25,7 @@ class Module extends Model
         'title',
         'content_path',
         'course_id',
+        'order',
     ];
 
     /**
@@ -74,5 +75,21 @@ class Module extends Model
     public function course()
     {
         return $this->belongsTo(Course::class);
+    }
+
+    /**
+     * Get the lessons belonging to this module.
+     */
+    public function lessons()
+    {
+        return $this->hasMany(Lesson::class)->orderBy('order');
+    }
+
+    /**
+     * Get the quiz attached to this module (one module → at most one quiz).
+     */
+    public function quiz()
+    {
+        return $this->hasOne(Quiz::class);
     }
 }

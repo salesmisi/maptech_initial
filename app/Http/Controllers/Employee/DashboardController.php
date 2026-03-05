@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Employee;
 use App\Http\Controllers\Controller;
 use App\Models\Course;
 use App\Models\Enrollment;
+use App\Models\Quiz;
+use App\Models\QuizAttempt;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -154,20 +156,123 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get a specific course (only if in employee's department).
+     * Get a specific course with module quiz/unlock status for the employee.
      */
     public function showCourse(Request $request, string $id)
     {
         $user = $request->user();
 
         $course = Course::active()
-            ->with('instructor:id,fullname,email', 'modules:id,title,content_path,course_id')
+            ->with([
+                'instructor:id,fullname,email',
+                'modules' => fn($q) => $q->with('lessons')->orderBy('order')->orderBy('id'),
+            ])
             ->find($id);
 
         if (!$course) {
             return response()->json(['message' => 'Course not found or not accessible.'], 404);
         }
 
-        return response()->json($course);
+        // Load quizzes for every module in this course (keyed by module_id)
+        $moduleIds      = $course->modules->pluck('id');
+        $quizByModule   = Quiz::whereIn('module_id', $moduleIds)
+            ->withCount('questions')
+            ->get()
+            ->keyBy('module_id');
+
+        // Load all quiz_ids
+        $quizIds = $quizByModule->pluck('id');
+
+        // Find which quizzes this employee has already passed
+        $passedQuizIds = QuizAttempt::where('user_id', $user->id)
+            ->whereIn('quiz_id', $quizIds)
+            ->where('passed', true)
+            ->pluck('quiz_id')
+            ->flip(); // flip to use as a set for O(1) lookup
+
+        // Best attempt per quiz (for the UI to show last score)
+        $bestAttempts = QuizAttempt::where('user_id', $user->id)
+            ->whereIn('quiz_id', $quizIds)
+            ->orderByDesc('percentage')
+            ->get()
+            ->unique('quiz_id')
+            ->keyBy('quiz_id');
+
+        // Build module list with unlock logic:
+        //   Module 1 is always unlocked.
+        //   Module N is unlocked if module N-1 has no quiz OR if the employee passed module N-1's quiz.
+        $previousUnlocked = true; // tracks whether the previous stage is cleared
+
+        $modules = $course->modules->map(function ($mod) use (
+            &$previousUnlocked,
+            $quizByModule,
+            $passedQuizIds,
+            $bestAttempts
+        ) {
+            $isUnlocked = $previousUnlocked;
+
+            $quiz = $quizByModule->get($mod->id);
+
+            if ($quiz) {
+                $hasPassed       = isset($passedQuizIds[$quiz->id]);
+                $previousUnlocked = $hasPassed; // next module requires passing this quiz
+                $best             = $bestAttempts->get($quiz->id);
+
+                $quizData = [
+                    'id'              => $quiz->id,
+                    'title'           => $quiz->title,
+                    'description'     => $quiz->description,
+                    'pass_percentage' => $quiz->pass_percentage,
+                    'question_count'  => $quiz->questions_count,
+                    'has_passed'      => $hasPassed,
+                    'best_attempt'    => $best ? [
+                        'score'           => $best->score,
+                        'total_questions' => $best->total_questions,
+                        'percentage'      => (float) $best->percentage,
+                        'passed'          => $best->passed,
+                        'created_at'      => $best->created_at,
+                    ] : null,
+                ];
+            } else {
+                // No quiz on this module — it doesn't block the next module
+                // previousUnlocked stays as-is (carries the last blocking state forward)
+                $quizData = null;
+            }
+
+            return [
+                'id'          => $mod->id,
+                'title'       => $mod->title,
+                'content_path'=> $mod->content_path,
+                'content_url' => $mod->content_url,
+                'file_type'   => $mod->file_type,
+                'order'       => $mod->order,
+                'created_at'  => $mod->created_at,
+                'lessons'     => $mod->lessons->map(fn($l) => [
+                    'id'           => $l->id,
+                    'title'        => $l->title,
+                    'content_path' => $l->content_path,
+                    'content_url'  => $l->content_url,
+                    'file_type'    => $l->file_type,
+                    'order'        => $l->order,
+                ]),
+                'quiz'        => $quizData,
+                'is_unlocked' => $isUnlocked,
+            ];
+        });
+
+        return response()->json([
+            'id'          => $course->id,
+            'title'       => $course->title,
+            'description' => $course->description,
+            'department'  => $course->department,
+            'status'      => $course->status,
+            'deadline'    => $course->deadline?->toISOString(),
+            'instructor'  => $course->instructor ? [
+                'id'       => $course->instructor->id,
+                'fullName' => $course->instructor->fullname,
+                'email'    => $course->instructor->email,
+            ] : null,
+            'modules'     => $modules->values(),
+        ]);
     }
 }

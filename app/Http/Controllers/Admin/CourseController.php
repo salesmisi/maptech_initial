@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
+use App\Models\Module;
 use App\Models\User;
 use App\Models\Enrollment;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Exception;
 
 class CourseController extends Controller
@@ -135,7 +137,7 @@ class CourseController extends Controller
     {
         $course = Course::with([
             'instructor:id,fullname,email',
-            'modules',
+            'modules.lessons',
             'enrolledUsers:id,fullname,email,department,role,status',
         ])->findOrFail($id);
 
@@ -310,7 +312,12 @@ class CourseController extends Controller
 
         $course = Course::findOrFail($id);
 
-        $data = ['title' => $request->input('title')];
+        $nextOrder = $course->modules()->max('order') + 1;
+
+        $data = [
+            'title' => $request->input('title'),
+            'order' => $nextOrder,
+        ];
 
         if ($request->hasFile('content')) {
             $data['content_path'] = $request->file('content')->store('course-content', 'public');
@@ -334,5 +341,50 @@ class CourseController extends Controller
         $module->delete();
 
         return response()->json(['message' => 'Module deleted successfully']);
+    }
+
+    /**
+     * Add a lesson to a module.
+     */
+    public function addLesson(Request $request, int $moduleId)
+    {
+        $module = Module::findOrFail($moduleId);
+
+        $request->validate([
+            'title'   => 'required|string|max:255',
+            'content' => 'nullable|file|max:102400',
+        ]);
+
+        $nextOrder = $module->lessons()->max('order') + 1;
+
+        $data = [
+            'title' => $request->input('title'),
+            'order' => $nextOrder,
+        ];
+
+        if ($request->hasFile('content')) {
+            $data['content_path'] = $request->file('content')->store('course-content', 'public');
+        }
+
+        $lesson = $module->lessons()->create($data);
+
+        return response()->json(['message' => 'Lesson added', 'lesson' => $lesson], 201);
+    }
+
+    /**
+     * Delete a lesson from a module.
+     */
+    public function deleteLesson(int $moduleId, int $lessonId)
+    {
+        $module = Module::findOrFail($moduleId);
+        $lesson = $module->lessons()->findOrFail($lessonId);
+
+        if ($lesson->content_path) {
+            Storage::disk('public')->delete($lesson->content_path);
+        }
+
+        $lesson->delete();
+
+        return response()->json(['message' => 'Lesson deleted']);
     }
 }
