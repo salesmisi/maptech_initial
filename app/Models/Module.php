@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
 
 class Module extends Model
 {
@@ -32,7 +31,9 @@ class Module extends Model
         if (!$this->content_path) {
             return null;
         }
-        return url('/storage/' . $this->content_path);
+
+        // Always serve module files through the authenticated API endpoint.
+        return url('/api/modules/' . $this->id . '/content');
     }
 
     /**

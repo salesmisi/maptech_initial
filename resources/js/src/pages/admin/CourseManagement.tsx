@@ -11,7 +11,8 @@ import {
   FileText,
   X,
   Upload,
-  Trash } from
+  Trash,
+  Loader2 } from
 'lucide-react';
 
 // Module interface for form handling
@@ -21,14 +22,20 @@ interface ModuleInput {
   file: File | null;
 }
 
+interface InstructorOption {
+  id: number;
+  fullName: string;
+}
+
 // Ensure the Course interface is exported
 export interface Course {
-  id: number;
+  id: string;
   title: string;
   description: string;
   department: string;
   instructor: string;
-  status: 'Active' | 'Draft' | 'Archived';
+  instructorId?: number | null;
+  status: 'Active' | 'Draft' | 'Inactive';
   enrolledCount: number;
   modulesCount: number;
   thumbnail: string;
@@ -39,92 +46,32 @@ export interface Course {
   }>;
 }
 
-const initialCourses: Course[] = [
-{
-  id: 1,
-  title: 'Cybersecurity Fundamentals',
-  description:
-  'Learn the basics of digital security, phishing prevention, and password hygiene.',
-  department: 'IT',
-  instructor: 'Prof. Ana Reyes',
-  status: 'Active',
-  enrolledCount: 145,
-  modulesCount: 8,
-  thumbnail: 'bg-blue-500',
-  modules: [],
-},
-{
-  id: 2,
-  title: 'Leadership Training 101',
-  description: 'Essential skills for new managers and team leaders.',
-  department: 'HR',
-  instructor: 'Andres Bonifacio',
-  status: 'Active',
-  enrolledCount: 32,
-  modulesCount: 12,
-  thumbnail: 'bg-purple-500',
-  modules: [],
-},
-{
-  id: 3,
-  title: 'Data Privacy Compliance',
-  description: 'Understanding GDPR and local data privacy laws.',
-  department: 'Operations',
-  instructor: 'Prof. Ana Reyes',
-  status: 'Draft',
-  enrolledCount: 0,
-  modulesCount: 5,
-  thumbnail: 'bg-green-500',
-  modules: [],
-},
-{
-  id: 4,
-  title: 'Customer Service Excellence',
-  description:
-  'Techniques for handling difficult customers and ensuring satisfaction.',
-  department: 'Marketing',
-  instructor: 'Andres Bonifacio',
-  status: 'Active',
-  enrolledCount: 89,
-  modulesCount: 6,
-  thumbnail: 'bg-orange-500',
-  modules: [],
-},
-{
-  id: 5,
-  title: 'Workplace Safety',
-  description: 'OSHA guidelines and emergency procedures.',
-  department: 'Operations',
-  instructor: 'Prof. Ana Reyes',
-  status: 'Archived',
-  enrolledCount: 210,
-  modulesCount: 4,
-  thumbnail: 'bg-red-500',
-  modules: [],
-}];
+const THUMBNAIL_COLORS = ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-red-500', 'bg-indigo-500', 'bg-teal-500'];
+
+async function getCsrf() {
+  await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+  return decodeURIComponent(
+    document.cookie.split('; ').find(r => r.startsWith('XSRF-TOKEN='))?.split('=')[1] || ''
+  );
+}
 
 const API_BASE = 'http://127.0.0.1:8000/api';
 
 export function CourseManagement() {
-  const [courses, setCourses] = useState<Course[]>(initialCourses);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [modules, setModules] = useState<ModuleInput[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Debug: Monitor modules state changes
-  useEffect(() => {
-    console.log('Modules state updated:', modules.map(m => ({ id: m.id, title: m.title, hasFile: !!m.file, fileName: m.file?.name })));
-  }, [modules]);
+  const [instructors, setInstructors] = useState<InstructorOption[]>([]);
 
   // Module management functions
   const addModule = () => {
-    console.log('addModule clicked, current modules:', modules.length);
     const newModule = { id: Date.now(), title: '', file: null };
     setModules(prev => [...prev, newModule]);
-    console.log('New module added:', newModule);
   };
 
   const removeModule = (id: number) => {
@@ -136,28 +83,51 @@ export function CourseManagement() {
   };
 
   const updateModuleFile = (id: number, file: File | null) => {
-    console.log('updateModuleFile called:', id, file?.name, file?.size);
     setModules(prev => {
-      const updated = prev.map(m => {
+      return prev.map(m => {
         if (m.id === id) {
-          console.log(`Module ${id} file updated to:`, file?.name);
           return { ...m, file };
         }
         return m;
       });
-      console.log('Updated modules:', updated.map(m => ({ id: m.id, hasFile: !!m.file })));
-      return updated;
     });
+  };
+
+  const loadInstructors = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/admin/users?role=Instructor&status=Active`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load instructors');
+      }
+
+      const data = await response.json();
+      setInstructors((data || []).map((user: any) => ({
+        id: user.id,
+        fullName: user.fullName,
+      })));
+    } catch (error) {
+      console.error('Error loading instructors:', error);
+    }
   };
 
   // Load courses from API on mount
   const loadCourses = async () => {
     try {
+      setIsLoading(true);
       const response = await fetch(`${API_BASE}/admin/courses`, {
         method: 'GET',
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
         },
       });
       if (!response.ok) {
@@ -165,26 +135,30 @@ export function CourseManagement() {
       }
       const data = await response.json();
       // Map API response to Course interface
-      const mappedCourses = data.map((course: any) => ({
+      const mappedCourses = data.map((course: any, idx: number) => ({
         id: course.id,
         title: course.title,
         description: course.description || '',
         department: course.department,
         instructor: course.instructor?.fullName || 'Unassigned',
+        instructorId: course.instructor_id ?? null,
         status: course.status,
         enrolledCount: course.enrolled_count || 0,
         modulesCount: course.modules?.length || 0,
-        thumbnail: 'bg-green-500',
+        thumbnail: THUMBNAIL_COLORS[idx % THUMBNAIL_COLORS.length],
         modules: course.modules || [],
       }));
       setCourses(mappedCourses);
     } catch (error) {
       console.error('Error loading courses:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
     loadCourses();
+    loadInstructors();
   }, []);
 
   // Filter Logic
@@ -197,9 +171,26 @@ export function CourseManagement() {
     return matchesSearch && matchesStatus;
   });
   // Delete Handler
-  const handleDelete = (id: number) => {
-    if (window.confirm('Are you sure you want to delete this course?')) {
-      setCourses(courses.filter((c) => c.id !== id));
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this course?')) return;
+    try {
+      const xsrf = await getCsrf();
+      const response = await fetch(`${API_BASE}/admin/courses/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrf,
+        },
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error((data as any).message || 'Failed to delete course');
+      }
+      await loadCourses();
+    } catch (err: any) {
+      alert(err.message);
     }
   };
   // Modal Handlers
@@ -231,38 +222,16 @@ export function CourseManagement() {
     const form = e.currentTarget;
     const formData = new FormData(form);
 
-    // Debug: Log and alert modules being submitted
-    console.log('Submitting modules (state):', modules);
-    const moduleInfo = modules.map(m => `${m.title} (file: ${m.file?.name || 'NONE'})`).join('\n');
-    alert(`Submitting with ${modules.length} modules:\n${moduleInfo}`);
-
     // Add modules with file uploads to the form data
     modules.forEach((module, index) => {
-      console.log(`Adding module ${index}:`, module.title, module.file?.name);
       formData.append(`modules[${index}][title]`, module.title);
       if (module.file) {
         formData.append(`modules[${index}][content]`, module.file);
       }
     });
 
-    // Debug: Log all form data entries (be aware File objects won't fully stringify)
-    console.log('FormData entries:');
-    for (const pair of formData.entries()) {
-      const [key, value] = pair as [string, any];
-      if (value instanceof File) {
-        console.log(`  ${key}: File -> name=${value.name}, size=${value.size}, type=${value.type}`);
-      } else {
-        console.log(`  ${key}:`, value);
-      }
-    }
-
     try {
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-      if (!csrfToken) {
-        alert('CSRF token not found. Please refresh the page and try again.');
-        setIsSubmitting(false);
-        return;
-      }
+      const csrfToken = await getCsrf();
 
       const url = editingCourse
         ? `${API_BASE}/admin/courses/${editingCourse.id}`
@@ -273,24 +242,18 @@ export function CourseManagement() {
         formData.append('_method', 'PUT');
       }
 
-      console.log('Sending request to:', url);
-      console.log('CSRF Token:', csrfToken?.substring(0, 20) + '...');
-
       const response = await fetch(url, {
         method: 'POST', // Always use POST for FormData with files
         credentials: 'include',
         headers: {
-          'X-CSRF-TOKEN': csrfToken,
+          'X-XSRF-TOKEN': csrfToken,
           'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
         },
         body: formData,
       });
-
-      console.log('Response status:', response.status);
-      console.log('Response URL:', response.url);
       
       const responseText = await response.text();
-      console.log('Response body:', responseText.substring(0, 500));
 
       if (!response.ok) {
         let errorData;
@@ -361,13 +324,24 @@ export function CourseManagement() {
               <option value="All">All Status</option>
               <option value="Active">Active</option>
               <option value="Draft">Draft</option>
-              <option value="Archived">Archived</option>
+              <option value="Inactive">Inactive</option>
             </select>
           </div>
         </div>
       </div>
 
       {/* Course Grid */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+          <span className="ml-2 text-slate-600">Loading courses...</span>
+        </div>
+      ) : filteredCourses.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-lg border border-slate-200">
+          <BookOpen className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+          <p className="text-slate-500">{searchTerm || statusFilter !== 'All' ? 'No courses match your filters.' : 'No courses yet. Click "Create Course" to add one!'}</p>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCourses.map((course) =>
         <div
@@ -436,6 +410,7 @@ export function CourseManagement() {
           </div>
         )}
       </div>
+      )}
 
       {/* Add/Edit Modal - Using Portal to render at body level */}
       {isModalOpen && createPortal(
@@ -501,7 +476,7 @@ export function CourseManagement() {
                   >
                     <option value="Active">Active</option>
                     <option value="Draft">Draft</option>
-                    <option value="Archived">Archived</option>
+                    <option value="Inactive">Inactive</option>
                   </select>
                 </div>
               </div>
@@ -510,12 +485,15 @@ export function CourseManagement() {
                 <label className="block text-sm font-medium text-slate-700 mb-1">Assign Instructor</label>
                 <select
                   name="instructor_id"
-                  defaultValue={editingCourse?.instructor}
+                  defaultValue={editingCourse?.instructorId ?? ''}
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">Select Instructor</option>
-                  <option value="1">Prof. Ana Reyes</option>
-                  <option value="2">Andres Bonifacio</option>
+                  {instructors.map((instructor) => (
+                    <option key={instructor.id} value={instructor.id}>
+                      {instructor.fullName}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -530,7 +508,6 @@ export function CourseManagement() {
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      console.log('Add Module button clicked!');
                       addModule();
                     }}
                     className="inline-flex items-center px-3 py-1.5 border border-green-300 rounded-md text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 cursor-pointer z-10"
@@ -560,8 +537,6 @@ export function CourseManagement() {
                               accept="video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
                               onChange={(e) => {
                                 const file = e.target.files?.[0] || null;
-                                console.log('File selected:', file?.name, file?.type, file?.size);
-                                alert(`File selected: ${file?.name || 'NONE'} (${file?.size || 0} bytes)`);
                                 updateModuleFile(module.id, file);
                               }}
                               className="w-full text-sm text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-medium file:bg-green-50 file:text-green-700"
