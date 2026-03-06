@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ArrowLeft,
   BookOpen,
@@ -15,7 +15,12 @@ import {
   Lock,
   ChevronDown,
   ChevronUp,
+  Pencil,
+  Save,
+  X,
+  GripVertical,
 } from 'lucide-react';
+import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
 
 const API_BASE = 'http://127.0.0.1:8000/api';
 
@@ -33,6 +38,7 @@ const getXsrfToken = async (): Promise<string> => {
 interface Lesson {
   id: number;
   title: string;
+  text_content: string | null;
   content_path: string | null;
   content_url: string | null;
   file_type: string | null;
@@ -42,6 +48,7 @@ interface Lesson {
 interface Module {
   id: number;
   title: string;
+  description: string | null;
   content_path: string | null;
   content_url: string | null;
   file_type: string | null;
@@ -182,6 +189,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
   // Module upload state
   const [addingModule, setAddingModule] = useState(false);
   const [moduleTitle, setModuleTitle] = useState('');
+  const [moduleDescription, setModuleDescription] = useState('');
   const [uploading, setUploading] = useState(false);
   const [moduleError, setModuleError] = useState<string | null>(null);
   const [moduleSuccess, setModuleSuccess] = useState<string | null>(null);
@@ -190,6 +198,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
   // Lesson state
   const [addingLessonForModule, setAddingLessonForModule] = useState<number | null>(null);
   const [lessonTitle, setLessonTitle] = useState('');
+  const [lessonTextContent, setLessonTextContent] = useState('');
   const [lessonFile, setLessonFile] = useState<File | null>(null);
   const [uploadingLesson, setUploadingLesson] = useState(false);
   const [lessonError, setLessonError] = useState<string | null>(null);
@@ -201,6 +210,23 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
   const [addingQuizForModule, setAddingQuizForModule] = useState<number | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
   const [deletingQuizId, setDeletingQuizId] = useState<number | null>(null);
+
+  // Edit module state
+  const [editingModuleId, setEditingModuleId] = useState<number | null>(null);
+  const [editModuleTitle, setEditModuleTitle] = useState('');
+  const [savingModule, setSavingModule] = useState(false);
+
+  // Edit lesson state
+  const [editingLessonId, setEditingLessonId] = useState<number | null>(null);
+  const [editLessonTitle, setEditLessonTitle] = useState('');
+  const [editLessonTextContent, setEditLessonTextContent] = useState('');
+  const [editLessonFile, setEditLessonFile] = useState<File | null>(null);
+  const [savingLesson, setSavingLesson] = useState(false);
+  const editLessonFileRef = useRef<HTMLInputElement>(null);
+
+  // Drag state
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const loadCourse = async () => {
     try {
@@ -257,6 +283,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
       const token = await getXsrfToken();
       const formData = new FormData();
       formData.append('title', moduleTitle.trim());
+      if (moduleDescription.trim()) formData.append('description', moduleDescription.trim());
 
       const res = await fetch(`${API_BASE}/instructor/courses/${courseId}/modules`, {
         method: 'POST',
@@ -269,6 +296,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
 
       setModuleSuccess('Module added successfully!');
       setModuleTitle('');
+      setModuleDescription('');
       setAddingModule(false);
       await loadCourse();
       setTimeout(() => setModuleSuccess(null), 3000);
@@ -309,6 +337,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
       const token = await getXsrfToken();
       const fd = new FormData();
       fd.append('title', lessonTitle.trim());
+      if (lessonTextContent.trim()) fd.append('text_content', lessonTextContent.trim());
       if (lessonFile) fd.append('content', lessonFile);
 
       const res = await fetch(`${API_BASE}/instructor/modules/${moduleId}/lessons`, {
@@ -322,6 +351,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
         throw new Error(err.message || 'Failed to add lesson.');
       }
       setLessonTitle('');
+      setLessonTextContent('');
       setLessonFile(null);
       if (lessonFileRef.current) lessonFileRef.current.value = '';
       setAddingLessonForModule(null);
@@ -346,6 +376,97 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
       await loadCourse();
     } catch (e: any) {
       alert(e.message);
+    }
+  };
+
+  // ─── EDIT MODULE ──────────────────────────────────────────────────────────
+  const startEditModule = (mod: Module) => {
+    setEditingModuleId(mod.id);
+    setEditModuleTitle(mod.title);
+  };
+
+  const cancelEditModule = () => { setEditingModuleId(null); setEditModuleTitle(''); };
+
+  const handleSaveModule = async (moduleId: number) => {
+    if (!editModuleTitle.trim()) return;
+    setSavingModule(true);
+    try {
+      const token = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/instructor/courses/${courseId}/modules/${moduleId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token },
+        body: JSON.stringify({ title: editModuleTitle.trim() }),
+      });
+      if (!res.ok) throw new Error('Failed to update module.');
+      setEditingModuleId(null);
+      await loadCourse();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setSavingModule(false);
+    }
+  };
+
+  // ─── EDIT LESSON ──────────────────────────────────────────────────────────
+  const startEditLesson = (lesson: Lesson) => {
+    setEditingLessonId(lesson.id);
+    setEditLessonTitle(lesson.title);
+    setEditLessonTextContent(lesson.text_content || '');
+    setEditLessonFile(null);
+  };
+
+  const cancelEditLesson = () => { setEditingLessonId(null); setEditLessonTitle(''); setEditLessonTextContent(''); setEditLessonFile(null); };
+
+  const handleSaveLesson = async (moduleId: number, lessonId: number) => {
+    if (!editLessonTitle.trim()) return;
+    setSavingLesson(true);
+    try {
+      const token = await getXsrfToken();
+      const fd = new FormData();
+      fd.append('title', editLessonTitle.trim());
+      fd.append('text_content', editLessonTextContent);
+      if (editLessonFile) fd.append('content', editLessonFile);
+
+      const res = await fetch(`${API_BASE}/instructor/modules/${moduleId}/lessons/${lessonId}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+        body: fd,
+      });
+      if (!res.ok) throw new Error('Failed to update lesson.');
+      setEditingLessonId(null);
+      await loadCourse();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setSavingLesson(false);
+    }
+  };
+
+  // ─── DRAG & DROP MODULE REORDER ───────────────────────────────────────────
+  const handleDragStart = (idx: number) => { setDragIdx(idx); };
+  const handleDragOver = (e: React.DragEvent, idx: number) => { e.preventDefault(); setDragOverIdx(idx); };
+  const handleDragEnd = () => { setDragIdx(null); setDragOverIdx(null); };
+
+  const handleDrop = async (targetIdx: number) => {
+    if (dragIdx === null || dragIdx === targetIdx || !course) { handleDragEnd(); return; }
+    const modules = [...course.modules];
+    const [moved] = modules.splice(dragIdx, 1);
+    modules.splice(targetIdx, 0, moved);
+    setCourse({ ...course, modules });
+    handleDragEnd();
+
+    try {
+      const token = await getXsrfToken();
+      await fetch(`${API_BASE}/instructor/courses/${courseId}/modules/reorder`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token },
+        body: JSON.stringify({ order: modules.map(m => m.id) }),
+      });
+    } catch {
+      await loadCourse();
     }
   };
 
@@ -460,6 +581,13 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
                 onChange={(e) => setModuleTitle(e.target.value)}
                 className="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-green-500 focus:border-green-500"
               />
+              <textarea
+                rows={6}
+                placeholder="Lesson content — e.g. Introduction, What to learn, Where to start, What to know..."
+                value={moduleDescription}
+                onChange={(e) => setModuleDescription(e.target.value)}
+                className="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-green-500 focus:border-green-500 resize-y"
+              />
               {moduleError && (
                 <p className="text-xs text-red-600 flex items-center gap-1">
                   <AlertCircle className="h-3 w-3" />{moduleError}
@@ -475,7 +603,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
                   {uploading ? 'Saving...' : 'Save Module'}
                 </button>
                 <button
-                  onClick={() => { setAddingModule(false); setModuleTitle(''); setModuleError(null); }}
+                  onClick={() => { setAddingModule(false); setModuleTitle(''); setModuleDescription(''); setModuleError(null); }}
                   className="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50"
                 >
                   Cancel
@@ -501,26 +629,60 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
             course.modules.map((mod, idx) => {
               const quiz = quizByModule[mod.id];
               const isExpanded = expandedModules.has(mod.id);
+              const isEditingMod = editingModuleId === mod.id;
               return (
-                <div key={mod.id}>
+                <div
+                  key={mod.id}
+                  draggable
+                  onDragStart={() => handleDragStart(idx)}
+                  onDragOver={e => handleDragOver(e, idx)}
+                  onDragEnd={handleDragEnd}
+                  onDrop={() => handleDrop(idx)}
+                  className={`transition-all ${dragOverIdx === idx ? 'border-t-2 border-green-400' : ''} ${dragIdx === idx ? 'opacity-50' : ''}`}
+                >
                   {/* Module header */}
                   <div
-                    className="px-6 py-4 flex items-center gap-4 hover:bg-slate-50 cursor-pointer"
+                    className="px-6 py-4 flex items-center gap-3 hover:bg-slate-50 cursor-pointer"
                     onClick={() => setExpandedModules(prev => {
                       const next = new Set(prev);
                       next.has(mod.id) ? next.delete(mod.id) : next.add(mod.id);
                       return next;
                     })}
                   >
+                    <div className="flex-shrink-0 cursor-grab text-slate-300 hover:text-slate-500" onMouseDown={e => e.stopPropagation()}>
+                      <GripVertical className="h-4 w-4" />
+                    </div>
                     <span className="flex-shrink-0 h-7 w-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold">
                       {idx + 1}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-900 truncate">{mod.title}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {mod.lessons?.length || 0} lesson{(mod.lessons?.length || 0) !== 1 ? 's' : ''}
-                        {quiz ? ` · Quiz: ${quiz.pass_percentage}% to pass` : ''}
-                      </p>
+                      {isEditingMod ? (
+                        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                          <input
+                            type="text"
+                            value={editModuleTitle}
+                            onChange={e => setEditModuleTitle(e.target.value)}
+                            className="flex-1 border border-green-300 rounded-md py-1 px-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            autoFocus
+                            onKeyDown={e => { if (e.key === 'Enter') handleSaveModule(mod.id); if (e.key === 'Escape') cancelEditModule(); }}
+                          />
+                          <button onClick={() => handleSaveModule(mod.id)} disabled={savingModule}
+                            className="p-1 text-green-600 hover:text-green-800 hover:bg-green-50 rounded">
+                            {savingModule ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                          </button>
+                          <button onClick={cancelEditModule} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-sm font-medium text-slate-900 truncate">{mod.title}</p>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {mod.lessons?.length || 0} lesson{(mod.lessons?.length || 0) !== 1 ? 's' : ''}
+                            {quiz ? ` · Quiz: ${quiz.pass_percentage}% to pass` : ''}
+                          </p>
+                        </>
+                      )}
                     </div>
 
                     {quizzesLoading ? (
@@ -533,6 +695,16 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
                     ) : null}
 
                     {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400 flex-shrink-0" /> : <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />}
+
+                    {!isEditingMod && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startEditModule(mod); }}
+                        className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded flex-shrink-0"
+                        title="Edit module"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
 
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDeleteModule(mod.id); }}
@@ -554,29 +726,94 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
                         {(mod.lessons?.length || 0) === 0 ? (
                           <p className="text-xs text-slate-400 italic">No lessons yet. Add one below.</p>
                         ) : (
-                          <div className="space-y-1.5">
-                            {mod.lessons.map((lesson, li) => (
-                              <div key={lesson.id} className="flex items-center gap-3 py-1.5 px-3 rounded-md bg-slate-50 hover:bg-slate-100">
-                                <span className="text-xs text-slate-400 font-medium w-5">{li + 1}.</span>
-                                {fileTypeIcon(lesson.file_type)}
-                                <span className="flex-1 text-sm text-slate-700 truncate">{lesson.title}</span>
-                                {lesson.content_url ? (
-                                  <a href={lesson.content_url} target="_blank" rel="noreferrer"
-                                    className="text-xs text-green-600 hover:underline flex-shrink-0">
-                                    View file
-                                  </a>
-                                ) : (
-                                  <span className="text-xs text-slate-400 italic flex-shrink-0">No file</span>
-                                )}
-                                <button
-                                  onClick={() => handleDeleteLesson(mod.id, lesson.id)}
-                                  className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded flex-shrink-0"
-                                  title="Delete lesson"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            ))}
+                          <div className="space-y-2">
+                            {mod.lessons.map((lesson, li) => {
+                              const isEditingThisLesson = editingLessonId === lesson.id;
+                              return (
+                                <div key={lesson.id} className="rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
+                                  {isEditingThisLesson ? (
+                                    /* ── EDIT LESSON FORM ── */
+                                    <div className="p-3 space-y-2 bg-amber-50 border-amber-200">
+                                      <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Edit Lesson</p>
+                                      <input
+                                        type="text" value={editLessonTitle}
+                                        onChange={e => setEditLessonTitle(e.target.value)}
+                                        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                        placeholder="Lesson title"
+                                      />
+                                      <RichTextEditor
+                                        value={editLessonTextContent}
+                                        onChange={setEditLessonTextContent}
+                                        placeholder="Lesson content..."
+                                        minHeight="120px"
+                                      />
+                                      <div className="flex items-center gap-2">
+                                        <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 rounded-md cursor-pointer hover:bg-white text-xs text-slate-600">
+                                          <Upload className="h-3.5 w-3.5" />
+                                          {editLessonFile ? editLessonFile.name : 'Replace file (optional)'}
+                                          <input ref={editLessonFileRef} type="file" accept="video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
+                                            className="sr-only" onChange={e => setEditLessonFile(e.target.files?.[0] || null)} />
+                                        </label>
+                                        {editLessonFile && (
+                                          <button onClick={() => { setEditLessonFile(null); if (editLessonFileRef.current) editLessonFileRef.current.value = ''; }}
+                                            className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                                        )}
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <button onClick={() => handleSaveLesson(mod.id, lesson.id)} disabled={savingLesson}
+                                          className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-md disabled:opacity-50 flex items-center gap-1">
+                                          {savingLesson ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                                          {savingLesson ? 'Saving...' : 'Save Changes'}
+                                        </button>
+                                        <button onClick={cancelEditLesson}
+                                          className="px-3 py-1.5 border border-slate-300 text-slate-600 text-xs font-medium rounded-md hover:bg-white">
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    /* ── DISPLAY LESSON ── */
+                                    <>
+                                      <div className="flex items-center gap-3 py-2 px-3 hover:bg-slate-100">
+                                        <span className="text-xs text-slate-400 font-medium w-5">{li + 1}.</span>
+                                        {fileTypeIcon(lesson.file_type)}
+                                        <span className="flex-1 text-sm font-medium text-slate-700 truncate">{lesson.title}</span>
+                                        {lesson.content_url && (
+                                          <a href={lesson.content_url} target="_blank" rel="noreferrer"
+                                            className="text-xs text-green-600 hover:underline flex-shrink-0">View file</a>
+                                        )}
+                                        <button onClick={() => startEditLesson(lesson)}
+                                          className="p-1 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded flex-shrink-0" title="Edit lesson">
+                                          <Pencil className="h-3.5 w-3.5" />
+                                        </button>
+                                        <button onClick={() => handleDeleteLesson(mod.id, lesson.id)}
+                                          className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded flex-shrink-0" title="Delete lesson">
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
+                                      {lesson.text_content && (
+                                        <div className="px-4 pb-3 pt-1 border-t border-slate-200">
+                                          <div className={RICH_CONTENT_STYLES}
+                                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(lesson.text_content) }} />
+                                        </div>
+                                      )}
+                                      {lesson.content_url && lesson.file_type === 'video' && (
+                                        <div className="px-4 pb-3 pt-1 border-t border-slate-200">
+                                          <video controls className="w-full max-h-80 rounded-md bg-black">
+                                            <source src={lesson.content_url} />
+                                          </video>
+                                        </div>
+                                      )}
+                                      {lesson.content_url && lesson.file_type === 'pdf' && (
+                                        <div className="px-4 pb-3 pt-1 border-t border-slate-200">
+                                          <iframe src={lesson.content_url} className="w-full h-96 rounded-md border border-slate-300" title={lesson.title} />
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
 
@@ -592,10 +829,16 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
                               onChange={e => setLessonTitle(e.target.value)}
                               className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                             />
+                            <RichTextEditor
+                              value={lessonTextContent}
+                              onChange={setLessonTextContent}
+                              placeholder="Type the lesson content here — use the toolbar for bold, headings, lists..."
+                              minHeight="120px"
+                            />
                             <div className="flex items-center gap-2">
                               <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 rounded-md cursor-pointer hover:bg-white text-xs text-slate-600">
                                 <Upload className="h-3.5 w-3.5" />
-                                {lessonFile ? lessonFile.name : 'Upload file (optional)'}
+                                {lessonFile ? lessonFile.name : 'Upload document or video (optional)'}
                                 <input
                                   ref={lessonFileRef}
                                   type="file"
@@ -604,6 +847,14 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
                                   onChange={e => setLessonFile(e.target.files?.[0] || null)}
                                 />
                               </label>
+                              {lessonFile && (
+                                <button
+                                  onClick={() => { setLessonFile(null); if (lessonFileRef.current) lessonFileRef.current.value = ''; }}
+                                  className="text-xs text-red-500 hover:text-red-700"
+                                >
+                                  Remove
+                                </button>
+                              )}
                             </div>
                             <div className="flex gap-2">
                               <button
@@ -615,7 +866,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
                                 {uploadingLesson ? 'Saving...' : 'Save Lesson'}
                               </button>
                               <button
-                                onClick={() => { setAddingLessonForModule(null); setLessonTitle(''); setLessonFile(null); setLessonError(null); }}
+                                onClick={() => { setAddingLessonForModule(null); setLessonTitle(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
                                 className="px-3 py-1.5 border border-slate-300 text-slate-600 text-xs font-medium rounded-md hover:bg-white"
                               >
                                 Cancel
@@ -624,7 +875,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
                           </div>
                         ) : (
                           <button
-                            onClick={() => { setAddingLessonForModule(mod.id); setLessonTitle(''); setLessonFile(null); setLessonError(null); }}
+                            onClick={() => { setAddingLessonForModule(mod.id); setLessonTitle(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
                             className="mt-2 flex items-center gap-1 text-xs text-green-600 hover:text-green-800 font-medium"
                           >
                             <Plus className="h-3.5 w-3.5" /> Add Lesson

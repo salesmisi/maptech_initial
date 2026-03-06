@@ -16,8 +16,20 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import { sanitizeHtml } from '../../components/RichTextEditor';
 
 const API_BASE = 'http://127.0.0.1:8000/api';
+
+const getCookie = (name: string) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift();
+};
+
+const getXsrfToken = async (): Promise<string> => {
+  await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+  return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
+};
 
 interface QuizAttemptSummary {
   score: number;
@@ -37,6 +49,7 @@ interface QuizData {
 interface LessonData {
   id: number;
   title: string;
+  text_content: string | null;
   content_path: string | null;
   content_url: string | null;
   file_type: string | null;
@@ -107,6 +120,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [quizSubmitting, setQuizSubmitting] = useState(false);
+  const [showResultRevealed, setShowResultRevealed] = useState(false);
 
   const loadCourse = async () => {
     try {
@@ -148,6 +162,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     setQuizState(null);
     setQuizAnswers({});
     setQuizResult(null);
+    setShowResultRevealed(false);
     setShowQuiz(false);
   }, [currentModule?.id]);
 
@@ -197,17 +212,21 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     if (!currentModule?.quiz) return;
     setQuizSubmitting(true);
     try {
+      const xsrf = await getXsrfToken();
       const res = await fetch(`${API_BASE}/employee/quizzes/${currentModule.quiz.id}/submit`, {
         method: 'POST',
         credentials: 'include',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': xsrf },
         body: JSON.stringify({ answers: quizAnswers }),
       });
-      if (!res.ok) throw new Error('Failed to submit quiz.');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'Failed to submit quiz.');
+      }
       const data = await res.json();
       setQuizResult({
         score: data.score,
-        total: data.total_questions,
+        total: data.total_questions ?? data.total,
         percentage: data.percentage,
         passed: data.passed,
         pass_percentage: currentModule.quiz.pass_percentage,
@@ -249,74 +268,126 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
       );
     }
 
-    if (!currentLesson.content_url) {
+    const hasText = !!currentLesson.text_content;
+    const hasFile = !!currentLesson.content_url;
+
+    if (!hasText && !hasFile) {
       return (
         <div className="text-center text-slate-500 py-12 bg-slate-50 rounded-xl border border-slate-200">
           <FileText className="h-16 w-16 mx-auto mb-4 text-slate-300" />
           <h3 className="text-lg font-medium text-slate-700 mb-2">{currentLesson.title}</h3>
-          <p className="text-sm">No file attached to this lesson.</p>
+          <p className="text-sm">No content available for this lesson.</p>
+        </div>
+      );
+    }
+
+    // Text-only lesson (no file attached)
+    if (hasText && !hasFile) {
+      return (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="px-6 py-5">
+            <div
+              className="prose prose-base max-w-none text-slate-700 leading-relaxed
+                [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2
+                [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1.5
+                [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-2.5 [&_h3]:mb-1
+                [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2
+                [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2
+                [&_li]:my-1 [&_p]:my-2"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentLesson.text_content!) }}
+            />
+          </div>
         </div>
       );
     }
 
     const { file_type, content_url, title } = currentLesson;
 
+    const textBlock = hasText ? (
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-4">
+        <div className="px-6 py-5">
+          <div
+            className="prose prose-base max-w-none text-slate-700 leading-relaxed
+              [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2
+              [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1.5
+              [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-2.5 [&_h3]:mb-1
+              [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2
+              [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2
+              [&_li]:my-1 [&_p]:my-2"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentLesson.text_content!) }}
+          />
+        </div>
+      </div>
+    ) : null;
+
     if (file_type === 'video') {
       return (
-        <div className="aspect-video bg-slate-900 rounded-xl overflow-hidden">
-          <video controls className="w-full h-full" src={content_url}>
-            Your browser does not support the video tag.
-          </video>
+        <div className="space-y-4">
+          {textBlock}
+          <div className="aspect-video bg-slate-900 rounded-xl overflow-hidden">
+            <video controls className="w-full h-full" src={content_url}>
+              Your browser does not support the video tag.
+            </video>
+          </div>
         </div>
       );
     }
 
     if (file_type === 'audio') {
       return (
-        <div className="bg-slate-100 rounded-xl p-8 flex flex-col items-center justify-center">
-          <Music className="h-20 w-20 text-slate-400 mb-4" />
-          <h3 className="text-lg font-medium text-slate-700 mb-4">{title}</h3>
-          <audio controls className="w-full max-w-md">
-            <source src={content_url} />
-            Your browser does not support the audio element.
-          </audio>
+        <div className="space-y-4">
+          {textBlock}
+          <div className="bg-slate-100 rounded-xl p-8 flex flex-col items-center justify-center">
+            <Music className="h-20 w-20 text-slate-400 mb-4" />
+            <h3 className="text-lg font-medium text-slate-700 mb-4">{title}</h3>
+            <audio controls className="w-full max-w-md">
+              <source src={content_url} />
+              Your browser does not support the audio element.
+            </audio>
+          </div>
         </div>
       );
     }
 
     if (file_type === 'pdf') {
       return (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden" style={{ height: '70vh' }}>
-          <iframe src={content_url} className="w-full h-full" title={title} />
+        <div className="space-y-4">
+          {textBlock}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden" style={{ height: '70vh' }}>
+            <iframe src={content_url} className="w-full h-full" title={title} />
+          </div>
         </div>
       );
     }
 
     return (
-      <div className="bg-slate-50 rounded-xl p-12 flex flex-col items-center justify-center border border-slate-200">
-        {getFileIcon(file_type)}
-        <h3 className="text-xl font-medium text-slate-700 mt-4 mb-2">{title}</h3>
-        <p className="text-slate-500 mb-6 text-center">
-          This file type is best viewed by downloading it.
-        </p>
-        <a
-          href={content_url}
-          download
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors shadow-md"
-        >
-          <Download className="h-5 w-5 mr-2" />
-          Download File
-        </a>
-        <a
-          href={content_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-3 text-sm text-green-600 hover:text-green-700"
-        >
-          Or open in new tab
-        </a>
+      <div className="space-y-4">
+        {textBlock}
+        <div className="bg-slate-50 rounded-xl p-12 flex flex-col items-center justify-center border border-slate-200">
+          {getFileIcon(file_type)}
+          <h3 className="text-xl font-medium text-slate-700 mt-4 mb-2">{title}</h3>
+          <p className="text-slate-500 mb-6 text-center">
+            This file type is best viewed by downloading it.
+          </p>
+          <a
+            href={content_url}
+            download
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors shadow-md"
+          >
+            <Download className="h-5 w-5 mr-2" />
+            Download File
+          </a>
+          <a
+            href={content_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 text-sm text-green-600 hover:text-green-700"
+          >
+            Or open in new tab
+          </a>
+        </div>
       </div>
     );
   };
@@ -380,34 +451,81 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     }
 
     if (quizState === 'submitted' && quizResult) {
-      return (
-        <div className={`rounded-xl border p-6 space-y-4 ${quizResult.passed ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-          <div className="flex items-center gap-3">
-            {quizResult.passed
-              ? <CheckCircle className="h-8 w-8 text-green-600 flex-shrink-0" />
-              : <AlertCircle className="h-8 w-8 text-red-500 flex-shrink-0" />}
-            <div>
-              <p className={`text-lg font-bold ${quizResult.passed ? 'text-green-800' : 'text-red-800'}`}>
-                {quizResult.passed ? 'Congratulations! You passed!' : 'Not quite there yet'}
-              </p>
-              <p className={`text-sm ${quizResult.passed ? 'text-green-700' : 'text-red-700'}`}>
-                Score: {quizResult.score}/{quizResult.total} ({quizResult.percentage.toFixed(1)}%) — Required: {quizResult.pass_percentage}%
-              </p>
+      // Step 1: Ask if user wants to see result
+      if (!showResultRevealed) {
+        return (
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-8 text-center space-y-5">
+            <div className="flex justify-center">
+              <div className="h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center">
+                <HelpCircle className="h-8 w-8 text-indigo-600" />
+              </div>
             </div>
-          </div>
-          {quizResult.passed && (
-            <p className="text-sm text-green-700 font-medium flex items-center gap-1.5">
-              <CheckCircle className="h-4 w-4" /> Next module is now unlocked!
-            </p>
-          )}
-          {!quizResult.passed && (
+            <div>
+              <h3 className="text-xl font-bold text-indigo-900">Quiz Submitted!</h3>
+              <p className="text-sm text-indigo-700 mt-2">Your answers have been recorded. Would you like to see your result?</p>
+            </div>
             <button
-              onClick={() => { setQuizState(null); setQuizResult(null); }}
-              className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg"
+              onClick={() => setShowResultRevealed(true)}
+              className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-base transition-colors"
             >
-              Retake Quiz
+              See Quiz Result
             </button>
-          )}
+          </div>
+        );
+      }
+
+      // Step 2: Show actual result
+      return (
+        <div className={`rounded-xl border p-8 space-y-6 ${quizResult.passed ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+          {/* Score circle */}
+          <div className="flex flex-col items-center text-center">
+            <div className={`h-28 w-28 rounded-full flex items-center justify-center text-3xl font-bold ${
+              quizResult.passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+            }`}>
+              {quizResult.percentage.toFixed(0)}%
+            </div>
+            <h3 className={`text-xl font-bold mt-4 ${quizResult.passed ? 'text-green-800' : 'text-red-800'}`}>
+              {quizResult.passed ? 'Congratulations! You Passed!' : 'You Did Not Pass'}
+            </h3>
+            <p className={`text-sm mt-2 ${quizResult.passed ? 'text-green-700' : 'text-red-700'}`}>
+              You scored <strong>{quizResult.score}</strong> out of <strong>{quizResult.total}</strong> ({quizResult.percentage.toFixed(1)}%)
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              Required to pass: {quizResult.pass_percentage}%
+            </p>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex justify-center gap-3">
+            {quizResult.passed ? (
+              <>
+                <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                <div>
+                  <p className="text-sm text-green-700 font-medium">Next module is now unlocked!</p>
+                  {currentModuleIndex < modules.length - 1 && modules[currentModuleIndex + 1]?.is_unlocked && (
+                    <button
+                      onClick={() => selectModule(modules[currentModuleIndex + 1])}
+                      className="mt-3 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg flex items-center gap-2 transition-colors"
+                    >
+                      Proceed to Next Module <ArrowRight className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="text-center">
+                <p className="text-sm text-red-700 mb-3">
+                  You need at least <strong>{quizResult.pass_percentage}%</strong> to pass. Review the lessons and try again.
+                </p>
+                <button
+                  onClick={() => { setQuizState(null); setQuizResult(null); setShowResultRevealed(false); }}
+                  className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors"
+                >
+                  Retake Quiz
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       );
     }

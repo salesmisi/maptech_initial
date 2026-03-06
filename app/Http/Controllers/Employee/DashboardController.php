@@ -250,6 +250,7 @@ class DashboardController extends Controller
                 'lessons'     => $mod->lessons->map(fn($l) => [
                     'id'           => $l->id,
                     'title'        => $l->title,
+                    'text_content' => $l->text_content,
                     'content_path' => $l->content_path,
                     'content_url'  => $l->content_url,
                     'file_type'    => $l->file_type,

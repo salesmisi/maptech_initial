@@ -12,6 +12,7 @@ class Lesson extends Model
     protected $fillable = [
         'module_id',
         'title',
+        'text_content',
         'content_path',
         'order',
     ];

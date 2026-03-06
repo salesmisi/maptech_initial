@@ -200,15 +200,17 @@ class CourseController extends Controller
             ->firstOrFail();
 
         $request->validate([
-            'title'   => 'required|string|max:255',
-            'content' => 'nullable|file|max:102400',
+            'title'       => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'content'     => 'nullable|file|max:102400',
         ]);
 
         $nextOrder = $course->modules()->max('order') + 1;
 
         $data = [
-            'title' => $request->input('title'),
-            'order' => $nextOrder,
+            'title'       => $request->input('title'),
+            'description' => $request->input('description'),
+            'order'       => $nextOrder,
         ];
 
         if ($request->hasFile('content')) {
@@ -250,15 +252,17 @@ class CourseController extends Controller
         }
 
         $request->validate([
-            'title'   => 'required|string|max:255',
-            'content' => 'nullable|file|max:102400',
+            'title'        => 'required|string|max:255',
+            'text_content' => 'nullable|string',
+            'content'      => 'nullable|file|max:102400',
         ]);
 
         $nextOrder = $module->lessons()->max('order') + 1;
 
         $data = [
-            'title' => $request->input('title'),
-            'order' => $nextOrder,
+            'title'        => $request->input('title'),
+            'text_content' => $request->input('text_content'),
+            'order'        => $nextOrder,
         ];
 
         if ($request->hasFile('content')) {
@@ -291,5 +295,79 @@ class CourseController extends Controller
         $lesson->delete();
 
         return response()->json(['message' => 'Lesson deleted']);
+    }
+
+    /**
+     * Update a module (title / description).
+     */
+    public function updateModule(Request $request, string $courseId, int $moduleId)
+    {
+        $user = $request->user();
+        $course = Course::where('id', $courseId)->where('instructor_id', $user->id)->firstOrFail();
+        $module = $course->modules()->findOrFail($moduleId);
+
+        $validated = $request->validate([
+            'title'       => 'sometimes|string|max:255',
+            'description' => 'nullable|string',
+        ]);
+
+        $module->update($validated);
+
+        return response()->json(['message' => 'Module updated', 'module' => $module->fresh()]);
+    }
+
+    /**
+     * Update a lesson (title / text_content). Optionally replace file.
+     */
+    public function updateLesson(Request $request, int $moduleId, int $lessonId)
+    {
+        $user = $request->user();
+        $module = Module::with('course')->findOrFail($moduleId);
+
+        if ($module->course->instructor_id !== $user->id) {
+            abort(403, 'Forbidden.');
+        }
+
+        $request->validate([
+            'title'        => 'sometimes|string|max:255',
+            'text_content' => 'nullable|string',
+            'content'      => 'nullable|file|max:102400',
+        ]);
+
+        $lesson = $module->lessons()->findOrFail($lessonId);
+
+        if ($request->has('title')) $lesson->title = $request->input('title');
+        if ($request->has('text_content')) $lesson->text_content = $request->input('text_content');
+
+        if ($request->hasFile('content')) {
+            if ($lesson->content_path) {
+                Storage::disk('public')->delete($lesson->content_path);
+            }
+            $lesson->content_path = $request->file('content')->store('course-content', 'public');
+        }
+
+        $lesson->save();
+
+        return response()->json(['message' => 'Lesson updated', 'lesson' => $lesson->fresh()]);
+    }
+
+    /**
+     * Reorder modules for a course.
+     */
+    public function reorderModules(Request $request, string $courseId)
+    {
+        $user = $request->user();
+        $course = Course::where('id', $courseId)->where('instructor_id', $user->id)->firstOrFail();
+
+        $request->validate([
+            'order'   => 'required|array',
+            'order.*' => 'integer|exists:modules,id',
+        ]);
+
+        foreach ($request->input('order') as $index => $moduleId) {
+            $course->modules()->where('id', $moduleId)->update(['order' => $index + 1]);
+        }
+
+        return response()->json(['message' => 'Modules reordered']);
     }
 }

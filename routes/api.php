@@ -165,10 +165,13 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
     // Course Module Management
     Route::post('/courses/{id}/modules', [AdminCourseController::class, 'addModule']);
+    Route::put('/courses/{courseId}/modules/{moduleId}', [AdminCourseController::class, 'updateModule']);
     Route::delete('/courses/{courseId}/modules/{moduleId}', [AdminCourseController::class, 'deleteModule']);
+    Route::post('/courses/{courseId}/modules/reorder', [AdminCourseController::class, 'reorderModules']);
 
     // Lesson Management
     Route::post('/modules/{moduleId}/lessons', [AdminCourseController::class, 'addLesson']);
+    Route::post('/modules/{moduleId}/lessons/{lessonId}', [AdminCourseController::class, 'updateLesson']);
     Route::delete('/modules/{moduleId}/lessons/{lessonId}', [AdminCourseController::class, 'deleteLesson']);
 
     // Quiz Management
@@ -209,10 +212,13 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
 
     // Module Management
     Route::post('/courses/{id}/modules', [InstructorCourseController::class, 'addModule']);
+    Route::put('/courses/{courseId}/modules/{moduleId}', [InstructorCourseController::class, 'updateModule']);
     Route::delete('/courses/{courseId}/modules/{moduleId}', [InstructorCourseController::class, 'deleteModule']);
+    Route::post('/courses/{courseId}/modules/reorder', [InstructorCourseController::class, 'reorderModules']);
 
     // Lesson Management
     Route::post('/modules/{moduleId}/lessons', [InstructorCourseController::class, 'addLesson']);
+    Route::post('/modules/{moduleId}/lessons/{lessonId}', [InstructorCourseController::class, 'updateLesson']);
     Route::delete('/modules/{moduleId}/lessons/{lessonId}', [InstructorCourseController::class, 'deleteLesson']);
 
     // Quiz Management
