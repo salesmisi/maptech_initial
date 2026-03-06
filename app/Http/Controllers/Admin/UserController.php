@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Course;
+use App\Models\CourseEnrollment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class UserController extends Controller
 {
@@ -18,9 +21,9 @@ class UserController extends Controller
     {
         $query = User::query();
 
-        // Filter by role
+        // Filter by role (stored lowercase in DB; PostgreSQL is case-sensitive)
         if ($request->has('role')) {
-            $query->where('role', $request->role);
+            $query->where('role', strtolower($request->role));
         }
 
         // Filter by department
@@ -34,8 +37,11 @@ class UserController extends Controller
         }
 
         $users = $query->select([
-            'id', 'fullName', 'email', 'role', 'department', 'status', 'created_at'
+            'id', 'fullname', 'email', 'role', 'department', 'subdepartment_id', 'status', 'created_at'
         ])->orderBy('created_at', 'desc')->get();
+
+        // Eager load subdepartment name, departments headed, and instructor subdepartments
+        $users->load('subdepartment:id,name', 'headOfDepartments:id,name,head_id', 'subdepartments:id,name,department_id');
 
         return response()->json($users);
     }
@@ -51,6 +57,7 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
             'role' => ['required', Rule::in(['Admin', 'Instructor', 'Employee'])],
             'department' => 'nullable|string|max:255',
+            'subdepartment_id' => 'nullable|exists:subdepartments,id',
             'status' => ['nullable', Rule::in(['Active', 'Inactive'])],
         ]);
 
@@ -63,17 +70,35 @@ class UserController extends Controller
         }
 
         $user = User::create([
+<<<<<<< HEAD
             'fullName' => $validated['fullName'],
+=======
+            'fullname' => $validated['fullName'],
+>>>>>>> origin/merge/kurt_phen
             'email' => $validated['email'],
-            'password' => $validated['password'], // Auto-hashed by model
+            'password' => $validated['password'],
             'role' => $validated['role'],
             'department' => $validated['department'] ?? null,
+            'subdepartment_id' => $validated['subdepartment_id'] ?? null,
             'status' => $validated['status'] ?? 'Active',
         ]);
 
+        // For instructors, sync subdepartments and optionally set as department head
+        if ($validated['role'] === 'Instructor') {
+            if ($request->has('subdepartment_ids')) {
+                $user->subdepartments()->sync($request->input('subdepartment_ids', []));
+            }
+            if ($request->boolean('is_department_head') && $validated['department']) {
+                $dept = Department::where('name', $validated['department'])->first();
+                if ($dept) {
+                    $dept->update(['head_id' => $user->id]);
+                }
+            }
+        }
+
         return response()->json([
             'message' => 'User created successfully',
-            'user' => $user
+            'user' => $user->load('headOfDepartments:id,name,head_id', 'subdepartments:id,name,department_id')
         ], 201);
     }
 
@@ -100,6 +125,7 @@ class UserController extends Controller
             'password' => 'sometimes|string|min:8',
             'role' => ['sometimes', Rule::in(['Admin', 'Instructor', 'Employee'])],
             'department' => 'nullable|string|max:255',
+            'subdepartment_id' => 'nullable|exists:subdepartments,id',
             'status' => ['sometimes', Rule::in(['Active', 'Inactive'])],
         ]);
 
@@ -114,7 +140,11 @@ class UserController extends Controller
 
         // Update fields
         if (isset($validated['fullName'])) {
+<<<<<<< HEAD
             $user->fullName = $validated['fullName'];
+=======
+            $user->fullname = $validated['fullName'];
+>>>>>>> origin/merge/kurt_phen
         }
         if (isset($validated['email'])) {
             $user->email = $validated['email'];
@@ -128,15 +158,44 @@ class UserController extends Controller
         if (array_key_exists('department', $validated)) {
             $user->department = $validated['department'];
         }
+        if (array_key_exists('subdepartment_id', $validated)) {
+            $user->subdepartment_id = $validated['subdepartment_id'];
+        }
         if (isset($validated['status'])) {
             $user->status = $validated['status'];
         }
 
         $user->save();
 
+        // For instructors, sync subdepartments and handle department head
+        $effectiveRole = strtolower($validated['role'] ?? $user->role);
+        if ($effectiveRole === 'instructor') {
+            if ($request->has('subdepartment_ids')) {
+                $user->subdepartments()->sync($request->input('subdepartment_ids', []));
+            }
+            // Handle department head assignment
+            $deptName = $validated['department'] ?? $user->department;
+            if ($deptName) {
+                $dept = Department::where('name', $deptName)->first();
+                if ($dept) {
+                    if ($request->boolean('is_department_head')) {
+                        $dept->update(['head_id' => $user->id]);
+                    } elseif ($dept->head_id === $user->id) {
+                        $dept->update(['head_id' => null]);
+                    }
+                }
+            }
+        }
+
+        // If role changed away from instructor, clean up
+        if (isset($validated['role']) && $effectiveRole !== 'instructor') {
+            Department::where('head_id', $user->id)->update(['head_id' => null]);
+            $user->subdepartments()->detach();
+        }
+
         return response()->json([
             'message' => 'User updated successfully',
-            'user' => $user
+            'user' => $user->load('headOfDepartments:id,name,head_id', 'subdepartments:id,name,department_id')
         ]);
     }
 
@@ -154,18 +213,201 @@ class UserController extends Controller
     }
 
     /**
+     * Get all enrollment activity (for View All Activity modal).
+     */
+    public function activity()
+    {
+        $activity = CourseEnrollment::with(['user:id,fullName', 'course:id,title'])
+            ->orderBy('updated_at', 'desc')
+            ->take(100)
+            ->get()
+            ->map(function ($enrollment) {
+                $action = match ($enrollment->status) {
+                    'Completed' => 'Completed Course',
+                    'Dropped'   => 'Dropped Course',
+                    default     => 'Enrolled',
+                };
+                return [
+                    'id'     => $enrollment->id,
+                    'user'   => $enrollment->user?->fullName ?? 'Unknown',
+                    'action' => $action,
+                    'target' => $enrollment->course?->title ?? 'Unknown',
+                    'time'   => $enrollment->updated_at->diffForHumans(),
+                ];
+            });
+
+        return response()->json($activity);
+    }
+
+    /**
+     * Reports & Analytics data.
+     */
+    public function reports(Request $request)
+    {
+        $range = (int) ($request->query('months', 6));
+        $since = now()->subMonths($range)->startOfMonth();
+
+        // --- Overall Completion Status ---
+        $completed  = CourseEnrollment::where('status', 'Completed')->count();
+        $inProgress = CourseEnrollment::where('status', 'Active')->where('progress', '>', 0)->count();
+        $notStarted = CourseEnrollment::where('status', 'Active')->where('progress', 0)->count();
+
+        $completionStatus = [
+            ['name' => 'Completed',   'value' => $completed],
+            ['name' => 'In Progress', 'value' => $inProgress],
+            ['name' => 'Not Started', 'value' => $notStarted],
+        ];
+
+        // --- Monthly Enrollment vs Completion Trends ---
+        $enrollmentsByMonth = DB::table('course_enrollments')
+            ->selectRaw("TO_CHAR(enrolled_at, 'Mon') as month, TO_CHAR(enrolled_at, 'YYYY-MM') as sort_key, COUNT(*) as enrollments")
+            ->where('enrolled_at', '>=', $since)
+            ->groupByRaw("TO_CHAR(enrolled_at, 'YYYY-MM'), TO_CHAR(enrolled_at, 'Mon')")
+            ->orderByRaw("TO_CHAR(enrolled_at, 'YYYY-MM')")
+            ->pluck('enrollments', 'sort_key');
+
+        $completionsByMonth = DB::table('course_enrollments')
+            ->selectRaw("TO_CHAR(completed_at, 'YYYY-MM') as sort_key, COUNT(*) as completions")
+            ->where('status', 'Completed')
+            ->whereNotNull('completed_at')
+            ->where('completed_at', '>=', $since)
+            ->groupByRaw("TO_CHAR(completed_at, 'YYYY-MM')")
+            ->pluck('completions', 'sort_key');
+
+        $monthLabels = DB::table('course_enrollments')
+            ->selectRaw("TO_CHAR(enrolled_at, 'Mon') as label, TO_CHAR(enrolled_at, 'YYYY-MM') as sort_key")
+            ->where('enrolled_at', '>=', $since)
+            ->groupByRaw("TO_CHAR(enrolled_at, 'YYYY-MM'), TO_CHAR(enrolled_at, 'Mon')")
+            ->orderByRaw("TO_CHAR(enrolled_at, 'YYYY-MM')")
+            ->pluck('label', 'sort_key');
+
+        $monthlyTrends = $monthLabels->map(function ($label, $key) use ($enrollmentsByMonth, $completionsByMonth) {
+            return [
+                'name'        => $label,
+                'enrollments' => (int) ($enrollmentsByMonth[$key] ?? 0),
+                'completions' => (int) ($completionsByMonth[$key] ?? 0),
+            ];
+        })->values();
+
+        // --- Most Popular Courses (by enrollment count) ---
+        $popularCourses = DB::table('course_enrollments')
+            ->join('courses', 'course_enrollments.course_id', '=', 'courses.id')
+            ->selectRaw('courses.title as name, COUNT(course_enrollments.id) as students')
+            ->groupBy('courses.id', 'courses.title')
+            ->orderByRaw('COUNT(course_enrollments.id) DESC')
+            ->limit(10)
+            ->get()
+            ->map(fn($r) => ['name' => $r->name, 'students' => (int) $r->students])
+            ->values();
+
+        return response()->json([
+            'completion_status' => $completionStatus,
+            'monthly_trends'    => $monthlyTrends,
+            'popular_courses'   => $popularCourses,
+        ]);
+    }
+
+    /**
+     * Export Reports as CSV.
+     */
+    public function exportReport(): StreamedResponse
+    {
+        $enrollments = CourseEnrollment::with(['user:id,fullName,department', 'course:id,title'])
+            ->orderBy('enrolled_at', 'desc')
+            ->get();
+
+        $filename = 'report_' . now()->format('Y-m-d') . '.csv';
+
+        return response()->streamDownload(function () use ($enrollments) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, ['Employee', 'Department', 'Course', 'Status', 'Progress (%)', 'Enrolled At', 'Completed At']);
+            foreach ($enrollments as $e) {
+                fputcsv($handle, [
+                    $e->user?->fullName ?? 'Unknown',
+                    $e->user?->department ?? '-',
+                    $e->course?->title ?? 'Unknown',
+                    $e->status,
+                    $e->progress,
+                    $e->enrolled_at?->format('Y-m-d H:i') ?? '',
+                    $e->completed_at?->format('Y-m-d H:i') ?? '',
+                ]);
+            }
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv',
+        ]);
+    }
+
+    /**
      * Get admin dashboard stats.
      */
     public function dashboard()
     {
+        // Stat cards
+        $totalEmployees = User::where('role', 'Employee')->count();
+        $activeCourses  = Course::where('status', 'Active')->count();
+
+        $totalEnrollments     = CourseEnrollment::count();
+        $completedEnrollments = CourseEnrollment::where('status', 'Completed')->count();
+        $completionRate = $totalEnrollments > 0
+            ? round(($completedEnrollments / $totalEnrollments) * 100)
+            : 0;
+
+        $avgQuizScore = (int) round(CourseEnrollment::whereNotNull('progress')->avg('progress') ?? 0);
+
+        // Course completion trends — last 6 months (PostgreSQL)
+        $completionTrends = DB::table('course_enrollments')
+            ->selectRaw("TO_CHAR(completed_at, 'Mon') as name, TO_CHAR(completed_at, 'YYYY-MM') as month_key, COUNT(*) as rate")
+            ->where('status', 'Completed')
+            ->whereNotNull('completed_at')
+            ->where('completed_at', '>=', now()->subMonths(6))
+            ->groupByRaw("TO_CHAR(completed_at, 'YYYY-MM'), TO_CHAR(completed_at, 'Mon')")
+            ->orderByRaw("TO_CHAR(completed_at, 'YYYY-MM')")
+            ->get()
+            ->map(fn($row) => ['name' => $row->name, 'rate' => (int) $row->rate])
+            ->values();
+
+        // Department performance
+        $departments = User::where('role', 'Employee')
+            ->whereNotNull('department')
+            ->distinct()
+            ->pluck('department');
+
+        $departmentPerformance = $departments->map(function ($dept) {
+            $userIds   = User::where('role', 'Employee')->where('department', $dept)->pluck('id');
+            $assigned  = CourseEnrollment::whereIn('user_id', $userIds)->count();
+            $completed = CourseEnrollment::whereIn('user_id', $userIds)->where('status', 'Completed')->count();
+            return ['name' => $dept, 'assigned' => $assigned, 'completed' => $completed];
+        })->values();
+
+        // Recent activity — last 10 enrollment events
+        $recentActivity = CourseEnrollment::with(['user:id,fullName', 'course:id,title'])
+            ->orderBy('updated_at', 'desc')
+            ->take(10)
+            ->get()
+            ->map(function ($enrollment) {
+                $action = match ($enrollment->status) {
+                    'Completed' => 'Completed Course',
+                    'Dropped'   => 'Dropped Course',
+                    default     => 'Enrolled',
+                };
+                return [
+                    'id'     => $enrollment->id,
+                    'user'   => $enrollment->user?->fullName ?? 'Unknown',
+                    'action' => $action,
+                    'target' => $enrollment->course?->title ?? 'Unknown',
+                    'time'   => $enrollment->updated_at->diffForHumans(),
+                ];
+            });
+
         return response()->json([
-            'total_users' => User::count(),
-            'active_users' => User::where('status', 'Active')->count(),
-            'inactive_users' => User::where('status', 'Inactive')->count(),
-            'admins' => User::where('role', 'Admin')->count(),
-            'instructors' => User::where('role', 'Instructor')->count(),
-            'employees' => User::where('role', 'Employee')->count(),
-            'total_courses' => Course::count(),
+            'total_employees'        => $totalEmployees,
+            'active_courses'         => $activeCourses,
+            'completion_rate'        => $completionRate,
+            'avg_quiz_score'         => $avgQuizScore,
+            'completion_trends'      => $completionTrends,
+            'department_performance' => $departmentPerformance,
+            'recent_activity'        => $recentActivity,
         ]);
     }
 }

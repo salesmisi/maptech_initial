@@ -17,24 +17,31 @@ import { NotificationManagement } from './pages/admin/NotificationManagement';
 
 // Instructor Pages
 import { InstructorDashboard } from './pages/instructor/InstructorDashboard';
-import { LessonVideoUpload } from './pages/instructor/LessonVideoUpload';
+import { InstructorCourseManagement } from './pages/instructor/CourseManagement';
+import { InstructorCourseDetail } from './pages/instructor/CourseDetail';
+import { InstructorQuizBuilder } from './pages/instructor/QuizBuilder';
 import { QuizAssessmentManagement } from './pages/instructor/QuizAssessmentManagement';
-import { QuizEvaluation } from './pages/instructor/QuizEvaluation';
 
 // Employee Pages
 import { EmployeeDashboard } from './pages/employee/EmployeeDashboard';
 import { MyCourses } from './pages/employee/MyCourses';
+import { CourseEnrollDetail } from './pages/employee/CourseEnrollDetail';
 import { CourseViewer } from './pages/employee/CourseViewer';
 import { MyProgress } from './pages/employee/MyProgress';
 import { MyCertificates } from './pages/employee/MyCertificates';
 import { QAModule } from './pages/employee/QAModule';
 import { MyFeedback } from './pages/employee/MyFeedback';
 
+// Shared Pages
+import { ProfileSettings } from './pages/shared/ProfileSettings';
+
 interface User {
+  id?: number;
   role: 'admin' | 'instructor' | 'employee';
   name: string;
   email: string;
   department?: string;
+  profile_picture?: string | null;
 }
 
 export function App() {
@@ -42,6 +49,8 @@ export function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [selectedQuizId, setSelectedQuizId] = useState<number | null>(null);
+  const [globalSearch, setGlobalSearch] = useState('');
 
   // =========================
   // CHECK AUTH ON MOUNT
@@ -59,12 +68,21 @@ export function App() {
 
         if (response.ok) {
           const data = await response.json();
+          const role = data.role?.toLowerCase();
           setUser({
-            role: data.role?.toLowerCase(),
+            id: data.id,
+            role,
             name: data.name,
             email: data.email,
             department: data.department,
+            profile_picture: data.profile_picture,
           });
+
+          // Restore saved page for this role
+          const savedPage = localStorage.getItem(`maptech_page_${role}`);
+          const savedCourseId = localStorage.getItem(`maptech_courseId_${role}`);
+          if (savedPage) setCurrentPage(savedPage);
+          if (savedCourseId) setSelectedCourseId(savedCourseId);
         }
       } catch (error) {
         console.error('Auth check failed:', error);
@@ -83,10 +101,13 @@ export function App() {
     role: 'admin' | 'instructor' | 'employee',
     name: string,
     email: string,
-    department?: string
+    department?: string,
+    profile_picture?: string | null
   ) => {
-    setUser({ role, name, email, department });
+    setUser({ role, name, email, department, profile_picture });
     setCurrentPage('dashboard');
+    localStorage.setItem(`maptech_page_${role}`, 'dashboard');
+    localStorage.removeItem(`maptech_courseId_${role}`);
   };
 
   // ✅ Function to get cookie value
@@ -125,10 +146,16 @@ export function App() {
     setCurrentPage('dashboard');
   };
 
-  const handleNavigate = (page: string, courseId?: string) => {
+  const handleNavigate = (page: string, courseId?: string, quizId?: number) => {
     setCurrentPage(page);
+    if (user) {
+      localStorage.setItem(`maptech_page_${user.role}`, page);
+    }
     if (courseId) {
       setSelectedCourseId(courseId);
+      if (user) {
+        localStorage.setItem(`maptech_courseId_${user.role}`, courseId);
+      }
     }
   };
 
@@ -161,14 +188,15 @@ export function App() {
         onLogout={handleLogout}
         user={user}
       >
-        {currentPage === 'dashboard' && <AdminDashboard />}
+        {currentPage === 'dashboard' && <AdminDashboard onNavigate={handleNavigate} />}
         {currentPage === 'departments' && <DepartmentManagement />}
         {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
         {currentPage === 'courses' && <CoursesAndContent />}
         {currentPage === 'enrollments' && <EnrollmentManagement />}
         {currentPage === 'reports' && <ReportsAnalytics />}
         {currentPage === 'notifications' && <NotificationManagement />}
-        {currentPage === 'qa' && <AdminQADiscussion />}
+        {currentPage === 'qa' && <AdminQADiscussion userId={user.id} />}
+        {currentPage === 'settings' && <ProfileSettings />}
       </AdminLayout>
     );
   }
@@ -188,7 +216,8 @@ export function App() {
         {currentPage === 'lessons' && <LessonVideoUpload />}
         {currentPage === 'quizzes' && <QuizAssessmentManagement />}
         {currentPage === 'evaluation' && <QuizEvaluation />}
-        {currentPage === 'qa-discussion' && <InstructorQADiscussion />}
+        {currentPage === 'qa-discussion' && <InstructorQADiscussion userId={user.id} />}
+        {currentPage === 'settings' && <ProfileSettings />}
       </InstructorLayout>
     );
   }
@@ -203,12 +232,24 @@ export function App() {
         onNavigate={handleNavigate}
         onLogout={handleLogout}
         user={user}
+        globalSearch={globalSearch}
+        onGlobalSearch={(term) => { setGlobalSearch(term); setCurrentPage('my-courses'); }}
       >
         {currentPage === 'dashboard' && <EmployeeDashboard onNavigate={handleNavigate} />}
         {currentPage === 'my-courses' && (
-          <MyCourses onNavigate={handleNavigate} />
+          <MyCourses onNavigate={handleNavigate} globalSearch={globalSearch} />
+        )}
+        {currentPage === 'course-enroll' && (
+          <CourseEnrollDetail
+            courseId={selectedCourseId || ''}
+            onNavigate={handleNavigate}
+            onBack={() => handleNavigate('my-courses')}
+          />
         )}
         {currentPage === 'course-viewer' && (
+          <CourseViewer
+            courseId={selectedCourseId || undefined}
+            onBack={() => handleNavigate('my-courses')}
           <CourseViewer
             courseId={selectedCourseId || undefined}
             onBack={() => handleNavigate('my-courses')}
@@ -216,8 +257,9 @@ export function App() {
         )}
         {currentPage === 'progress' && <MyProgress />}
         {currentPage === 'certificates' && <MyCertificates />}
-        {currentPage === 'qa' && <QAModule />}
+        {currentPage === 'qa' && <QAModule userId={user.id} />}
         {currentPage === 'feedback' && <MyFeedback />}
+        {currentPage === 'settings' && <ProfileSettings />}
       </EmployeeLayout>
     );
   }

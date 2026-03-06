@@ -43,11 +43,12 @@ class LoginController extends Controller
 
         return response()->json([
             'id' => $user->id,
-            'name' => $user->fullName,
+            'name' => $user->fullname,
             'email' => $user->email,
             'role' => $user->role,
             'department' => $user->department,
             'status' => $user->status,
+            'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
         ]);
     }
 
@@ -89,7 +90,7 @@ class LoginController extends Controller
             'token_type' => 'Bearer',
             'user' => [
                 'id' => $user->id,
-                'name' => $user->fullName,
+                'name' => $user->fullname,
                 'email' => $user->email,
                 'role' => $user->role,
                 'department' => $user->department,
@@ -129,11 +130,12 @@ class LoginController extends Controller
 
         return response()->json([
             'id' => $user->id,
-            'name' => $user->fullName,
+            'name' => $user->fullname,
             'email' => $user->email,
             'role' => $user->role,
             'department' => $user->department,
             'status' => $user->status,
+            'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
         ]);
     }
 

@@ -8,6 +8,17 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property int $id
+ * @property string $fullname
+ * @property string $email
+ * @property string $password
+ * @property string $role
+ * @property string|null $department
+ * @property string $status
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ */
 class User extends Authenticatable
 {
     use HasFactory, Notifiable, HasApiTokens;
@@ -16,12 +27,14 @@ class User extends Authenticatable
      * The attributes that are mass assignable.
      */
     protected $fillable = [
-        'fullName',
+        'fullname',
         'email',
         'password',
         'role',
         'department',
+        'subdepartment_id',
         'status',
+        'profile_picture',
     ];
 
     /**
@@ -100,21 +113,27 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the enrollments for the user.
+     * Get the subdepartment this user belongs to (for employees).
      */
-    public function enrollments(): HasMany
+    public function subdepartment()
     {
-        return $this->hasMany(CourseEnrollment::class);
+        return $this->belongsTo(Subdepartment::class);
     }
 
     /**
-     * Get the courses the user is enrolled in.
+     * Get subdepartments this user is assigned to (for instructors, many-to-many).
      */
-    public function enrolledCourses()
+    public function subdepartments()
     {
-        return $this->belongsToMany(Course::class, 'course_enrollments')
-                    ->withPivot(['progress', 'status', 'enrolled_at', 'completed_at'])
-                    ->withTimestamps();
+        return $this->belongsToMany(Subdepartment::class, 'user_subdepartment')->withTimestamps();
+    }
+
+    /**
+     * Get departments where this user is the head.
+     */
+    public function headOfDepartments()
+    {
+        return $this->hasMany(Department::class, 'head_id');
     }
 
     /**

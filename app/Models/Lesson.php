@@ -12,34 +12,43 @@ class Lesson extends Model
     protected $fillable = [
         'module_id',
         'title',
-        'type',
-        'content_path',
         'text_content',
-        'duration',
-        'file_size',
-        'status',
+        'content_path',
         'order',
     ];
 
-    protected $appends = ['content_url'];
+    protected $appends = ['content_url', 'file_type'];
 
-    /**
-     * Get the content URL for file-based lessons.
-     */
     public function getContentUrlAttribute(): ?string
     {
         if (!$this->content_path) {
             return null;
         }
-        if (preg_match('#^https?://#i', $this->content_path)) {
-            return $this->content_path;
-        }
         return url('/storage/' . $this->content_path);
     }
 
-    /**
-     * Get the module that owns the lesson.
-     */
+    public function getFileTypeAttribute(): ?string
+    {
+        if (!$this->content_path) {
+            return null;
+        }
+
+        $extension = strtolower(pathinfo($this->content_path, PATHINFO_EXTENSION));
+
+        $types = [
+            'pdf'  => 'pdf',
+            'doc'  => 'document',
+            'docx' => 'document',
+            'ppt'  => 'presentation',
+            'pptx' => 'presentation',
+            'mp4'  => 'video',
+            'mp3'  => 'audio',
+            'txt'  => 'text',
+        ];
+
+        return $types[$extension] ?? 'file';
+    }
+
     public function module()
     {
         return $this->belongsTo(Module::class);

@@ -18,6 +18,8 @@ interface Course {
   progress: number;
   nextLesson: string;
   thumbnail: string;
+  enroll_status: string | null;
+  last_activity: string | null;
 }
 
 interface DashboardData {
@@ -84,11 +86,13 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const markAsRead = async (id: number) => {
     try {
       await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      const v = `; ${document.cookie}`;
+      const parts = v.split('; XSRF-TOKEN=');
+      const xsrf = parts.length === 2 ? decodeURIComponent(parts.pop()?.split(';').shift() || '') : '';
       await fetch(`${API_BASE}/employee/notifications/${id}/read`, {
         method: 'PUT',
         credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+        headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': xsrf },
       });
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     } catch (err) {
@@ -117,15 +121,18 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
         const mappedCourses = data.courses.map((course: any) => ({
           id: course.id,
           title: course.title,
-          progress: course.progress || 0,
-          nextLesson: course.modules?.[0]?.title || 'Start Course',
+          progress: course.my_progress ?? course.progress ?? 0,
+          nextLesson: course.modules?.[0]?.title || 'Start Learning',
           thumbnail: getThumbnailColor(course.department),
+          enroll_status: course.enroll_status ?? null,
+          last_activity: course.last_activity ?? null,
         }));
 
+
         setDashboardData({
-          user: data.user,
+          user: dashData?.user ?? { id: 0, name: 'Employee', email: '', department: '' },
           courses: mappedCourses,
-          total_courses: data.total_courses,
+          total_courses: mappedCourses.length,
         });
       } catch (error) {
         console.error('Error loading dashboard:', error);
@@ -153,6 +160,16 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const userName = dashboardData?.user?.name || 'Employee';
   const totalCourses = dashboardData?.total_courses || 0;
 
+  // Find the most-recently-active in-progress course for Resume Learning
+  const resumeCourse = myCourses
+    .filter(c => c.progress > 0 && c.enroll_status !== 'Completed')
+    .sort((a, b) => {
+      if (!a.last_activity && !b.last_activity) return 0;
+      if (!a.last_activity) return 1;
+      if (!b.last_activity) return -1;
+      return new Date(b.last_activity).getTime() - new Date(a.last_activity).getTime();
+    })[0] ?? null;
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -170,15 +187,20 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             Welcome back, {userName}! 👋
           </h1>
           <p className="text-slate-500 mt-1">
-            You have {totalCourses} course{totalCourses !== 1 ? 's' : ''} available in your department.
+            You are enrolled in {totalCourses} course{totalCourses !== 1 ? 's' : ''}.
           </p>
         </div>
-        <div className="hidden sm:block">
-          <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700">
-            Resume Learning
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </button>
-        </div>
+        {resumeCourse && (
+          <div className="hidden sm:block">
+            <button
+              onClick={() => onNavigate?.('course-viewer', resumeCourse.id)}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
+            >
+              Resume Learning
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Stats Grid */}
@@ -292,9 +314,9 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             {myCourses.length === 0 ? (
               <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-8 text-center">
                 <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
-                <h3 className="mt-2 text-sm font-medium text-slate-900">No courses available</h3>
+                <h3 className="mt-2 text-sm font-medium text-slate-900">No enrolled courses yet</h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  There are no courses assigned to your department yet.
+                  Search for courses using the bar at the top to enroll.
                 </p>
               </div>
             ) : (
@@ -335,6 +357,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                   </div>
                 </div>
                 <div className="flex items-center justify-end sm:justify-center">
+                  <button
                   <button
                     onClick={() => onNavigate?.('course-viewer', course.id)}
                     className="px-4 py-2 bg-slate-50 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-100 border border-slate-200">
@@ -393,3 +416,4 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     </div>);
 
 }
+

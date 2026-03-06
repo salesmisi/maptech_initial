@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -102,12 +102,20 @@ export function CoursesAndContent() {
   // Upload state
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadTitle, setUploadTitle] = useState('');
-  const [uploadType, setUploadType] = useState<'Video' | 'Document'>('Video');
+  const [uploadType, setUploadType] = useState<'Video' | 'Document' | 'Text'>('Video');
+  const [uploadText, setUploadText] = useState('');
+  const [uploadStatus, setUploadStatus] = useState<'Published' | 'Draft'>('Draft');
+  // Preview state
+  const [previewLesson, setPreviewLesson] = useState<any>(null);
   // Quiz state
   const [quizQuestions, setQuizQuestions] = useState<{id: number; question: string; options: string[]; answer: number}[]>([]);
   // Send Quiz state
   const [sendQuizModuleId, setSendQuizModuleId] = useState<number | null>(null);
   const [sendingQuiz, setSendingQuiz] = useState(false);
+  // Upload progress
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -247,7 +255,7 @@ export function CoursesAndContent() {
 
     try {
       await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      const csrfToken = getXsrfToken();
 
       const response = await fetch(`/api/admin/courses/${editingCourse.id}`, {
         method: 'PUT',
@@ -255,7 +263,7 @@ export function CoursesAndContent() {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
+          'X-XSRF-TOKEN': csrfToken,
         },
         body: JSON.stringify({
           title: formData.get('title'),
@@ -287,14 +295,14 @@ export function CoursesAndContent() {
 
     try {
       await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      const csrfToken = getXsrfToken();
 
       const response = await fetch(`/api/admin/courses/${course.id}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
-          ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
+          'X-XSRF-TOKEN': csrfToken,
         },
       });
 
@@ -309,10 +317,17 @@ export function CoursesAndContent() {
     }
   };
 
-  // ── Helper: get CSRF token ──
+  // ── Helper: get XSRF token from cookie ──
+  const getXsrfToken = () => {
+    const v = `; ${document.cookie}`;
+    const parts = v.split('; XSRF-TOKEN=');
+    if (parts.length === 2) return decodeURIComponent(parts.pop()?.split(';').shift() || '');
+    return '';
+  };
+
   const getCsrf = async () => {
     await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    return getXsrfToken();
   };
 
   // ── Load modules for a course ──
@@ -346,7 +361,7 @@ export function CoursesAndContent() {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-CSRF-TOKEN': csrf,
+          'X-XSRF-TOKEN': csrf,
         },
         body: JSON.stringify({ title: newModuleTitle.trim() }),
       });
@@ -373,7 +388,7 @@ export function CoursesAndContent() {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-CSRF-TOKEN': csrf,
+          'X-XSRF-TOKEN': csrf,
         },
         body: JSON.stringify({ title: editModuleTitle.trim() }),
       });
@@ -396,7 +411,7 @@ export function CoursesAndContent() {
       const res = await fetch(`/api/modules/${moduleId}`, {
         method: 'DELETE',
         credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+        headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
       });
       if (!res.ok) throw new Error('Failed to delete module');
       if (selectedCourse) {
@@ -408,40 +423,78 @@ export function CoursesAndContent() {
     }
   };
 
-  // ── Upload Lesson (Video/Document) to Module ──
+  // ── Upload Lesson (Video/Document/Text) to Module ──
   const handleUploadLesson = async () => {
-    if (!selectedModuleId || !uploadFile || !uploadTitle.trim()) {
-      alert('Please select a module, enter a title, and choose a file.');
+    if (!selectedModuleId || !uploadTitle.trim()) {
+      alert('Please select a module and enter a title.');
       return;
     }
-    setIsSubmitting(true);
-    try {
-      const csrf = await getCsrf();
-      const formData = new FormData();
-      formData.append('title', uploadTitle.trim());
-      formData.append('type', uploadType);
-      formData.append('status', 'Published');
-      formData.append('content', uploadFile);
+    if (uploadType !== 'Text' && !uploadFile) {
+      alert('Please choose a file to upload.');
+      return;
+    }
+    if (uploadType === 'Text' && !uploadText.trim()) {
+      alert('Please enter text content.');
+      return;
+    }
 
-      const res = await fetch(`/api/modules/${selectedModuleId}/lessons`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
-        body: formData,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Failed to upload lesson');
-      }
+    const csrf = await getCsrf();
+    const formData = new FormData();
+    formData.append('title', uploadTitle.trim());
+    formData.append('type', uploadType);
+    formData.append('status', uploadStatus);
+
+    if (uploadType === 'Text') {
+      formData.append('text_content', uploadText);
+    } else {
+      formData.append('content', uploadFile!);
+    }
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/modules/${selectedModuleId}/lessons`);
+      xhr.withCredentials = true;
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.setRequestHeader('X-XSRF-TOKEN', csrf);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          setUploadProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          try {
+            const err = JSON.parse(xhr.responseText);
+            reject(new Error(err.message || 'Upload failed'));
+          } catch {
+            reject(new Error('Upload failed'));
+          }
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.send(formData);
+    }).then(async () => {
       setUploadFile(null);
       setUploadTitle('');
+      setUploadText('');
+      setUploadStatus('Draft');
+      setUploadProgress(0);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       setActivePanel('modules');
       if (selectedCourse) await loadModules(selectedCourse.id);
-    } catch (err: any) {
+    }).catch((err: any) => {
       alert(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
+    }).finally(() => {
+      setIsUploading(false);
+    });
   };
 
   // ── Delete Lesson ──
@@ -452,7 +505,7 @@ export function CoursesAndContent() {
       const res = await fetch(`/api/lessons/${lessonId}`, {
         method: 'DELETE',
         credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+        headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
       });
       if (!res.ok) throw new Error('Failed to delete lesson');
       if (selectedCourse) await loadModules(selectedCourse.id);
@@ -480,7 +533,7 @@ export function CoursesAndContent() {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-CSRF-TOKEN': csrf,
+          'X-XSRF-TOKEN': csrf,
         },
         body: JSON.stringify({
           title: courseModules.find(m => m.id === selectedModuleId)?.title || 'Module',
@@ -536,7 +589,7 @@ export function CoursesAndContent() {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-CSRF-TOKEN': csrf,
+          'X-XSRF-TOKEN': csrf,
         },
         body: JSON.stringify({ user_id: userId }),
       });
@@ -560,7 +613,7 @@ export function CoursesAndContent() {
       const res = await fetch(`/api/admin/courses/${selectedCourse.id}/students/${userId}`, {
         method: 'DELETE',
         credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+        headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
       });
       if (!res.ok) throw new Error('Failed to unenroll student');
       await loadEnrolledStudents(selectedCourse.id);
@@ -597,7 +650,7 @@ export function CoursesAndContent() {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-CSRF-TOKEN': csrf,
+          'X-XSRF-TOKEN': csrf,
         },
         body: JSON.stringify({ module_id: sendQuizModuleId }),
       });
@@ -874,7 +927,13 @@ export function CoursesAndContent() {
               <div className="flex justify-between items-start">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">{selectedCourse.title}</h2>
-                  <p className="text-gray-600">Course Management & Content</p>
+                  <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-medium">{selectedCourse.department}</span>
+                    {selectedCourse.instructor && (
+                      <span className="text-gray-500">Instructor: <span className="font-medium text-gray-700">{selectedCourse.instructor}</span></span>
+                    )}
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${getStatusBadge(selectedCourse.status)}`}>{selectedCourse.status}</span>
+                  </div>
                 </div>
                 <button
                   onClick={() => { setShowEnrollments(false); setActivePanel('modules'); setSelectedModuleId(null); }}
@@ -970,6 +1029,13 @@ export function CoursesAndContent() {
                             <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                               <span className="text-xs text-gray-500">{mod.lessons?.length || 0} lessons</span>
                               <button
+                                onClick={() => { setSelectedModuleId(mod.id); setActivePanel('upload'); }}
+                                className="p-1 text-gray-400 hover:text-purple-600"
+                                title="Upload Content to this module"
+                              >
+                                <PlusIcon className="h-4 w-4" />
+                              </button>
+                              <button
                                 onClick={() => { setEditingModuleId(mod.id); setEditModuleTitle(mod.title); }}
                                 className="p-1 text-gray-400 hover:text-yellow-600"
                                 title="Rename"
@@ -996,27 +1062,52 @@ export function CoursesAndContent() {
                               )}
                               {mod.lessons && mod.lessons.length > 0 ? (
                                 mod.lessons.map((lesson: any) => (
-                                  <div key={lesson.id} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded">
+                                  <div key={lesson.id} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setPreviewLesson(lesson)}>
                                     <div className="flex items-center gap-2">
                                       {lesson.type === 'Video' ? (
                                         <VideoCameraIcon className="h-4 w-4 text-purple-500" />
-                                      ) : (
+                                      ) : lesson.type === 'Document' ? (
                                         <DocumentPlusIcon className="h-4 w-4 text-blue-500" />
+                                      ) : (
+                                        <DocumentPlusIcon className="h-4 w-4 text-gray-500" />
                                       )}
                                       <span className="text-sm text-gray-800">{lesson.title}</span>
-                                      <span className="text-xs text-gray-400">({lesson.type})</span>
+                                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                        lesson.status === 'Published' || lesson.status === 'published'
+                                          ? 'bg-green-100 text-green-700'
+                                          : 'bg-yellow-100 text-yellow-700'
+                                      }`}>{lesson.status || 'Draft'}</span>
+                                      {lesson.duration && <span className="text-xs text-gray-400">• {lesson.duration}</span>}
+                                      {lesson.file_size && <span className="text-xs text-gray-400">• {lesson.file_size}</span>}
                                     </div>
-                                    <button
-                                      onClick={() => handleDeleteLesson(lesson.id)}
-                                      className="p-1 text-gray-400 hover:text-red-600"
-                                      title="Delete Lesson"
-                                    >
-                                      <TrashIcon className="h-4 w-4" />
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setPreviewLesson(lesson); }}
+                                        className="p-1 text-gray-400 hover:text-blue-600"
+                                        title="Preview"
+                                      >
+                                        <EyeIcon className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteLesson(lesson.id); }}
+                                        className="p-1 text-gray-400 hover:text-red-600"
+                                        title="Delete Lesson"
+                                      >
+                                        <TrashIcon className="h-4 w-4" />
+                                      </button>
+                                    </div>
                                   </div>
                                 ))
                               ) : (
-                                <div className="text-sm text-gray-400 py-2">No lessons yet. Use "Upload Content" tab to add.</div>
+                                <div className="text-sm text-gray-400 py-2 flex items-center justify-between">
+                                  <span>No lessons yet.</span>
+                                  <button
+                                    onClick={e => { e.stopPropagation(); setSelectedModuleId(mod.id); setActivePanel('upload'); }}
+                                    className="text-xs text-purple-600 hover:text-purple-800 font-medium flex items-center gap-1"
+                                  >
+                                    <PlusIcon className="h-3 w-3" /> Add Content
+                                  </button>
+                                </div>
                               )}
                             </div>
                           )}
@@ -1030,10 +1121,23 @@ export function CoursesAndContent() {
               {/* ── UPLOAD CONTENT PANEL ── */}
               {activePanel === 'upload' && (
                 <div className="max-w-lg mx-auto">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Upload Video or Document</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Upload Learning Content</h3>
                   <div className="space-y-4">
+                    {/* Lesson Title */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Select Module</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Lesson Title</label>
+                      <input
+                        type="text"
+                        value={uploadTitle}
+                        onChange={e => setUploadTitle(e.target.value)}
+                        placeholder="e.g. Introduction to Encryption"
+                        className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      />
+                    </div>
+
+                    {/* Target Module */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Target Module</label>
                       <select
                         value={selectedModuleId || ''}
                         onChange={e => setSelectedModuleId(Number(e.target.value) || null)}
@@ -1045,43 +1149,128 @@ export function CoursesAndContent() {
                         ))}
                       </select>
                     </div>
+
+                    {/* Content Type Buttons */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Lesson Title</label>
-                      <input
-                        type="text"
-                        value={uploadTitle}
-                        onChange={e => setUploadTitle(e.target.value)}
-                        placeholder="e.g. Introduction to Safety Protocols"
-                        className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Content Type</label>
+                      <div className="grid grid-cols-3 gap-3">
+                        {[
+                          { key: 'Video', icon: VideoCameraIcon, label: 'Video' },
+                          { key: 'Document', icon: DocumentPlusIcon, label: 'Document' },
+                          { key: 'Text', icon: AcademicCapIcon, label: 'Text' },
+                        ].map(ct => (
+                          <button
+                            key={ct.key}
+                            type="button"
+                            onClick={() => { setUploadType(ct.key as any); setUploadFile(null); setUploadText(''); }}
+                            className={`flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-colors ${
+                              uploadType === ct.key
+                                ? 'border-purple-500 bg-purple-50 text-purple-700'
+                                : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                            }`}
+                          >
+                            <ct.icon className="h-6 w-6" />
+                            <span className="text-sm font-medium">{ct.label}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
+
+                    {/* Status */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Content Type</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                       <select
-                        value={uploadType}
-                        onChange={e => setUploadType(e.target.value)}
+                        value={uploadStatus}
+                        onChange={e => setUploadStatus(e.target.value as any)}
                         className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                       >
-                        <option value="Video">Video</option>
-                        <option value="Document">Document</option>
-                        <option value="Presentation">Presentation</option>
+                        <option value="Draft">Draft</option>
+                        <option value="Published">Published</option>
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">File</label>
-                      <input
-                        type="file"
-                        accept={uploadType === 'Video' ? 'video/*' : '.pdf,.doc,.docx,.ppt,.pptx'}
-                        onChange={e => setUploadFile(e.target.files?.[0] || null)}
-                        className="w-full border border-gray-300 rounded-md py-2 px-3 file:mr-4 file:py-1 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
-                      />
-                    </div>
+
+                    {/* File Upload (Video / Document) */}
+                    {uploadType !== 'Text' && (
+                      <div
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={e => { e.preventDefault(); if (e.dataTransfer.files.length > 0) setUploadFile(e.dataTransfer.files[0]); }}
+                        className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                          uploadFile ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-purple-400'
+                        }`}
+                      >
+                        {uploadFile ? (
+                          <div className="flex items-center justify-center gap-2 text-green-700">
+                            <span className="text-green-500">&#10003;</span>
+                            <span className="text-sm font-medium">{uploadFile.name}</span>
+                            <span className="text-xs text-gray-500">({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)</span>
+                            <button onClick={() => setUploadFile(null)} className="ml-2 text-red-400 hover:text-red-600">
+                              <XMarkIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div>
+                            <VideoCameraIcon className="h-10 w-10 text-gray-400 mx-auto mb-2" />
+                            <p className="text-sm text-gray-600 mb-2">Drag & drop your file here, or</p>
+                            <label className="cursor-pointer inline-block px-4 py-2 bg-purple-50 text-purple-700 rounded-md text-sm font-semibold hover:bg-purple-100">
+                              Browse Files
+                              <input
+                                type="file"
+                                className="hidden"
+                                accept={uploadType === 'Video' ? 'video/*' : '.pdf,.doc,.docx,.ppt,.pptx,.txt'}
+                                onChange={e => setUploadFile(e.target.files?.[0] || null)}
+                              />
+                            </label>
+                            <p className="text-xs text-gray-400 mt-2">
+                              {uploadType === 'Video' ? 'MP4, WebM, AVI up to 500MB' : 'PDF, DOC, DOCX, PPT, PPTX, TXT up to 500MB'}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Text Input */}
+                    {uploadType === 'Text' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Text Content</label>
+                        <textarea
+                          value={uploadText}
+                          onChange={e => setUploadText(e.target.value)}
+                          rows={8}
+                          placeholder="Enter your text content here..."
+                          className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+                    )}
+
+                    {/* Upload Progress Bar */}
+                    {isUploading && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs text-gray-600">
+                          <span>Uploading...</span>
+                          <span>{uploadProgress}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Upload Button */}
                     <button
                       onClick={handleUploadLesson}
-                      disabled={isSubmitting || !selectedModuleId || !uploadFile || !uploadTitle.trim()}
-                      className="w-full bg-purple-600 text-white py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                      disabled={
+                        isUploading ||
+                        !selectedModuleId ||
+                        !uploadTitle.trim() ||
+                        (uploadType !== 'Text' && !uploadFile) ||
+                        (uploadType === 'Text' && !uploadText.trim())
+                      }
+                      className="w-full bg-green-600 text-white py-2.5 rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors font-medium"
                     >
-                      {isSubmitting ? 'Uploading...' : 'Upload Content'}
+                      {isUploading ? `Uploading... ${uploadProgress}%` : 'Upload & Save'}
                     </button>
                   </div>
                 </div>
@@ -1335,14 +1524,14 @@ export function CoursesAndContent() {
                 const fd = new FormData(form);
                 try {
                   await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-                  const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                  const csrf = getXsrfToken();
                   const res = await fetch('/api/admin/courses', {
                     method: 'POST',
                     credentials: 'include',
                     headers: {
                       'Content-Type': 'application/json',
                       'Accept': 'application/json',
-                      'X-CSRF-TOKEN': csrf,
+                      'X-XSRF-TOKEN': csrf,
                     },
                     body: JSON.stringify({
                       title: fd.get('title'),
@@ -1511,6 +1700,86 @@ export function CoursesAndContent() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════ PREVIEW LESSON MODAL ═══════════════════ */}
+      {previewLesson && (
+        <div className="fixed inset-0 z-[60] overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <div className="fixed inset-0 bg-slate-500 opacity-75" onClick={() => setPreviewLesson(null)} />
+            <div className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full z-10 max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center p-6 border-b border-gray-200">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">{previewLesson.title}</h3>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                      previewLesson.type === 'Video' ? 'bg-purple-100 text-purple-700' :
+                      previewLesson.type === 'Document' ? 'bg-blue-100 text-blue-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>{previewLesson.type}</span>
+                    {previewLesson.duration && <span className="text-xs text-gray-500">{previewLesson.duration}</span>}
+                    {previewLesson.file_size && <span className="text-xs text-gray-500">{previewLesson.file_size}</span>}
+                    {previewLesson.status && (
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        previewLesson.status === 'Published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                      }`}>{previewLesson.status}</span>
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => setPreviewLesson(null)} className="text-gray-400 hover:text-gray-600">
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                {previewLesson.type === 'Video' && previewLesson.content_url && (
+                  <video
+                    controls
+                    className="w-full rounded-lg bg-black"
+                    src={previewLesson.content_url}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                )}
+                {previewLesson.type === 'Document' && previewLesson.content_url && (
+                  <div className="space-y-4">
+                    {previewLesson.content_url.match(/\.pdf$/i) ? (
+                      <iframe
+                        src={previewLesson.content_url}
+                        className="w-full rounded-lg border border-gray-200"
+                        style={{ height: '70vh' }}
+                        title={previewLesson.title}
+                      />
+                    ) : (
+                      <div className="text-center py-8">
+                        <DocumentPlusIcon className="mx-auto h-16 w-16 text-gray-300 mb-4" />
+                        <p className="text-sm text-gray-600 mb-4">{previewLesson.title}</p>
+                        <a
+                          href={previewLesson.content_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
+                        >
+                          Download File
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {previewLesson.type === 'Text' && (
+                  <div className="prose prose-sm max-w-none bg-gray-50 rounded-lg p-6 border border-gray-200 whitespace-pre-wrap">
+                    {previewLesson.text_content || 'No content available.'}
+                  </div>
+                )}
+                {!previewLesson.content_url && previewLesson.type !== 'Text' && (
+                  <div className="text-center py-12">
+                    <DocumentPlusIcon className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+                    <p className="text-sm text-gray-500">No file uploaded for this lesson.</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -3,125 +3,76 @@
 namespace App\Http\Controllers;
 
 use App\Models\Question;
+use App\Models\QuestionReply;
+use App\Models\QuestionReplyReaction;
+use App\Models\Course;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class QAController extends Controller
 {
     /**
-     * Get questions.
-     * - Admin/Instructor: all questions with asker + answerer info
-     * - Employee: only their own questions
+     * Employee: list own questions (with course, answerer, and replies).
      */
-    public function index(Request $request)
+    public function employeeIndex(Request $request)
     {
-        $user = $request->user();
-        $role = strtolower($user->role);
-
-        $query = Question::with(['user:id,fullName,department', 'answeredBy:id,fullName,role'])
-            ->orderBy('created_at', 'desc');
-
-        if ($role === 'employee') {
-            $query->where('user_id', $user->id);
-        }
-
-        $questions = $query->get()->map(function ($q) {
-            return [
-                'id'             => $q->id,
-                'course'         => $q->course,
-                'department'     => $q->department ?? $q->user?->department,
-                'question'       => $q->question,
-                'answer'         => $q->answer,
-                'asked_by'       => $q->user?->fullName,
-                'asked_by_id'    => $q->user_id,
-                'answered_by'    => $q->answeredBy?->fullName,
-                'answered_by_id' => $q->answered_by_id,
-                'answered_at'    => $q->answered_at?->diffForHumans(),
-                'created_at'     => $q->created_at->diffForHumans(),
-            ];
-        });
+        $questions = Question::where('user_id', $request->user()->id)
+            ->with(['course:id,title', 'answerer:id,fullName', 'replies.user:id,fullName,role', 'replies.reactions'])
+            ->orderByDesc('created_at')
+            ->get();
 
         return response()->json($questions);
     }
 
     /**
-     * Employee asks a question.
+     * Employee: submit a new question.
      */
-    public function store(Request $request)
+    public function employeeStore(Request $request)
     {
         $validated = $request->validate([
-            'course'   => 'required|string|max:255',
-            'question' => 'required|string|max:2000',
+            'course_id' => 'required|exists:courses,id',
+            'question'  => 'required|string|max:2000',
         ]);
-
-        $user = $request->user();
 
         $question = Question::create([
-            'user_id'    => $user->id,
-            'course'     => $validated['course'],
-            'department' => $user->department,
-            'question'   => $validated['question'],
+            'user_id'   => $request->user()->id,
+            'course_id' => $validated['course_id'],
+            'question'  => $validated['question'],
         ]);
 
-        $question->load(['user:id,fullName,department', 'answeredBy:id,fullName,role']);
+        $question->load(['course:id,title', 'answerer:id,fullName', 'replies.user:id,fullName,role', 'replies.reactions']);
 
-        return response()->json([
-            'id'             => $question->id,
-            'course'         => $question->course,
-            'department'     => $question->department,
-            'question'       => $question->question,
-            'answer'         => null,
-            'asked_by'       => $question->user?->fullName,
-            'asked_by_id'    => $question->user_id,
-            'answered_by'    => null,
-            'answered_by_id' => null,
-            'answered_at'    => null,
-            'created_at'     => $question->created_at->diffForHumans(),
-        ], 201);
+        return response()->json($question, 201);
     }
 
     /**
-     * Employee edits their own question (only if unanswered).
+     * Employee: update own unanswered question.
      */
-    public function update(Request $request, int $id)
+    public function employeeUpdate(Request $request, int $id)
     {
-        $question = Question::findOrFail($id);
-        $user = $request->user();
-
-        if ($question->user_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        if ($question->answer) {
-            return response()->json(['message' => 'Cannot edit an already answered question'], 422);
-        }
+        $question = Question::where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->whereNull('answer')
+            ->firstOrFail();
 
         $validated = $request->validate([
             'question' => 'required|string|max:2000',
         ]);
 
         $question->update(['question' => $validated['question']]);
+        $question->load(['course:id,title', 'answerer:id,fullName', 'replies.user:id,fullName,role', 'replies.reactions']);
 
-        return response()->json(['message' => 'Question updated', 'question' => $question->question]);
+        return response()->json($question);
     }
 
     /**
-     * Employee deletes their own question (only if unanswered).
-     * Admin can delete any question.
+     * Employee: delete own unanswered question.
      */
-    public function destroy(Request $request, int $id)
+    public function employeeDestroy(Request $request, int $id)
     {
-        $question = Question::findOrFail($id);
-        $user = $request->user();
-        $role = strtolower($user->role);
-
-        if ($role !== 'admin' && $question->user_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        if ($role === 'employee' && $question->answer) {
-            return response()->json(['message' => 'Cannot delete an already answered question'], 422);
-        }
+        $question = Question::where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->whereNull('answer')
+            ->firstOrFail();
 
         $question->delete();
 
@@ -129,52 +80,171 @@ class QAController extends Controller
     }
 
     /**
-     * Instructor or Admin posts/updates an answer.
+     * Admin: list all questions across all courses.
      */
-    public function answer(Request $request, int $id)
+    public function adminIndex(Request $request)
+    {
+        $query = Question::with([
+            'user:id,fullName,department',
+            'course:id,title',
+            'answerer:id,fullName',
+            'replies.user:id,fullName,role',
+            'replies.reactions',
+        ])->orderByDesc('created_at');
+
+        if ($request->has('status')) {
+            if ($request->status === 'unanswered') {
+                $query->whereDoesntHave('replies');
+            } elseif ($request->status === 'answered') {
+                $query->whereHas('replies');
+            }
+        }
+
+        return response()->json($query->get());
+    }
+
+    /**
+     * Instructor: list questions for courses they teach.
+     */
+    public function instructorIndex(Request $request)
+    {
+        $instructorId = $request->user()->id;
+
+        $courseIds = Course::where('instructor_id', $instructorId)->pluck('id');
+
+        $query = Question::whereIn('course_id', $courseIds)
+            ->with([
+                'user:id,fullName,department',
+                'course:id,title',
+                'answerer:id,fullName',
+                'replies.user:id,fullName,role',
+                'replies.reactions',
+            ])
+            ->orderByDesc('created_at');
+
+        if ($request->has('status')) {
+            if ($request->status === 'unanswered') {
+                $query->whereDoesntHave('replies');
+            } elseif ($request->status === 'answered') {
+                $query->whereHas('replies');
+            }
+        }
+
+        return response()->json($query->get());
+    }
+
+    /**
+     * Admin: post or update an answer (legacy single-answer).
+     */
+    public function adminAnswer(Request $request, int $id)
     {
         $question = Question::findOrFail($id);
-        $user = $request->user();
 
         $validated = $request->validate([
             'answer' => 'required|string|max:5000',
         ]);
 
         $question->update([
-            'answer'         => $validated['answer'],
-            'answered_by_id' => $user->id,
-            'answered_at'    => now(),
+            'answer'      => $validated['answer'],
+            'answered_by' => $request->user()->id,
+            'answered_at' => now(),
         ]);
 
-        $question->load('answeredBy:id,fullName,role');
+        $question->load(['user:id,fullName,department', 'course:id,title', 'answerer:id,fullName', 'replies.user:id,fullName,role', 'replies.reactions']);
 
-        return response()->json([
-            'message'     => 'Answer posted',
-            'answer'      => $question->answer,
-            'answered_by' => $question->answeredBy?->fullName,
-            'answered_at' => $question->answered_at->diffForHumans(),
-        ]);
+        return response()->json($question);
     }
 
     /**
-     * Instructor or Admin removes their answer.
+     * Admin: delete an answer (reset to unanswered).
      */
-    public function deleteAnswer(Request $request, int $id)
+    public function adminDeleteAnswer(int $id)
     {
         $question = Question::findOrFail($id);
-        $user = $request->user();
-        $role = strtolower($user->role);
 
-        if ($role !== 'admin' && $question->answered_by_id !== $user->id) {
+        $question->update([
+            'answer'      => null,
+            'answered_by' => null,
+            'answered_at' => null,
+        ]);
+
+        $question->load(['user:id,fullName,department', 'course:id,title', 'answerer:id,fullName', 'replies.user:id,fullName,role', 'replies.reactions']);
+
+        return response()->json($question);
+    }
+
+    /**
+     * Post a reply to a question (works for any authenticated user).
+     */
+    public function storeReply(Request $request, int $id)
+    {
+        $question = Question::findOrFail($id);
+
+        $validated = $request->validate([
+            'message' => 'required|string|max:5000',
+        ]);
+
+        $reply = QuestionReply::create([
+            'question_id' => $question->id,
+            'user_id'     => $request->user()->id,
+            'message'     => $validated['message'],
+        ]);
+
+        $reply->load('user:id,fullName,role');
+        $reply->load('reactions');
+
+        return response()->json($reply, 201);
+    }
+
+    /**
+     * Delete a reply.
+     */
+    public function destroyReply(Request $request, int $questionId, int $replyId)
+    {
+        $reply = QuestionReply::where('id', $replyId)
+            ->where('question_id', $questionId)
+            ->firstOrFail();
+
+        // Only the reply author or an admin can delete
+        $user = $request->user();
+        if ($reply->user_id !== $user->id && $user->role !== 'Admin') {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $question->update([
-            'answer'         => null,
-            'answered_by_id' => null,
-            'answered_at'    => null,
-        ]);
+        $reply->delete();
 
-        return response()->json(['message' => 'Answer removed']);
+        return response()->json(['message' => 'Reply deleted']);
+    }
+
+    /**
+     * Toggle an emoji reaction on a reply (adds if not present, removes if already reacted).
+     */
+    public function toggleReaction(Request $request, int $questionId, int $replyId)
+    {
+        $validated = $request->validate(['emoji' => 'required|string|max:10']);
+
+        QuestionReply::where('id', $replyId)
+            ->where('question_id', $questionId)
+            ->firstOrFail();
+
+        $existing = QuestionReplyReaction::where([
+            'reply_id' => $replyId,
+            'user_id'  => $request->user()->id,
+            'emoji'    => $validated['emoji'],
+        ])->first();
+
+        if ($existing) {
+            $existing->delete();
+        } else {
+            QuestionReplyReaction::create([
+                'reply_id' => $replyId,
+                'user_id'  => $request->user()->id,
+                'emoji'    => $validated['emoji'],
+            ]);
+        }
+
+        $reactions = QuestionReplyReaction::where('reply_id', $replyId)->get();
+
+        return response()->json($reactions);
     }
 }

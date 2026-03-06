@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -29,8 +29,15 @@ export interface Course {
   description: string;
   department: string;
   instructor: string;
+<<<<<<< HEAD
   instructorId: number | null;
   status: 'Active' | 'Draft' | 'Inactive';
+=======
+  instructor_id?: number | string | null;
+  status: 'Active' | 'Draft' | 'Inactive';
+  start_date?: string | null;
+  deadline?: string | null;
+>>>>>>> origin/merge/kurt_phen
   enrolledCount: number;
   modulesCount: number;
   thumbnail: string;
@@ -41,7 +48,78 @@ export interface Course {
   }>;
 }
 
+<<<<<<< HEAD
 const THUMBNAIL_COLORS = ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-red-500', 'bg-indigo-500', 'bg-teal-500'];
+=======
+interface Instructor {
+  id: number;
+  fullname: string;
+}
+
+const initialCourses: Course[] = [
+{
+  id: 1,
+  title: 'Cybersecurity Fundamentals',
+  description:
+  'Learn the basics of digital security, phishing prevention, and password hygiene.',
+  department: 'IT',
+  instructor: 'Prof. Ana Reyes',
+  status: 'Active',
+  enrolledCount: 145,
+  modulesCount: 8,
+  thumbnail: 'bg-blue-500',
+  modules: [],
+},
+{
+  id: 2,
+  title: 'Leadership Training 101',
+  description: 'Essential skills for new managers and team leaders.',
+  department: 'HR',
+  instructor: 'Andres Bonifacio',
+  status: 'Active',
+  enrolledCount: 32,
+  modulesCount: 12,
+  thumbnail: 'bg-purple-500',
+  modules: [],
+},
+{
+  id: 3,
+  title: 'Data Privacy Compliance',
+  description: 'Understanding GDPR and local data privacy laws.',
+  department: 'Operations',
+  instructor: 'Prof. Ana Reyes',
+  status: 'Draft',
+  enrolledCount: 0,
+  modulesCount: 5,
+  thumbnail: 'bg-green-500',
+  modules: [],
+},
+{
+  id: 4,
+  title: 'Customer Service Excellence',
+  description:
+  'Techniques for handling difficult customers and ensuring satisfaction.',
+  department: 'Marketing',
+  instructor: 'Andres Bonifacio',
+  status: 'Active',
+  enrolledCount: 89,
+  modulesCount: 6,
+  thumbnail: 'bg-orange-500',
+  modules: [],
+},
+{
+  id: 5,
+  title: 'Workplace Safety',
+  description: 'OSHA guidelines and emergency procedures.',
+  department: 'Operations',
+  instructor: 'Prof. Ana Reyes',
+  status: 'Archived',
+  enrolledCount: 210,
+  modulesCount: 4,
+  thumbnail: 'bg-red-500',
+  modules: [],
+}];
+>>>>>>> origin/merge/kurt_phen
 
 async function getCsrf() {
   await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
@@ -59,9 +137,27 @@ function normalizeCourseStatus(status: unknown): 'Active' | 'Draft' | 'Inactive'
   return 'Draft';
 }
 
+<<<<<<< HEAD
 export function CourseManagement() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+=======
+// Helper to read a cookie value
+const getCookie = (name: string) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift();
+};
+
+// Fetch CSRF cookie then return decoded XSRF token
+const getXsrfToken = async (): Promise<string> => {
+  await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+  return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
+};
+
+export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, courseId?: string) => void }) {
+  const [courses, setCourses] = useState<Course[]>(initialCourses);
+>>>>>>> origin/merge/kurt_phen
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -76,10 +172,7 @@ export function CourseManagement() {
 
   // Module management functions
   const addModule = () => {
-    console.log('addModule clicked, current modules:', modules.length);
-    const newModule = { id: Date.now(), title: '', file: null };
-    setModules(prev => [...prev, newModule]);
-    console.log('New module added:', newModule);
+    setModules(prev => [...prev, { id: Date.now(), title: '', file: null }]);
   };
 
   const removeModule = (id: number) => {
@@ -91,18 +184,7 @@ export function CourseManagement() {
   };
 
   const updateModuleFile = (id: number, file: File | null) => {
-    console.log('updateModuleFile called:', id, file?.name, file?.size);
-    setModules(prev => {
-      const updated = prev.map(m => {
-        if (m.id === id) {
-          console.log(`Module ${id} file updated to:`, file?.name);
-          return { ...m, file };
-        }
-        return m;
-      });
-      console.log('Updated modules:', updated.map(m => ({ id: m.id, hasFile: !!m.file })));
-      return updated;
-    });
+    setModules(prev => prev.map(m => m.id === id ? { ...m, file } : m));
   };
 
   // Load courses from API on mount
@@ -127,24 +209,51 @@ export function CourseManagement() {
         title: course.title,
         description: course.description || '',
         department: course.department,
+<<<<<<< HEAD
         instructor: course.instructor?.fullName || 'Unassigned',
         instructorId: course.instructor_id ?? course.instructor?.id ?? null,
         status: normalizeCourseStatus(course.status),
         enrolledCount: course.enrolled_count || 0,
+=======
+        instructor: course.instructor?.fullname || 'Unassigned',
+        instructor_id: course.instructor_id,
+        status: course.status,
+        start_date: course.start_date,
+        deadline: course.deadline,
+        enrolledCount: course.enrollments_count || 0,
+>>>>>>> origin/merge/kurt_phen
         modulesCount: course.modules?.length || 0,
         thumbnail: THUMBNAIL_COLORS[idx % THUMBNAIL_COLORS.length],
         modules: course.modules || [],
       }));
       setCourses(mappedCourses);
+<<<<<<< HEAD
     } catch (error) {
       console.error('Error loading courses:', error);
     } finally {
       setIsLoading(false);
+=======
+    } catch {
+      // silently fail; initial courses remain displayed
+>>>>>>> origin/merge/kurt_phen
     }
   };
 
+  const loadInstructors = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/users?role=Instructor`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setInstructors(data.map((u: any) => ({ id: u.id, fullname: u.fullname })));
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     loadCourses();
+    loadInstructors();
   }, []);
 
   // Filter Logic
@@ -160,13 +269,18 @@ export function CourseManagement() {
   const handleDelete = async (id: number) => {
     if (!window.confirm('Are you sure you want to delete this course?')) return;
     try {
+<<<<<<< HEAD
       const xsrf = await getCsrf();
+=======
+      const xsrfToken = await getXsrfToken();
+>>>>>>> origin/merge/kurt_phen
       const response = await fetch(`${API_BASE}/admin/courses/${id}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
+<<<<<<< HEAD
           'X-XSRF-TOKEN': xsrf,
         },
       });
@@ -177,6 +291,15 @@ export function CourseManagement() {
       await loadCourses();
     } catch (err: any) {
       alert(err.message);
+=======
+          'X-XSRF-TOKEN': xsrfToken,
+        },
+      });
+      if (!response.ok) throw new Error('Failed to delete course');
+      setCourses(prev => prev.filter((c) => c.id !== id));
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete course');
+>>>>>>> origin/merge/kurt_phen
     }
   };
   // Modal Handlers
@@ -208,28 +331,24 @@ export function CourseManagement() {
     const form = e.currentTarget;
     const formData = new FormData(form);
 
+<<<<<<< HEAD
     // Add modules with file uploads to the form data
+=======
+    // Attach modules with file uploads
+>>>>>>> origin/merge/kurt_phen
     modules.forEach((module, index) => {
-      console.log(`Adding module ${index}:`, module.title, module.file?.name);
       formData.append(`modules[${index}][title]`, module.title);
       if (module.file) {
         formData.append(`modules[${index}][content]`, module.file);
       }
     });
 
-    // Debug: Log all form data entries (be aware File objects won't fully stringify)
-    console.log('FormData entries:');
-    for (const pair of formData.entries()) {
-      const [key, value] = pair as [string, any];
-      if (value instanceof File) {
-        console.log(`  ${key}: File -> name=${value.name}, size=${value.size}, type=${value.type}`);
-      } else {
-        console.log(`  ${key}:`, value);
-      }
-    }
-
     try {
+<<<<<<< HEAD
       const csrfToken = await getCsrf();
+=======
+      const xsrfToken = await getXsrfToken();
+>>>>>>> origin/merge/kurt_phen
 
       const url = editingCourse
         ? `${API_BASE}/admin/courses/${editingCourse.id}`
@@ -240,14 +359,15 @@ export function CourseManagement() {
         formData.append('_method', 'PUT');
       }
 
-      console.log('Sending request to:', url);
-      console.log('CSRF Token:', csrfToken?.substring(0, 20) + '...');
-
       const response = await fetch(url, {
-        method: 'POST', // Always use POST for FormData with files
+        method: 'POST',
         credentials: 'include',
         headers: {
+<<<<<<< HEAD
           'X-XSRF-TOKEN': csrfToken,
+=======
+          'X-XSRF-TOKEN': xsrfToken,
+>>>>>>> origin/merge/kurt_phen
           'Accept': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
         },
@@ -258,16 +378,14 @@ export function CourseManagement() {
       console.log('Response URL:', response.url);
 
       const responseText = await response.text();
-      console.log('Response body:', responseText.substring(0, 500));
 
       if (!response.ok) {
         let errorData;
         try {
           errorData = JSON.parse(responseText);
         } catch {
-          throw new Error(`Server error: ${response.status} - ${responseText.substring(0, 200)}`);
+          throw new Error(`Server error: ${response.status}`);
         }
-        // Show validation errors in detail
         if (errorData.errors) {
           const errorMessages = Object.entries(errorData.errors)
             .map(([field, messages]: [string, any]) => `${field}: ${messages.join(', ')}`)
@@ -277,14 +395,10 @@ export function CourseManagement() {
         throw new Error(errorData.message || 'Failed to save course');
       }
 
-      const data = JSON.parse(responseText);
-      alert(data.message);
       handleCloseModal();
-      // Reload courses
       loadCourses();
     } catch (err: any) {
-      console.error('Course save error:', err);
-      alert(err.message);
+      alert(err.message || 'Failed to save course');
     } finally {
       setIsSubmitting(false);
     }
@@ -348,22 +462,25 @@ export function CourseManagement() {
         </div>
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredCourses.map((course) =>
+        {filteredCourses.map((course) => {
+          const notStarted = course.start_date && new Date(course.start_date) > new Date();
+          const ended = course.deadline && new Date(course.deadline) <= new Date();
+          return (
         <div
           key={course.id}
-          className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
+          className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow ${notStarted ? 'bg-gray-200 border-gray-300' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
 
             <div
-            className={`h-32 ${course.thumbnail} flex items-center justify-center`}>
+            className={`h-32 ${notStarted ? 'bg-gray-400' : course.thumbnail} flex items-center justify-center`}>
 
               <BookOpen className="h-12 w-12 text-white opacity-50" />
             </div>
             <div className="p-6">
               <div className="flex justify-between items-start">
                 <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${course.status === 'Active' ? 'bg-green-100 text-green-800' : course.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-800'}`}>
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${notStarted ? 'bg-gray-100 text-gray-600' : ended ? 'bg-red-100 text-red-800' : course.status === 'Active' ? 'bg-green-100 text-green-800' : course.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-800'}`}>
 
-                  {course.status}
+                  {notStarted ? 'Not Started' : ended ? 'Locked' : course.status}
                 </span>
                 <div className="flex space-x-1">
                   <button
@@ -398,6 +515,15 @@ export function CourseManagement() {
                 </div>
               </div>
 
+              {notStarted && course.start_date && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              )}
+              {ended && (
+                <p className="mt-2 text-xs text-red-500 font-medium">Course has ended and is locked</p>
+              )}
+
               <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
                 <div>
                   <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
@@ -407,13 +533,16 @@ export function CourseManagement() {
                     Instructor: {course.instructor}
                   </p>
                 </div>
-                <button className="text-sm font-medium text-green-600 hover:text-green-700">
+                <button
+                  onClick={() => onNavigate?.('course-detail', String(course.id))}
+                  className="text-sm font-medium text-green-600 hover:text-green-700">
                   Manage Content &rarr;
                 </button>
               </div>
             </div>
           </div>
-        )}
+          );
+        })}
       </div>
       )}
 
@@ -451,7 +580,7 @@ export function CourseManagement() {
                 <textarea
                   rows={3}
                   name="description"
-                  defaultValue={editingCourse?.description}
+                  defaultValue={editingCourse?.description || 'Self Pace'}
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
@@ -490,12 +619,17 @@ export function CourseManagement() {
                 <label className="block text-sm font-medium text-slate-700 mb-1">Assign Instructor</label>
                 <select
                   name="instructor_id"
+<<<<<<< HEAD
                   defaultValue={editingCourse?.instructorId ? String(editingCourse.instructorId) : ''}
+=======
+                  defaultValue={editingCourse?.instructor_id ?? ''}
+>>>>>>> origin/merge/kurt_phen
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">Select Instructor</option>
-                  <option value="1">Prof. Ana Reyes</option>
-                  <option value="2">Andres Bonifacio</option>
+                  {instructors.map((inst) => (
+                    <option key={inst.id} value={inst.id}>{inst.fullname}</option>
+                  ))}
                 </select>
               </div>
 
@@ -510,7 +644,6 @@ export function CourseManagement() {
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      console.log('Add Module button clicked!');
                       addModule();
                     }}
                     className="inline-flex items-center px-3 py-1.5 border border-green-300 rounded-md text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 cursor-pointer z-10"
@@ -539,8 +672,12 @@ export function CourseManagement() {
                               type="file"
                               accept="video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
                               onChange={(e) => {
+<<<<<<< HEAD
                                 const file = e.target.files?.[0] || null;
                                 updateModuleFile(module.id, file);
+=======
+                                updateModuleFile(module.id, e.target.files?.[0] || null);
+>>>>>>> origin/merge/kurt_phen
                               }}
                               className="w-full text-sm text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-medium file:bg-green-50 file:text-green-700"
                             />
@@ -579,7 +716,7 @@ export function CourseManagement() {
                   disabled={isSubmitting}
                   className="flex-1 py-2 px-4 border border-transparent rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Saving...' : 'Save Course'}
+                  {isSubmitting ? 'Publishing...' : 'Publish Course'}
                 </button>
               </div>
             </form>

@@ -14,6 +14,7 @@ import {
   Loader2,
   AlertCircle,
   Check,
+  Eye,
 } from 'lucide-react';
 
 const API = '/api';
@@ -111,6 +112,9 @@ export function LessonVideoUpload() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Preview modal
+  const [previewLesson, setPreviewLesson] = useState<LessonData | null>(null);
 
   // ── fetch courses ──
   useEffect(() => {
@@ -231,6 +235,9 @@ export function LessonVideoUpload() {
     setUploadProgress(0);
 
     try {
+      // Ensure CSRF cookie is set before upload
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+
       const formData = new FormData();
       formData.append('title', uploadTitle.trim());
       formData.append('type', uploadType);
@@ -533,7 +540,8 @@ export function LessonVideoUpload() {
                     module.lessons.map((lesson) => (
                       <div
                         key={lesson.id}
-                        className="px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                        className="px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer"
+                        onClick={() => setPreviewLesson(lesson)}
                       >
                         <div className="flex items-center min-w-0">
                           <GripVertical className="h-4 w-4 text-slate-300 mr-3 shrink-0" />
@@ -582,7 +590,14 @@ export function LessonVideoUpload() {
                             {lesson.status}
                           </span>
                           <button
-                            onClick={() => handleDeleteLesson(module.id, lesson.id)}
+                            onClick={(e) => { e.stopPropagation(); setPreviewLesson(lesson); }}
+                            className="text-slate-400 hover:text-blue-600"
+                            title="Preview lesson"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteLesson(module.id, lesson.id); }}
                             className="text-slate-400 hover:text-red-600"
                             title="Delete lesson"
                           >
@@ -815,6 +830,7 @@ export function LessonVideoUpload() {
                     disabled={
                       uploading ||
                       !uploadTitle.trim() ||
+                      uploadModuleId === null ||
                       (uploadType !== 'Text' && !uploadFile) ||
                       (uploadType === 'Text' && !uploadText.trim())
                     }
@@ -830,6 +846,84 @@ export function LessonVideoUpload() {
                     )}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════ PREVIEW LESSON MODAL ═══════════════════ */}
+      {previewLesson && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <div className="fixed inset-0 bg-slate-500 opacity-75" onClick={() => setPreviewLesson(null)} />
+            <div className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full z-10 max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center p-6 border-b border-slate-200">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">{previewLesson.title}</h3>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                      previewLesson.type === 'Video' ? 'bg-blue-100 text-blue-700' :
+                      previewLesson.type === 'Document' ? 'bg-orange-100 text-orange-700' :
+                      'bg-slate-100 text-slate-700'
+                    }`}>{previewLesson.type}</span>
+                    {previewLesson.duration && <span className="text-xs text-slate-500">{previewLesson.duration}</span>}
+                    {previewLesson.file_size && <span className="text-xs text-slate-500">{previewLesson.file_size}</span>}
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                      previewLesson.status === 'Published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}>{previewLesson.status}</span>
+                  </div>
+                </div>
+                <button onClick={() => setPreviewLesson(null)} className="text-slate-400 hover:text-slate-600">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                {previewLesson.type === 'Video' && previewLesson.content_url && (
+                  <video
+                    controls
+                    className="w-full rounded-lg bg-black"
+                    src={previewLesson.content_url}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                )}
+                {previewLesson.type === 'Document' && previewLesson.content_url && (
+                  <div className="space-y-4">
+                    {previewLesson.content_url.match(/\.pdf$/i) ? (
+                      <iframe
+                        src={previewLesson.content_url}
+                        className="w-full rounded-lg border border-slate-200"
+                        style={{ height: '70vh' }}
+                        title={previewLesson.title}
+                      />
+                    ) : (
+                      <div className="text-center py-8">
+                        <File className="mx-auto h-16 w-16 text-slate-300 mb-4" />
+                        <p className="text-sm text-slate-600 mb-4">{previewLesson.title}</p>
+                        <a
+                          href={previewLesson.content_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
+                        >
+                          Download File
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {previewLesson.type === 'Text' && (
+                  <div className="prose prose-sm max-w-none bg-slate-50 rounded-lg p-6 border border-slate-200 whitespace-pre-wrap">
+                    {previewLesson.text_content || 'No content available.'}
+                  </div>
+                )}
+                {!previewLesson.content_url && previewLesson.type !== 'Text' && (
+                  <div className="text-center py-12">
+                    <AlertCircle className="mx-auto h-12 w-12 text-slate-300 mb-4" />
+                    <p className="text-sm text-slate-500">No file uploaded for this lesson.</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

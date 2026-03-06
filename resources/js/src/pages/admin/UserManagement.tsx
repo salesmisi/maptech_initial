@@ -12,10 +12,13 @@ import {
 
 interface User {
   id: number;
-  name: string;
-  fullName?: string;
+  fullname: string;
   email: string;
   department: string | null;
+  subdepartment_id: number | null;
+  subdepartment?: { id: number; name: string } | null;
+  subdepartments?: { id: number; name: string }[];
+  head_of_departments?: { id: number; name: string }[];
   role: 'Admin' | 'Instructor' | 'Employee';
   status: 'Active' | 'Inactive';
   created_at?: string;
@@ -26,26 +29,19 @@ interface FormData {
   email: string;
   password: string;
   department: string;
+  subdepartment_id: string;
   role: 'Admin' | 'Instructor' | 'Employee';
   status: 'Active' | 'Inactive';
 }
 
-const API_BASE = '/api';
+interface DeptWithSubs {
+  id: number;
+  name: string;
+  code: string;
+  subdepartments: { id: number; name: string }[];
+}
 
-// Helper function to get cookie value
-const getCookie = (name: string) => {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(';').shift();
-};
-
-// Helper function to get headers with XSRF token
-const getHeaders = () => ({
-  'Accept': 'application/json',
-  'Content-Type': 'application/json',
-  'X-Requested-With': 'XMLHttpRequest',
-  'X-XSRF-TOKEN': decodeURIComponent(getCookie('XSRF-TOKEN') || ''),
-});
+const API_BASE = 'http://127.0.0.1:8000/api';
 
 interface UserManagementProps {
   currentUserEmail?: string;
@@ -62,19 +58,49 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [departments, setDepartments] = useState<DeptWithSubs[]>([]);
+  const [formDepartment, setFormDepartment] = useState('');
+  const [formSubdepartment, setFormSubdepartment] = useState('');
+  const [formRole, setFormRole] = useState<'Admin' | 'Instructor' | 'Employee'>('Employee');
+  const [formSubdepartmentIds, setFormSubdepartmentIds] = useState<number[]>([]);
+  const [formIsHead, setFormIsHead] = useState(false);
 
   // Form refs
   const fullNameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
-  const departmentRef = useRef<HTMLSelectElement>(null);
-  const roleRef = useRef<HTMLSelectElement>(null);
   const statusRef = useRef<HTMLInputElement>(null);
+
+  // Helper to read a cookie value
+  const getCookie = (name: string) => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
+  };
+
+  // Fetch CSRF cookie then return decoded XSRF token
+  const getXsrfToken = async (): Promise<string> => {
+    await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+    return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
+  };
 
   // Load users on mount
   useEffect(() => {
     loadUsers();
+    loadDepartments();
   }, []);
+
+  const loadDepartments = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/departments`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setDepartments(data);
+    } catch { /* ignore */ }
+  };
 
   const loadUsers = async () => {
     try {
@@ -108,7 +134,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
 
   // Filter users
   const filteredUsers = users.filter((user) => {
-    const name = user.fullName || user.name || '';
+    const name = user.fullname || '';
     const matchesSearch =
       name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase());
@@ -124,11 +150,15 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
     }
 
     try {
+<<<<<<< HEAD
       await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
       const xsrfToken = decodeURIComponent(
         document.cookie.split('; ').find(r => r.startsWith('XSRF-TOKEN='))?.split('=')[1] || ''
       );
 
+=======
+      const xsrfToken = await getXsrfToken();
+>>>>>>> origin/merge/kurt_phen
       const response = await fetch(`${API_BASE}/admin/users/${id}`, {
         method: 'DELETE',
         credentials: 'include',
@@ -152,6 +182,11 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
   // Modal handlers
   const handleOpenModal = (user?: User) => {
     setEditingUser(user || null);
+    setFormDepartment(user?.department || '');
+    setFormSubdepartment(user?.subdepartment_id ? String(user.subdepartment_id) : '');
+    setFormRole(user?.role || 'Employee');
+    setFormSubdepartmentIds(user?.subdepartments?.map(s => s.id) || []);
+    setFormIsHead(user?.head_of_departments && user.head_of_departments.length > 0 ? true : false);
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -159,6 +194,11 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingUser(null);
+    setFormDepartment('');
+    setFormSubdepartment('');
+    setFormRole('Employee');
+    setFormSubdepartmentIds([]);
+    setFormIsHead(false);
     setFormError(null);
   };
 
@@ -172,8 +212,9 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
       fullName: fullNameRef.current?.value || '',
       email: emailRef.current?.value || '',
       password: passwordRef.current?.value || '',
-      department: departmentRef.current?.value || '',
-      role: (roleRef.current?.value || 'Employee') as 'Admin' | 'Instructor' | 'Employee',
+      department: formDepartment,
+      subdepartment_id: formSubdepartment,
+      role: formRole,
       status: statusRef.current?.checked ? 'Active' : 'Inactive',
     };
 
@@ -198,8 +239,14 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
       setSubmitting(false);
       return;
     }
+    if (formData.role === 'Instructor' && !formData.department) {
+      setFormError('Department is required for Instructor role');
+      setSubmitting(false);
+      return;
+    }
 
     try {
+<<<<<<< HEAD
       // Get fresh CSRF cookie and extract XSRF-TOKEN
       await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
       const xsrfToken = decodeURIComponent(
@@ -212,6 +259,9 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
         return;
       }
 
+=======
+      const xsrfToken = await getXsrfToken();
+>>>>>>> origin/merge/kurt_phen
       const url = editingUser
         ? `${API_BASE}/admin/users/${editingUser.id}`
         : `${API_BASE}/admin/users`;
@@ -222,9 +272,16 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
         fullName: formData.fullName,
         email: formData.email,
         role: formData.role,
-        department: formData.role === 'Employee' ? formData.department : null,
+        department: (formData.role === 'Employee' || formData.role === 'Instructor') ? formData.department : null,
+        subdepartment_id: formData.role === 'Employee' && formData.subdepartment_id ? Number(formData.subdepartment_id) : null,
         status: formData.status,
       };
+
+      // For instructors, include subdepartment_ids and head flag
+      if (formData.role === 'Instructor') {
+        body.subdepartment_ids = formSubdepartmentIds;
+        body.is_department_head = formIsHead;
+      }
 
       // Only include password if provided (for edit) or required (for create)
       if (formData.password) {
@@ -332,11 +389,9 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
               onChange={(e) => setDepartmentFilter(e.target.value)}
             >
               <option value="All">All Departments</option>
-              <option value="IT">IT</option>
-              <option value="HR">HR</option>
-              <option value="Operations">Operations</option>
-              <option value="Finance">Finance</option>
-              <option value="Marketing">Marketing</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.name}>{d.name}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -379,12 +434,12 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
                           <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold">
-                            {(user.fullName || user.name || '?').charAt(0).toUpperCase()}
+                            {(user.fullname || '?').charAt(0).toUpperCase()}
                           </div>
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-slate-900">
-                            {user.fullName || user.name}
+                            {user.fullname}
                           </div>
                           <div className="text-sm text-slate-500">{user.email}</div>
                         </div>
@@ -394,6 +449,19 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
                       <div className="text-sm text-slate-900">
                         {user.department || '-'}
                       </div>
+                      {user.role === 'Instructor' && user.head_of_departments && user.head_of_departments.length > 0 && (
+                        <div className="text-xs text-amber-600 font-medium">Head</div>
+                      )}
+                      {user.role === 'Employee' && user.subdepartment && (
+                        <div className="text-xs text-slate-400">
+                          {user.subdepartment.name}
+                        </div>
+                      )}
+                      {user.role === 'Instructor' && user.subdepartments && user.subdepartments.length > 0 && (
+                        <div className="text-xs text-slate-400">
+                          {user.subdepartments.map(s => s.name).join(', ')}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -479,7 +547,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
                     <input
                       ref={fullNameRef}
                       type="text"
-                      defaultValue={editingUser?.fullName || editingUser?.name || ''}
+                      defaultValue={editingUser?.fullname || ''}
                       className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     />
                   </div>
@@ -506,39 +574,115 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
                       className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700">
-                        Role <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        ref={roleRef}
-                        defaultValue={editingUser?.role || 'Employee'}
-                        className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                      >
-                        <option value="Employee">Employee</option>
-                        <option value="Instructor">Instructor</option>
-                        <option value="Admin">Admin</option>
-                      </select>
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700">
+                      Role <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formRole}
+                      onChange={(e) => {
+                        const newRole = e.target.value as 'Admin' | 'Instructor' | 'Employee';
+                        setFormRole(newRole);
+                        setFormDepartment('');
+                        setFormSubdepartment('');
+                        setFormSubdepartmentIds([]);
+                        setFormIsHead(false);
+                      }}
+                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    >
+                      <option value="Employee">Employee</option>
+                      <option value="Instructor">Instructor</option>
+                      <option value="Admin">Admin</option>
+                    </select>
+                  </div>
+
+                  {/* Department dropdown for Employee and Instructor */}
+                  {(formRole === 'Employee' || formRole === 'Instructor') && (
                     <div>
                       <label className="block text-sm font-medium text-slate-700">
                         Department
                       </label>
                       <select
-                        ref={departmentRef}
-                        defaultValue={editingUser?.department || ''}
+                        value={formDepartment}
+                        onChange={(e) => {
+                          setFormDepartment(e.target.value);
+                          setFormSubdepartment('');
+                          setFormSubdepartmentIds([]);
+                          setFormIsHead(false);
+                        }}
                         className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                       >
                         <option value="">Select Department</option>
-                        <option value="IT">IT</option>
-                        <option value="HR">HR</option>
-                        <option value="Operations">Operations</option>
-                        <option value="Finance">Finance</option>
-                        <option value="Marketing">Marketing</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.name}>{d.name}</option>
+                        ))}
                       </select>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Employee: single subdepartment dropdown */}
+                  {formRole === 'Employee' && formDepartment && (() => {
+                    const dept = departments.find(d => d.name === formDepartment);
+                    const subs = dept?.subdepartments || [];
+                    return subs.length > 0 ? (
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700">
+                          Sub Department
+                        </label>
+                        <select
+                          value={formSubdepartment}
+                          onChange={(e) => setFormSubdepartment(e.target.value)}
+                          className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                        >
+                          <option value="">Select Sub Department</option>
+                          {subs.map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {/* Instructor: checkbox subdepartments + head of department */}
+                  {formRole === 'Instructor' && formDepartment && (() => {
+                    const dept = departments.find(d => d.name === formDepartment);
+                    const subs = dept?.subdepartments || [];
+                    return subs.length > 0 ? (
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Sub Departments
+                        </label>
+                        <div className="border border-slate-300 rounded-md p-3 max-h-40 overflow-y-auto space-y-2">
+                          {subs.map((s) => (
+                            <label key={s.id} className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={formSubdepartmentIds.includes(s.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setFormSubdepartmentIds([...formSubdepartmentIds, s.id]);
+                                  } else {
+                                    setFormSubdepartmentIds(formSubdepartmentIds.filter(id => id !== s.id));
+                                  }
+                                }}
+                                className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
+                              />
+                              <span className="text-sm text-slate-700">{s.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                        <label className="flex items-center gap-2 mt-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formIsHead}
+                            onChange={(e) => setFormIsHead(e.target.checked)}
+                            className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
+                          />
+                          <span className="text-sm text-slate-700 font-medium">Head of Department</span>
+                        </label>
+                      </div>
+                    ) : null;
+                  })()}
                   <div className="flex items-center">
                     <input
                       ref={statusRef}

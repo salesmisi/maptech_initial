@@ -6,7 +6,8 @@ interface LoginPageProps {
     role: 'admin' | 'instructor' | 'employee',
     name: string,
     email: string,
-    department?: string
+    department?: string,
+    profile_picture?: string | null
   ) => void;
 }
 
@@ -73,7 +74,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         data.role?.toLowerCase() as 'admin' | 'instructor' | 'employee',
         data.name,
         data.email,
-        data.department
+        data.department,
+        data.profile_picture
       );
 
     } catch (err: any) {

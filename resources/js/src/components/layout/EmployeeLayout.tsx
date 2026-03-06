@@ -1,8 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   LayoutDashboard,
   BookOpen,
-  Play,
   TrendingUp,
   Award,
   MessageSquare,
@@ -10,7 +9,8 @@ import {
   LogOut,
   Search,
   Menu,
-  Bell } from
+  Bell,
+  Settings } from
 'lucide-react';
 interface EmployeeLayoutProps {
   children: React.ReactNode;
@@ -20,15 +20,21 @@ interface EmployeeLayoutProps {
   user: {
     name: string;
     email: string;
+    profile_picture?: string | null;
   };
+  globalSearch?: string;
+  onGlobalSearch?: (term: string) => void;
 }
 export function EmployeeLayout({
   children,
   currentPage,
   onNavigate,
   onLogout,
-  user
+  user,
+  globalSearch = '',
+  onGlobalSearch,
 }: EmployeeLayoutProps) {
+  const [showPicPreview, setShowPicPreview] = useState(false);
   const navItems = [
   {
     id: 'dashboard',
@@ -39,11 +45,6 @@ export function EmployeeLayout({
     id: 'my-courses',
     label: 'My Courses',
     icon: BookOpen
-  },
-  {
-    id: 'course-viewer',
-    label: 'Course Viewer',
-    icon: Play
   },
   {
     id: 'progress',
@@ -64,6 +65,11 @@ export function EmployeeLayout({
     id: 'feedback',
     label: 'Feedback',
     icon: MessageSquare
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    icon: Settings
   }];
 
   return (
@@ -87,7 +93,8 @@ export function EmployeeLayout({
             <nav className="mt-5 flex-1 px-2 space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = currentPage === item.id;
+                const isActive = currentPage === item.id ||
+                  (item.id === 'my-courses' && (currentPage === 'course-viewer' || currentPage === 'course-enroll'));
                 return (
                   <button
                     key={item.id}
@@ -106,7 +113,7 @@ export function EmployeeLayout({
           <div className="flex-shrink-0 flex border-t border-slate-800 p-4">
             <div className="flex-shrink-0 w-full group block">
               <div className="flex items-center">
-                <div className="inline-block h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
+                <div className="h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
                   {user.name.charAt(0)}
                 </div>
                 <div className="ml-3">
@@ -138,7 +145,7 @@ export function EmployeeLayout({
           </button>
           <div className="flex-1 px-4 flex justify-between">
             <div className="flex-1 flex">
-              <form className="w-full flex md:ml-0" action="#" method="GET">
+              <form className="w-full flex md:ml-0" onSubmit={(e) => e.preventDefault()}>
                 <label htmlFor="search-field" className="sr-only">
                   Search
                 </label>
@@ -149,9 +156,11 @@ export function EmployeeLayout({
                   <input
                     id="search-field"
                     className="block w-full h-full pl-8 pr-3 py-2 border-transparent text-slate-900 placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-0 focus:border-transparent sm:text-sm"
-                    placeholder="Search courses..."
+                    placeholder="Search all courses..."
                     type="search"
-                    name="search" />
+                    name="search"
+                    value={globalSearch}
+                    onChange={(e) => onGlobalSearch?.(e.target.value)} />
 
                 </div>
               </form>
@@ -169,6 +178,25 @@ export function EmployeeLayout({
           {children}
         </main>
       </div>
+
+      {/* Profile Picture Preview Modal */}
+      {showPicPreview && user.profile_picture && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setShowPicPreview(false)}>
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={user.profile_picture}
+              alt={user.name}
+              className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl object-contain"
+            />
+            <button
+              onClick={() => setShowPicPreview(false)}
+              className="absolute -top-3 -right-3 h-8 w-8 rounded-full bg-white text-slate-700 flex items-center justify-center shadow-md hover:bg-slate-100 text-lg font-bold"
+            >
+              &times;
+            </button>
+          </div>
+        </div>
+      )}
     </div>);
 
 }
