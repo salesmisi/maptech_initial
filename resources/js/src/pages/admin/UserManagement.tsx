@@ -17,6 +17,8 @@ interface User {
   department: string | null;
   subdepartment_id: number | null;
   subdepartment?: { id: number; name: string } | null;
+  subdepartments?: { id: number; name: string }[];
+  head_of_departments?: { id: number; name: string }[];
   role: 'Admin' | 'Instructor' | 'Employee';
   status: 'Active' | 'Inactive';
   created_at?: string;
@@ -54,12 +56,14 @@ export function UserManagement() {
   const [departments, setDepartments] = useState<DeptWithSubs[]>([]);
   const [formDepartment, setFormDepartment] = useState('');
   const [formSubdepartment, setFormSubdepartment] = useState('');
+  const [formRole, setFormRole] = useState<'Admin' | 'Instructor' | 'Employee'>('Employee');
+  const [formSubdepartmentIds, setFormSubdepartmentIds] = useState<number[]>([]);
+  const [formIsHead, setFormIsHead] = useState(false);
 
   // Form refs
   const fullNameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
-  const roleRef = useRef<HTMLSelectElement>(null);
   const statusRef = useRef<HTMLInputElement>(null);
 
   // Helper to read a cookie value
@@ -166,6 +170,9 @@ export function UserManagement() {
     setEditingUser(user || null);
     setFormDepartment(user?.department || '');
     setFormSubdepartment(user?.subdepartment_id ? String(user.subdepartment_id) : '');
+    setFormRole(user?.role || 'Employee');
+    setFormSubdepartmentIds(user?.subdepartments?.map(s => s.id) || []);
+    setFormIsHead(user?.head_of_departments && user.head_of_departments.length > 0 ? true : false);
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -175,6 +182,9 @@ export function UserManagement() {
     setEditingUser(null);
     setFormDepartment('');
     setFormSubdepartment('');
+    setFormRole('Employee');
+    setFormSubdepartmentIds([]);
+    setFormIsHead(false);
     setFormError(null);
   };
 
@@ -190,7 +200,7 @@ export function UserManagement() {
       password: passwordRef.current?.value || '',
       department: formDepartment,
       subdepartment_id: formSubdepartment,
-      role: (roleRef.current?.value || 'Employee') as 'Admin' | 'Instructor' | 'Employee',
+      role: formRole,
       status: statusRef.current?.checked ? 'Active' : 'Inactive',
     };
 
@@ -215,6 +225,11 @@ export function UserManagement() {
       setSubmitting(false);
       return;
     }
+    if (formData.role === 'Instructor' && !formData.department) {
+      setFormError('Department is required for Instructor role');
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const xsrfToken = await getXsrfToken();
@@ -228,10 +243,16 @@ export function UserManagement() {
         fullName: formData.fullName,
         email: formData.email,
         role: formData.role,
-        department: formData.role === 'Employee' ? formData.department : null,
+        department: (formData.role === 'Employee' || formData.role === 'Instructor') ? formData.department : null,
         subdepartment_id: formData.role === 'Employee' && formData.subdepartment_id ? Number(formData.subdepartment_id) : null,
         status: formData.status,
       };
+
+      // For instructors, include subdepartment_ids and head flag
+      if (formData.role === 'Instructor') {
+        body.subdepartment_ids = formSubdepartmentIds;
+        body.is_department_head = formIsHead;
+      }
 
       // Only include password if provided (for edit) or required (for create)
       if (formData.password) {
@@ -389,9 +410,17 @@ export function UserManagement() {
                       <div className="text-sm text-slate-900">
                         {user.department || '-'}
                       </div>
-                      {user.subdepartment && (
+                      {user.role === 'Instructor' && user.head_of_departments && user.head_of_departments.length > 0 && (
+                        <div className="text-xs text-amber-600 font-medium">Head</div>
+                      )}
+                      {user.role === 'Employee' && user.subdepartment && (
                         <div className="text-xs text-slate-400">
                           {user.subdepartment.name}
+                        </div>
+                      )}
+                      {user.role === 'Instructor' && user.subdepartments && user.subdepartments.length > 0 && (
+                        <div className="text-xs text-slate-400">
+                          {user.subdepartments.map(s => s.name).join(', ')}
                         </div>
                       )}
                     </td>
@@ -506,21 +535,30 @@ export function UserManagement() {
                       className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700">
-                        Role <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        ref={roleRef}
-                        defaultValue={editingUser?.role || 'Employee'}
-                        className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                      >
-                        <option value="Employee">Employee</option>
-                        <option value="Instructor">Instructor</option>
-                        <option value="Admin">Admin</option>
-                      </select>
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700">
+                      Role <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formRole}
+                      onChange={(e) => {
+                        const newRole = e.target.value as 'Admin' | 'Instructor' | 'Employee';
+                        setFormRole(newRole);
+                        setFormDepartment('');
+                        setFormSubdepartment('');
+                        setFormSubdepartmentIds([]);
+                        setFormIsHead(false);
+                      }}
+                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    >
+                      <option value="Employee">Employee</option>
+                      <option value="Instructor">Instructor</option>
+                      <option value="Admin">Admin</option>
+                    </select>
+                  </div>
+
+                  {/* Department dropdown for Employee and Instructor */}
+                  {(formRole === 'Employee' || formRole === 'Instructor') && (
                     <div>
                       <label className="block text-sm font-medium text-slate-700">
                         Department
@@ -530,6 +568,8 @@ export function UserManagement() {
                         onChange={(e) => {
                           setFormDepartment(e.target.value);
                           setFormSubdepartment('');
+                          setFormSubdepartmentIds([]);
+                          setFormIsHead(false);
                         }}
                         className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                       >
@@ -539,8 +579,10 @@ export function UserManagement() {
                         ))}
                       </select>
                     </div>
-                  </div>
-                  {formDepartment && (() => {
+                  )}
+
+                  {/* Employee: single subdepartment dropdown */}
+                  {formRole === 'Employee' && formDepartment && (() => {
                     const dept = departments.find(d => d.name === formDepartment);
                     const subs = dept?.subdepartments || [];
                     return subs.length > 0 ? (
@@ -558,6 +600,47 @@ export function UserManagement() {
                             <option key={s.id} value={s.id}>{s.name}</option>
                           ))}
                         </select>
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {/* Instructor: checkbox subdepartments + head of department */}
+                  {formRole === 'Instructor' && formDepartment && (() => {
+                    const dept = departments.find(d => d.name === formDepartment);
+                    const subs = dept?.subdepartments || [];
+                    return subs.length > 0 ? (
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Sub Departments
+                        </label>
+                        <div className="border border-slate-300 rounded-md p-3 max-h-40 overflow-y-auto space-y-2">
+                          {subs.map((s) => (
+                            <label key={s.id} className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={formSubdepartmentIds.includes(s.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setFormSubdepartmentIds([...formSubdepartmentIds, s.id]);
+                                  } else {
+                                    setFormSubdepartmentIds(formSubdepartmentIds.filter(id => id !== s.id));
+                                  }
+                                }}
+                                className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
+                              />
+                              <span className="text-sm text-slate-700">{s.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                        <label className="flex items-center gap-2 mt-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formIsHead}
+                            onChange={(e) => setFormIsHead(e.target.checked)}
+                            className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
+                          />
+                          <span className="text-sm text-slate-700 font-medium">Head of Department</span>
+                        </label>
                       </div>
                     ) : null;
                   })()}

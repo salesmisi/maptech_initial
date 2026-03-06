@@ -112,11 +112,27 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the subdepartment this user belongs to.
+     * Get the subdepartment this user belongs to (for employees).
      */
     public function subdepartment()
     {
         return $this->belongsTo(Subdepartment::class);
+    }
+
+    /**
+     * Get subdepartments this user is assigned to (for instructors, many-to-many).
+     */
+    public function subdepartments()
+    {
+        return $this->belongsToMany(Subdepartment::class, 'user_subdepartment')->withTimestamps();
+    }
+
+    /**
+     * Get departments where this user is the head.
+     */
+    public function headOfDepartments()
+    {
+        return $this->hasMany(Department::class, 'head_id');
     }
 
     /**
