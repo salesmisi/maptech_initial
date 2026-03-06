@@ -22,7 +22,8 @@ class CourseController extends Controller
     public function index(Request $request)
     {
         // Eager-load instructor and modules so API returns module data/count
-        $query = Course::with(['instructor:id,fullname,email', 'modules']);
+        $query = Course::with(['instructor:id,fullname,email', 'modules'])
+            ->withCount('enrollments');
 
         // Filter by department
         if ($request->has('department')) {
@@ -65,6 +66,7 @@ class CourseController extends Controller
                 'department' => 'required|string|max:255',
                 'instructor_id' => 'nullable|exists:users,id',
                 'status' => ['nullable', Rule::in(['Active', 'Inactive', 'Draft'])],
+                'start_date' => 'nullable|date',
                 'deadline' => 'nullable|date',
                 'modules' => 'nullable|array',
                 'modules.*.title' => 'nullable|string|max:255',
@@ -83,6 +85,7 @@ class CourseController extends Controller
                 'department' => $validated['department'],
                 'instructor_id' => $validated['instructor_id'] ?? null,
                 'status' => $validated['status'] ?? 'Active',
+                'start_date' => $validated['start_date'] ?? null,
                 'deadline' => $validated['deadline'] ?? null,
             ]);
 
@@ -141,6 +144,13 @@ class CourseController extends Controller
             'enrolledUsers:id,fullname,email,department,role,status',
         ])->findOrFail($id);
 
+        // Recalculate progress for each enrolled user
+        foreach ($course->enrolledUsers as $eu) {
+            Enrollment::recalculateProgress($eu->id, $course->id);
+        }
+        // Refresh to get updated pivot data
+        $course->load('enrolledUsers:id,fullname,email,department,role,status');
+
         return response()->json($course);
     }
 
@@ -164,6 +174,7 @@ class CourseController extends Controller
                 'department' => 'sometimes|string|max:255',
                 'instructor_id' => 'nullable|exists:users,id',
                 'status' => ['sometimes', Rule::in(['Active', 'Inactive', 'Draft'])],
+                'start_date' => 'nullable|date',
                 'deadline' => 'nullable|date',
                 'modules' => 'nullable|array',
                 'modules.*.title' => 'nullable|string|max:255',
@@ -171,7 +182,7 @@ class CourseController extends Controller
             ]);
 
             $course->update(array_filter($validated, function ($k) {
-                return in_array($k, ['title', 'description', 'department', 'instructor_id', 'status', 'deadline']);
+                return in_array($k, ['title', 'description', 'department', 'instructor_id', 'status', 'start_date', 'deadline']);
             }, ARRAY_FILTER_USE_KEY));
 
             if (!empty($validated['modules'])) {
@@ -235,6 +246,12 @@ class CourseController extends Controller
     public function enrollments(string $id)
     {
         $course = Course::findOrFail($id);
+
+        // Recalculate progress for each enrollment
+        foreach ($course->enrollments as $enrollment) {
+            Enrollment::recalculateProgress($enrollment->user_id, $course->id);
+        }
+
         $users = $course->enrolledUsers()
             ->select('users.id', 'users.fullname', 'users.email', 'users.department', 'users.role', 'users.status')
             ->get()

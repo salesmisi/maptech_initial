@@ -18,9 +18,9 @@ class UserController extends Controller
     {
         $query = User::query();
 
-        // Filter by role
+        // Filter by role (stored lowercase in DB; PostgreSQL is case-sensitive)
         if ($request->has('role')) {
-            $query->where('role', $request->role);
+            $query->where('role', strtolower($request->role));
         }
 
         // Filter by department
@@ -34,8 +34,11 @@ class UserController extends Controller
         }
 
         $users = $query->select([
-            'id', 'fullname', 'email', 'role', 'department', 'status', 'created_at'
+            'id', 'fullname', 'email', 'role', 'department', 'subdepartment_id', 'status', 'created_at'
         ])->orderBy('created_at', 'desc')->get();
+
+        // Eager load subdepartment name
+        $users->load('subdepartment:id,name');
 
         return response()->json($users);
     }
@@ -51,6 +54,7 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
             'role' => ['required', Rule::in(['Admin', 'Instructor', 'Employee'])],
             'department' => 'nullable|string|max:255',
+            'subdepartment_id' => 'nullable|exists:subdepartments,id',
             'status' => ['nullable', Rule::in(['Active', 'Inactive'])],
         ]);
 
@@ -68,6 +72,7 @@ class UserController extends Controller
             'password' => $validated['password'], // Auto-hashed by model
             'role' => $validated['role'],
             'department' => $validated['department'] ?? null,
+            'subdepartment_id' => $validated['subdepartment_id'] ?? null,
             'status' => $validated['status'] ?? 'Active',
         ]);
 
@@ -100,6 +105,7 @@ class UserController extends Controller
             'password' => 'sometimes|string|min:8',
             'role' => ['sometimes', Rule::in(['Admin', 'Instructor', 'Employee'])],
             'department' => 'nullable|string|max:255',
+            'subdepartment_id' => 'nullable|exists:subdepartments,id',
             'status' => ['sometimes', Rule::in(['Active', 'Inactive'])],
         ]);
 
@@ -127,6 +133,9 @@ class UserController extends Controller
         }
         if (array_key_exists('department', $validated)) {
             $user->department = $validated['department'];
+        }
+        if (array_key_exists('subdepartment_id', $validated)) {
+            $user->subdepartment_id = $validated['subdepartment_id'];
         }
         if (isset($validated['status'])) {
             $user->status = $validated['status'];

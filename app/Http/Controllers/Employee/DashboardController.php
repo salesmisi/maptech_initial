@@ -109,6 +109,12 @@ class DashboardController extends Controller
             ->get()
             ->filter(fn ($e) => $e->course !== null);
 
+        // Recalculate progress for all enrollments from quiz attempts
+        foreach ($enrollments as $enrollment) {
+            Enrollment::recalculateProgress($user->id, $enrollment->course_id);
+            $enrollment->refresh();
+        }
+
         $result = $enrollments->map(function (Enrollment $enrollment) {
             $course = $enrollment->course;
             return [
@@ -161,6 +167,9 @@ class DashboardController extends Controller
     public function showCourse(Request $request, string $id)
     {
         $user = $request->user();
+
+        // Recalculate progress from quiz attempts (fixes stale data)
+        Enrollment::recalculateProgress($user->id, $id);
 
         $course = Course::active()
             ->with([

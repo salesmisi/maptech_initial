@@ -15,6 +15,8 @@ interface User {
   fullname: string;
   email: string;
   department: string | null;
+  subdepartment_id: number | null;
+  subdepartment?: { id: number; name: string } | null;
   role: 'Admin' | 'Instructor' | 'Employee';
   status: 'Active' | 'Inactive';
   created_at?: string;
@@ -25,8 +27,16 @@ interface FormData {
   email: string;
   password: string;
   department: string;
+  subdepartment_id: string;
   role: 'Admin' | 'Instructor' | 'Employee';
   status: 'Active' | 'Inactive';
+}
+
+interface DeptWithSubs {
+  id: number;
+  name: string;
+  code: string;
+  subdepartments: { id: number; name: string }[];
 }
 
 const API_BASE = 'http://127.0.0.1:8000/api';
@@ -41,12 +51,14 @@ export function UserManagement() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [departments, setDepartments] = useState<DeptWithSubs[]>([]);
+  const [formDepartment, setFormDepartment] = useState('');
+  const [formSubdepartment, setFormSubdepartment] = useState('');
 
   // Form refs
   const fullNameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
-  const departmentRef = useRef<HTMLSelectElement>(null);
   const roleRef = useRef<HTMLSelectElement>(null);
   const statusRef = useRef<HTMLInputElement>(null);
 
@@ -66,7 +78,20 @@ export function UserManagement() {
   // Load users on mount
   useEffect(() => {
     loadUsers();
+    loadDepartments();
   }, []);
+
+  const loadDepartments = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/departments`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setDepartments(data);
+    } catch { /* ignore */ }
+  };
 
   const loadUsers = async () => {
     try {
@@ -139,6 +164,8 @@ export function UserManagement() {
   // Modal handlers
   const handleOpenModal = (user?: User) => {
     setEditingUser(user || null);
+    setFormDepartment(user?.department || '');
+    setFormSubdepartment(user?.subdepartment_id ? String(user.subdepartment_id) : '');
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -146,6 +173,8 @@ export function UserManagement() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingUser(null);
+    setFormDepartment('');
+    setFormSubdepartment('');
     setFormError(null);
   };
 
@@ -159,7 +188,8 @@ export function UserManagement() {
       fullName: fullNameRef.current?.value || '',
       email: emailRef.current?.value || '',
       password: passwordRef.current?.value || '',
-      department: departmentRef.current?.value || '',
+      department: formDepartment,
+      subdepartment_id: formSubdepartment,
       role: (roleRef.current?.value || 'Employee') as 'Admin' | 'Instructor' | 'Employee',
       status: statusRef.current?.checked ? 'Active' : 'Inactive',
     };
@@ -199,6 +229,7 @@ export function UserManagement() {
         email: formData.email,
         role: formData.role,
         department: formData.role === 'Employee' ? formData.department : null,
+        subdepartment_id: formData.role === 'Employee' && formData.subdepartment_id ? Number(formData.subdepartment_id) : null,
         status: formData.status,
       };
 
@@ -298,11 +329,9 @@ export function UserManagement() {
               onChange={(e) => setDepartmentFilter(e.target.value)}
             >
               <option value="All">All Departments</option>
-              <option value="IT">IT</option>
-              <option value="HR">HR</option>
-              <option value="Operations">Operations</option>
-              <option value="Finance">Finance</option>
-              <option value="Marketing">Marketing</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.name}>{d.name}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -360,6 +389,11 @@ export function UserManagement() {
                       <div className="text-sm text-slate-900">
                         {user.department || '-'}
                       </div>
+                      {user.subdepartment && (
+                        <div className="text-xs text-slate-400">
+                          {user.subdepartment.name}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -492,19 +526,41 @@ export function UserManagement() {
                         Department
                       </label>
                       <select
-                        ref={departmentRef}
-                        defaultValue={editingUser?.department || ''}
+                        value={formDepartment}
+                        onChange={(e) => {
+                          setFormDepartment(e.target.value);
+                          setFormSubdepartment('');
+                        }}
                         className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                       >
                         <option value="">Select Department</option>
-                        <option value="IT">IT</option>
-                        <option value="HR">HR</option>
-                        <option value="Operations">Operations</option>
-                        <option value="Finance">Finance</option>
-                        <option value="Marketing">Marketing</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.name}>{d.name}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
+                  {formDepartment && (() => {
+                    const dept = departments.find(d => d.name === formDepartment);
+                    const subs = dept?.subdepartments || [];
+                    return subs.length > 0 ? (
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700">
+                          Sub Department
+                        </label>
+                        <select
+                          value={formSubdepartment}
+                          onChange={(e) => setFormSubdepartment(e.target.value)}
+                          className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                        >
+                          <option value="">Select Sub Department</option>
+                          {subs.map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : null;
+                  })()}
                   <div className="flex items-center">
                     <input
                       ref={statusRef}

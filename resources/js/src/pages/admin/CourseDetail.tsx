@@ -734,8 +734,8 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                 return (
                   <div
                     key={mod.id}
-                    draggable
-                    onDragStart={() => handleDragStart(idx)}
+                    draggable={!isExpanded}
+                    onDragStart={() => { if (!isExpanded) handleDragStart(idx); }}
                     onDragOver={e => handleDragOver(e, idx)}
                     onDragEnd={handleDragEnd}
                     onDrop={() => handleDrop(idx)}
@@ -1205,8 +1205,14 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-2 bg-slate-200 rounded-full max-w-[80px]">
                             <div
-                              className="h-2 bg-green-500 rounded-full"
-                              style={{ width: `${user.progress}%` }}
+                              className={`h-2 rounded-full ${
+                                user.progress >= 100
+                                  ? 'bg-green-500'
+                                  : user.progress > 0
+                                  ? 'bg-blue-500'
+                                  : 'bg-slate-300'
+                              }`}
+                              style={{ width: `${Math.min(user.progress, 100)}%` }}
                             />
                           </div>
                           <span className="text-xs text-slate-500">{user.progress}%</span>
@@ -1216,9 +1222,11 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                           user.enrollment_status === 'Completed'
                             ? 'bg-green-100 text-green-800'
+                            : user.enrollment_status === 'In Progress'
+                            ? 'bg-blue-100 text-blue-700'
                             : user.enrollment_status === 'Dropped'
                             ? 'bg-red-100 text-red-700'
-                            : 'bg-blue-100 text-blue-700'
+                            : 'bg-slate-100 text-slate-600'
                         }`}>
                           {user.enrollment_status}
                         </span>

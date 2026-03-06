@@ -111,6 +111,9 @@ class QuizController extends Controller
             'passed'          => $passed,
         ]);
 
+        // ── Recalculate enrollment progress ────────────────────────────────
+        Enrollment::recalculateProgress($request->user()->id, $quiz->course_id);
+
         return response()->json([
             'score'           => $correct,
             'total'           => $total,

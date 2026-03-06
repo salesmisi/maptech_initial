@@ -20,16 +20,24 @@ interface Department {
   code: string;
   description: string;
   head: string;
+  head_id: number | null;
+  head_user?: { id: number; fullname: string } | null;
   employee_count: number;
   course_count: number;
   status: "Active" | "Inactive";
   subdepartments: Subdepartment[];
 }
 
+interface Instructor {
+  id: number;
+  fullname: string;
+}
+
 export default function DepartmentManagement() {
   const API = "http://127.0.0.1:8000/api";
 
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +48,7 @@ export default function DepartmentManagement() {
 
   const [selectedDeptId, setSelectedDeptId] = useState<number | null>(null);
   const [selectedSubId, setSelectedSubId] = useState<number | null>(null);
+  const [selectedSubName, setSelectedSubName] = useState<string>('');
   const [editing, setEditing] = useState<Department | null>(null);
   const [editingSub, setEditingSub] = useState<Subdepartment | null>(null);
 
@@ -47,10 +56,23 @@ export default function DepartmentManagement() {
     name: "",
     code: "",
     head: "",
+    head_id: "" as string | number,
     description: "",
   });
 
   const [subName, setSubName] = useState("");
+
+  // ================= HELPERS =================
+  const getCookie = (name: string) => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
+  };
+
+  const getXsrfToken = async (): Promise<string> => {
+    await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+    return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
+  };
 
   // ================= LOAD =================
   const loadDepartments = async () => {
@@ -69,7 +91,24 @@ export default function DepartmentManagement() {
 
   useEffect(() => {
     loadDepartments();
+    loadInstructors();
   }, []);
+
+  const loadInstructors = async () => {
+    try {
+      await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+      const res = await fetch(`${API}/admin/users?role=Instructor`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setInstructors(data.map((u: any) => ({ id: u.id, fullname: u.fullname })));
+    } catch { /* ignore */ }
+  };
 
   // ================= SAVE DEPARTMENT =================
   const handleSaveDepartment = async () => {
@@ -78,12 +117,23 @@ export default function DepartmentManagement() {
       : `${API}/departments`;
 
     const method = editing ? "PUT" : "POST";
+    const xsrfToken = await getXsrfToken();
 
     await fetch(url, {
       method,
-      headers: { "Content-Type": "application/json" },
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-XSRF-TOKEN': xsrfToken,
+      },
       body: JSON.stringify({
-        ...deptForm,
+        name: deptForm.name,
+        code: deptForm.code,
+        head: deptForm.head_id ? instructors.find(i => i.id === Number(deptForm.head_id))?.fullname || deptForm.head : deptForm.head,
+        head_id: deptForm.head_id ? Number(deptForm.head_id) : null,
+        description: deptForm.description,
         status: "Active",
       }),
     });
@@ -95,11 +145,19 @@ export default function DepartmentManagement() {
 
   // ================= ADD/EDIT SUB =================
   const handleSaveSub = async () => {
+    const xsrfToken = await getXsrfToken();
+
     if (editingSub) {
       // Edit existing subdepartment
       await fetch(`${API}/subdepartments/${editingSub.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrfToken,
+        },
         body: JSON.stringify({ name: subName }),
       });
     } else {
@@ -110,7 +168,13 @@ export default function DepartmentManagement() {
         `${API}/departments/${selectedDeptId}/subdepartments`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': xsrfToken,
+          },
           body: JSON.stringify({ name: subName }),
         }
       );
@@ -126,8 +190,15 @@ export default function DepartmentManagement() {
   const confirmDeleteSub = async () => {
     if (!selectedSubId) return;
 
+    const xsrfToken = await getXsrfToken();
     await fetch(`${API}/subdepartments/${selectedSubId}`, {
       method: "DELETE",
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-XSRF-TOKEN': xsrfToken,
+      },
     });
 
     setShowDeleteSubModal(false);
@@ -139,8 +210,15 @@ export default function DepartmentManagement() {
   const confirmDelete = async () => {
     if (!selectedDeptId) return;
 
+    const xsrfToken = await getXsrfToken();
     await fetch(`${API}/departments/${selectedDeptId}`, {
       method: "DELETE",
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-XSRF-TOKEN': xsrfToken,
+      },
     });
 
     setShowDeleteModal(false);
@@ -162,7 +240,7 @@ export default function DepartmentManagement() {
         <button
           onClick={() => {
             setEditing(null);
-            setDeptForm({ name: "", code: "", head: "", description: "" });
+            setDeptForm({ name: "", code: "", head: "", head_id: "", description: "" });
             setShowDeptModal(true);
           }}
           className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
@@ -189,7 +267,7 @@ export default function DepartmentManagement() {
             </div>
 
             <p className="text-sm text-gray-600 mb-2">
-              Head: <span className="font-medium">{dept.head}</span>
+              Head: <span className="font-medium">{dept.head_user?.fullname || dept.head || 'Unassigned'}</span>
             </p>
 
             {/* DESCRIPTION */}
@@ -221,9 +299,10 @@ export default function DepartmentManagement() {
                     <X
                       onClick={() => {
                         setSelectedSubId(sub.id);
+                        setSelectedSubName(sub.name);
                         setShowDeleteSubModal(true);
                       }}
-                      className="w-3 h-3 cursor-pointer opacity-0 group-hover:opacity-100 hover:text-red-600"
+                      className="w-3 h-3 cursor-pointer text-blue-400 hover:text-red-600"
                     />
                   </span>
                 ))}
@@ -250,6 +329,7 @@ export default function DepartmentManagement() {
                       name: dept.name,
                       code: dept.code,
                       head: dept.head,
+                      head_id: dept.head_id || "",
                       description: dept.description,
                     });
                     setShowDeptModal(true);
@@ -287,11 +367,19 @@ export default function DepartmentManagement() {
             value={deptForm.code}
             onChange={(v) => setDeptForm({ ...deptForm, code: v })}
           />
-          <Input
-            placeholder="Department Head"
-            value={deptForm.head}
-            onChange={(v) => setDeptForm({ ...deptForm, head: v })}
-          />
+          <div className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Department Head</label>
+            <select
+              value={deptForm.head_id}
+              onChange={(e) => setDeptForm({ ...deptForm, head_id: e.target.value })}
+              className="w-full border rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500"
+            >
+              <option value="">Select Instructor</option>
+              {instructors.map((inst) => (
+                <option key={inst.id} value={inst.id}>{inst.fullname}</option>
+              ))}
+            </select>
+          </div>
           <Input
             placeholder="Description"
             value={deptForm.description}
@@ -336,11 +424,16 @@ export default function DepartmentManagement() {
       )}
 
       {/* ================= DELETE MODAL ================= */}
-      {showDeleteModal && (
+      {showDeleteModal && (() => {
+        const deptToDelete = departments.find(d => d.id === selectedDeptId);
+        return (
         <Modal onClose={() => setShowDeleteModal(false)}>
-          <h2 className="text-lg font-semibold mb-4">
-            Delete this department?
+          <h2 className="text-lg font-semibold mb-2">
+            Delete Department
           </h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Are you sure you want to delete <span className="font-semibold text-gray-800">"{deptToDelete?.name}"</span>? This will also remove all its subdepartments. This action cannot be undone.
+          </p>
 
           <div className="flex justify-end gap-3">
             <button
@@ -352,20 +445,24 @@ export default function DepartmentManagement() {
 
             <button
               onClick={confirmDelete}
-              className="px-4 py-2 bg-red-600 text-white rounded-md"
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
             >
-              Delete
+              Yes, Delete
             </button>
           </div>
         </Modal>
-      )}
+        );
+      })()}
 
       {/* ================= DELETE SUB MODAL ================= */}
       {showDeleteSubModal && (
         <Modal onClose={() => setShowDeleteSubModal(false)}>
-          <h2 className="text-lg font-semibold mb-4">
-            Delete this subdepartment?
+          <h2 className="text-lg font-semibold mb-2">
+            Delete Subdepartment
           </h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Are you sure you want to delete <span className="font-semibold text-gray-800">"{selectedSubName}"</span>? This action cannot be undone and all employees assigned to this subdepartment will be unassigned.
+          </p>
 
           <div className="flex justify-end gap-3">
             <button
@@ -377,9 +474,9 @@ export default function DepartmentManagement() {
 
             <button
               onClick={confirmDeleteSub}
-              className="px-4 py-2 bg-red-600 text-white rounded-md"
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
             >
-              Delete
+              Yes, Delete
             </button>
           </div>
         </Modal>

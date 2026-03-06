@@ -36,6 +36,7 @@ interface Course {
   description: string;
   department: string;
   status: 'Active' | 'Draft' | 'Archived' | 'Inactive';
+  start_date?: string | null;
   deadline?: string | null;
   modules: Array<{ id?: number; title: string; content_path?: string }>;
 }
@@ -235,12 +236,15 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((course) => (
-            <div key={course.id} className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
-              <div className={`h-32 ${DEPT_COLORS[course.department] || 'bg-slate-500'} relative flex items-center justify-center`}>
+          {filtered.map((course) => {
+            const notStarted = course.start_date && new Date(course.start_date) > new Date();
+            const ended = course.deadline && new Date(course.deadline) <= new Date();
+            return (
+            <div key={course.id} className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col ${notStarted ? 'bg-gray-200 border-gray-300' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
+              <div className={`h-32 ${notStarted ? 'bg-gray-400' : DEPT_COLORS[course.department] || 'bg-slate-500'} relative flex items-center justify-center`}>
                 <BookOpen className="h-10 w-10 text-white opacity-60" />
-                <span className={`absolute top-3 left-3 text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_COLORS[course.status] || 'bg-slate-100 text-slate-600'}`}>
-                  {course.status}
+                <span className={`absolute top-3 left-3 text-xs font-semibold px-2 py-0.5 rounded-full ${notStarted ? 'bg-gray-100 text-gray-600' : ended ? 'bg-red-100 text-red-800' : STATUS_COLORS[course.status] || 'bg-slate-100 text-slate-600'}`}>
+                  {notStarted ? 'Not Started' : ended ? 'Locked' : course.status}
                 </span>
                 <div className="absolute top-3 right-3 flex gap-1">
                   <button
@@ -267,13 +271,27 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                     <FileText className="h-4 w-4" />
                     {course.modules?.length ?? 0} Modules
                   </div>
+                  <div className="flex items-center gap-1">
+                    <BookOpen className="h-4 w-4" />
+                    {(course as any).enrollments_count ?? 0} Enrolled
+                  </div>
+                </div>
+                <div className="mb-4">
                   <span className="text-xs font-medium text-slate-400">{course.department}</span>
                 </div>
 
-                {course.deadline && (
+                {course.deadline && !ended && (
                   <p className="text-xs text-red-500 mb-3">
-                    Deadline: {new Date(course.deadline).toLocaleDateString()}
+                    End Date: {new Date(course.deadline).toLocaleDateString()}
                   </p>
+                )}
+                {notStarted && course.start_date && (
+                  <p className="text-xs text-gray-500 mb-3">
+                    Course has not started yet — Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                )}
+                {ended && (
+                  <p className="text-xs text-red-500 font-medium mb-3">Course has ended and is locked</p>
                 )}
 
                 <div className="mt-auto pt-3 border-t border-slate-100">
@@ -286,7 +304,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -332,7 +351,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 <textarea
                   rows={3}
                   name="description"
-                  defaultValue={editingCourse?.description}
+                  defaultValue={editingCourse?.description || 'Self Pace'}
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
@@ -367,16 +386,29 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Deadline <span className="text-slate-400 text-xs">(optional)</span>
-                </label>
-                <input
-                  type="datetime-local"
-                  name="deadline"
-                  defaultValue={editingCourse?.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Start Date <span className="text-slate-400 text-xs">(optional)</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    name="start_date"
+                    defaultValue={editingCourse?.start_date ? new Date(editingCourse.start_date).toISOString().slice(0, 16) : ''}
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    End Date <span className="text-slate-400 text-xs">(optional)</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    name="deadline"
+                    defaultValue={editingCourse?.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                  />
+                </div>
               </div>
 
               {/* Module Upload Section */}
@@ -443,7 +475,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   disabled={isSubmitting}
                   className="flex-1 py-2 px-4 border border-transparent rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Saving...' : 'Save Course'}
+                  {isSubmitting ? 'Publishing...' : 'Publish Course'}
                 </button>
               </div>
             </form>

@@ -11,9 +11,9 @@ use App\Models\Subdepartment;
 |--------------------------------------------------------------------------
 */
 
-// GET ALL DEPARTMENTS (with subdepartments)
+// GET ALL DEPARTMENTS (with subdepartments and head user)
 Route::get('/departments', function () {
-    return Department::with('subdepartments')->get();
+    return Department::with(['subdepartments', 'headUser:id,fullname'])->get();
 });
 
 // CREATE DEPARTMENT
@@ -28,6 +28,7 @@ Route::post('/departments', function (Request $request) {
         'name' => $request->name,
         'code' => $request->code,
         'head' => $request->head,
+        'head_id' => $request->head_id,
         'status' => $request->status ?? 'Active',
         'description' => $request->description,
         'employee_count' => 0,
@@ -44,6 +45,7 @@ Route::put('/departments/{id}', function (Request $request, $id) {
         'name' => $request->name,
         'code' => $request->code,
         'head' => $request->head,
+        'head_id' => $request->head_id,
         'status' => $request->status,
         'description' => $request->description,
     ]);
@@ -215,6 +217,14 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::put('/courses/{courseId}/modules/{moduleId}', [InstructorCourseController::class, 'updateModule']);
     Route::delete('/courses/{courseId}/modules/{moduleId}', [InstructorCourseController::class, 'deleteModule']);
     Route::post('/courses/{courseId}/modules/reorder', [InstructorCourseController::class, 'reorderModules']);
+
+    // Enrollment Management
+    Route::get('/courses/{id}/enrollments', [InstructorCourseController::class, 'enrollments']);
+    Route::post('/courses/{id}/enrollments', [InstructorCourseController::class, 'enroll']);
+    Route::delete('/courses/{courseId}/enrollments/{userId}', [InstructorCourseController::class, 'unenroll']);
+
+    // Users list (for enrollment dropdown)
+    Route::get('/users', [InstructorCourseController::class, 'listUsers']);
 
     // Lesson Management
     Route::post('/modules/{moduleId}/lessons', [InstructorCourseController::class, 'addLesson']);

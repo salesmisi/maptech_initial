@@ -32,6 +32,7 @@ class User extends Authenticatable
         'password',
         'role',
         'department',
+        'subdepartment_id',
         'status',
     ];
 
@@ -108,6 +109,14 @@ class User extends Authenticatable
     public function courses(): HasMany
     {
         return $this->hasMany(Course::class, 'instructor_id');
+    }
+
+    /**
+     * Get the subdepartment this user belongs to.
+     */
+    public function subdepartment()
+    {
+        return $this->belongsTo(Subdepartment::class);
     }
 
     /**

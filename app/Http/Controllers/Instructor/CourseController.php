@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Instructor;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
+use App\Models\Enrollment;
 use App\Models\Module;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -22,6 +24,7 @@ class CourseController extends Controller
 
         $courses = Course::where('instructor_id', $user->id)
             ->with(['modules.lessons'])
+            ->withCount('enrollments')
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -60,12 +63,19 @@ class CourseController extends Controller
 
         $course = Course::where('id', $id)
             ->where('instructor_id', $user->id)
-            ->with(['modules.lessons'])
+            ->with(['modules.lessons', 'enrolledUsers:id,fullname,email,department,role,status'])
             ->first();
 
         if (!$course) {
             return response()->json(['message' => 'Course not found.'], 404);
         }
+
+        // Recalculate progress for each enrolled user
+        foreach ($course->enrolledUsers as $eu) {
+            Enrollment::recalculateProgress($eu->id, $course->id);
+        }
+        // Refresh to get updated pivot data
+        $course->load('enrolledUsers:id,fullname,email,department,role,status');
 
         return response()->json($course);
     }
@@ -83,6 +93,7 @@ class CourseController extends Controller
                 'description'        => 'nullable|string',
                 'department'         => 'required|string|max:255',
                 'status'             => ['nullable', Rule::in(['Active', 'Inactive', 'Draft'])],
+                'start_date'         => 'nullable|date',
                 'deadline'           => 'nullable|date',
                 'modules'            => 'nullable|array',
                 'modules.*.title'    => 'nullable|string|max:255',
@@ -95,6 +106,7 @@ class CourseController extends Controller
                 'department'    => $validated['department'],
                 'instructor_id' => $user->id,
                 'status'        => $validated['status'] ?? 'Active',
+                'start_date'    => $validated['start_date'] ?? null,
                 'deadline'      => $validated['deadline'] ?? null,
             ]);
 
@@ -138,6 +150,7 @@ class CourseController extends Controller
                 'description'       => 'nullable|string',
                 'department'        => 'sometimes|string|max:255',
                 'status'            => ['sometimes', Rule::in(['Active', 'Inactive', 'Draft'])],
+                'start_date'        => 'nullable|date',
                 'deadline'          => 'nullable|date',
                 'modules'           => 'nullable|array',
                 'modules.*.title'   => 'nullable|string|max:255',
@@ -145,7 +158,7 @@ class CourseController extends Controller
             ]);
 
             $course->update(array_filter($validated, fn ($k) =>
-                in_array($k, ['title', 'description', 'department', 'status', 'deadline']),
+                in_array($k, ['title', 'description', 'department', 'status', 'start_date', 'deadline']),
                 ARRAY_FILTER_USE_KEY
             ));
 
@@ -369,5 +382,106 @@ class CourseController extends Controller
         }
 
         return response()->json(['message' => 'Modules reordered']);
+    }
+
+    // ─── ENROLLMENT MANAGEMENT ──────────────────────────────────────────────
+
+    /**
+     * List active employees (for enrollment dropdown).
+     */
+    public function listUsers()
+    {
+        $users = User::where('status', 'Active')
+            ->whereIn('role', ['Employee'])
+            ->select('id', 'fullname', 'email', 'role', 'department', 'status')
+            ->orderBy('fullname')
+            ->get();
+
+        return response()->json($users);
+    }
+
+    /**
+     * List all enrolled users for an instructor's own course.
+     */
+    public function enrollments(Request $request, string $id)
+    {
+        $course = Course::where('id', $id)
+            ->where('instructor_id', $request->user()->id)
+            ->firstOrFail();
+
+        // Recalculate each user's progress
+        foreach ($course->enrollments as $enrollment) {
+            Enrollment::recalculateProgress($enrollment->user_id, $course->id);
+        }
+
+        $users = $course->enrolledUsers()
+            ->select('users.id', 'users.fullname', 'users.email', 'users.department', 'users.role', 'users.status')
+            ->get()
+            ->map(function ($user) {
+                return [
+                    'id'                => $user->id,
+                    'fullname'          => $user->fullname,
+                    'email'             => $user->email,
+                    'department'        => $user->department,
+                    'role'              => $user->role,
+                    'status'            => $user->status,
+                    'enrolled_at'       => $user->pivot->enrolled_at,
+                    'progress'          => $user->pivot->progress,
+                    'enrollment_status' => $user->pivot->status,
+                ];
+            });
+
+        return response()->json($users);
+    }
+
+    /**
+     * Enroll a user into an instructor's own course.
+     */
+    public function enroll(Request $request, string $id)
+    {
+        $request->validate([
+            'user_id' => 'required|exists:users,id',
+        ]);
+
+        $course = Course::where('id', $id)
+            ->where('instructor_id', $request->user()->id)
+            ->firstOrFail();
+
+        if ($course->enrollments()->where('user_id', $request->user_id)->exists()) {
+            return response()->json(['message' => 'User is already enrolled in this course'], 409);
+        }
+
+        $course->enrollments()->create([
+            'user_id'     => $request->user_id,
+            'status'      => 'Not Started',
+            'progress'    => 0,
+            'enrolled_at' => now(),
+        ]);
+
+        $user = User::select('id', 'fullname', 'email', 'department', 'role', 'status')
+            ->findOrFail($request->user_id);
+
+        return response()->json([
+            'message' => 'User enrolled successfully',
+            'user'    => $user,
+        ], 201);
+    }
+
+    /**
+     * Remove an enrollment from an instructor's own course.
+     */
+    public function unenroll(Request $request, string $courseId, int $userId)
+    {
+        $course = Course::where('id', $courseId)
+            ->where('instructor_id', $request->user()->id)
+            ->firstOrFail();
+
+        $deleted = $course->enrollments()->where('user_id', $userId)->delete();
+
+        if (!$deleted) {
+            return response()->json(['message' => 'Enrollment not found'], 404);
+        }
+
+        return response()->json(['message' => 'User unenrolled successfully']);
     }
 }

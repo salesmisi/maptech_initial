@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -28,7 +28,10 @@ export interface Course {
   description: string;
   department: string;
   instructor: string;
-  status: 'Active' | 'Draft' | 'Archived';
+  instructor_id?: number | string | null;
+  status: 'Active' | 'Draft' | 'Inactive';
+  start_date?: string | null;
+  deadline?: string | null;
   enrolledCount: number;
   modulesCount: number;
   thumbnail: string;
@@ -37,6 +40,11 @@ export interface Course {
     title: string;
     content_path?: string;
   }>;
+}
+
+interface Instructor {
+  id: number;
+  fullname: string;
 }
 
 const initialCourses: Course[] = [
@@ -126,6 +134,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [modules, setModules] = useState<ModuleInput[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [instructors, setInstructors] = useState<Instructor[]>([]);
 
   // Module management functions
   const addModule = () => {
@@ -165,8 +174,11 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
         description: course.description || '',
         department: course.department,
         instructor: course.instructor?.fullname || 'Unassigned',
+        instructor_id: course.instructor_id,
         status: course.status,
-        enrolledCount: course.enrolled_count || 0,
+        start_date: course.start_date,
+        deadline: course.deadline,
+        enrolledCount: course.enrollments_count || 0,
         modulesCount: course.modules?.length || 0,
         thumbnail: 'bg-green-500',
         modules: course.modules || [],
@@ -177,8 +189,21 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
     }
   };
 
+  const loadInstructors = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/users?role=Instructor`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setInstructors(data.map((u: any) => ({ id: u.id, fullname: u.fullname })));
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     loadCourses();
+    loadInstructors();
   }, []);
 
   // Filter Logic
@@ -335,7 +360,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
               <option value="All">All Status</option>
               <option value="Active">Active</option>
               <option value="Draft">Draft</option>
-              <option value="Archived">Archived</option>
+              <option value="Inactive">Inactive</option>
             </select>
           </div>
         </div>
@@ -343,22 +368,25 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
 
       {/* Course Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredCourses.map((course) =>
+        {filteredCourses.map((course) => {
+          const notStarted = course.start_date && new Date(course.start_date) > new Date();
+          const ended = course.deadline && new Date(course.deadline) <= new Date();
+          return (
         <div
           key={course.id}
-          className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
+          className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow ${notStarted ? 'bg-gray-200 border-gray-300' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
 
             <div
-            className={`h-32 ${course.thumbnail} flex items-center justify-center`}>
+            className={`h-32 ${notStarted ? 'bg-gray-400' : course.thumbnail} flex items-center justify-center`}>
 
               <BookOpen className="h-12 w-12 text-white opacity-50" />
             </div>
             <div className="p-6">
               <div className="flex justify-between items-start">
                 <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${course.status === 'Active' ? 'bg-green-100 text-green-800' : course.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-800'}`}>
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${notStarted ? 'bg-gray-100 text-gray-600' : ended ? 'bg-red-100 text-red-800' : course.status === 'Active' ? 'bg-green-100 text-green-800' : course.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-800'}`}>
 
-                  {course.status}
+                  {notStarted ? 'Not Started' : ended ? 'Locked' : course.status}
                 </span>
                 <div className="flex space-x-1">
                   <button
@@ -393,6 +421,15 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                 </div>
               </div>
 
+              {notStarted && course.start_date && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              )}
+              {ended && (
+                <p className="mt-2 text-xs text-red-500 font-medium">Course has ended and is locked</p>
+              )}
+
               <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
                 <div>
                   <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
@@ -410,7 +447,8 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
               </div>
             </div>
           </div>
-        )}
+          );
+        })}
       </div>
 
       {/* Add/Edit Modal - Using Portal to render at body level */}
@@ -447,7 +485,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                 <textarea
                   rows={3}
                   name="description"
-                  defaultValue={editingCourse?.description}
+                  defaultValue={editingCourse?.description || 'Self Pace'}
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
@@ -477,33 +515,47 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   >
                     <option value="Active">Active</option>
                     <option value="Draft">Draft</option>
-                    <option value="Archived">Archived</option>
+                    <option value="Inactive">Inactive</option>
                   </select>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Deadline <span className="text-slate-400 text-xs">(optional)</span>
-                </label>
-                <input
-                  type="datetime-local"
-                  name="deadline"
-                  defaultValue={editingCourse?.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Start Date <span className="text-slate-400 text-xs">(optional)</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    name="start_date"
+                    defaultValue={editingCourse?.start_date ? new Date(editingCourse.start_date).toISOString().slice(0, 16) : ''}
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    End Date <span className="text-slate-400 text-xs">(optional)</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    name="deadline"
+                    defaultValue={editingCourse?.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                  />
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Assign Instructor</label>
                 <select
                   name="instructor_id"
-                  defaultValue={editingCourse?.instructor}
+                  defaultValue={editingCourse?.instructor_id ?? ''}
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">Select Instructor</option>
-                  <option value="1">Prof. Ana Reyes</option>
-                  <option value="2">Andres Bonifacio</option>
+                  {instructors.map((inst) => (
+                    <option key={inst.id} value={inst.id}>{inst.fullname}</option>
+                  ))}
                 </select>
               </div>
 
@@ -585,7 +637,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   disabled={isSubmitting}
                   className="flex-1 py-2 px-4 border border-transparent rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Saving...' : 'Save Course'}
+                  {isSubmitting ? 'Publishing...' : 'Publish Course'}
                 </button>
               </div>
             </form>

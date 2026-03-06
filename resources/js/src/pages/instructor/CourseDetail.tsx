@@ -19,6 +19,8 @@ import {
   Save,
   X,
   GripVertical,
+  Users,
+  UserMinus,
 } from 'lucide-react';
 import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
 
@@ -158,6 +160,28 @@ interface CourseData {
   status: string;
   deadline: string | null;
   modules: Module[];
+  enrolled_users: EnrolledUser[];
+}
+
+interface EnrolledUser {
+  id: number;
+  fullname: string;
+  email: string;
+  department: string | null;
+  role: string;
+  status: string;
+  enrolled_at: string;
+  progress: number;
+  enrollment_status: string;
+}
+
+interface AllUser {
+  id: number;
+  fullname: string;
+  email: string;
+  role: string;
+  department: string | null;
+  status: string;
 }
 
 interface Props {
@@ -224,6 +248,16 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
   const [savingLesson, setSavingLesson] = useState(false);
   const editLessonFileRef = useRef<HTMLInputElement>(null);
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'modules' | 'students'>('modules');
+
+  // Enrollment state
+  const [allUsers, setAllUsers] = useState<AllUser[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [enrolling, setEnrolling] = useState(false);
+  const [enrollError, setEnrollError] = useState<string | null>(null);
+  const [enrollSuccess, setEnrollSuccess] = useState<string | null>(null);
+
   // Drag state
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -236,7 +270,20 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
       });
       if (!res.ok) throw new Error('Course not found.');
       const data = await res.json();
-      setCourse(data);
+      setCourse({
+        ...data,
+        enrolled_users: (data.enrolled_users ?? []).map((u: any) => ({
+          id: u.id,
+          fullname: u.fullname,
+          email: u.email,
+          department: u.department,
+          role: u.role,
+          status: u.status,
+          enrolled_at: u.pivot?.enrolled_at ?? u.enrolled_at,
+          progress: u.pivot?.progress ?? u.progress ?? 0,
+          enrollment_status: u.pivot?.status ?? u.enrollment_status ?? 'Not Started',
+        })),
+      });
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -264,10 +311,25 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
     }
   };
 
+  const loadAllUsers = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/instructor/users`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return;
+      const data: AllUser[] = await res.json();
+      setAllUsers(data.filter(u => u.status === 'Active'));
+    } catch {
+      // ignore
+    }
+  };
+
   useEffect(() => {
     if (courseId) {
       loadCourse();
       loadQuizzes();
+      loadAllUsers();
     }
   }, [courseId]);
 
@@ -489,6 +551,59 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
     }
   };
 
+  // ─── ENROLLMENT HANDLERS ──────────────────────────────────────────────────
+  const enrolledIds = new Set(course?.enrolled_users.map(u => u.id) ?? []);
+  const availableUsers = allUsers.filter(u => !enrolledIds.has(u.id));
+
+  const handleEnroll = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUserId) return;
+    setEnrolling(true);
+    setEnrollError(null);
+    setEnrollSuccess(null);
+    try {
+      const xsrf = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/instructor/courses/${courseId}/enrollments`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': xsrf,
+        },
+        body: JSON.stringify({ user_id: Number(selectedUserId) }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to enroll user');
+      }
+      setSelectedUserId('');
+      setEnrollSuccess('User enrolled successfully');
+      await loadCourse();
+      setTimeout(() => setEnrollSuccess(null), 3000);
+    } catch (e: any) {
+      setEnrollError(e.message || 'Failed to enroll user');
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
+  const handleUnenroll = async (userId: number, name: string) => {
+    if (!confirm(`Remove ${name} from this course?`)) return;
+    try {
+      const xsrf = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/instructor/courses/${courseId}/enrollments/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': xsrf },
+      });
+      if (!res.ok) throw new Error('Failed to unenroll user');
+      await loadCourse();
+    } catch (e: any) {
+      alert(e.message || 'Failed to unenroll user');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-24">
@@ -550,7 +665,40 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
         )}
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab('modules')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'modules'
+              ? 'border-green-600 text-green-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span className="flex items-center gap-1.5">
+            <BookOpen className="h-4 w-4" />
+            Modules &amp; Content
+            <span className="text-xs bg-slate-100 text-slate-600 rounded-full px-1.5 py-0.5">{course.modules.length}</span>
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab('students')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'students'
+              ? 'border-green-600 text-green-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span className="flex items-center gap-1.5">
+            <Users className="h-4 w-4" />
+            Enrolled Students
+            <span className="text-xs bg-slate-100 text-slate-600 rounded-full px-1.5 py-0.5">{course.enrolled_users.length}</span>
+          </span>
+        </button>
+      </div>
+
       {/* Modules Panel */}
+      {activeTab === 'modules' && (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
         <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -633,8 +781,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
               return (
                 <div
                   key={mod.id}
-                  draggable
-                  onDragStart={() => handleDragStart(idx)}
+                  draggable={!isExpanded}
+                  onDragStart={() => { if (!isExpanded) handleDragStart(idx); }}
                   onDragOver={e => handleDragOver(e, idx)}
                   onDragEnd={handleDragEnd}
                   onDrop={() => handleDrop(idx)}
@@ -962,6 +1110,142 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
           </div>
         )}
       </div>
+      )}
+
+      {/* Enrolled Students Tab */}
+      {activeTab === 'students' && (
+        <div className="space-y-4">
+          {/* Enroll User Form */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+            <h3 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
+              <Users className="h-4 w-4 text-green-600" />
+              Enroll an Employee
+            </h3>
+            {enrollError && (
+              <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded px-3 py-2 text-red-600 text-sm mb-3">
+                <AlertCircle className="h-4 w-4" />
+                {enrollError}
+              </div>
+            )}
+            {enrollSuccess && (
+              <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded px-3 py-2 text-green-700 text-sm mb-3">
+                <CheckCircle className="h-4 w-4" />
+                {enrollSuccess}
+              </div>
+            )}
+            <form onSubmit={handleEnroll} className="flex gap-3">
+              <select
+                value={selectedUserId}
+                onChange={e => setSelectedUserId(e.target.value)}
+                className="flex-1 border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              >
+                <option value="">— Select an employee to enroll —</option>
+                {availableUsers.length === 0 && (
+                  <option disabled>All active employees are already enrolled</option>
+                )}
+                {availableUsers.map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.fullname} ({u.email}) · {u.department || 'No Dept'}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                disabled={!selectedUserId || enrolling}
+                className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {enrolling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                Enroll
+              </button>
+            </form>
+          </div>
+
+          {/* Enrolled Students Table */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+            {course.enrolled_users.length === 0 ? (
+              <div className="p-8 text-center text-slate-500">
+                <Users className="h-10 w-10 mx-auto mb-2 text-slate-300" />
+                <p className="text-sm">No students enrolled yet.</p>
+              </div>
+            ) : (
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Student</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Department</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Progress</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Enrolled</th>
+                    <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-200">
+                  {course.enrolled_users.map(user => (
+                    <tr key={user.id} className="hover:bg-slate-50">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-sm flex-shrink-0">
+                            {(user.fullname || '?').charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">{user.fullname}</p>
+                            <p className="text-xs text-slate-500">{user.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{user.department || '—'}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-2 bg-slate-200 rounded-full max-w-[80px]">
+                            <div
+                              className={`h-2 rounded-full ${
+                                user.progress >= 100
+                                  ? 'bg-green-500'
+                                  : user.progress > 0
+                                  ? 'bg-blue-500'
+                                  : 'bg-slate-300'
+                              }`}
+                              style={{ width: `${Math.min(user.progress, 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-slate-500">{user.progress}%</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          user.enrollment_status === 'Completed'
+                            ? 'bg-green-100 text-green-800'
+                            : user.enrollment_status === 'In Progress'
+                            ? 'bg-blue-100 text-blue-700'
+                            : user.enrollment_status === 'Dropped'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {user.enrollment_status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-xs text-slate-500">
+                        {user.enrolled_at
+                          ? new Date(user.enrolled_at).toLocaleDateString()
+                          : '—'}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => handleUnenroll(user.id, user.fullname)}
+                          className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
+                          title="Remove from course"
+                        >
+                          <UserMinus className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );

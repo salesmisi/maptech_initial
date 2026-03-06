@@ -2,6 +2,7 @@ import React, { useRef, useCallback, useEffect, useState } from 'react';
 import {
   Bold, Italic, Underline, List, ListOrdered,
   Heading1, Heading2, Heading3, Type, Table, Plus, Trash2,
+  ChevronDown,
 } from 'lucide-react';
 
 interface RichTextEditorProps {
@@ -17,6 +18,10 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '150p
   const [showTableMenu, setShowTableMenu] = useState(false);
   const [tableRows, setTableRows] = useState(2);
   const [tableCols, setTableCols] = useState(2);
+  const [hoverRow, setHoverRow] = useState(0);
+  const [hoverCol, setHoverCol] = useState(0);
+  const [useCustomSize, setUseCustomSize] = useState(false);
+  const tableMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isInternalChange.current) {
@@ -66,6 +71,19 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '150p
     emitChange();
     setShowTableMenu(false);
   }, [tableRows, tableCols, emitChange]);
+
+  const insertTableWithSize = useCallback((rows: number, cols: number) => {
+    const r = Math.max(1, rows);
+    const c = Math.max(1, cols);
+    const headerCells = Array.from({ length: c }, (_, i) => `<th>Header ${i + 1}</th>`).join('');
+    const bodyCells = Array.from({ length: c }, () => '<td>&nbsp;</td>').join('');
+    const bodyRows = Array.from({ length: r - 1 }, () => `<tr>${bodyCells}</tr>`).join('');
+    const html = `<table><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table><p><br></p>`;
+    editorRef.current?.focus();
+    document.execCommand('insertHTML', false, html);
+    emitChange();
+    setShowTableMenu(false);
+  }, [emitChange]);
 
   const findParentTable = (): HTMLTableElement | null => {
     const sel = window.getSelection();
@@ -211,9 +229,9 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '150p
   const isEmpty = !value || value === '<br>' || value === '<div><br></div>';
 
   return (
-    <div className="border border-slate-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-green-500 focus-within:border-green-500">
+    <div className="border border-slate-300 rounded-lg focus-within:ring-2 focus-within:ring-green-500 focus-within:border-green-500 relative">
       {/* Toolbar */}
-      <div className="flex items-center gap-0.5 px-2 py-1.5 bg-slate-50 border-b border-slate-200 flex-wrap">
+      <div className="flex items-center gap-0.5 px-2 py-1.5 bg-slate-50 border-b border-slate-200 flex-wrap rounded-t-lg">
         <ToolBtn icon={Bold} label="Bold" onAction={() => execCommand('bold')} />
         <ToolBtn icon={Italic} label="Italic" onAction={() => execCommand('italic')} />
         <ToolBtn icon={Underline} label="Underline" onAction={() => execCommand('underline')} />
@@ -228,37 +246,91 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '150p
         <Divider />
 
         {/* Table dropdown */}
-        <div className="relative">
+        <div className="relative" ref={tableMenuRef}>
           <button
             type="button"
             title="Insert table"
-            onMouseDown={e => { e.preventDefault(); setShowTableMenu(v => !v); }}
-            className="p-1.5 rounded hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors"
+            onMouseDown={e => { e.preventDefault(); setShowTableMenu(v => !v); setUseCustomSize(false); setHoverRow(0); setHoverCol(0); }}
+            className="p-1.5 rounded hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors flex items-center gap-0.5"
           >
             <Table className="h-4 w-4" />
+            <ChevronDown className="h-3 w-3" />
           </button>
           {showTableMenu && (
             <div
-              className="absolute left-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-slate-200 p-3 z-50 w-56"
+              className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-slate-200 p-3 z-[9999] min-w-[220px]"
               onMouseDown={e => e.preventDefault()}
+              style={{ maxHeight: '400px', overflowY: 'auto' }}
             >
-              <p className="text-xs font-semibold text-slate-600 mb-2">Insert Table</p>
-              <div className="flex items-center gap-2 mb-2">
-                <label className="text-xs text-slate-500">Rows</label>
-                <input type="number" min={1} max={20} value={tableRows}
-                  onChange={e => setTableRows(Number(e.target.value))}
-                  className="w-14 border border-slate-300 rounded px-2 py-1 text-xs text-center" />
-                <label className="text-xs text-slate-500">Cols</label>
-                <input type="number" min={1} max={10} value={tableCols}
-                  onChange={e => setTableCols(Number(e.target.value))}
-                  className="w-14 border border-slate-300 rounded px-2 py-1 text-xs text-center" />
-              </div>
-              <button type="button" onClick={insertTable}
-                className="w-full px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-md flex items-center justify-center gap-1">
-                <Plus className="h-3 w-3" /> Insert Table
-              </button>
-              <div className="border-t border-slate-200 mt-2 pt-2 space-y-1">
-                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1">When cursor is in a table:</p>
+              <p className="text-xs font-semibold text-slate-700 mb-2">Insert Table</p>
+
+              {!useCustomSize ? (
+                <>
+                  {/* Visual grid selector: 8x6 grid */}
+                  <div className="mb-1">
+                    <div className="inline-grid gap-[3px]" style={{ gridTemplateColumns: `repeat(8, 1fr)` }}>
+                      {Array.from({ length: 6 * 8 }, (_, i) => {
+                        const r = Math.floor(i / 8) + 1;
+                        const c = (i % 8) + 1;
+                        const isHighlighted = r <= (hoverRow || 0) && c <= (hoverCol || 0);
+                        return (
+                          <div
+                            key={i}
+                            onMouseEnter={() => { setHoverRow(r); setHoverCol(c); }}
+                            onClick={() => { setTableRows(r); setTableCols(c); insertTableWithSize(r, c); }}
+                            className={`w-5 h-5 border rounded-sm cursor-pointer transition-colors ${
+                              isHighlighted
+                                ? 'bg-green-500 border-green-600'
+                                : 'bg-slate-50 border-slate-300 hover:border-slate-400'
+                            }`}
+                          />
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1.5 text-center font-medium">
+                      {hoverRow > 0 && hoverCol > 0
+                        ? `${hoverRow} × ${hoverCol} table`
+                        : 'Hover to select size'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setUseCustomSize(true)}
+                    className="w-full text-xs text-green-600 hover:text-green-800 hover:bg-green-50 py-1.5 rounded font-medium mt-1"
+                  >
+                    Custom size...
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Manual row/col input */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <label className="text-xs text-slate-500 w-10">Rows</label>
+                    <input type="number" min={1} max={50} value={tableRows}
+                      onChange={e => setTableRows(Math.max(1, Number(e.target.value)))}
+                      className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs text-center focus:ring-1 focus:ring-green-500 focus:border-green-500" />
+                  </div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <label className="text-xs text-slate-500 w-10">Cols</label>
+                    <input type="number" min={1} max={20} value={tableCols}
+                      onChange={e => setTableCols(Math.max(1, Number(e.target.value)))}
+                      className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs text-center focus:ring-1 focus:ring-green-500 focus:border-green-500" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setUseCustomSize(false)}
+                      className="flex-1 px-2 py-1.5 border border-slate-300 text-slate-600 text-xs font-medium rounded-md hover:bg-slate-50">
+                      Grid
+                    </button>
+                    <button type="button" onClick={insertTable}
+                      className="flex-1 px-2 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-md flex items-center justify-center gap-1">
+                      <Plus className="h-3 w-3" /> Insert
+                    </button>
+                  </div>
+                </>
+              )}
+
+              <div className="border-t border-slate-200 mt-2.5 pt-2 space-y-0.5">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1">Edit existing table:</p>
                 <SmallBtn label="+ Add Row" onClick={addTableRow} />
                 <SmallBtn label="+ Add Column" onClick={addTableCol} />
                 <SmallBtn label="− Delete Row" onClick={deleteTableRow} variant="red" />

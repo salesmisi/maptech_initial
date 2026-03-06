@@ -43,11 +43,13 @@ class Course extends Model
         'department',
         'instructor_id',
         'status',
+        'start_date',
         'deadline',
     ];
 
     protected $casts = [
-        'deadline' => 'datetime',
+        'start_date' => 'datetime',
+        'deadline'   => 'datetime',
     ];
 
     /**
