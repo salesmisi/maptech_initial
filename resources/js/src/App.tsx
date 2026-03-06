@@ -34,6 +34,7 @@ import { MyFeedback } from './pages/employee/MyFeedback';
 import { ProfileSettings } from './pages/shared/ProfileSettings';
 
 interface User {
+  id?: number;
   role: 'admin' | 'instructor' | 'employee';
   name: string;
   email: string;
@@ -65,6 +66,7 @@ export function App() {
           const data = await response.json();
           const role = data.role?.toLowerCase();
           setUser({
+            id: data.id,
             role,
             name: data.name,
             email: data.email,
@@ -182,14 +184,14 @@ export function App() {
         onLogout={handleLogout}
         user={user}
       >
-        {currentPage === 'dashboard' && <AdminDashboard />}
+        {currentPage === 'dashboard' && <AdminDashboard onNavigate={handleNavigate} />}
         {currentPage === 'departments' && <DepartmentManagement />}
         {currentPage === 'users' && <UserManagement />}
         {currentPage === 'courses' && <CoursesAndContent />}
         {currentPage === 'enrollments' && <EnrollmentManagement />}
         {currentPage === 'reports' && <ReportsAnalytics />}
         {currentPage === 'notifications' && <NotificationManagement />}
-        {currentPage === 'qa' && <AdminQADiscussion />}
+        {currentPage === 'qa' && <AdminQADiscussion userId={user.id} />}
         {currentPage === 'settings' && <ProfileSettings />}
       </AdminLayout>
     );
@@ -210,7 +212,7 @@ export function App() {
         {currentPage === 'lessons' && <LessonVideoUpload />}
         {currentPage === 'quizzes' && <QuizAssessmentManagement />}
         {currentPage === 'evaluation' && <QuizEvaluation />}
-        {currentPage === 'qa-discussion' && <InstructorQADiscussion />}
+        {currentPage === 'qa-discussion' && <InstructorQADiscussion userId={user.id} />}
         {currentPage === 'settings' && <ProfileSettings />}
       </InstructorLayout>
     );
@@ -239,7 +241,7 @@ export function App() {
         )}
         {currentPage === 'progress' && <MyProgress />}
         {currentPage === 'certificates' && <MyCertificates />}
-        {currentPage === 'qa' && <QAModule />}
+        {currentPage === 'qa' && <QAModule userId={user.id} />}
         {currentPage === 'feedback' && <MyFeedback />}
         {currentPage === 'settings' && <ProfileSettings />}
       </EmployeeLayout>

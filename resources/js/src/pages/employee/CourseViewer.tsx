@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Play,
   FileText,
@@ -16,6 +16,11 @@ import {
 'lucide-react';
 
 const API_BASE = '/api';
+
+function getCookie(name: string): string {
+  const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)'));
+  return match ? match[1] : '';
+}
 
 interface LessonData {
   id: number;
@@ -67,6 +72,21 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
   const [quizResult, setQuizResult] = useState<{score:number,total:number} | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // localStorage helpers for resume position
+  const saveResumeModule = (cId: string, moduleId: number) => {
+    try { localStorage.setItem(`maptech_resume_module_${cId}`, String(moduleId)); } catch {}
+  };
+  const getResumeModuleId = (cId: string): number | null => {
+    try { const v = localStorage.getItem(`maptech_resume_module_${cId}`); return v ? parseInt(v, 10) : null; } catch { return null; }
+  };
+  const saveVideoTime = (moduleId: number, time: number) => {
+    try { localStorage.setItem(`maptech_video_time_${moduleId}`, String(Math.floor(time))); } catch {}
+  };
+  const getVideoTime = (moduleId: number): number => {
+    try { const v = localStorage.getItem(`maptech_video_time_${moduleId}`); return v ? parseFloat(v) : 0; } catch { return 0; }
+  };
 
   useEffect(() => {
     if (courseId) {
@@ -99,7 +119,10 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
       })) || [];
       setModules(modulesWithState);
       if (modulesWithState.length > 0) {
-        setCurrentModule(modulesWithState[0]);
+        // Restore the last-visited module if available
+        const savedId = getResumeModuleId(data.id);
+        const savedModule = savedId ? modulesWithState.find((m: ModuleData) => m.id === savedId) : null;
+        setCurrentModule(savedModule ?? modulesWithState[0]);
       }
     } catch (err: any) {
       setError(err.message);
@@ -149,6 +172,31 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     );
   };
 
+  // Select a module and persist it for resume
+  const selectModule = (module: ModuleData) => {
+    // Save current video progress before switching away
+    if (videoRef.current && currentModule) {
+      saveVideoTime(currentModule.id, videoRef.current.currentTime);
+    }
+    setCurrentModule(module);
+    if (course) saveResumeModule(course.id, module.id);
+  };
+
+  // When video loads, restore saved timestamp
+  const handleVideoLoaded = () => {
+    if (videoRef.current && currentModule) {
+      const saved = getVideoTime(currentModule.id);
+      if (saved > 0) videoRef.current.currentTime = saved;
+    }
+  };
+
+  // Save timestamp periodically as video plays
+  const handleVideoTimeUpdate = () => {
+    if (videoRef.current && currentModule) {
+      saveVideoTime(currentModule.id, videoRef.current.currentTime);
+    }
+  };
+
   const getFileIcon = (fileType: string) => {
     switch (fileType) {
       case 'pdf':
@@ -181,9 +229,12 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
       return (
         <div className="aspect-video bg-slate-900 rounded-xl overflow-hidden">
           <video
+            ref={videoRef}
             controls
             className="w-full h-full"
             src={content_url}
+            onLoadedMetadata={handleVideoLoaded}
+            onTimeUpdate={handleVideoTimeUpdate}
             onEnded={() => {
               // when video ends, show pre-assessment if present
               if ((currentModule as any)?.pre_assessment) {
@@ -256,13 +307,13 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
 
   const goToPreviousModule = () => {
     if (currentModuleIndex > 0) {
-      setCurrentModule(modules[currentModuleIndex - 1]);
+      selectModule(modules[currentModuleIndex - 1]);
     }
   };
 
   const goToNextModule = () => {
     if (currentModuleIndex < modules.length - 1) {
-      setCurrentModule(modules[currentModuleIndex + 1]);
+      selectModule(modules[currentModuleIndex + 1]);
     }
   };
 
@@ -349,7 +400,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
                 {modules.map((module, index) => (
                   <button
                     key={module.id}
-                    onClick={() => setCurrentModule(module)}
+                    onClick={() => selectModule(module)}
                     className={`w-full px-4 py-3 flex items-center text-left rounded-lg transition-colors border ${
                       currentModule?.id === module.id
                         ? 'bg-green-50 border-green-200 text-green-900'
@@ -452,13 +503,35 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
 
               const total = quiz.length;
 
-              const submitQuiz = () => {
+              const submitQuiz = async () => {
                 let correct = 0;
                 for (const q of quiz) {
                   const selected = quizAnswers[q.id];
                   if (selected !== undefined && selected === q.answer) correct++;
                 }
+                const total = quiz.length;
+                const scorePercent = total > 0 ? Math.round((correct / total) * 100) : 0;
                 setQuizResult({ score: correct, total });
+
+                // Persist the attempt to the backend
+                try {
+                  await fetch(`${API_BASE}/employee/modules/${(currentModule as any).id}/quiz`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Accept': 'application/json',
+                      'X-XSRF-TOKEN': decodeURIComponent(getCookie('XSRF-TOKEN')),
+                    },
+                    body: JSON.stringify({
+                      score: scorePercent,
+                      correct_answers: correct,
+                      total_questions: total,
+                    }),
+                  });
+                } catch {
+                  // silent – progress page will still show 0 until next attempt
+                }
               };
 
               return (

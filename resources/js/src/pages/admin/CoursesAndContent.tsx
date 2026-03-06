@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -105,6 +105,10 @@ export function CoursesAndContent() {
   // Send Quiz state
   const [sendQuizModuleId, setSendQuizModuleId] = useState<number | null>(null);
   const [sendingQuiz, setSendingQuiz] = useState(false);
+  // Upload progress
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -425,41 +429,64 @@ export function CoursesAndContent() {
       alert('Please enter text content.');
       return;
     }
-    setIsSubmitting(true);
-    try {
-      const csrf = await getCsrf();
-      const formData = new FormData();
-      formData.append('title', uploadTitle.trim());
-      formData.append('type', uploadType);
-      formData.append('status', uploadStatus);
 
-      if (uploadType === 'Text') {
-        formData.append('text_content', uploadText);
-      } else {
-        formData.append('content', uploadFile!);
-      }
+    const csrf = await getCsrf();
+    const formData = new FormData();
+    formData.append('title', uploadTitle.trim());
+    formData.append('type', uploadType);
+    formData.append('status', uploadStatus);
 
-      const res = await fetch(`/api/modules/${selectedModuleId}/lessons`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
-        body: formData,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Failed to upload lesson');
-      }
+    if (uploadType === 'Text') {
+      formData.append('text_content', uploadText);
+    } else {
+      formData.append('content', uploadFile!);
+    }
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/modules/${selectedModuleId}/lessons`);
+      xhr.withCredentials = true;
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.setRequestHeader('X-XSRF-TOKEN', csrf);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          setUploadProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          try {
+            const err = JSON.parse(xhr.responseText);
+            reject(new Error(err.message || 'Upload failed'));
+          } catch {
+            reject(new Error('Upload failed'));
+          }
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.send(formData);
+    }).then(async () => {
       setUploadFile(null);
       setUploadTitle('');
       setUploadText('');
       setUploadStatus('Draft');
+      setUploadProgress(0);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       setActivePanel('modules');
       if (selectedCourse) await loadModules(selectedCourse.id);
-    } catch (err: any) {
+    }).catch((err: any) => {
       alert(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
+    }).finally(() => {
+      setIsUploading(false);
+    });
   };
 
   // ── Delete Lesson ──
@@ -892,7 +919,13 @@ export function CoursesAndContent() {
               <div className="flex justify-between items-start">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">{selectedCourse.title}</h2>
-                  <p className="text-gray-600">Course Management & Content</p>
+                  <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-medium">{selectedCourse.department}</span>
+                    {selectedCourse.instructor && (
+                      <span className="text-gray-500">Instructor: <span className="font-medium text-gray-700">{selectedCourse.instructor}</span></span>
+                    )}
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${getStatusBadge(selectedCourse.status)}`}>{selectedCourse.status}</span>
+                  </div>
                 </div>
                 <button
                   onClick={() => { setShowEnrollments(false); setActivePanel('modules'); setSelectedModuleId(null); }}
@@ -988,6 +1021,13 @@ export function CoursesAndContent() {
                             <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                               <span className="text-xs text-gray-500">{mod.lessons?.length || 0} lessons</span>
                               <button
+                                onClick={() => { setSelectedModuleId(mod.id); setActivePanel('upload'); }}
+                                className="p-1 text-gray-400 hover:text-purple-600"
+                                title="Upload Content to this module"
+                              >
+                                <PlusIcon className="h-4 w-4" />
+                              </button>
+                              <button
                                 onClick={() => { setEditingModuleId(mod.id); setEditModuleTitle(mod.title); }}
                                 className="p-1 text-gray-400 hover:text-yellow-600"
                                 title="Rename"
@@ -1024,7 +1064,12 @@ export function CoursesAndContent() {
                                         <DocumentPlusIcon className="h-4 w-4 text-gray-500" />
                                       )}
                                       <span className="text-sm text-gray-800">{lesson.title}</span>
-                                      <span className="text-xs text-gray-400">({lesson.type})</span>
+                                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                        lesson.status === 'Published' || lesson.status === 'published'
+                                          ? 'bg-green-100 text-green-700'
+                                          : 'bg-yellow-100 text-yellow-700'
+                                      }`}>{lesson.status || 'Draft'}</span>
+                                      {lesson.duration && <span className="text-xs text-gray-400">• {lesson.duration}</span>}
                                       {lesson.file_size && <span className="text-xs text-gray-400">• {lesson.file_size}</span>}
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -1046,7 +1091,15 @@ export function CoursesAndContent() {
                                   </div>
                                 ))
                               ) : (
-                                <div className="text-sm text-gray-400 py-2">No lessons yet. Use "Upload Content" tab to add.</div>
+                                <div className="text-sm text-gray-400 py-2 flex items-center justify-between">
+                                  <span>No lessons yet.</span>
+                                  <button
+                                    onClick={e => { e.stopPropagation(); setSelectedModuleId(mod.id); setActivePanel('upload'); }}
+                                    className="text-xs text-purple-600 hover:text-purple-800 font-medium flex items-center gap-1"
+                                  >
+                                    <PlusIcon className="h-3 w-3" /> Add Content
+                                  </button>
+                                </div>
                               )}
                             </div>
                           )}
@@ -1181,11 +1234,27 @@ export function CoursesAndContent() {
                       </div>
                     )}
 
+                    {/* Upload Progress Bar */}
+                    {isUploading && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs text-gray-600">
+                          <span>Uploading...</span>
+                          <span>{uploadProgress}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     {/* Upload Button */}
                     <button
                       onClick={handleUploadLesson}
                       disabled={
-                        isSubmitting ||
+                        isUploading ||
                         !selectedModuleId ||
                         !uploadTitle.trim() ||
                         (uploadType !== 'Text' && !uploadFile) ||
@@ -1193,7 +1262,7 @@ export function CoursesAndContent() {
                       }
                       className="w-full bg-green-600 text-white py-2.5 rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors font-medium"
                     >
-                      {isSubmitting ? 'Uploading...' : 'Upload & Save'}
+                      {isUploading ? `Uploading... ${uploadProgress}%` : 'Upload & Save'}
                     </button>
                   </div>
                 </div>

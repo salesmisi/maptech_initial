@@ -18,6 +18,8 @@ interface Course {
   progress: number;
   nextLesson: string;
   thumbnail: string;
+  enroll_status: string | null;
+  last_activity: string | null;
 }
 
 interface DashboardData {
@@ -122,6 +124,8 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
           progress: course.progress || 0,
           nextLesson: course.modules?.[0]?.title || 'Start Course',
           thumbnail: getThumbnailColor(course.department),
+          enroll_status: course.enroll_status ?? null,
+          last_activity: course.last_activity ?? null,
         }));
 
         setDashboardData({
@@ -155,6 +159,16 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const userName = dashboardData?.user?.name || 'Employee';
   const totalCourses = dashboardData?.total_courses || 0;
 
+  // Find the most-recently-active in-progress course for Resume Learning
+  const resumeCourse = myCourses
+    .filter(c => c.progress > 0 && c.enroll_status !== 'Completed')
+    .sort((a, b) => {
+      if (!a.last_activity && !b.last_activity) return 0;
+      if (!a.last_activity) return 1;
+      if (!b.last_activity) return -1;
+      return new Date(b.last_activity).getTime() - new Date(a.last_activity).getTime();
+    })[0] ?? null;
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -175,12 +189,17 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             You have {totalCourses} course{totalCourses !== 1 ? 's' : ''} available in your department.
           </p>
         </div>
-        <div className="hidden sm:block">
-          <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700">
-            Resume Learning
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </button>
-        </div>
+        {resumeCourse && (
+          <div className="hidden sm:block">
+            <button
+              onClick={() => onNavigate?.('course-viewer', resumeCourse.id)}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
+            >
+              Resume Learning
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Stats Grid */}
