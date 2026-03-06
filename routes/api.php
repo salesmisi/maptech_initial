@@ -11,9 +11,9 @@ use App\Models\Subdepartment;
 |--------------------------------------------------------------------------
 */
 
-// GET ALL DEPARTMENTS (with subdepartments)
+// GET ALL DEPARTMENTS (with subdepartments and head user)
 Route::get('/departments', function () {
-    return Department::with('subdepartments')->orderBy('id', 'asc')->get();
+    return Department::with(['subdepartments', 'headUser:id,fullname'])->get();
 });
 
 // CREATE DEPARTMENT
@@ -28,6 +28,7 @@ Route::post('/departments', function (Request $request) {
         'name' => $request->name,
         'code' => $request->code,
         'head' => $request->head,
+        'head_id' => $request->head_id,
         'status' => $request->status ?? 'Active',
         'description' => $request->description,
         'employee_count' => 0,
@@ -44,6 +45,7 @@ Route::put('/departments/{id}', function (Request $request, $id) {
         'name' => $request->name,
         'code' => $request->code,
         'head' => $request->head,
+        'head_id' => $request->head_id,
         'status' => $request->status,
         'description' => $request->description,
     ]);
@@ -137,21 +139,7 @@ Route::post('/logout', [LoginController::class, 'logout'])
 
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\CourseController as AdminCourseController;
-use App\Http\Controllers\QAController;
-
-// Test route for debugging
-Route::get('/test-auth', function () {
-    return response()->json([
-        'message' => 'API is working',
-        'timestamp' => now(),
-        'user' => auth()->user() ? [
-            'id' => auth()->user()->id,
-            'name' => auth()->user()->fullName,
-            'role' => auth()->user()->role,
-            'status' => auth()->user()->status,
-        ] : null
-    ]);
-});
+use App\Http\Controllers\Admin\QuizController as AdminQuizController;
 
 Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->group(function () {
 
@@ -178,22 +166,33 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::delete('/courses/{id}', [AdminCourseController::class, 'destroy']);
 
     // Course Enrollment Management
-    Route::get('/courses/{id}/students', [AdminCourseController::class, 'getEnrolledStudents']);
-    Route::post('/courses/{id}/enroll', [AdminCourseController::class, 'enrollStudent']);
-    Route::delete('/courses/{courseId}/students/{userId}', [AdminCourseController::class, 'unenrollStudent']);
+    Route::get('/courses/{id}/enrollments', [AdminCourseController::class, 'enrollments']);
+    Route::post('/courses/{id}/enrollments', [AdminCourseController::class, 'enroll']);
+    Route::delete('/courses/{courseId}/enrollments/{userId}', [AdminCourseController::class, 'unenroll']);
 
-    // Send Quiz to Department-Filtered Students
-    Route::post('/courses/{id}/send-quiz', [AdminCourseController::class, 'sendQuiz']);
+    // Course Module Management
+    Route::post('/courses/{id}/modules', [AdminCourseController::class, 'addModule']);
+    Route::put('/courses/{courseId}/modules/{moduleId}', [AdminCourseController::class, 'updateModule']);
+    Route::delete('/courses/{courseId}/modules/{moduleId}', [AdminCourseController::class, 'deleteModule']);
+    Route::post('/courses/{courseId}/modules/reorder', [AdminCourseController::class, 'reorderModules']);
 
-    // Q&A – admin manage answers
-    Route::get('/questions', [QAController::class, 'adminIndex']);
-    Route::post('/questions/{id}/answer', [QAController::class, 'adminAnswer']);
-    Route::delete('/questions/{id}/answer', [QAController::class, 'adminDeleteAnswer']);
+    // Lesson Management
+    Route::post('/modules/{moduleId}/lessons', [AdminCourseController::class, 'addLesson']);
+    Route::post('/modules/{moduleId}/lessons/{lessonId}', [AdminCourseController::class, 'updateLesson']);
+    Route::delete('/modules/{moduleId}/lessons/{lessonId}', [AdminCourseController::class, 'deleteLesson']);
 
-    // Q&A replies
-    Route::post('/questions/{id}/replies', [QAController::class, 'storeReply']);
-    Route::delete('/questions/{questionId}/replies/{replyId}', [QAController::class, 'destroyReply']);
-    Route::post('/questions/{questionId}/replies/{replyId}/reactions', [QAController::class, 'toggleReaction']);
+    // Quiz Management
+    Route::get('/quizzes', [AdminQuizController::class, 'index']);
+    Route::get('/courses/{courseId}/quizzes', [AdminQuizController::class, 'forCourse']);
+    Route::post('/courses/{courseId}/quizzes', [AdminQuizController::class, 'store']);
+    Route::get('/modules/{moduleId}/quizzes', [AdminQuizController::class, 'forModule']);
+    Route::post('/modules/{moduleId}/quizzes', [AdminQuizController::class, 'storeForModule']);
+    Route::get('/quizzes/{id}', [AdminQuizController::class, 'show']);
+    Route::put('/quizzes/{id}', [AdminQuizController::class, 'update']);
+    Route::delete('/quizzes/{id}', [AdminQuizController::class, 'destroy']);
+    Route::post('/quizzes/{quizId}/questions', [AdminQuizController::class, 'addQuestion']);
+    Route::put('/quizzes/{quizId}/questions/{questionId}', [AdminQuizController::class, 'updateQuestion']);
+    Route::delete('/quizzes/{quizId}/questions/{questionId}', [AdminQuizController::class, 'deleteQuestion']);
 });
 
 
@@ -204,25 +203,51 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 */
 
 use App\Http\Controllers\Instructor\CourseController as InstructorCourseController;
+use App\Http\Controllers\Instructor\QuizController as InstructorQuizController;
 
 Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instructor'])->group(function () {
 
     // Dashboard
     Route::get('/dashboard', [InstructorCourseController::class, 'dashboard']);
 
-    // Instructor's own courses
+    // Course CRUD
     Route::get('/courses', [InstructorCourseController::class, 'index']);
+    Route::post('/courses', [InstructorCourseController::class, 'store']);
+    Route::get('/courses/{id}', [InstructorCourseController::class, 'show']);
     Route::put('/courses/{id}', [InstructorCourseController::class, 'update']);
+    Route::delete('/courses/{id}', [InstructorCourseController::class, 'destroy']);
 
-    // Q&A – instructor answers questions for their courses
-    Route::get('/questions', [QAController::class, 'instructorIndex']);
-    Route::post('/questions/{id}/answer', [QAController::class, 'adminAnswer']);
-    Route::delete('/questions/{id}/answer', [QAController::class, 'adminDeleteAnswer']);
+    // Module Management
+    Route::post('/courses/{id}/modules', [InstructorCourseController::class, 'addModule']);
+    Route::put('/courses/{courseId}/modules/{moduleId}', [InstructorCourseController::class, 'updateModule']);
+    Route::delete('/courses/{courseId}/modules/{moduleId}', [InstructorCourseController::class, 'deleteModule']);
+    Route::post('/courses/{courseId}/modules/reorder', [InstructorCourseController::class, 'reorderModules']);
 
-    // Q&A replies
-    Route::post('/questions/{id}/replies', [QAController::class, 'storeReply']);
-    Route::delete('/questions/{questionId}/replies/{replyId}', [QAController::class, 'destroyReply']);
-    Route::post('/questions/{questionId}/replies/{replyId}/reactions', [QAController::class, 'toggleReaction']);
+    // Enrollment Management
+    Route::get('/courses/{id}/enrollments', [InstructorCourseController::class, 'enrollments']);
+    Route::post('/courses/{id}/enrollments', [InstructorCourseController::class, 'enroll']);
+    Route::delete('/courses/{courseId}/enrollments/{userId}', [InstructorCourseController::class, 'unenroll']);
+
+    // Users list (for enrollment dropdown)
+    Route::get('/users', [InstructorCourseController::class, 'listUsers']);
+
+    // Lesson Management
+    Route::post('/modules/{moduleId}/lessons', [InstructorCourseController::class, 'addLesson']);
+    Route::post('/modules/{moduleId}/lessons/{lessonId}', [InstructorCourseController::class, 'updateLesson']);
+    Route::delete('/modules/{moduleId}/lessons/{lessonId}', [InstructorCourseController::class, 'deleteLesson']);
+
+    // Quiz Management
+    Route::get('/quizzes', [InstructorQuizController::class, 'index']);
+    Route::get('/courses/{courseId}/quizzes', [InstructorQuizController::class, 'forCourse']);
+    Route::post('/courses/{courseId}/quizzes', [InstructorQuizController::class, 'store']);
+    Route::get('/modules/{moduleId}/quizzes', [InstructorQuizController::class, 'forModule']);
+    Route::post('/modules/{moduleId}/quizzes', [InstructorQuizController::class, 'storeForModule']);
+    Route::get('/quizzes/{id}', [InstructorQuizController::class, 'show']);
+    Route::put('/quizzes/{id}', [InstructorQuizController::class, 'update']);
+    Route::delete('/quizzes/{id}', [InstructorQuizController::class, 'destroy']);
+    Route::post('/quizzes/{quizId}/questions', [InstructorQuizController::class, 'addQuestion']);
+    Route::put('/quizzes/{quizId}/questions/{questionId}', [InstructorQuizController::class, 'updateQuestion']);
+    Route::delete('/quizzes/{quizId}/questions/{questionId}', [InstructorQuizController::class, 'deleteQuestion']);
 });
 
 
@@ -233,34 +258,27 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
 */
 
 use App\Http\Controllers\Employee\DashboardController;
+use App\Http\Controllers\Employee\QuizController as EmployeeQuizController;
 
 Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee', 'department'])->group(function () {
 
     // Dashboard (auto-filtered by department)
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
-    // Courses (auto-filtered by department)
+    // All active courses in employee's department (with enrollment status)
+    Route::get('/all-courses', [DashboardController::class, 'allCourses']);
+
+    // Only enrolled courses (My Courses)
     Route::get('/courses', [DashboardController::class, 'courses']);
     Route::get('/courses/{id}', [DashboardController::class, 'showCourse']);
 
-    // Notifications
-    Route::get('/notifications', [DashboardController::class, 'notifications']);
-    Route::put('/notifications/{id}/read', [DashboardController::class, 'markNotificationRead']);
+    // Self-enroll
+    Route::post('/courses/{id}/enroll', [DashboardController::class, 'enroll']);
 
-    // My Progress
-    Route::get('/progress', [DashboardController::class, 'progress']);
-    Route::post('/modules/{moduleId}/quiz', [DashboardController::class, 'saveQuizAttempt']);
-
-    // Q&A – employee questions
-    Route::get('/questions', [QAController::class, 'employeeIndex']);
-    Route::post('/questions', [QAController::class, 'employeeStore']);
-    Route::put('/questions/{id}', [QAController::class, 'employeeUpdate']);
-    Route::delete('/questions/{id}', [QAController::class, 'employeeDestroy']);
-
-    // Q&A replies
-    Route::post('/questions/{id}/replies', [QAController::class, 'storeReply']);
-    Route::delete('/questions/{questionId}/replies/{replyId}', [QAController::class, 'destroyReply']);
-    Route::post('/questions/{questionId}/replies/{replyId}/reactions', [QAController::class, 'toggleReaction']);
+    // Quiz taking
+    Route::get('/quizzes/{quizId}', [EmployeeQuizController::class, 'show']);
+    Route::post('/quizzes/{quizId}/submit', [EmployeeQuizController::class, 'submit']);
+    Route::get('/quizzes/{quizId}/attempts', [EmployeeQuizController::class, 'myAttempts']);
 });
 
 /*

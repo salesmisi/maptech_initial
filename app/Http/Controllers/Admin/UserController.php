@@ -21,9 +21,9 @@ class UserController extends Controller
     {
         $query = User::query();
 
-        // Filter by role
+        // Filter by role (stored lowercase in DB; PostgreSQL is case-sensitive)
         if ($request->has('role')) {
-            $query->where('role', $request->role);
+            $query->where('role', strtolower($request->role));
         }
 
         // Filter by department
@@ -37,8 +37,11 @@ class UserController extends Controller
         }
 
         $users = $query->select([
-            'id', 'fullName', 'email', 'role', 'department', 'status', 'created_at'
+            'id', 'fullname', 'email', 'role', 'department', 'subdepartment_id', 'status', 'created_at'
         ])->orderBy('created_at', 'desc')->get();
+
+        // Eager load subdepartment name, departments headed, and instructor subdepartments
+        $users->load('subdepartment:id,name', 'headOfDepartments:id,name,head_id', 'subdepartments:id,name,department_id');
 
         return response()->json($users);
     }
@@ -54,6 +57,7 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
             'role' => ['required', Rule::in(['Admin', 'Instructor', 'Employee'])],
             'department' => 'nullable|string|max:255',
+            'subdepartment_id' => 'nullable|exists:subdepartments,id',
             'status' => ['nullable', Rule::in(['Active', 'Inactive'])],
         ]);
 
@@ -66,18 +70,31 @@ class UserController extends Controller
         }
 
         $user = User::create([
-            'name' => $validated['fullName'],
-            'fullName' => $validated['fullName'],
+            'fullname' => $validated['fullName'],
             'email' => $validated['email'],
-            'password' => $validated['password'], // Auto-hashed by model
+            'password' => $validated['password'],
             'role' => $validated['role'],
             'department' => $validated['department'] ?? null,
+            'subdepartment_id' => $validated['subdepartment_id'] ?? null,
             'status' => $validated['status'] ?? 'Active',
         ]);
 
+        // For instructors, sync subdepartments and optionally set as department head
+        if ($validated['role'] === 'Instructor') {
+            if ($request->has('subdepartment_ids')) {
+                $user->subdepartments()->sync($request->input('subdepartment_ids', []));
+            }
+            if ($request->boolean('is_department_head') && $validated['department']) {
+                $dept = Department::where('name', $validated['department'])->first();
+                if ($dept) {
+                    $dept->update(['head_id' => $user->id]);
+                }
+            }
+        }
+
         return response()->json([
             'message' => 'User created successfully',
-            'user' => $user
+            'user' => $user->load('headOfDepartments:id,name,head_id', 'subdepartments:id,name,department_id')
         ], 201);
     }
 
@@ -104,6 +121,7 @@ class UserController extends Controller
             'password' => 'sometimes|string|min:8',
             'role' => ['sometimes', Rule::in(['Admin', 'Instructor', 'Employee'])],
             'department' => 'nullable|string|max:255',
+            'subdepartment_id' => 'nullable|exists:subdepartments,id',
             'status' => ['sometimes', Rule::in(['Active', 'Inactive'])],
         ]);
 
@@ -118,8 +136,7 @@ class UserController extends Controller
 
         // Update fields
         if (isset($validated['fullName'])) {
-            $user->name = $validated['fullName'];
-            $user->fullName = $validated['fullName'];
+            $user->fullname = $validated['fullName'];
         }
         if (isset($validated['email'])) {
             $user->email = $validated['email'];
@@ -133,15 +150,44 @@ class UserController extends Controller
         if (array_key_exists('department', $validated)) {
             $user->department = $validated['department'];
         }
+        if (array_key_exists('subdepartment_id', $validated)) {
+            $user->subdepartment_id = $validated['subdepartment_id'];
+        }
         if (isset($validated['status'])) {
             $user->status = $validated['status'];
         }
 
         $user->save();
 
+        // For instructors, sync subdepartments and handle department head
+        $effectiveRole = strtolower($validated['role'] ?? $user->role);
+        if ($effectiveRole === 'instructor') {
+            if ($request->has('subdepartment_ids')) {
+                $user->subdepartments()->sync($request->input('subdepartment_ids', []));
+            }
+            // Handle department head assignment
+            $deptName = $validated['department'] ?? $user->department;
+            if ($deptName) {
+                $dept = Department::where('name', $deptName)->first();
+                if ($dept) {
+                    if ($request->boolean('is_department_head')) {
+                        $dept->update(['head_id' => $user->id]);
+                    } elseif ($dept->head_id === $user->id) {
+                        $dept->update(['head_id' => null]);
+                    }
+                }
+            }
+        }
+
+        // If role changed away from instructor, clean up
+        if (isset($validated['role']) && $effectiveRole !== 'instructor') {
+            Department::where('head_id', $user->id)->update(['head_id' => null]);
+            $user->subdepartments()->detach();
+        }
+
         return response()->json([
             'message' => 'User updated successfully',
-            'user' => $user
+            'user' => $user->load('headOfDepartments:id,name,head_id', 'subdepartments:id,name,department_id')
         ]);
     }
 

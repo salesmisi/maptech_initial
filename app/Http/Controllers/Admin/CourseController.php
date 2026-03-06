@@ -4,13 +4,14 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
-use App\Models\CourseEnrollment;
-use App\Models\Notification;
 use App\Models\Module;
+use App\Models\User;
+use App\Models\Enrollment;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Exception;
 
 class CourseController extends Controller
@@ -20,12 +21,9 @@ class CourseController extends Controller
      */
     public function index(Request $request)
     {
-        // Eager-load instructor, modules, and enrollments with user data
-        $query = Course::with([
-            'instructor:id,fullName,email',
-            'modules',
-            'enrollments.user:id,fullName,email,department'
-        ]);
+        // Eager-load instructor and modules so API returns module data/count
+        $query = Course::with(['instructor:id,fullname,email', 'modules'])
+            ->withCount('enrollments');
 
         // Filter by department
         if ($request->has('department')) {
@@ -58,7 +56,7 @@ class CourseController extends Controller
      */
     public function store(Request $request)
     {
-        \Log::info('Request received for course creation', [
+        Log::info('Request received for course creation', [
             'title' => $request->input('title'),
             'department' => $request->input('department'),
             'modules_count' => $request->has('modules') ? count($request->input('modules', [])) : 0,
@@ -74,12 +72,14 @@ class CourseController extends Controller
                 'department' => 'required|string|max:255',
                 'instructor_id' => 'nullable|exists:users,id',
                 'status' => ['nullable', Rule::in(['Active', 'Inactive', 'Draft'])],
+                'start_date' => 'nullable|date',
+                'deadline' => 'nullable|date',
                 'modules' => 'nullable|array',
                 'modules.*.title' => 'nullable|string|max:255',
                 'modules.*.content' => 'nullable|file|max:102400',
             ]);
 
-            \Log::info('Validation successful', [
+            Log::info('Validation successful', [
                 'validated_keys' => array_keys($validated),
                 'has_modules' => isset($validated['modules']),
                 'modules_count' => isset($validated['modules']) ? count($validated['modules']) : 0,
@@ -91,45 +91,47 @@ class CourseController extends Controller
                 'department' => $validated['department'],
                 'instructor_id' => $validated['instructor_id'] ?? null,
                 'status' => $validated['status'] ?? 'Active',
+                'start_date' => $validated['start_date'] ?? null,
+                'deadline' => $validated['deadline'] ?? null,
             ]);
 
-            \Log::info('Course created', $course->toArray());
+            Log::info('Course created', $course->toArray());
 
             if (!empty($validated['modules'])) {
-                \Log::info('Processing modules', ['count' => count($validated['modules'])]);
+                Log::info('Processing modules', ['count' => count($validated['modules'])]);
                 foreach ($validated['modules'] as $index => $module) {
-                    \Log::info("Processing module {$index}", [
+                    Log::info("Processing module {$index}", [
                         'title' => $module['title'] ?? 'NO TITLE',
                         'has_content' => isset($module['content']),
                     ]);
 
                     if (isset($module['content']) && $module['content'] instanceof \Illuminate\Http\UploadedFile) {
                         $filePath = $module['content']->store('course-content', 'public');
-                        \Log::info("File stored at: {$filePath}");
+                        Log::info("File stored at: {$filePath}");
                         $course->modules()->create([
                             'title' => $module['title'] ?? 'Untitled Module',
                             'content_path' => $filePath,
                         ]);
                     } else {
-                        \Log::warning("Module {$index} has no valid content file");
+                        Log::warning("Module {$index} has no valid content file");
                     }
                 }
             } else {
-                \Log::info('No modules to process');
+                Log::info('No modules to process');
             }
 
             return response()->json([
                 'message' => 'Course created successfully',
-                'course' => $course->load('instructor:id,fullName,email', 'modules')
+                'course' => $course->load('instructor:id,fullname,email', 'modules')
             ], 201);
         } catch (ValidationException $e) {
-            \Log::error('Validation failed', $e->errors());
+            Log::error('Validation failed', $e->errors());
             return response()->json([
                 'message' => 'Validation failed',
                 'errors' => $e->errors()
             ], 422);
         } catch (Exception $e) {
-            \Log::error('An error occurred', ['error' => $e->getMessage()]);
+            Log::error('An error occurred', ['error' => $e->getMessage()]);
             return response()->json([
                 'message' => 'An error occurred while creating the course',
                 'error' => $e->getMessage()
@@ -138,19 +140,22 @@ class CourseController extends Controller
     }
 
     /**
-     * Get a specific course.
+     * Get a specific course with modules and enrolled users.
      */
     public function show(string $id)
     {
         $course = Course::with([
-            'instructor:id,fullName,email',
-            'modules',
-            'enrollments.user:id,fullName,email,department'
+            'instructor:id,fullname,email',
+            'modules.lessons',
+            'enrolledUsers:id,fullname,email,department,role,status',
         ])->findOrFail($id);
 
-        // Add enrollment counts
-        $course->enrolled_count = $course->enrollments->count();
-        $course->completed_count = $course->enrollments->where('status', 'Completed')->count();
+        // Recalculate progress for each enrolled user
+        foreach ($course->enrolledUsers as $eu) {
+            Enrollment::recalculateProgress($eu->id, $course->id);
+        }
+        // Refresh to get updated pivot data
+        $course->load('enrolledUsers:id,fullname,email,department,role,status');
 
         return response()->json($course);
     }
@@ -162,7 +167,7 @@ class CourseController extends Controller
     {
         $course = Course::findOrFail($id);
 
-        \Log::info('Request received for course update', [
+        Log::info('Request received for course update', [
             'id' => $id,
             'all_keys' => array_keys($request->all()),
             'has_files' => $request->hasFile('modules'),
@@ -175,50 +180,52 @@ class CourseController extends Controller
                 'department' => 'sometimes|string|max:255',
                 'instructor_id' => 'nullable|exists:users,id',
                 'status' => ['sometimes', Rule::in(['Active', 'Inactive', 'Draft'])],
+                'start_date' => 'nullable|date',
+                'deadline' => 'nullable|date',
                 'modules' => 'nullable|array',
                 'modules.*.title' => 'nullable|string|max:255',
                 'modules.*.content' => 'nullable|file|max:102400',
             ]);
 
             $course->update(array_filter($validated, function ($k) {
-                return in_array($k, ['title', 'description', 'department', 'instructor_id', 'status']);
+                return in_array($k, ['title', 'description', 'department', 'instructor_id', 'status', 'start_date', 'deadline']);
             }, ARRAY_FILTER_USE_KEY));
 
             if (!empty($validated['modules'])) {
-                \Log::info('Processing modules for update', ['count' => count($validated['modules'])]);
+                Log::info('Processing modules for update', ['count' => count($validated['modules'])]);
                 foreach ($validated['modules'] as $index => $module) {
-                    \Log::info("Processing module {$index}", [
+                    Log::info("Processing module {$index}", [
                         'title' => $module['title'] ?? 'NO TITLE',
                         'has_content' => isset($module['content']),
                     ]);
 
                     if (isset($module['content']) && $module['content'] instanceof \Illuminate\Http\UploadedFile) {
                         $filePath = $module['content']->store('course-content', 'public');
-                        \Log::info("File stored at: {$filePath}");
+                        Log::info("File stored at: {$filePath}");
                         $course->modules()->create([
                             'title' => $module['title'] ?? 'Untitled Module',
                             'content_path' => $filePath,
                         ]);
                     } else {
-                        \Log::warning("Module {$index} has no valid content file");
+                        Log::warning("Module {$index} has no valid content file");
                     }
                 }
             } else {
-                \Log::info('No modules to process on update');
+                Log::info('No modules to process on update');
             }
 
             return response()->json([
                 'message' => 'Course updated successfully',
-                'course' => $course->load('instructor:id,fullName,email', 'modules')
+                'course' => $course->load('instructor:id,fullname,email', 'modules')
             ]);
         } catch (ValidationException $e) {
-            \Log::error('Validation failed on update', $e->errors());
+            Log::error('Validation failed on update', $e->errors());
             return response()->json([
                 'message' => 'Validation failed',
                 'errors' => $e->errors()
             ], 422);
         } catch (Exception $e) {
-            \Log::error('An error occurred on update', ['error' => $e->getMessage()]);
+            Log::error('An error occurred on update', ['error' => $e->getMessage()]);
             return response()->json([
                 'message' => 'An error occurred while updating the course',
                 'error' => $e->getMessage()
@@ -240,158 +247,237 @@ class CourseController extends Controller
     }
 
     /**
-     * Get enrolled students for a specific course.
+     * List all enrolled users for a course.
      */
-    public function getEnrolledStudents(string $id)
+    public function enrollments(string $id)
     {
         $course = Course::findOrFail($id);
 
-        $enrollments = $course->enrollments()
-            ->with('user:id,fullName,email,department')
-            ->orderBy('enrolled_at', 'desc')
-            ->get();
+        // Recalculate progress for each enrollment
+        foreach ($course->enrollments as $enrollment) {
+            Enrollment::recalculateProgress($enrollment->user_id, $course->id);
+        }
 
-        $students = $enrollments->map(function ($enrollment) {
-            return [
-                'enrollment_id' => $enrollment->id,
-                'id' => $enrollment->user->id,
-                'name' => $enrollment->user->fullName,
-                'email' => $enrollment->user->email,
-                'department' => $enrollment->user->department,
-                'enrolledDate' => $enrollment->enrolled_at->format('Y-m-d'),
-                'progress' => $enrollment->progress,
-                'status' => $enrollment->status === 'Active' ? 'Active' :
-                           ($enrollment->status === 'Completed' ? 'Completed' : 'Inactive'),
-                'completed_at' => $enrollment->completed_at?->format('Y-m-d'),
-            ];
-        });
+        $users = $course->enrolledUsers()
+            ->select('users.id', 'users.fullname', 'users.email', 'users.department', 'users.role', 'users.status')
+            ->get()
+            ->map(function ($user) {
+                return [
+                    'id'          => $user->id,
+                    'fullname'    => $user->fullname,
+                    'email'       => $user->email,
+                    'department'  => $user->department,
+                    'role'        => $user->role,
+                    'status'      => $user->status,
+                    'enrolled_at' => $user->pivot->enrolled_at,
+                    'progress'    => $user->pivot->progress,
+                    'enrollment_status' => $user->pivot->status,
+                ];
+            });
 
-        return response()->json($students);
+        return response()->json($users);
     }
 
     /**
-     * Enroll a user in a course.
+     * Enroll a user into a course.
      */
-    public function enrollStudent(Request $request, string $courseId)
+    public function enroll(Request $request, string $id)
     {
-        $validated = $request->validate([
+        $request->validate([
             'user_id' => 'required|exists:users,id',
         ]);
 
-        $course = Course::findOrFail($courseId);
+        $course = Course::findOrFail($id);
 
-        try {
-            $enrollment = $course->enrollments()->create([
-                'user_id' => $validated['user_id'],
-                'enrolled_at' => now(),
-            ]);
-
-            return response()->json([
-                'message' => 'Student enrolled successfully',
-                'enrollment' => $enrollment->load('user:id,fullName,email,department')
-            ], 201);
-        } catch (\Exception $e) {
-            if (str_contains($e->getMessage(), 'Duplicate entry')) {
-                return response()->json([
-                    'message' => 'Student is already enrolled in this course'
-                ], 409);
-            }
-
-            return response()->json([
-                'message' => 'Failed to enroll student'
-            ], 500);
-        }
-    }
-
-    /**
-     * Remove a student from a course.
-     */
-    public function unenrollStudent(string $courseId, int $userId)
-    {
-        $course = Course::findOrFail($courseId);
-
-        $enrollment = $course->enrollments()->where('user_id', $userId)->first();
-
-        if (!$enrollment) {
-            return response()->json([
-                'message' => 'Student is not enrolled in this course'
-            ], 404);
+        if ($course->enrollments()->where('user_id', $request->user_id)->exists()) {
+            return response()->json(['message' => 'User is already enrolled in this course'], 409);
         }
 
-        $enrollment->delete();
+        $course->enrollments()->create([
+            'user_id'     => $request->user_id,
+            'status'      => 'Active',
+            'progress'    => 0,
+            'enrolled_at' => now(),
+        ]);
+
+        $user = User::select('id', 'fullname', 'email', 'department', 'role', 'status')->findOrFail($request->user_id);
 
         return response()->json([
-            'message' => 'Student removed from course successfully'
-        ]);
+            'message' => 'User enrolled successfully',
+            'user'    => $user,
+        ], 201);
     }
 
     /**
-     * Send a quiz to enrolled students filtered by department.
+     * Remove an enrollment (unenroll a user).
      */
-    public function sendQuiz(Request $request, string $courseId)
+    public function unenroll(string $courseId, int $userId)
     {
         $course = Course::findOrFail($courseId);
+        $deleted = $course->enrollments()->where('user_id', $userId)->delete();
+
+        if (!$deleted) {
+            return response()->json(['message' => 'Enrollment not found'], 404);
+        }
+
+        return response()->json(['message' => 'User unenrolled successfully']);
+    }
+
+    /**
+     * Add a standalone module to a course (without file initially).
+     */
+    public function addModule(Request $request, string $id)
+    {
+        $request->validate([
+            'title'       => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'content'     => 'nullable|file|max:102400',
+        ]);
+
+        $course = Course::findOrFail($id);
+
+        $nextOrder = $course->modules()->max('order') + 1;
+
+        $data = [
+            'title'       => $request->input('title'),
+            'description' => $request->input('description'),
+            'order'       => $nextOrder,
+        ];
+
+        if ($request->hasFile('content')) {
+            $data['content_path'] = $request->file('content')->store('course-content', 'public');
+        }
+
+        $module = $course->modules()->create($data);
+
+        return response()->json([
+            'message' => 'Module added successfully',
+            'module'  => $module,
+        ], 201);
+    }
+
+    /**
+     * Delete a module from a course.
+     */
+    public function deleteModule(string $courseId, int $moduleId)
+    {
+        $course = Course::findOrFail($courseId);
+        $module = $course->modules()->findOrFail($moduleId);
+        $module->delete();
+
+        return response()->json(['message' => 'Module deleted successfully']);
+    }
+
+    /**
+     * Add a lesson to a module.
+     */
+    public function addLesson(Request $request, int $moduleId)
+    {
+        $module = Module::findOrFail($moduleId);
+
+        $request->validate([
+            'title'        => 'required|string|max:255',
+            'text_content' => 'nullable|string',
+            'content'      => 'nullable|file|max:102400',
+        ]);
+
+        $nextOrder = $module->lessons()->max('order') + 1;
+
+        $data = [
+            'title'        => $request->input('title'),
+            'text_content' => $request->input('text_content'),
+            'order'        => $nextOrder,
+        ];
+
+        if ($request->hasFile('content')) {
+            $data['content_path'] = $request->file('content')->store('course-content', 'public');
+        }
+
+        $lesson = $module->lessons()->create($data);
+
+        return response()->json(['message' => 'Lesson added', 'lesson' => $lesson], 201);
+    }
+
+    /**
+     * Delete a lesson from a module.
+     */
+    public function deleteLesson(int $moduleId, int $lessonId)
+    {
+        $module = Module::findOrFail($moduleId);
+        $lesson = $module->lessons()->findOrFail($lessonId);
+
+        if ($lesson->content_path) {
+            Storage::disk('public')->delete($lesson->content_path);
+        }
+
+        $lesson->delete();
+
+        return response()->json(['message' => 'Lesson deleted']);
+    }
+
+    /**
+     * Update a module (title / description).
+     */
+    public function updateModule(Request $request, string $courseId, int $moduleId)
+    {
+        $course = Course::findOrFail($courseId);
+        $module = $course->modules()->findOrFail($moduleId);
 
         $validated = $request->validate([
-            'module_id' => 'required|exists:modules,id',
+            'title'       => 'sometimes|string|max:255',
+            'description' => 'nullable|string',
         ]);
 
-        $module = Module::where('id', $validated['module_id'])
-            ->where('course_id', $course->id)
-            ->firstOrFail();
+        $module->update($validated);
 
-        if (empty($module->pre_assessment)) {
-            return response()->json([
-                'message' => 'This module has no quiz to send.'
-            ], 422);
-        }
+        return response()->json(['message' => 'Module updated', 'module' => $module->fresh()]);
+    }
 
-        // Get enrolled students whose department matches the course department
-        $enrollments = $course->enrollments()
-            ->with('user')
-            ->get()
-            ->filter(function ($enrollment) use ($course) {
-                return $enrollment->user
-                    && strcasecmp($enrollment->user->department, $course->department) === 0;
-            });
+    /**
+     * Update a lesson (title / text_content). Optionally replace file.
+     */
+    public function updateLesson(Request $request, int $moduleId, int $lessonId)
+    {
+        $module = Module::findOrFail($moduleId);
+        $lesson = $module->lessons()->findOrFail($lessonId);
 
-        if ($enrollments->isEmpty()) {
-            return response()->json([
-                'message' => 'No enrolled students match the course department (' . $course->department . ').'
-            ], 422);
-        }
+        $request->validate([
+            'title'        => 'sometimes|string|max:255',
+            'text_content' => 'nullable|string',
+            'content'      => 'nullable|file|max:102400',
+        ]);
 
-        $sent = 0;
-        foreach ($enrollments as $enrollment) {
-            // Prevent duplicate notifications for the same quiz
-            $exists = Notification::where('user_id', $enrollment->user_id)
-                ->where('course_id', $course->id)
-                ->where('module_id', $module->id)
-                ->where('type', 'quiz')
-                ->exists();
+        if ($request->has('title')) $lesson->title = $request->input('title');
+        if ($request->has('text_content')) $lesson->text_content = $request->input('text_content');
 
-            if (!$exists) {
-                Notification::create([
-                    'user_id' => $enrollment->user_id,
-                    'course_id' => $course->id,
-                    'module_id' => $module->id,
-                    'type' => 'quiz',
-                    'title' => 'New Quiz: ' . $module->title,
-                    'message' => 'You have a new pre-assessment quiz for "' . $module->title . '" in course "' . $course->title . '".',
-                    'data' => [
-                        'quiz_questions' => $module->pre_assessment,
-                        'course_title' => $course->title,
-                        'module_title' => $module->title,
-                    ],
-                ]);
-                $sent++;
+        if ($request->hasFile('content')) {
+            if ($lesson->content_path) {
+                Storage::disk('public')->delete($lesson->content_path);
             }
+            $lesson->content_path = $request->file('content')->store('course-content', 'public');
         }
 
-        return response()->json([
-            'message' => "Quiz sent to {$sent} {$course->department} department student(s).",
-            'sent_count' => $sent,
-            'department' => $course->department,
+        $lesson->save();
+
+        return response()->json(['message' => 'Lesson updated', 'lesson' => $lesson->fresh()]);
+    }
+
+    /**
+     * Reorder modules for a course.
+     */
+    public function reorderModules(Request $request, string $courseId)
+    {
+        $course = Course::findOrFail($courseId);
+
+        $request->validate([
+            'order'   => 'required|array',
+            'order.*' => 'integer|exists:modules,id',
         ]);
+
+        foreach ($request->input('order') as $index => $moduleId) {
+            $course->modules()->where('id', $moduleId)->update(['order' => $index + 1]);
+        }
+
+        return response()->json(['message' => 'Modules reordered']);
     }
 }

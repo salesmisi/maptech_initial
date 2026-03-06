@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard,
-  Video,
-  ClipboardCheck,
-  CheckSquare,
+  BookOpen,
+  ClipboardList,
   MessageCircle,
   LogOut,
   Search,
@@ -37,19 +36,14 @@ export function InstructorLayout({
     icon: LayoutDashboard
   },
   {
-    id: 'lessons',
-    label: 'Lessons & Videos',
-    icon: Video
+    id: 'courses',
+    label: 'Courses & Content',
+    icon: BookOpen
   },
   {
-    id: 'quizzes',
+    id: 'quiz-management',
     label: 'Quiz Management',
-    icon: ClipboardCheck
-  },
-  {
-    id: 'evaluation',
-    label: 'Quiz Evaluation',
-    icon: CheckSquare
+    icon: ClipboardList
   },
   {
     id: 'qa-discussion',
@@ -82,7 +76,9 @@ export function InstructorLayout({
             <nav className="mt-5 flex-1 px-2 space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = currentPage === item.id;
+                const isActive = currentPage === item.id ||
+                  (item.id === 'courses' && currentPage === 'instructor-course-detail') ||
+                  (item.id === 'quiz-management' && currentPage === 'instructor-quiz-builder');
                 return (
                   <button
                     key={item.id}
@@ -188,3 +184,4 @@ export function InstructorLayout({
     </div>);
 
 }
+

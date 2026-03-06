@@ -101,7 +101,7 @@ export function AdminLayout({
             <nav className="mt-5 flex-1 px-2 space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = currentPage === item.id;
+                const isActive = currentPage === item.id || (item.id === 'courses' && currentPage === 'course-detail');
                 return (
                   <button
                     key={item.id}
@@ -216,3 +216,4 @@ export function AdminLayout({
     </div>);
 
 }
+

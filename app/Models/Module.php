@@ -6,6 +6,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * @property int $id
+ * @property string $title
+ * @property string|null $content_path
+ * @property string $course_id
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ */
 class Module extends Model
 {
     use HasFactory;
@@ -15,17 +23,10 @@ class Module extends Model
      */
     protected $fillable = [
         'title',
+        'description',
         'content_path',
         'course_id',
         'order',
-        'pre_assessment',
-    ];
-
-    /**
-     * The attributes that should be cast.
-     */
-    protected $casts = [
-        'pre_assessment' => 'array',
     ];
 
     /**
@@ -82,10 +83,18 @@ class Module extends Model
     }
 
     /**
-     * Get the lessons for the module.
+     * Get the lessons belonging to this module.
      */
     public function lessons()
     {
         return $this->hasMany(Lesson::class)->orderBy('order');
+    }
+
+    /**
+     * Get the quiz attached to this module (one module → at most one quiz).
+     */
+    public function quiz()
+    {
+        return $this->hasOne(Quiz::class);
     }
 }

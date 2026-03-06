@@ -17,13 +17,15 @@ import { NotificationManagement } from './pages/admin/NotificationManagement';
 
 // Instructor Pages
 import { InstructorDashboard } from './pages/instructor/InstructorDashboard';
-import { LessonVideoUpload } from './pages/instructor/LessonVideoUpload';
+import { InstructorCourseManagement } from './pages/instructor/CourseManagement';
+import { InstructorCourseDetail } from './pages/instructor/CourseDetail';
+import { InstructorQuizBuilder } from './pages/instructor/QuizBuilder';
 import { QuizAssessmentManagement } from './pages/instructor/QuizAssessmentManagement';
-import { QuizEvaluation } from './pages/instructor/QuizEvaluation';
 
 // Employee Pages
 import { EmployeeDashboard } from './pages/employee/EmployeeDashboard';
 import { MyCourses } from './pages/employee/MyCourses';
+import { CourseEnrollDetail } from './pages/employee/CourseEnrollDetail';
 import { CourseViewer } from './pages/employee/CourseViewer';
 import { MyProgress } from './pages/employee/MyProgress';
 import { MyCertificates } from './pages/employee/MyCertificates';
@@ -47,6 +49,8 @@ export function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [selectedQuizId, setSelectedQuizId] = useState<number | null>(null);
+  const [globalSearch, setGlobalSearch] = useState('');
 
   // =========================
   // CHECK AUTH ON MOUNT
@@ -142,7 +146,7 @@ export function App() {
     setCurrentPage('dashboard');
   };
 
-  const handleNavigate = (page: string, courseId?: string) => {
+  const handleNavigate = (page: string, courseId?: string, quizId?: number) => {
     setCurrentPage(page);
     if (user) {
       localStorage.setItem(`maptech_page_${user.role}`, page);
@@ -228,12 +232,24 @@ export function App() {
         onNavigate={handleNavigate}
         onLogout={handleLogout}
         user={user}
+        globalSearch={globalSearch}
+        onGlobalSearch={(term) => { setGlobalSearch(term); setCurrentPage('my-courses'); }}
       >
         {currentPage === 'dashboard' && <EmployeeDashboard onNavigate={handleNavigate} />}
         {currentPage === 'my-courses' && (
-          <MyCourses onNavigate={handleNavigate} />
+          <MyCourses onNavigate={handleNavigate} globalSearch={globalSearch} />
+        )}
+        {currentPage === 'course-enroll' && (
+          <CourseEnrollDetail
+            courseId={selectedCourseId || ''}
+            onNavigate={handleNavigate}
+            onBack={() => handleNavigate('my-courses')}
+          />
         )}
         {currentPage === 'course-viewer' && (
+          <CourseViewer
+            courseId={selectedCourseId || undefined}
+            onBack={() => handleNavigate('my-courses')}
           <CourseViewer
             courseId={selectedCourseId || undefined}
             onBack={() => handleNavigate('my-courses')}

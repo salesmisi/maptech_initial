@@ -7,7 +7,19 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
+/**
+ * @property string $id
+ * @property string $title
+ * @property string|null $description
+ * @property string $department
+ * @property int|null $instructor_id
+ * @property string $status
+ * @property \Illuminate\Support\Carbon|null $deadline
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ */
 class Course extends Model
 {
     use HasFactory, HasUuids;
@@ -31,6 +43,13 @@ class Course extends Model
         'department',
         'instructor_id',
         'status',
+        'start_date',
+        'deadline',
+    ];
+
+    protected $casts = [
+        'start_date' => 'datetime',
+        'deadline'   => 'datetime',
     ];
 
     /**
@@ -60,26 +79,26 @@ class Course extends Model
     /**
      * Get the modules associated with the course.
      */
-    public function modules()
+    public function modules(): HasMany
     {
         return $this->hasMany(Module::class);
     }
 
     /**
-     * Get the enrollments for the course.
+     * Get the enrollments for this course.
      */
     public function enrollments(): HasMany
     {
-        return $this->hasMany(CourseEnrollment::class);
+        return $this->hasMany(Enrollment::class);
     }
 
     /**
-     * Get the enrolled users for the course.
+     * Get the enrolled users for this course.
      */
-    public function enrolledUsers()
+    public function enrolledUsers(): BelongsToMany
     {
-        return $this->belongsToMany(User::class, 'course_enrollments')
-                    ->withPivot(['progress', 'status', 'enrolled_at', 'completed_at'])
-                    ->withTimestamps();
+        return $this->belongsToMany(User::class, 'enrollments')
+            ->withPivot(['status', 'progress', 'enrolled_at'])
+            ->withTimestamps();
     }
 }

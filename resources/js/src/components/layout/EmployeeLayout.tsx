@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   LayoutDashboard,
   BookOpen,
-  Play,
   TrendingUp,
   Award,
   MessageSquare,
@@ -23,13 +22,17 @@ interface EmployeeLayoutProps {
     email: string;
     profile_picture?: string | null;
   };
+  globalSearch?: string;
+  onGlobalSearch?: (term: string) => void;
 }
 export function EmployeeLayout({
   children,
   currentPage,
   onNavigate,
   onLogout,
-  user
+  user,
+  globalSearch = '',
+  onGlobalSearch,
 }: EmployeeLayoutProps) {
   const [showPicPreview, setShowPicPreview] = useState(false);
   const navItems = [
@@ -42,11 +45,6 @@ export function EmployeeLayout({
     id: 'my-courses',
     label: 'My Courses',
     icon: BookOpen
-  },
-  {
-    id: 'course-viewer',
-    label: 'Course Viewer',
-    icon: Play
   },
   {
     id: 'progress',
@@ -95,7 +93,8 @@ export function EmployeeLayout({
             <nav className="mt-5 flex-1 px-2 space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = currentPage === item.id;
+                const isActive = currentPage === item.id ||
+                  (item.id === 'my-courses' && (currentPage === 'course-viewer' || currentPage === 'course-enroll'));
                 return (
                   <button
                     key={item.id}
@@ -114,18 +113,9 @@ export function EmployeeLayout({
           <div className="flex-shrink-0 flex border-t border-slate-800 p-4">
             <div className="flex-shrink-0 w-full group block">
               <div className="flex items-center">
-                {user.profile_picture ? (
-                  <img
-                    src={user.profile_picture}
-                    alt={user.name}
-                    className="h-9 w-9 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-green-400 transition"
-                    onClick={() => setShowPicPreview(true)}
-                  />
-                ) : (
-                  <div className="inline-block h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
-                    {user.name.charAt(0)}
-                  </div>
-                )}
+                <div className="h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
+                  {user.name.charAt(0)}
+                </div>
                 <div className="ml-3">
                   <p className="text-sm font-medium text-white">{user.name}</p>
                   <p className="text-xs font-medium text-slate-400">Employee</p>
@@ -155,7 +145,7 @@ export function EmployeeLayout({
           </button>
           <div className="flex-1 px-4 flex justify-between">
             <div className="flex-1 flex">
-              <form className="w-full flex md:ml-0" action="#" method="GET">
+              <form className="w-full flex md:ml-0" onSubmit={(e) => e.preventDefault()}>
                 <label htmlFor="search-field" className="sr-only">
                   Search
                 </label>
@@ -166,9 +156,11 @@ export function EmployeeLayout({
                   <input
                     id="search-field"
                     className="block w-full h-full pl-8 pr-3 py-2 border-transparent text-slate-900 placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-0 focus:border-transparent sm:text-sm"
-                    placeholder="Search courses..."
+                    placeholder="Search all courses..."
                     type="search"
-                    name="search" />
+                    name="search"
+                    value={globalSearch}
+                    onChange={(e) => onGlobalSearch?.(e.target.value)} />
 
                 </div>
               </form>

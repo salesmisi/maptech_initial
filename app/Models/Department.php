@@ -10,6 +10,7 @@ class Department extends Model
         'name',
         'code',
         'head',
+        'head_id',
         'status',
         'description',
         'employee_count',
@@ -19,5 +20,10 @@ class Department extends Model
     public function subdepartments()
     {
         return $this->hasMany(Subdepartment::class);
+    }
+
+    public function headUser()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'head_id');
     }
 }
