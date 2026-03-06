@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   BarChart,
   Bar,
@@ -15,76 +15,104 @@ import {
   Line } from
 'recharts';
 import { Download, Calendar } from 'lucide-react';
-const completionData = [
-{
-  name: 'Completed',
-  value: 450
-},
-{
-  name: 'In Progress',
-  value: 300
-},
-{
-  name: 'Not Started',
-  value: 150
-}];
+
+interface CompletionItem {
+  name: string;
+  value: number;
+}
+
+interface MonthlyTrendItem {
+  name: string;
+  enrollments: number;
+  completions: number;
+}
+
+interface CoursePopularityItem {
+  name: string;
+  students: number;
+}
+
+interface AnalyticsResponse {
+  completion_status: CompletionItem[];
+  monthly_trends: MonthlyTrendItem[];
+  course_popularity: CoursePopularityItem[];
+  meta?: {
+    months: number;
+    updated_at: string;
+  };
+}
+
+const defaultCompletionData: CompletionItem[] = [
+  { name: 'Completed', value: 0 },
+  { name: 'In Progress', value: 0 },
+  { name: 'Not Started', value: 0 },
+];
 
 const COLORS = ['#22c55e', '#eab308', '#94a3b8'];
-const monthlyTrends = [
-{
-  name: 'Jan',
-  enrollments: 40,
-  completions: 24
-},
-{
-  name: 'Feb',
-  enrollments: 30,
-  completions: 13
-},
-{
-  name: 'Mar',
-  enrollments: 20,
-  completions: 58
-},
-{
-  name: 'Apr',
-  enrollments: 27,
-  completions: 39
-},
-{
-  name: 'May',
-  enrollments: 18,
-  completions: 48
-},
-{
-  name: 'Jun',
-  enrollments: 23,
-  completions: 38
-}];
 
-const coursePopularity = [
-{
-  name: 'Cybersecurity',
-  students: 120
-},
-{
-  name: 'Leadership',
-  students: 98
-},
-{
-  name: 'Safety',
-  students: 86
-},
-{
-  name: 'Privacy',
-  students: 75
-},
-{
-  name: 'Customer Svc',
-  students: 65
-}];
+const defaultMonthlyTrends: MonthlyTrendItem[] = [
+  { name: 'Jan', enrollments: 0, completions: 0 },
+  { name: 'Feb', enrollments: 0, completions: 0 },
+  { name: 'Mar', enrollments: 0, completions: 0 },
+  { name: 'Apr', enrollments: 0, completions: 0 },
+  { name: 'May', enrollments: 0, completions: 0 },
+  { name: 'Jun', enrollments: 0, completions: 0 },
+];
+
+const defaultCoursePopularity: CoursePopularityItem[] = [];
 
 export function ReportsAnalytics() {
+  const [completionData, setCompletionData] = useState<CompletionItem[]>(defaultCompletionData);
+  const [monthlyTrends, setMonthlyTrends] = useState<MonthlyTrendItem[]>(defaultMonthlyTrends);
+  const [coursePopularity, setCoursePopularity] = useState<CoursePopularityItem[]>(defaultCoursePopularity);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadAnalytics = async (showLoader = false) => {
+    try {
+      if (showLoader) {
+        setLoading(true);
+      }
+      const response = await fetch('/api/admin/reports/analytics?months=6', {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Failed to load analytics: ${response.status} ${text}`);
+      }
+
+      const data: AnalyticsResponse = await response.json();
+      setCompletionData((data.completion_status && data.completion_status.length > 0) ? data.completion_status : defaultCompletionData);
+      setMonthlyTrends((data.monthly_trends && data.monthly_trends.length > 0) ? data.monthly_trends : defaultMonthlyTrends);
+      setCoursePopularity(data.course_popularity || defaultCoursePopularity);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load analytics');
+    } finally {
+      if (showLoader) {
+        setLoading(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    loadAnalytics(true);
+
+    // Keep charts close to real-time without overloading the API.
+    const intervalId = window.setInterval(() => {
+      loadAnalytics(false);
+    }, 30000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -102,6 +130,18 @@ export function ReportsAnalytics() {
           </button>
         </div>
       </div>
+
+      {loading && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md text-sm">
+          Loading analytics from PostgreSQL...
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-md text-sm">
+          API connection issue: {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Completion Status Pie Chart */}

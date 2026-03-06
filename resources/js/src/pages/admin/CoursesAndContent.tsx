@@ -20,10 +20,17 @@ interface Course {
   description: string;
   department: string;
   instructor: string;
-  status: 'active' | 'draft' | 'archived';
+  status: 'Active' | 'Draft' | 'Inactive';
   modules_count: number;
   enrolled_count: number;
   created_at: string;
+}
+
+function normalizeCourseStatus(status: unknown): 'Active' | 'Draft' | 'Inactive' {
+  if (typeof status !== 'string') return 'Draft';
+  if (status.toLowerCase() === 'active') return 'Active';
+  if (status.toLowerCase() === 'inactive' || status.toLowerCase() === 'archived') return 'Inactive';
+  return 'Draft';
 }
 
 interface EnrolledStudent {
@@ -169,6 +176,7 @@ export function CoursesAndContent() {
       const rawCourses = Array.isArray(data) ? data : [];
       setCourses(rawCourses.map((c: any) => ({
         ...c,
+        status: normalizeCourseStatus(c.status),
         instructor: typeof c.instructor === 'object' && c.instructor !== null
           ? c.instructor.fullName || 'Unassigned'
           : c.instructor || 'Unassigned',
@@ -187,7 +195,7 @@ export function CoursesAndContent() {
           description: 'Learn the basics of networking',
           department: 'IT',
           instructor: 'Admin',
-          status: 'active' as const,
+          status: 'Active' as const,
           modules_count: 2,
           enrolled_count: 0,
           created_at: new Date().toISOString()
@@ -608,17 +616,17 @@ export function CoursesAndContent() {
     const matchesSearch = course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          course.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          course.instructor.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || course.status === statusFilter;
+    const matchesStatus = statusFilter === 'all' || course.status.toLowerCase() === statusFilter.toLowerCase();
     return matchesSearch && matchesStatus;
   });
 
   const getStatusBadge = (status: string) => {
     const badges = {
-      active: 'bg-green-100 text-green-800',
-      draft: 'bg-yellow-100 text-yellow-800',
-      archived: 'bg-gray-100 text-gray-800'
+      Active: 'bg-green-100 text-green-800',
+      Draft: 'bg-yellow-100 text-yellow-800',
+      Inactive: 'bg-gray-100 text-gray-800'
     };
-    return badges[status as keyof typeof badges] || badges.active;
+    return badges[status as keyof typeof badges] || badges.Draft;
   };
 
   if (loading) {
@@ -755,9 +763,9 @@ export function CoursesAndContent() {
           onChange={(e) => setStatusFilter(e.target.value)}
         >
           <option value="all">All Status</option>
-          <option value="active">Active</option>
-          <option value="draft">Draft</option>
-          <option value="archived">Archived</option>
+          <option value="Active">Active</option>
+          <option value="Draft">Draft</option>
+          <option value="Inactive">Inactive</option>
         </select>
       </div>
 
@@ -1482,7 +1490,7 @@ export function CoursesAndContent() {
                   >
                     <option value="Active">Active</option>
                     <option value="Draft">Draft</option>
-                    <option value="Archived">Archived</option>
+                    <option value="Inactive">Inactive</option>
                   </select>
                 </div>
               </div>

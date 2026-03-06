@@ -99,7 +99,7 @@ class CourseController extends Controller
         // Handle modules and content upload
         if (!empty($validated['modules'])) {
             foreach ($validated['modules'] as $module) {
-                $filePath = $module['content']->store('course-content');
+                $filePath = $module['content']->store('course-content', 'public');
                 $course->modules()->create([
                     'title' => $module['title'],
                     'content_path' => $filePath,

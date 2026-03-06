@@ -22,19 +22,14 @@ interface ModuleInput {
   file: File | null;
 }
 
-interface InstructorOption {
-  id: number;
-  fullName: string;
-}
-
 // Ensure the Course interface is exported
 export interface Course {
-  id: string;
+  id: number;
   title: string;
   description: string;
   department: string;
   instructor: string;
-  instructorId?: number | null;
+  instructorId: number | null;
   status: 'Active' | 'Draft' | 'Inactive';
   enrolledCount: number;
   modulesCount: number;
@@ -55,7 +50,14 @@ async function getCsrf() {
   );
 }
 
-const API_BASE = '/api';
+const API_BASE = 'http://127.0.0.1:8000/api';
+
+function normalizeCourseStatus(status: unknown): 'Active' | 'Draft' | 'Inactive' {
+  if (typeof status !== 'string') return 'Draft';
+  if (status.toLowerCase() === 'active') return 'Active';
+  if (status.toLowerCase() === 'inactive' || status.toLowerCase() === 'archived') return 'Inactive';
+  return 'Draft';
+}
 
 export function CourseManagement() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -66,21 +68,18 @@ export function CourseManagement() {
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [modules, setModules] = useState<ModuleInput[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [instructors, setInstructors] = useState<InstructorOption[]>([]);
-  const [departments, setDepartments] = useState<{id: number; name: string}[]>([]);
 
-  // Load departments from API
+  // Debug: Monitor modules state changes
   useEffect(() => {
-    fetch('/api/departments')
-      .then(res => res.json())
-      .then(data => setDepartments(Array.isArray(data) ? data : []))
-      .catch(err => console.error('Failed to load departments:', err));
-  }, []);
+    console.log('Modules state updated:', modules.map(m => ({ id: m.id, title: m.title, hasFile: !!m.file, fileName: m.file?.name })));
+  }, [modules]);
 
   // Module management functions
   const addModule = () => {
+    console.log('addModule clicked, current modules:', modules.length);
     const newModule = { id: Date.now(), title: '', file: null };
     setModules(prev => [...prev, newModule]);
+    console.log('New module added:', newModule);
   };
 
   const removeModule = (id: number) => {
@@ -92,39 +91,18 @@ export function CourseManagement() {
   };
 
   const updateModuleFile = (id: number, file: File | null) => {
+    console.log('updateModuleFile called:', id, file?.name, file?.size);
     setModules(prev => {
-      return prev.map(m => {
+      const updated = prev.map(m => {
         if (m.id === id) {
+          console.log(`Module ${id} file updated to:`, file?.name);
           return { ...m, file };
         }
         return m;
       });
+      console.log('Updated modules:', updated.map(m => ({ id: m.id, hasFile: !!m.file })));
+      return updated;
     });
-  };
-
-  const loadInstructors = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/admin/users?role=Instructor&status=Active`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to load instructors');
-      }
-
-      const data = await response.json();
-      setInstructors((data || []).map((user: any) => ({
-        id: user.id,
-        fullName: user.fullName,
-      })));
-    } catch (error) {
-      console.error('Error loading instructors:', error);
-    }
   };
 
   // Load courses from API on mount
@@ -150,8 +128,8 @@ export function CourseManagement() {
         description: course.description || '',
         department: course.department,
         instructor: course.instructor?.fullName || 'Unassigned',
-        instructorId: course.instructor_id ?? null,
-        status: course.status,
+        instructorId: course.instructor_id ?? course.instructor?.id ?? null,
+        status: normalizeCourseStatus(course.status),
         enrolledCount: course.enrolled_count || 0,
         modulesCount: course.modules?.length || 0,
         thumbnail: THUMBNAIL_COLORS[idx % THUMBNAIL_COLORS.length],
@@ -167,7 +145,6 @@ export function CourseManagement() {
 
   useEffect(() => {
     loadCourses();
-    loadInstructors();
   }, []);
 
   // Filter Logic
@@ -180,7 +157,7 @@ export function CourseManagement() {
     return matchesSearch && matchesStatus;
   });
   // Delete Handler
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     if (!window.confirm('Are you sure you want to delete this course?')) return;
     try {
       const xsrf = await getCsrf();
@@ -208,7 +185,7 @@ export function CourseManagement() {
       setEditingCourse(course);
       // Load existing modules for editing (without files since they're already uploaded)
       setModules(course.modules?.map((m, index) => ({
-        id: index + 1,
+        id: m.id ?? index + 1,
         title: m.title,
         file: null,
       })) || []);
@@ -233,11 +210,23 @@ export function CourseManagement() {
 
     // Add modules with file uploads to the form data
     modules.forEach((module, index) => {
+      console.log(`Adding module ${index}:`, module.title, module.file?.name);
       formData.append(`modules[${index}][title]`, module.title);
       if (module.file) {
         formData.append(`modules[${index}][content]`, module.file);
       }
     });
+
+    // Debug: Log all form data entries (be aware File objects won't fully stringify)
+    console.log('FormData entries:');
+    for (const pair of formData.entries()) {
+      const [key, value] = pair as [string, any];
+      if (value instanceof File) {
+        console.log(`  ${key}: File -> name=${value.name}, size=${value.size}, type=${value.type}`);
+      } else {
+        console.log(`  ${key}:`, value);
+      }
+    }
 
     try {
       const csrfToken = await getCsrf();
@@ -251,6 +240,9 @@ export function CourseManagement() {
         formData.append('_method', 'PUT');
       }
 
+      console.log('Sending request to:', url);
+      console.log('CSRF Token:', csrfToken?.substring(0, 20) + '...');
+
       const response = await fetch(url, {
         method: 'POST', // Always use POST for FormData with files
         credentials: 'include',
@@ -261,7 +253,12 @@ export function CourseManagement() {
         },
         body: formData,
       });
+
+      console.log('Response status:', response.status);
+      console.log('Response URL:', response.url);
+
       const responseText = await response.text();
+      console.log('Response body:', responseText.substring(0, 500));
 
       if (!response.ok) {
         let errorData;
@@ -464,14 +461,15 @@ export function CourseManagement() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
                   <select
                     name="department"
-                    defaultValue={editingCourse?.department || ''}
+                    defaultValue={editingCourse?.department || 'IT'}
                     required
                     className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
-                    <option value="" disabled>Select Department</option>
-                    {departments.map(dept => (
-                      <option key={dept.id} value={dept.name}>{dept.name}</option>
-                    ))}
+                    <option value="IT">IT</option>
+                    <option value="HR">HR</option>
+                    <option value="Operations">Operations</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Marketing">Marketing</option>
                   </select>
                 </div>
                 <div>
@@ -492,15 +490,12 @@ export function CourseManagement() {
                 <label className="block text-sm font-medium text-slate-700 mb-1">Assign Instructor</label>
                 <select
                   name="instructor_id"
-                  defaultValue={editingCourse?.instructorId ?? ''}
+                  defaultValue={editingCourse?.instructorId ? String(editingCourse.instructorId) : ''}
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">Select Instructor</option>
-                  {instructors.map((instructor) => (
-                    <option key={instructor.id} value={instructor.id}>
-                      {instructor.fullName}
-                    </option>
-                  ))}
+                  <option value="1">Prof. Ana Reyes</option>
+                  <option value="2">Andres Bonifacio</option>
                 </select>
               </div>
 
@@ -515,6 +510,7 @@ export function CourseManagement() {
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
+                      console.log('Add Module button clicked!');
                       addModule();
                     }}
                     className="inline-flex items-center px-3 py-1.5 border border-green-300 rounded-md text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 cursor-pointer z-10"

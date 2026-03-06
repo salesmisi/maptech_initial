@@ -137,6 +137,7 @@ Route::post('/logout', [LoginController::class, 'logout'])
 
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\CourseController as AdminCourseController;
+use App\Http\Controllers\Admin\ReportController;
 
 // Test route for debugging
 Route::get('/test-auth', function () {
@@ -156,6 +157,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
     // Dashboard
     Route::get('/dashboard', [UserController::class, 'dashboard']);
+    Route::get('/reports/analytics', [ReportController::class, 'analytics']);
 
     // User Management
     Route::get('/users', [UserController::class, 'index']);

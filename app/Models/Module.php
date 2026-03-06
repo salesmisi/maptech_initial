@@ -46,8 +46,8 @@ class Module extends Model
             return $this->content_path;
         }
 
-        // Serve local module files through the authenticated API endpoint.
-        return url('/api/modules/' . $this->id . '/content');
+        // Use relative URL so browser keeps same host/session cookies.
+        return '/api/modules/' . $this->id . '/content';
     }
 
     /**
