@@ -139,8 +139,8 @@ Route::post('/logout', [LoginController::class, 'logout'])
 
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\CourseController as AdminCourseController;
-<<<<<<< HEAD
 use App\Http\Controllers\Admin\ReportController;
+use App\Http\Controllers\Admin\QuizController as AdminQuizController;
 
 // Test route for debugging
 Route::get('/test-auth', function () {
@@ -155,23 +155,17 @@ Route::get('/test-auth', function () {
         ] : null
     ]);
 });
-=======
-use App\Http\Controllers\Admin\QuizController as AdminQuizController;
->>>>>>> origin/merge/kurt_phen
 
 Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->group(function () {
 
     // Dashboard
     Route::get('/dashboard', [UserController::class, 'dashboard']);
-<<<<<<< HEAD
-    Route::get('/reports/analytics', [ReportController::class, 'analytics']);
-=======
     Route::get('/activity', [UserController::class, 'activity']);
 
     // Reports & Analytics
     Route::get('/reports', [UserController::class, 'reports']);
     Route::get('/reports/export', [UserController::class, 'exportReport']);
->>>>>>> origin/merge/kurt_phen
+    Route::get('/reports/analytics', [ReportController::class, 'analytics']);
 
     // User Management
     Route::get('/users', [UserController::class, 'index']);

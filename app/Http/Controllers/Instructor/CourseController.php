@@ -218,31 +218,19 @@ class CourseController extends Controller
             'content'     => 'nullable|file|max:102400',
         ]);
 
-        $nextOrder = $course->modules()->max('order') + 1;
+$nextOrder = $course->modules()->max('order') + 1;
 
-<<<<<<< HEAD
-        // Handle modules and content upload
-        if (!empty($validated['modules'])) {
-            foreach ($validated['modules'] as $module) {
-                $filePath = $module['content']->store('course-content', 'public');
-                $course->modules()->create([
-                    'title' => $module['title'],
-                    'content_path' => $filePath,
-                ]);
-            }
-=======
-        $data = [
-            'title'       => $request->input('title'),
-            'description' => $request->input('description'),
-            'order'       => $nextOrder,
-        ];
+$data = [
+    'title'       => $request->input('title'),
+    'description' => $request->input('description'),
+    'order'       => $nextOrder,
+];
 
-        if ($request->hasFile('content')) {
-            $data['content_path'] = $request->file('content')->store('course-content', 'public');
->>>>>>> origin/merge/kurt_phen
-        }
+if ($request->hasFile('content')) {
+    $data['content_path'] = $request->file('content')->store('course-content', 'public');
+}
 
-        $module = $course->modules()->create($data);
+$module = $course->modules()->create($data);
 
         return response()->json(['message' => 'Module added successfully', 'module' => $module], 201);
     }

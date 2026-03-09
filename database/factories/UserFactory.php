@@ -21,15 +21,11 @@ class UserFactory extends Factory
      *
      * @return array<string, mixed>
      */
-    public function definition(): array
-    {
-        return [
-<<<<<<< HEAD
-            'fullName' => fake()->name(),
-=======
-            'fullname' => fake()->name(),
->>>>>>> origin/merge/kurt_phen
-            'email' => fake()->unique()->safeEmail(),
+public function definition(): array
+{
+    return [
+        'fullname' => fake()->name(),
+        'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'role' => 'employee',

@@ -1,7 +1,7 @@
 import React, { useRef, useCallback, useEffect, useState } from 'react';
 import {
   Bold, Italic, Underline, List, ListOrdered,
-  Heading1, Heading2, Heading3, Type, Table, Plus, Trash2,
+  Heading1, Heading2, Heading3, Type, Table, Plus,
   ChevronDown,
 } from 'lucide-react';
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
+use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -69,13 +70,9 @@ class UserController extends Controller
             ], 422);
         }
 
-        $user = User::create([
-<<<<<<< HEAD
-            'fullName' => $validated['fullName'],
-=======
-            'fullname' => $validated['fullName'],
->>>>>>> origin/merge/kurt_phen
-            'email' => $validated['email'],
+$user = User::create([
+    'fullname' => $validated['fullName'],
+    'email' => $validated['email'],
             'password' => $validated['password'],
             'role' => $validated['role'],
             'department' => $validated['department'] ?? null,
@@ -138,14 +135,10 @@ class UserController extends Controller
             ], 422);
         }
 
-        // Update fields
-        if (isset($validated['fullName'])) {
-<<<<<<< HEAD
-            $user->fullName = $validated['fullName'];
-=======
-            $user->fullname = $validated['fullName'];
->>>>>>> origin/merge/kurt_phen
-        }
+// Update fields
+if (isset($validated['fullName'])) {
+    $user->fullname = $validated['fullName'];
+}
         if (isset($validated['email'])) {
             $user->email = $validated['email'];
         }
