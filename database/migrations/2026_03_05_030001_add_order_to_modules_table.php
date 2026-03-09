@@ -8,10 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('modules', function (Blueprint $table) {
-            // Sequential ordering within a course — used for module unlock logic
-            $table->unsignedInteger('order')->default(0)->after('course_id');
-        });
+        if (!Schema::hasColumn('modules', 'order')) {
+            Schema::table('modules', function (Blueprint $table) {
+                // Sequential ordering within a course — used for module unlock logic
+                $table->unsignedInteger('order')->default(0)->after('course_id');
+            });
+        }
     }
 
     public function down(): void

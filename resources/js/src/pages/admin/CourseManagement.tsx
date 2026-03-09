@@ -27,6 +27,7 @@ export interface Course {
   title: string;
   description: string;
   department: string;
+  subdepartment_id?: number | null;
   instructor: string;
   instructor_id?: number | string | null;
   status: 'Active' | 'Draft' | 'Inactive';
@@ -45,6 +46,12 @@ export interface Course {
 interface Instructor {
   id: number;
   fullname: string;
+}
+
+interface DeptWithSubs {
+  id: number;
+  name: string;
+  subdepartments: { id: number; name: string }[];
 }
 
 const initialCourses: Course[] = [
@@ -134,6 +141,9 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [modules, setModules] = useState<ModuleInput[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [instructors, setInstructors] = useState<Instructor[]>([]);
+  const [departments, setDepartments] = useState<DeptWithSubs[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState('');
 
   // Debug: Monitor modules state changes
   useEffect(() => {
@@ -177,6 +187,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
         title: course.title,
         description: course.description || '',
         department: course.department,
+        subdepartment_id: course.subdepartment_id || null,
         instructor: course.instructor?.fullname || 'Unassigned',
         instructor_id: course.instructor_id,
         status: course.status,
@@ -208,7 +219,20 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   useEffect(() => {
     loadCourses();
     loadInstructors();
+    loadDepartments();
   }, []);
+
+  const loadDepartments = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/departments`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setDepartments(data);
+    } catch { /* ignore */ }
+  };
 
   // Filter Logic
   const filteredCourses = courses.filter((course) => {
@@ -243,6 +267,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   const handleOpenModal = (course?: Course) => {
     if (course) {
       setEditingCourse(course);
+      setSelectedDepartment(course.department || '');
       // Load existing modules for editing (without files since they're already uploaded)
       setModules(course.modules?.map((m, index) => ({
         id: index + 1,
@@ -251,6 +276,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
       })) || []);
     } else {
       setEditingCourse(null);
+      setSelectedDepartment('');
       setModules([]);
     }
     setIsModalOpen(true);
@@ -504,6 +530,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                     name="department"
                     defaultValue={editingCourse?.department || ''}
                     required
+                    onChange={(e) => setSelectedDepartment(e.target.value)}
                     className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="" disabled>Select Department</option>
@@ -512,6 +539,22 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Subdepartment</label>
+                  <select
+                    name="subdepartment_id"
+                    defaultValue={editingCourse?.subdepartment_id ?? ''}
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  >
+                    <option value="">All (entire department)</option>
+                    {(departments.find(d => d.name === selectedDepartment)?.subdepartments || []).map(sub => (
+                      <option key={sub.id} value={sub.id}>{sub.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
                   <select

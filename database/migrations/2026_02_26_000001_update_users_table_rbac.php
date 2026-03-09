@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            // Rename 'name' to 'fullName' if it exists
-            if (Schema::hasColumn('users', 'name') && !Schema::hasColumn('users', 'fullName')) {
-                $table->renameColumn('name', 'fullName');
+            // Rename 'name' to 'fullname' if it exists
+            if (Schema::hasColumn('users', 'name') && !Schema::hasColumn('users', 'fullname')) {
+                $table->renameColumn('name', 'fullname');
             }
 
             // Add department (nullable, required for Employee)

@@ -88,5 +88,45 @@ class Enrollment extends Model
             'progress' => $progress,
             'status'   => $status,
         ]);
+
+        // Auto-generate certificate when course is completed
+        if ($progress >= 100) {
+            static::generateCertificate($userId, $courseId, $course, $quizzes, $quizIds);
+        }
+    }
+
+    /**
+     * Generate a certificate for a completed course if one doesn't already exist.
+     */
+    private static function generateCertificate(int $userId, string $courseId, Course $course, $quizzes, $quizIds): void
+    {
+        if (Certificate::where('user_id', $userId)->where('course_id', $courseId)->exists()) {
+            return;
+        }
+
+        // Calculate average score across all passed quizzes
+        $avgScore = QuizAttempt::where('user_id', $userId)
+            ->whereIn('quiz_id', $quizIds)
+            ->where('passed', true)
+            ->selectRaw('MAX(percentage) as best_pct, quiz_id')
+            ->groupBy('quiz_id')
+            ->get()
+            ->avg('best_pct') ?? 0;
+
+        $now = now();
+        $code = Certificate::generateCode($course->title, $now);
+
+        // Ensure unique code
+        while (Certificate::where('certificate_code', $code)->exists()) {
+            $code = Certificate::generateCode($course->title, $now);
+        }
+
+        Certificate::create([
+            'user_id'          => $userId,
+            'course_id'        => $courseId,
+            'certificate_code' => $code,
+            'completed_at'     => $now,
+            'score'            => round($avgScore, 2),
+        ]);
     }
 }

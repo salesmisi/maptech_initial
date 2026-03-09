@@ -126,7 +126,45 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   // Upload progress
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadDuration, setUploadDuration] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper to extract actual video duration from file
+  const extractVideoDuration = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(url);
+        const totalSeconds = Math.floor(video.duration);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        if (hours > 0) {
+          resolve(`${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+        } else {
+          resolve(`${minutes}:${String(seconds).padStart(2, '0')}`);
+        }
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve('');
+      };
+      video.src = url;
+    });
+  };
+
+  // Handle file selection with duration extraction
+  const handleFileSelect = async (file: File | null) => {
+    setUploadFile(file);
+    if (file && uploadType === 'Video' && file.type.startsWith('video/')) {
+      const duration = await extractVideoDuration(file);
+      setUploadDuration(duration);
+    } else {
+      setUploadDuration('');
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -467,6 +505,9 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       formData.append('text_content', uploadText);
     } else {
       formData.append('content', uploadFile!);
+      if (uploadType === 'Video' && uploadDuration) {
+        formData.append('duration', uploadDuration);
+      }
     }
 
     setIsUploading(true);
@@ -506,6 +547,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       setUploadText('');
       setUploadStatus('Draft');
       setUploadProgress(0);
+      setUploadDuration('');
       if (fileInputRef.current) fileInputRef.current.value = '';
       setActivePanel('modules');
       if (selectedCourse) await loadModules(selectedCourse.id);
@@ -1181,7 +1223,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                           <button
                             key={ct.key}
                             type="button"
-                            onClick={() => { setUploadType(ct.key as any); setUploadFile(null); setUploadText(''); }}
+                            onClick={() => { setUploadType(ct.key as any); setUploadFile(null); setUploadText(''); setUploadDuration(''); }}
                             className={`flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-colors ${
                               uploadType === ct.key
                                 ? 'border-purple-500 bg-purple-50 text-purple-700'
@@ -1212,7 +1254,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     {uploadType !== 'Text' && (
                       <div
                         onDragOver={e => e.preventDefault()}
-                        onDrop={e => { e.preventDefault(); if (e.dataTransfer.files.length > 0) setUploadFile(e.dataTransfer.files[0]); }}
+                        onDrop={e => { e.preventDefault(); if (e.dataTransfer.files.length > 0) handleFileSelect(e.dataTransfer.files[0]); }}
                         className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
                           uploadFile ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-purple-400'
                         }`}
@@ -1222,7 +1264,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                             <span className="text-green-500">&#10003;</span>
                             <span className="text-sm font-medium">{uploadFile.name}</span>
                             <span className="text-xs text-gray-500">({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)</span>
-                            <button onClick={() => setUploadFile(null)} className="ml-2 text-red-400 hover:text-red-600">
+                            <button onClick={() => { setUploadFile(null); setUploadDuration(''); }} className="ml-2 text-red-400 hover:text-red-600">
                               <XMarkIcon className="h-4 w-4" />
                             </button>
                           </div>
@@ -1236,7 +1278,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                                 type="file"
                                 className="hidden"
                                 accept={uploadType === 'Video' ? 'video/*' : '.pdf,.doc,.docx,.ppt,.pptx,.txt'}
-                                onChange={e => setUploadFile(e.target.files?.[0] || null)}
+                                onChange={e => handleFileSelect(e.target.files?.[0] || null)}
                               />
                             </label>
                             <p className="text-xs text-gray-400 mt-2">

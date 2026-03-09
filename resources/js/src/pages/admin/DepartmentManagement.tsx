@@ -12,6 +12,10 @@ import {
 interface Subdepartment {
   id: number;
   name: string;
+  head_id: number | null;
+  instructor_id: number | null;
+  head_user?: { id: number; fullname: string } | null;
+  instructor?: { id: number; fullname: string } | null;
 }
 
 interface Department {
@@ -76,7 +80,11 @@ export default function DepartmentManagement() {
     description: "",
   });
 
-  const [subName, setSubName] = useState("");
+  const [subForm, setSubForm] = useState({
+    name: "",
+    head_id: "" as string | number,
+    instructor_id: "" as string | number,
+  });
 
   // ================= HELPERS =================
   const getXsrfToken = async (): Promise<string> => {
@@ -200,6 +208,12 @@ export default function DepartmentManagement() {
   const handleSaveSub = async () => {
     const xsrfToken = await getXsrfToken();
 
+    const payload = {
+      name: subForm.name,
+      head_id: subForm.head_id ? Number(subForm.head_id) : null,
+      instructor_id: subForm.instructor_id ? Number(subForm.instructor_id) : null,
+    };
+
     try {
       if (editingSub) {
         // Edit existing subdepartment
@@ -212,7 +226,7 @@ export default function DepartmentManagement() {
             'X-Requested-With': 'XMLHttpRequest',
             'X-XSRF-TOKEN': xsrfToken,
           },
-          body: JSON.stringify({ name: subName }),
+          body: JSON.stringify(payload),
         });
       } else {
         // Add new subdepartment
@@ -229,12 +243,12 @@ export default function DepartmentManagement() {
               'X-Requested-With': 'XMLHttpRequest',
               'X-XSRF-TOKEN': xsrfToken,
             },
-            body: JSON.stringify({ name: subName }),
+            body: JSON.stringify(payload),
           }
         );
       }
 
-      setSubName("");
+      setSubForm({ name: "", head_id: "", instructor_id: "" });
       setEditingSub(null);
       setShowSubModal(false);
       loadDepartments();
@@ -338,30 +352,42 @@ export default function DepartmentManagement() {
             {dept.subdepartments?.length > 0 && (
               <div className="mb-3">
                 <p className="text-xs text-gray-500 mb-2 font-medium">Subdepartments:</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="space-y-2">
                 {dept.subdepartments.map((sub) => (
-                  <span
+                  <div
                     key={sub.id}
-                    className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs flex items-center gap-1 group"
+                    className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-xs group"
                   >
-                    {sub.name}
-                    <Pencil
-                      onClick={() => {
-                        setEditingSub(sub);
-                        setSubName(sub.name);
-                        setShowSubModal(true);
-                      }}
-                      className="w-3 h-3 cursor-pointer opacity-0 group-hover:opacity-100 hover:text-blue-900"
-                    />
-                    <X
-                      onClick={() => {
-                        setSelectedSubId(sub.id);
-                        setSelectedSubName(sub.name);
-                        setShowDeleteSubModal(true);
-                      }}
-                      className="w-3 h-3 cursor-pointer text-blue-400 hover:text-red-600"
-                    />
-                  </span>
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-blue-700">{sub.name}</span>
+                      <div className="flex items-center gap-1">
+                        <Pencil
+                          onClick={() => {
+                            setEditingSub(sub);
+                            setSubForm({
+                              name: sub.name,
+                              head_id: sub.head_id || "",
+                              instructor_id: sub.instructor_id || "",
+                            });
+                            setShowSubModal(true);
+                          }}
+                          className="w-3 h-3 cursor-pointer text-blue-400 hover:text-blue-900"
+                        />
+                        <X
+                          onClick={() => {
+                            setSelectedSubId(sub.id);
+                            setSelectedSubName(sub.name);
+                            setShowDeleteSubModal(true);
+                          }}
+                          className="w-3 h-3 cursor-pointer text-blue-400 hover:text-red-600"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-1 text-gray-500 space-y-0.5">
+                      <p>Head: <span className="text-gray-700">{sub.head_user?.fullname || 'Unassigned'}</span></p>
+                      <p>Instructor: <span className="text-gray-700">{sub.instructor?.fullname || 'Unassigned'}</span></p>
+                    </div>
+                  </div>
                 ))}
                 </div>
               </div>
@@ -372,7 +398,7 @@ export default function DepartmentManagement() {
                 <button
                   onClick={() => {
                     setSelectedDeptId(dept.id);
-                    setSubName("");
+                    setSubForm({ name: "", head_id: "", instructor_id: "" });
                     setEditingSub(null);
                     setShowSubModal(true);
                   }}
@@ -462,7 +488,7 @@ export default function DepartmentManagement() {
         <Modal onClose={() => {
           setShowSubModal(false);
           setEditingSub(null);
-          setSubName("");
+          setSubForm({ name: "", head_id: "", instructor_id: "" });
         }}>
           <h2 className="text-lg font-semibold mb-4">
             {editingSub ? "Edit Subdepartment" : "Add Subdepartment"}
@@ -470,9 +496,37 @@ export default function DepartmentManagement() {
 
           <Input
             placeholder="Subdepartment Name"
-            value={subName}
-            onChange={setSubName}
+            value={subForm.name}
+            onChange={(v) => setSubForm({ ...subForm, name: v })}
           />
+
+          <div className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Subdepartment Head</label>
+            <select
+              value={subForm.head_id}
+              onChange={(e) => setSubForm({ ...subForm, head_id: e.target.value })}
+              className="w-full border rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500"
+            >
+              <option value="">Select Head</option>
+              {instructors.map((inst) => (
+                <option key={inst.id} value={inst.id}>{inst.fullname}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Subdepartment Instructor</label>
+            <select
+              value={subForm.instructor_id}
+              onChange={(e) => setSubForm({ ...subForm, instructor_id: e.target.value })}
+              className="w-full border rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500"
+            >
+              <option value="">Select Instructor</option>
+              {instructors.map((inst) => (
+                <option key={inst.id} value={inst.id}>{inst.fullname}</option>
+              ))}
+            </select>
+          </div>
 
           <button
             onClick={handleSaveSub}

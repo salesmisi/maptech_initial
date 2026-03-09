@@ -111,14 +111,15 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
   }, []);
 
   // --- Browse mode: all dept courses filtered by globalSearch ---
+  const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, '');
   const browseResults = allCourses.filter((c) =>
-    c.title.toLowerCase().includes(globalSearch.toLowerCase()) ||
-    c.description.toLowerCase().includes(globalSearch.toLowerCase())
+    normalize(c.title).includes(normalize(globalSearch)) ||
+    normalize(c.description).includes(normalize(globalSearch))
   );
 
   // --- My Courses mode: enrolled only, filtered by localSearch + status ---
   const myFiltered = myCourses.filter((c) => {
-    const matchSearch = c.title.toLowerCase().includes(localSearch.toLowerCase());
+    const matchSearch = normalize(c.title).includes(normalize(localSearch));
     const matchFilter = filter === 'All' || c.status === filter;
     return matchSearch && matchFilter;
   });
@@ -156,7 +157,7 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
 
         <div className="p-6 flex-1 flex flex-col">
           <div className="flex-1">
-            <h3 className="text-lg font-bold text-slate-900 line-clamp-1 mb-1">{course.title}</h3>
+            <h3 className="text-lg font-bold text-slate-900 line-clamp-2 mb-1">{course.title}</h3>
             <p className="text-sm text-slate-500 line-clamp-2 mb-3">{course.description}</p>
             <div className="flex items-center text-xs text-slate-500 mb-4 gap-2">
               <BookOpen className="h-4 w-4" />

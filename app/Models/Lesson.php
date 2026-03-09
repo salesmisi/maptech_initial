@@ -12,8 +12,12 @@ class Lesson extends Model
     protected $fillable = [
         'module_id',
         'title',
+        'type',
         'text_content',
         'content_path',
+        'duration',
+        'file_size',
+        'status',
         'order',
     ];
 

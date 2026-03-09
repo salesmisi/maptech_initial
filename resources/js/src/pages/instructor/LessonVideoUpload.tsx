@@ -111,7 +111,45 @@ export function LessonVideoUpload() {
   const [uploadText, setUploadText] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadDuration, setUploadDuration] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper to extract actual video duration from file
+  const extractVideoDuration = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(url);
+        const totalSeconds = Math.floor(video.duration);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        if (hours > 0) {
+          resolve(`${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+        } else {
+          resolve(`${minutes}:${String(seconds).padStart(2, '0')}`);
+        }
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve('');
+      };
+      video.src = url;
+    });
+  };
+
+  // Handle file selection with duration extraction
+  const handleFileSelect = async (file: File | null) => {
+    setUploadFile(file);
+    if (file && uploadType === 'Video' && file.type.startsWith('video/')) {
+      const duration = await extractVideoDuration(file);
+      setUploadDuration(duration);
+    } else {
+      setUploadDuration('');
+    }
+  };
 
   // Preview modal
   const [previewLesson, setPreviewLesson] = useState<LessonData | null>(null);
@@ -247,6 +285,9 @@ export function LessonVideoUpload() {
         formData.append('text_content', uploadText);
       } else if (uploadFile) {
         formData.append('content', uploadFile);
+        if (uploadType === 'Video' && uploadDuration) {
+          formData.append('duration', uploadDuration);
+        }
       } else {
         setError('Please select a file to upload');
         setUploading(false);
@@ -329,6 +370,7 @@ export function LessonVideoUpload() {
     setUploadText('');
     setUploadStatus('Draft');
     setUploadProgress(0);
+    setUploadDuration('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -338,10 +380,10 @@ export function LessonVideoUpload() {
     setShowUpload(true);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     if (e.dataTransfer.files.length > 0) {
-      setUploadFile(e.dataTransfer.files[0]);
+      await handleFileSelect(e.dataTransfer.files[0]);
     }
   };
 
@@ -720,6 +762,7 @@ export function LessonVideoUpload() {
                           setUploadType(type);
                           setUploadFile(null);
                           setUploadText('');
+                          setUploadDuration('');
                           if (fileInputRef.current) fileInputRef.current.value = '';
                         }}
                         className={`p-3 rounded-lg border-2 text-center transition-colors ${
@@ -768,7 +811,7 @@ export function LessonVideoUpload() {
                           : '.pdf,.doc,.docx,.ppt,.pptx'
                       }
                       onChange={(e) => {
-                        if (e.target.files?.[0]) setUploadFile(e.target.files[0]);
+                        if (e.target.files?.[0]) handleFileSelect(e.target.files[0]);
                       }}
                     />
                     {uploadFile ? (

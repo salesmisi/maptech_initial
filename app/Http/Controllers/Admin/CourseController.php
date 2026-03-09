@@ -70,6 +70,7 @@ class CourseController extends Controller
                 'title' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'department' => 'required|string|max:255',
+                'subdepartment_id' => 'nullable|exists:subdepartments,id',
                 'instructor_id' => 'nullable|exists:users,id',
                 'status' => ['nullable', Rule::in(['Active', 'Inactive', 'Draft'])],
                 'start_date' => 'nullable|date',
@@ -89,6 +90,7 @@ class CourseController extends Controller
                 'title' => $validated['title'],
                 'description' => $validated['description'] ?? null,
                 'department' => $validated['department'],
+                'subdepartment_id' => $validated['subdepartment_id'] ?? null,
                 'instructor_id' => $validated['instructor_id'] ?? null,
                 'status' => $validated['status'] ?? 'Active',
                 'start_date' => $validated['start_date'] ?? null,
@@ -178,6 +180,7 @@ class CourseController extends Controller
                 'title' => 'sometimes|string|max:255',
                 'description' => 'nullable|string',
                 'department' => 'sometimes|string|max:255',
+                'subdepartment_id' => 'nullable|exists:subdepartments,id',
                 'instructor_id' => 'nullable|exists:users,id',
                 'status' => ['sometimes', Rule::in(['Active', 'Inactive', 'Draft'])],
                 'start_date' => 'nullable|date',
@@ -188,7 +191,7 @@ class CourseController extends Controller
             ]);
 
             $course->update(array_filter($validated, function ($k) {
-                return in_array($k, ['title', 'description', 'department', 'instructor_id', 'status', 'start_date', 'deadline']);
+                return in_array($k, ['title', 'description', 'department', 'subdepartment_id', 'instructor_id', 'status', 'start_date', 'deadline']);
             }, ARRAY_FILTER_USE_KEY));
 
             if (!empty($validated['modules'])) {

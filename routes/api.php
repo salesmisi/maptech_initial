@@ -13,7 +13,11 @@ use App\Models\Subdepartment;
 
 // GET ALL DEPARTMENTS (with subdepartments and head user)
 Route::get('/departments', function () {
-    return Department::with(['subdepartments', 'headUser:id,fullname'])->get();
+    return Department::with([
+        'subdepartments.headUser:id,fullname',
+        'subdepartments.instructor:id,fullname',
+        'headUser:id,fullname'
+    ])->get();
 });
 
 // CREATE DEPARTMENT
@@ -74,14 +78,20 @@ Route::delete('/departments/{id}', function ($id) {
 Route::post('/departments/{id}/subdepartments', function (Request $request, $id) {
 
     $request->validate([
-        'name' => 'required|string|max:255'
+        'name' => 'required|string|max:255',
+        'head_id' => 'nullable|exists:users,id',
+        'instructor_id' => 'nullable|exists:users,id',
     ]);
 
-    return Subdepartment::create([
+    $subdepartment = Subdepartment::create([
         'department_id' => $id,
         'name' => $request->name,
-        'description' => $request->description
+        'description' => $request->description,
+        'head_id' => $request->head_id,
+        'instructor_id' => $request->instructor_id,
     ]);
+
+    return $subdepartment->load(['headUser:id,fullname', 'instructor:id,fullname']);
 });
 
 // UPDATE SUBDEPARTMENT
@@ -90,14 +100,18 @@ Route::put('/subdepartments/{id}', function (Request $request, $id) {
     $subdepartment = Subdepartment::findOrFail($id);
 
     $request->validate([
-        'name' => 'required|string|max:255'
+        'name' => 'required|string|max:255',
+        'head_id' => 'nullable|exists:users,id',
+        'instructor_id' => 'nullable|exists:users,id',
     ]);
 
     $subdepartment->update([
         'name' => $request->name,
+        'head_id' => $request->head_id,
+        'instructor_id' => $request->instructor_id,
     ]);
 
-    return $subdepartment;
+    return $subdepartment->load(['headUser:id,fullname', 'instructor:id,fullname']);
 });
 
 // DELETE SUBDEPARTMENT
@@ -289,6 +303,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
 
 use App\Http\Controllers\Employee\DashboardController;
 use App\Http\Controllers\Employee\QuizController as EmployeeQuizController;
+use App\Http\Controllers\Employee\CertificateController;
 
 Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee', 'department'])->group(function () {
 
@@ -307,6 +322,9 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
 
     // My Progress
     Route::get('/progress', [DashboardController::class, 'progress']);
+
+    // Certificates
+    Route::get('/certificates', [CertificateController::class, 'index']);
 
     // Quiz taking
     Route::get('/quizzes/{quizId}', [EmployeeQuizController::class, 'show']);

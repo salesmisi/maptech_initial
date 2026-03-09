@@ -41,6 +41,7 @@ class Course extends Model
         'title',
         'description',
         'department',
+        'subdepartment_id',
         'instructor_id',
         'status',
         'start_date',
@@ -66,6 +67,22 @@ class Course extends Model
     public function scopeForDepartment($query, string $department)
     {
         return $query->where('department', $department);
+    }
+
+    /**
+     * Scope to filter courses by subdepartment.
+     */
+    public function scopeForSubdepartment($query, int $subdepartmentId)
+    {
+        return $query->where('subdepartment_id', $subdepartmentId);
+    }
+
+    /**
+     * Get the subdepartment this course belongs to.
+     */
+    public function subdepartment()
+    {
+        return $this->belongsTo(Subdepartment::class);
     }
 
     /**

@@ -96,6 +96,7 @@ class ContentController extends Controller
             'status'  => 'nullable|in:Published,Draft',
             'content' => 'nullable|file|max:512000', // up to 500 MB
             'text_content' => 'nullable|string',
+            'duration' => 'nullable|string|max:50', // e.g. "1:23" from frontend
         ]);
 
         $contentPath = null;
@@ -115,7 +116,13 @@ class ContentController extends Controller
                 $contentPath = $file->store('lessons', 'public');
                 $bytes = $file->getSize();
                 $fileSize = $this->formatBytes($bytes);
-                $duration = $validated['type'] === 'Video' ? $this->estimateVideoDuration($bytes) : $this->estimateReadTime($bytes);
+
+                // Use frontend-provided duration for videos if available
+                if ($validated['type'] === 'Video' && !empty($validated['duration'])) {
+                    $duration = $validated['duration'];
+                } else {
+                    $duration = $validated['type'] === 'Video' ? $this->estimateVideoDuration($bytes) : $this->estimateReadTime($bytes);
+                }
             }
         }
 
@@ -147,6 +154,7 @@ class ContentController extends Controller
             'status' => 'sometimes|in:Published,Draft',
             'text_content' => 'nullable|string',
             'content' => 'nullable|file|max:512000',
+            'duration' => 'nullable|string|max:50',
         ]);
 
         if (isset($validated['title'])) {
@@ -166,9 +174,15 @@ class ContentController extends Controller
             $lesson->content_path = $file->store('lessons', 'public');
             $bytes = $file->getSize();
             $lesson->file_size = $this->formatBytes($bytes);
-            $lesson->duration = $lesson->type === 'Video'
-                ? $this->estimateVideoDuration($bytes)
-                : $this->estimateReadTime($bytes);
+
+            // Use frontend-provided duration for videos if available
+            if ($lesson->type === 'Video' && !empty($validated['duration'])) {
+                $lesson->duration = $validated['duration'];
+            } else {
+                $lesson->duration = $lesson->type === 'Video'
+                    ? $this->estimateVideoDuration($bytes)
+                    : $this->estimateReadTime($bytes);
+            }
         }
 
         if ($lesson->type === 'Text' && isset($validated['text_content'])) {

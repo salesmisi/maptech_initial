@@ -4,14 +4,66 @@ namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
+use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
+use App\Models\Subdepartment;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
+    /**
+     * Resolve the department name for a user via their subdepartment relationship.
+     * Falls back to the raw user.department string if no subdepartment is set.
+     */
+    private function resolveUserDepartment($user): ?string
+    {
+        if ($user->subdepartment_id) {
+            $sub = Subdepartment::with('department')->find($user->subdepartment_id);
+            if ($sub && $sub->department) {
+                return $sub->department->name;
+            }
+        }
+        return $user->department;
+    }
+
+    /**
+     * Build a course query scoped to the employee's department/subdepartment.
+     * Shows courses whose subdepartment belongs to the same department,
+     * plus department-wide courses (subdepartment_id IS NULL, department name matches).
+     */
+    private function scopeCoursesForUser($query, $user)
+    {
+        $departmentName = $this->resolveUserDepartment($user);
+
+        // Get all subdepartment IDs in the user's department
+        $deptSubIds = collect();
+        if ($user->subdepartment_id) {
+            $sub = Subdepartment::find($user->subdepartment_id);
+            if ($sub) {
+                $deptSubIds = Subdepartment::where('department_id', $sub->department_id)->pluck('id');
+            }
+        }
+
+        return $query->where(function ($q) use ($user, $departmentName, $deptSubIds) {
+            if ($user->subdepartment_id && $deptSubIds->isNotEmpty()) {
+                // Courses assigned to the user's specific subdepartment
+                $q->where('subdepartment_id', $user->subdepartment_id);
+
+                // OR department-wide courses (no subdepartment, matching department name)
+                $q->orWhere(function ($inner) use ($departmentName) {
+                    $inner->whereNull('subdepartment_id')
+                          ->where('department', $departmentName);
+                });
+            } else {
+                // User has no subdepartment — match by department name only
+                $q->where('department', $departmentName);
+            }
+        });
+    }
+
     /**
      * Resolve enrollment status for a given enrollment row + course.
      */
@@ -36,8 +88,10 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        $courses = Course::forDepartment($user->department)
-            ->active()
+        $courses = Course::active()
+            ->where(function ($q) use ($user) {
+                $this->scopeCoursesForUser($q, $user);
+            })
             ->with('instructor:id,fullname,email', 'modules:id,title,content_path,course_id')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -80,6 +134,9 @@ class DashboardController extends Controller
 
         $courses = Course::active()
             ->with('instructor:id,fullname,email', 'modules:id,title,course_id')
+            ->where(function ($q) use ($user) {
+                $this->scopeCoursesForUser($q, $user);
+            })
             ->orderBy('title')
             ->get();
 
@@ -118,8 +175,8 @@ class DashboardController extends Controller
 
         $enrollments = Enrollment::where('user_id', $user->id)
             ->with(['course' => function ($q) use ($user) {
-                $q->forDepartment($user->department)
-                  ->with('instructor:id,fullname,email', 'modules:id,title,course_id');
+                $this->scopeCoursesForUser($q, $user);
+                $q->with('instructor:id,fullname,email', 'modules:id,title,course_id');
             }])
             ->get()
             ->filter(fn ($e) => $e->course !== null);
@@ -159,6 +216,25 @@ class DashboardController extends Controller
         $course = Course::active()->find($id);
         if (!$course) {
             return response()->json(['message' => 'Course not found or not available.'], 404);
+        }
+
+        // Restrict enrollment to courses in the employee's department/subdepartment
+        $departmentName = $this->resolveUserDepartment($user);
+        $courseBelongsToUser = false;
+
+        if ($user->subdepartment_id && $course->subdepartment_id) {
+            // Both have subdepartment — must match
+            $courseBelongsToUser = ($course->subdepartment_id === $user->subdepartment_id);
+        } elseif ($user->subdepartment_id && !$course->subdepartment_id) {
+            // Course is department-wide — check department name
+            $courseBelongsToUser = ($course->department === $departmentName);
+        } else {
+            // User has no subdepartment — match by department
+            $courseBelongsToUser = ($course->department === $departmentName);
+        }
+
+        if (!$courseBelongsToUser) {
+            return response()->json(['message' => 'This course is not available for your department.'], 403);
         }
 
         if (Enrollment::where('user_id', $user->id)->where('course_id', $id)->exists()) {
