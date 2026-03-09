@@ -6,6 +6,8 @@ use App\Models\Question;
 use App\Models\QuestionReply;
 use App\Models\QuestionReplyReaction;
 use App\Models\Course;
+use App\Models\Lesson;
+use App\Models\Enrollment;
 use Illuminate\Http\Request;
 
 class QAController extends Controller
@@ -16,7 +18,10 @@ class QAController extends Controller
     public function employeeIndex(Request $request)
     {
         $questions = Question::where('user_id', $request->user()->id)
-            ->with(['course:id,title', 'answerer:id,fullname', 'replies.user:id,fullname,role', 'replies.reactions'])
+            ->when($request->filled('lesson_id'), function ($q) use ($request) {
+                $q->where('lesson_id', $request->lesson_id);
+            })
+            ->with(['user:id,fullname,role', 'course:id,title', 'lesson:id,title', 'answerer:id,fullname', 'replies.user:id,fullname,role', 'replies.reactions'])
             ->orderByDesc('created_at')
             ->get();
 
@@ -29,13 +34,23 @@ class QAController extends Controller
     public function employeeStore(Request $request)
     {
         $validated = $request->validate([
-            'course_id' => 'required|exists:courses,id',
+            'course_id' => 'required_without:lesson_id|exists:courses,id',
+            'lesson_id' => 'nullable|exists:lessons,id',
             'question'  => 'required|string|max:2000',
         ]);
 
+        // If a lesson_id is provided, derive the course_id from the lesson.
+        if (!empty($validated['lesson_id'])) {
+            $lesson = \App\Models\Lesson::findOrFail($validated['lesson_id']);
+            $courseId = $lesson->module->course_id ?? $validated['course_id'] ?? null;
+        } else {
+            $courseId = $validated['course_id'] ?? null;
+        }
+
         $question = Question::create([
             'user_id'   => $request->user()->id,
-            'course_id' => $validated['course_id'],
+            'course_id' => $courseId,
+            'lesson_id' => $validated['lesson_id'] ?? null,
             'question'  => $validated['question'],
         ]);
 
@@ -85,8 +100,9 @@ class QAController extends Controller
     public function adminIndex(Request $request)
     {
         $query = Question::with([
-            'user:id,fullname,department',
+            'user:id,fullname,department,role',
             'course:id,title',
+            'lesson:id,title',
             'answerer:id,fullname',
             'replies.user:id,fullname,role',
             'replies.reactions',
@@ -98,6 +114,10 @@ class QAController extends Controller
             } elseif ($request->status === 'answered') {
                 $query->whereHas('replies');
             }
+        }
+
+        if ($request->filled('lesson_id')) {
+            $query->where('lesson_id', $request->lesson_id);
         }
 
         return response()->json($query->get());
@@ -114,8 +134,9 @@ class QAController extends Controller
 
         $query = Question::whereIn('course_id', $courseIds)
             ->with([
-                'user:id,fullname,department',
+                'user:id,fullname,department,role',
                 'course:id,title',
+                'lesson:id,title',
                 'answerer:id,fullname',
                 'replies.user:id,fullname,role',
                 'replies.reactions',
@@ -128,6 +149,10 @@ class QAController extends Controller
             } elseif ($request->status === 'answered') {
                 $query->whereHas('replies');
             }
+        }
+
+        if ($request->filled('lesson_id')) {
+            $query->where('lesson_id', $request->lesson_id);
         }
 
         return response()->json($query->get());
@@ -246,5 +271,54 @@ class QAController extends Controller
         $reactions = QuestionReplyReaction::where('reply_id', $replyId)->get();
 
         return response()->json($reactions);
+    }
+
+    /**
+     * Admin: get all lessons for Q&A dropdown.
+     */
+    public function adminLessons()
+    {
+        $lessons = Lesson::with('module:id,title,course_id', 'module.course:id,title')
+            ->orderBy('module_id')
+            ->orderBy('order')
+            ->get()
+            ->map(function ($lesson) {
+                return [
+                    'id'           => $lesson->id,
+                    'title'        => $lesson->title,
+                    'module_title' => $lesson->module?->title ?? '',
+                    'course_title' => $lesson->module?->course?->title ?? '',
+                ];
+            });
+
+        return response()->json($lessons);
+    }
+
+    /**
+     * Instructor: get lessons from courses they teach.
+     */
+    public function instructorLessons(Request $request)
+    {
+        $instructorId = $request->user()->id;
+
+        $courseIds = Course::where('instructor_id', $instructorId)->pluck('id');
+
+        $lessons = Lesson::whereHas('module', function ($q) use ($courseIds) {
+            $q->whereIn('course_id', $courseIds);
+        })
+        ->with('module:id,title,course_id', 'module.course:id,title')
+        ->orderBy('module_id')
+        ->orderBy('order')
+        ->get()
+        ->map(function ($lesson) {
+            return [
+                'id'           => $lesson->id,
+                'title'        => $lesson->title,
+                'module_title' => $lesson->module?->title ?? '',
+                'course_title' => $lesson->module?->course?->title ?? '',
+            ];
+        });
+
+        return response()->json($lessons);
     }
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Download, Award, Calendar, ExternalLink, BookOpen } from 'lucide-react';
+import { Download, Award, Calendar, ExternalLink, BookOpen, Upload, Trash2, Image } from 'lucide-react';
 
 const API_BASE = '/api';
 
@@ -13,33 +13,109 @@ interface Certificate {
   completed_date: string;
   score: string;
   user_name: string;
+  logo_url: string | null;
 }
 
 export function MyCertificates() {
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingId, setUploadingId] = useState<number | null>(null);
+
+  const getCookie = (name: string) => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
+  };
+
+  const getHeaders = () => ({
+    'Accept': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
+    'X-XSRF-TOKEN': decodeURIComponent(getCookie('XSRF-TOKEN') || ''),
+  });
+
+  const loadCertificates = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/employee/certificates`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        setCertificates(await res.json());
+      }
+    } catch (err) {
+      console.error('Error loading certificates:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadCertificates = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/employee/certificates`, {
-          credentials: 'include',
-          headers: { Accept: 'application/json' },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setCertificates(data);
-        }
-      } catch (err) {
-        console.error('Error loading certificates:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadCertificates();
   }, []);
 
-  const handleDownloadPdf = (cert: Certificate) => {
+  const handleUploadLogo = (certId: number) => {
+    setUploadingId(certId);
+    fileInputRef.current?.click();
+  };
+
+  const onFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadingId) return;
+
+    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+    const formData = new FormData();
+    formData.append('logo', file);
+
+    try {
+      const res = await fetch(`${API_BASE}/employee/certificates/${uploadingId}/logo`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: getHeaders(),
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || 'Failed to upload logo');
+        return;
+      }
+      loadCertificates();
+    } catch {
+      alert('Upload failed');
+    } finally {
+      setUploadingId(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveLogo = async (certId: number) => {
+    if (!window.confirm('Remove logo from this certificate?')) return;
+    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+    try {
+      await fetch(`${API_BASE}/employee/certificates/${certId}/logo`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: getHeaders(),
+      });
+      loadCertificates();
+    } catch {
+      alert('Failed to remove logo');
+    }
+  };
+
+  const handleDownloadPdf = async (cert: Certificate) => {
+    // If there's a logo, load it first
+    let logoImg: HTMLImageElement | null = null;
+    if (cert.logo_url) {
+      logoImg = await new Promise<HTMLImageElement | null>((resolve) => {
+        const img = new window.Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = cert.logo_url!;
+      });
+    }
+
     const canvas = document.createElement('canvas');
     const scale = 2;
     canvas.width = 800 * scale;
@@ -66,15 +142,24 @@ export function MyCertificates() {
     ctx.lineWidth = 1;
     ctx.strokeRect(40, 40, 720, 480);
 
-    // Award icon (circle)
-    ctx.beginPath();
-    ctx.arc(400, 100, 30, 0, Math.PI * 2);
-    ctx.fillStyle = '#dcfce7';
-    ctx.fill();
-    ctx.fillStyle = '#16a34a';
-    ctx.font = 'bold 28px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('★', 400, 112);
+    // Award icon or uploaded logo
+    if (logoImg) {
+      // Draw the uploaded logo centered at top
+      const maxW = 80, maxH = 60;
+      const ratio = Math.min(maxW / logoImg.width, maxH / logoImg.height);
+      const w = logoImg.width * ratio;
+      const h = logoImg.height * ratio;
+      ctx.drawImage(logoImg, 400 - w / 2, 70, w, h);
+    } else {
+      ctx.beginPath();
+      ctx.arc(400, 100, 30, 0, Math.PI * 2);
+      ctx.fillStyle = '#dcfce7';
+      ctx.fill();
+      ctx.fillStyle = '#16a34a';
+      ctx.font = 'bold 28px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('★', 400, 112);
+    }
 
     // Title
     ctx.fillStyle = '#0f172a';
@@ -165,8 +250,17 @@ export function MyCertificates() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-900">My Certificates</h1>
       <p className="text-slate-500">
-        View and download your earned certificates.
+        View and download your earned certificates. You can upload a custom logo for each certificate.
       </p>
+
+      {/* Hidden file input for logo upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={onFileSelected}
+        accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+        className="hidden"
+      />
 
       {certificates.length === 0 ? (
         <div className="text-center py-12">
@@ -187,7 +281,11 @@ export function MyCertificates() {
               <div className="h-48 bg-slate-100 relative p-4 flex items-center justify-center border-b border-slate-100">
                 <div className="bg-white w-full h-full shadow-sm border border-slate-200 p-4 flex flex-col items-center justify-center text-center relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-full h-2 bg-green-500"></div>
-                  <Award className="h-8 w-8 text-green-600 mb-2" />
+                  {cert.logo_url ? (
+                    <img src={cert.logo_url} alt="Logo" className="h-8 w-auto mb-2 object-contain" />
+                  ) : (
+                    <Award className="h-8 w-8 text-green-600 mb-2" />
+                  )}
                   <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-1">
                     Certificate of Completion
                   </h3>
@@ -229,13 +327,32 @@ export function MyCertificates() {
                   <span className="text-xs font-mono text-slate-400">
                     ID: {cert.certificate_code}
                   </span>
-                  <button
-                    onClick={() => handleDownloadPdf(cert)}
-                    className="text-green-600 hover:text-green-700 font-medium text-sm flex items-center"
-                  >
-                    <Download className="h-4 w-4 mr-1" />
-                    Download PDF
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {cert.logo_url ? (
+                      <button
+                        onClick={() => handleRemoveLogo(cert.id)}
+                        className="text-red-500 hover:text-red-700 text-sm flex items-center"
+                        title="Remove logo"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                    <button
+                      onClick={() => handleUploadLogo(cert.id)}
+                      className="text-blue-600 hover:text-blue-700 text-sm flex items-center"
+                      title={cert.logo_url ? 'Change logo' : 'Upload logo'}
+                    >
+                      <Upload className="h-4 w-4 mr-1" />
+                      Logo
+                    </button>
+                    <button
+                      onClick={() => handleDownloadPdf(cert)}
+                      className="text-green-600 hover:text-green-700 font-medium text-sm flex items-center"
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Download
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

@@ -47,7 +47,7 @@ export function InstructorLayout({
   },
   {
     id: 'qa-discussion',
-    label: 'Q&A Discussion',
+    label: 'Q&A',
     icon: MessageCircle
   },
   {

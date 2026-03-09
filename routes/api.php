@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Models\Department;
 use App\Models\Subdepartment;
+use App\Models\AuditLog;
 
 /*
 |--------------------------------------------------------------------------
@@ -15,7 +16,7 @@ use App\Models\Subdepartment;
 Route::get('/departments', function () {
     return Department::with([
         'subdepartments.headUser:id,fullname',
-        'subdepartments.instructor:id,fullname',
+        'subdepartments.employee:id,fullname',
         'headUser:id,fullname'
     ])->get();
 });
@@ -80,7 +81,7 @@ Route::post('/departments/{id}/subdepartments', function (Request $request, $id)
     $request->validate([
         'name' => 'required|string|max:255',
         'head_id' => 'nullable|exists:users,id',
-        'instructor_id' => 'nullable|exists:users,id',
+        'employee_id' => 'nullable|exists:users,id',
     ]);
 
     $subdepartment = Subdepartment::create([
@@ -88,10 +89,10 @@ Route::post('/departments/{id}/subdepartments', function (Request $request, $id)
         'name' => $request->name,
         'description' => $request->description,
         'head_id' => $request->head_id,
-        'instructor_id' => $request->instructor_id,
+        'employee_id' => $request->employee_id,
     ]);
 
-    return $subdepartment->load(['headUser:id,fullname', 'instructor:id,fullname']);
+    return $subdepartment->load(['headUser:id,fullname', 'employee:id,fullname']);
 });
 
 // UPDATE SUBDEPARTMENT
@@ -102,16 +103,16 @@ Route::put('/subdepartments/{id}', function (Request $request, $id) {
     $request->validate([
         'name' => 'required|string|max:255',
         'head_id' => 'nullable|exists:users,id',
-        'instructor_id' => 'nullable|exists:users,id',
+        'employee_id' => 'nullable|exists:users,id',
     ]);
 
     $subdepartment->update([
         'name' => $request->name,
         'head_id' => $request->head_id,
-        'instructor_id' => $request->instructor_id,
+        'employee_id' => $request->employee_id,
     ]);
 
-    return $subdepartment->load(['headUser:id,fullname', 'instructor:id,fullname']);
+    return $subdepartment->load(['headUser:id,fullname', 'employee:id,fullname']);
 });
 
 // DELETE SUBDEPARTMENT
@@ -196,6 +197,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::delete('/courses/{id}', [AdminCourseController::class, 'destroy']);
 
     // Course Enrollment Management
+    Route::get('/enrollments', [AdminCourseController::class, 'allEnrollments']);
     Route::get('/courses/{id}/enrollments', [AdminCourseController::class, 'enrollments']);
     Route::post('/courses/{id}/enrollments', [AdminCourseController::class, 'enroll']);
     Route::delete('/courses/{courseId}/enrollments/{userId}', [AdminCourseController::class, 'unenroll']);
@@ -225,12 +227,25 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::delete('/quizzes/{quizId}/questions/{questionId}', [AdminQuizController::class, 'deleteQuestion']);
 
     // Q&A (Admin)
+    Route::get('/lessons', [\App\Http\Controllers\QAController::class, 'adminLessons']);
     Route::get('/questions', [\App\Http\Controllers\QAController::class, 'adminIndex']);
     Route::post('/questions/{id}/answer', [\App\Http\Controllers\QAController::class, 'adminAnswer']);
     Route::delete('/questions/{id}/answer', [\App\Http\Controllers\QAController::class, 'adminDeleteAnswer']);
     Route::post('/questions/{id}/replies', [\App\Http\Controllers\QAController::class, 'storeReply']);
     Route::delete('/questions/{questionId}/replies/{replyId}', [\App\Http\Controllers\QAController::class, 'destroyReply']);
     Route::post('/questions/{questionId}/replies/{replyId}/reactions', [\App\Http\Controllers\QAController::class, 'toggleReaction']);
+
+    // Audit Logs
+    Route::get('/audit-logs', function (Request $request) {
+        $query = AuditLog::with('user:id,fullname,email,role,department')
+            ->orderByDesc('created_at');
+
+        if ($request->has('user_id')) {
+            $query->where('user_id', $request->user_id);
+        }
+
+        return $query->paginate(50);
+    });
 });
 
 
@@ -288,6 +303,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::delete('/quizzes/{quizId}/questions/{questionId}', [InstructorQuizController::class, 'deleteQuestion']);
 
     // Q&A (Instructor)
+    Route::get('/lessons', [\App\Http\Controllers\QAController::class, 'instructorLessons']);
     Route::get('/questions', [\App\Http\Controllers\QAController::class, 'instructorIndex']);
     Route::post('/questions/{id}/replies', [\App\Http\Controllers\QAController::class, 'storeReply']);
     Route::delete('/questions/{questionId}/replies/{replyId}', [\App\Http\Controllers\QAController::class, 'destroyReply']);
@@ -325,6 +341,15 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
 
     // Certificates
     Route::get('/certificates', [CertificateController::class, 'index']);
+    Route::post('/certificates/{id}/logo', [CertificateController::class, 'uploadLogo']);
+    Route::delete('/certificates/{id}/logo', [CertificateController::class, 'removeLogo']);
+
+    // Lesson Feedback
+    Route::get('/feedbacks', [\App\Http\Controllers\Employee\FeedbackController::class, 'index']);
+    Route::post('/feedbacks', [\App\Http\Controllers\Employee\FeedbackController::class, 'store']);
+    Route::put('/feedbacks/{id}', [\App\Http\Controllers\Employee\FeedbackController::class, 'update']);
+    Route::delete('/feedbacks/{id}', [\App\Http\Controllers\Employee\FeedbackController::class, 'destroy']);
+    Route::get('/enrolled-lessons', [\App\Http\Controllers\Employee\FeedbackController::class, 'enrolledLessons']);
 
     // Quiz taking
     Route::get('/quizzes/{quizId}', [EmployeeQuizController::class, 'show']);
@@ -343,6 +368,8 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
 
 // Q&A routes are now defined inside each role's route group above
 // (employee/questions, admin/questions, instructor/questions)
+
+// Chatbot endpoint removed — use persistent Q&A endpoints instead.
 
 /*
 |--------------------------------------------------------------------------

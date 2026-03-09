@@ -14,6 +14,7 @@ import { CoursesAndContent } from './pages/admin/CoursesAndContent';
 import { EnrollmentManagement } from './pages/admin/EnrollmentManagement';
 import { ReportsAnalytics } from './pages/admin/ReportsAnalytics';
 import { NotificationManagement } from './pages/admin/NotificationManagement';
+import { AuditLogs } from './pages/admin/AuditLogs';
 
 // Instructor Pages
 import { InstructorDashboard } from './pages/instructor/InstructorDashboard';
@@ -199,6 +200,7 @@ export function App() {
         {currentPage === 'reports' && <ReportsAnalytics />}
         {currentPage === 'notifications' && <NotificationManagement />}
         {currentPage === 'qa' && <AdminQADiscussion userId={user.id} />}
+        {currentPage === 'audit-logs' && <AuditLogs />}
         {currentPage === 'settings' && <ProfileSettings />}
       </AdminLayout>
     );

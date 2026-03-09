@@ -250,6 +250,39 @@ class CourseController extends Controller
     }
 
     /**
+     * List ALL enrollments across all courses.
+     */
+    public function allEnrollments(Request $request)
+    {
+        $query = Enrollment::with([
+            'user:id,fullname,email,department,role,status',
+            'course:id,title,department',
+        ]);
+
+        if ($request->has('status') && $request->status !== 'All') {
+            $query->where('status', $request->status);
+        }
+
+        $enrollments = $query->orderBy('enrolled_at', 'desc')->get()->map(function ($e) {
+            return [
+                'id'                => $e->id,
+                'user_id'           => $e->user_id,
+                'course_id'         => $e->course_id,
+                'employee_name'     => $e->user->fullname ?? 'Unknown',
+                'employee_email'    => $e->user->email ?? '',
+                'department'        => $e->user->department ?? '',
+                'course_title'      => $e->course->title ?? 'Unknown',
+                'course_department' => $e->course->department ?? '',
+                'enrolled_at'       => $e->enrolled_at?->toDateString(),
+                'progress'          => $e->progress ?? 0,
+                'status'            => $e->status ?? 'Not Started',
+            ];
+        });
+
+        return response()->json($enrollments);
+    }
+
+    /**
      * List all enrolled users for a course.
      */
     public function enrollments(string $id)

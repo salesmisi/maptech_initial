@@ -13,6 +13,7 @@ class Certificate extends Model
         'certificate_code',
         'completed_at',
         'score',
+        'logo_path',
     ];
 
     protected $casts = [

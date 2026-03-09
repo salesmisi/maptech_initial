@@ -11,7 +11,7 @@ class Subdepartment extends Model
         'name',
         'description',
         'head_id',
-        'instructor_id'
+        'employee_id'
     ];
 
     public function department()
@@ -28,10 +28,10 @@ class Subdepartment extends Model
     }
 
     /**
-     * The instructor assigned to this subdepartment.
+     * The employee assigned to this subdepartment.
      */
-    public function instructor()
+    public function employee()
     {
-        return $this->belongsTo(User::class, 'instructor_id');
+        return $this->belongsTo(User::class, 'employee_id');
     }
 }

@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
+use App\Models\AuditLog;
 
 class LoginController extends Controller
 {
@@ -40,6 +41,12 @@ class LoginController extends Controller
         }
 
         $request->session()->regenerate();
+
+        AuditLog::create([
+            'user_id' => $user->id,
+            'action' => 'login',
+            'ip_address' => $request->ip(),
+        ]);
 
         return response()->json([
             'id' => $user->id,
@@ -85,6 +92,12 @@ class LoginController extends Controller
         $abilities = $this->getTokenAbilities($user);
         $token = $user->createToken('auth-token', $abilities)->plainTextToken;
 
+        AuditLog::create([
+            'user_id' => $user->id,
+            'action' => 'login',
+            'ip_address' => $request->ip(),
+        ]);
+
         return response()->json([
             'token' => $token,
             'token_type' => 'Bearer',
@@ -104,9 +117,19 @@ class LoginController extends Controller
      */
     public function logout(Request $request)
     {
+        $user = $request->user();
+
+        if ($user) {
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => 'logout',
+                'ip_address' => $request->ip(),
+            ]);
+        }
+
         // For API token logout
-        if ($request->user() && $request->user()->currentAccessToken()) {
-            $request->user()->currentAccessToken()->delete();
+        if ($user && $user->currentAccessToken()) {
+            $user->currentAccessToken()->delete();
         }
 
         // For session logout

@@ -52,23 +52,25 @@ class QuizController extends Controller
     {
         $user = $request->user();
 
-        $quizzes = Quiz::with(['course', 'module', 'questions'])
+        $quizzes = Quiz::with(['course.subdepartment', 'module', 'questions'])
             ->whereHas('course', fn($q) => $q->where('instructor_id', $user->id))
             ->latest()
             ->get()
             ->map(function ($quiz) {
                 return [
-                    'id'              => $quiz->id,
-                    'title'           => $quiz->title,
-                    'description'     => $quiz->description,
-                    'pass_percentage' => $quiz->pass_percentage,
-                    'course_id'       => $quiz->course_id,
-                    'course_title'    => $quiz->course->title,
-                    'course_dept'     => $quiz->course->department,
-                    'module_id'       => $quiz->module_id,
-                    'module_title'    => $quiz->module?->title,
-                    'question_count'  => $quiz->questions->count(),
-                    'created_at'      => $quiz->created_at,
+                    'id'                 => $quiz->id,
+                    'title'              => $quiz->title,
+                    'description'        => $quiz->description,
+                    'pass_percentage'    => $quiz->pass_percentage,
+                    'course_id'          => $quiz->course_id,
+                    'course_title'       => $quiz->course->title,
+                    'course_dept'        => $quiz->course->department,
+                    'subdepartment_id'   => $quiz->course->subdepartment_id,
+                    'subdepartment_name' => $quiz->course->subdepartment?->name,
+                    'module_id'          => $quiz->module_id,
+                    'module_title'       => $quiz->module?->title,
+                    'question_count'     => $quiz->questions->count(),
+                    'created_at'         => $quiz->created_at,
                 ];
             });
 

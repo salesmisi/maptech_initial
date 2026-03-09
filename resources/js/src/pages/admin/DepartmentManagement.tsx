@@ -13,9 +13,9 @@ interface Subdepartment {
   id: number;
   name: string;
   head_id: number | null;
-  instructor_id: number | null;
+  employee_id: number | null;
   head_user?: { id: number; fullname: string } | null;
-  instructor?: { id: number; fullname: string } | null;
+  employee?: { id: number; fullname: string } | null;
 }
 
 interface Department {
@@ -33,6 +33,11 @@ interface Department {
 }
 
 interface Instructor {
+  id: number;
+  fullname: string;
+}
+
+interface Employee {
   id: number;
   fullname: string;
 }
@@ -57,6 +62,7 @@ export default function DepartmentManagement() {
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -83,7 +89,7 @@ export default function DepartmentManagement() {
   const [subForm, setSubForm] = useState({
     name: "",
     head_id: "" as string | number,
-    instructor_id: "" as string | number,
+    employee_id: "" as string | number,
   });
 
   // ================= HELPERS =================
@@ -118,6 +124,7 @@ export default function DepartmentManagement() {
   useEffect(() => {
     loadDepartments();
     loadInstructors();
+    loadEmployees();
   }, []);
 
   const loadInstructors = async () => {
@@ -133,6 +140,22 @@ export default function DepartmentManagement() {
       if (!res.ok) return;
       const data = await res.json();
       setInstructors(data.map((u: any) => ({ id: u.id, fullname: u.fullname })));
+    } catch { /* ignore */ }
+  };
+
+  const loadEmployees = async () => {
+    try {
+      await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+      const res = await fetch(`${API}/admin/users?role=Employee`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setEmployees(data.map((u: any) => ({ id: u.id, fullname: u.fullname })));
     } catch { /* ignore */ }
   };
 
@@ -211,7 +234,7 @@ export default function DepartmentManagement() {
     const payload = {
       name: subForm.name,
       head_id: subForm.head_id ? Number(subForm.head_id) : null,
-      instructor_id: subForm.instructor_id ? Number(subForm.instructor_id) : null,
+      employee_id: subForm.employee_id ? Number(subForm.employee_id) : null,
     };
 
     try {
@@ -248,7 +271,7 @@ export default function DepartmentManagement() {
         );
       }
 
-      setSubForm({ name: "", head_id: "", instructor_id: "" });
+      setSubForm({ name: "", head_id: "", employee_id: "" });
       setEditingSub(null);
       setShowSubModal(false);
       loadDepartments();
@@ -367,7 +390,7 @@ export default function DepartmentManagement() {
                             setSubForm({
                               name: sub.name,
                               head_id: sub.head_id || "",
-                              instructor_id: sub.instructor_id || "",
+                              employee_id: sub.employee_id || "",
                             });
                             setShowSubModal(true);
                           }}
@@ -385,7 +408,7 @@ export default function DepartmentManagement() {
                     </div>
                     <div className="mt-1 text-gray-500 space-y-0.5">
                       <p>Head: <span className="text-gray-700">{sub.head_user?.fullname || 'Unassigned'}</span></p>
-                      <p>Instructor: <span className="text-gray-700">{sub.instructor?.fullname || 'Unassigned'}</span></p>
+                      <p>Employee: <span className="text-gray-700">{sub.employee?.fullname || 'Unassigned'}</span></p>
                     </div>
                   </div>
                 ))}
@@ -398,7 +421,7 @@ export default function DepartmentManagement() {
                 <button
                   onClick={() => {
                     setSelectedDeptId(dept.id);
-                    setSubForm({ name: "", head_id: "", instructor_id: "" });
+                    setSubForm({ name: "", head_id: "", employee_id: "" });
                     setEditingSub(null);
                     setShowSubModal(true);
                   }}
@@ -488,7 +511,7 @@ export default function DepartmentManagement() {
         <Modal onClose={() => {
           setShowSubModal(false);
           setEditingSub(null);
-          setSubForm({ name: "", head_id: "", instructor_id: "" });
+          setSubForm({ name: "", head_id: "", employee_id: "" });
         }}>
           <h2 className="text-lg font-semibold mb-4">
             {editingSub ? "Edit Subdepartment" : "Add Subdepartment"}
@@ -515,15 +538,15 @@ export default function DepartmentManagement() {
           </div>
 
           <div className="mb-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Subdepartment Instructor</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Subdepartment Employee</label>
             <select
-              value={subForm.instructor_id}
-              onChange={(e) => setSubForm({ ...subForm, instructor_id: e.target.value })}
+              value={subForm.employee_id}
+              onChange={(e) => setSubForm({ ...subForm, employee_id: e.target.value })}
               className="w-full border rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500"
             >
-              <option value="">Select Instructor</option>
-              {instructors.map((inst) => (
-                <option key={inst.id} value={inst.id}>{inst.fullname}</option>
+              <option value="">Select Employee</option>
+              {employees.map((emp) => (
+                <option key={emp.id} value={emp.id}>{emp.fullname}</option>
               ))}
             </select>
           </div>

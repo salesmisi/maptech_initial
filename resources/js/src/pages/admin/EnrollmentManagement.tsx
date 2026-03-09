@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search,
   UserPlus,
@@ -6,85 +6,186 @@ import {
   MoreVertical,
   CheckCircle,
   Clock,
-  AlertCircle } from
-'lucide-react';
+  AlertCircle,
+  Loader2,
+  Trash2,
+  X,
+} from 'lucide-react';
+
+const API_BASE = 'http://127.0.0.1:8000/api';
+
+const getCookie = (name: string) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift();
+};
+
+const getXsrfToken = async (): Promise<string> => {
+  await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+  return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
+};
+
 interface Enrollment {
   id: number;
-  employeeName: string;
-  courseTitle: string;
+  user_id: number;
+  course_id: string;
+  employee_name: string;
+  employee_email: string;
   department: string;
-  enrolledDate: string;
+  course_title: string;
+  course_department: string;
+  enrolled_at: string;
   progress: number;
-  status: 'Completed' | 'In Progress' | 'Not Started';
+  status: 'Completed' | 'In Progress' | 'Not Started' | 'Active';
 }
-const initialEnrollments: Enrollment[] = [
-{
-  id: 1,
-  employeeName: 'Juan Dela Cruz',
-  courseTitle: 'Cybersecurity Fundamentals',
-  department: 'IT',
-  enrolledDate: '2025-01-15',
-  progress: 100,
-  status: 'Completed'
-},
-{
-  id: 2,
-  employeeName: 'Maria Santos',
-  courseTitle: 'Leadership Training 101',
-  department: 'HR',
-  enrolledDate: '2025-02-01',
-  progress: 45,
-  status: 'In Progress'
-},
-{
-  id: 3,
-  employeeName: 'Antonio Luna',
-  courseTitle: 'Workplace Safety',
-  department: 'Marketing',
-  enrolledDate: '2025-02-10',
-  progress: 0,
-  status: 'Not Started'
-},
-{
-  id: 4,
-  employeeName: 'Elena Reyes',
-  courseTitle: 'Data Privacy Compliance',
-  department: 'Finance',
-  enrolledDate: '2025-01-20',
-  progress: 80,
-  status: 'In Progress'
-},
-{
-  id: 5,
-  employeeName: 'Gabriela Silang',
-  courseTitle: 'Cybersecurity Fundamentals',
-  department: 'IT',
-  enrolledDate: '2025-01-15',
-  progress: 100,
-  status: 'Completed'
-}];
+
+interface CourseOption {
+  id: string;
+  title: string;
+  department: string;
+}
+
+interface UserOption {
+  id: number;
+  fullname: string;
+  email: string;
+  department: string;
+}
 
 export function EnrollmentManagement() {
-  const [enrollments, setEnrollments] =
-  useState<Enrollment[]>(initialEnrollments);
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Modal state
+  const [courses, setCourses] = useState<CourseOption[]>([]);
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [enrolling, setEnrolling] = useState(false);
+  const [enrollError, setEnrollError] = useState<string | null>(null);
+
+  // Action menu
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [unenrolling, setUnenrolling] = useState<number | null>(null);
+
+  const loadEnrollments = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/admin/enrollments`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error('Failed to load enrollments.');
+      const data = await res.json();
+      setEnrollments(data);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadEnrollments(); }, []);
+
+  const loadModalData = async () => {
+    try {
+      const [coursesRes, usersRes] = await Promise.all([
+        fetch(`${API_BASE}/admin/courses`, { credentials: 'include', headers: { Accept: 'application/json' } }),
+        fetch(`${API_BASE}/admin/users`, { credentials: 'include', headers: { Accept: 'application/json' } }),
+      ]);
+      if (coursesRes.ok) {
+        const c = await coursesRes.json();
+        setCourses(c.map((x: any) => ({ id: x.id, title: x.title, department: x.department })));
+      }
+      if (usersRes.ok) {
+        const u = await usersRes.json();
+        setUsers(u.map((x: any) => ({ id: x.id, fullname: x.fullname, email: x.email, department: x.department })));
+      }
+    } catch {}
+  };
+
+  const openModal = () => {
+    setIsModalOpen(true);
+    setSelectedCourseId('');
+    setSelectedUserId('');
+    setEnrollError(null);
+    loadModalData();
+  };
+
+  const handleEnroll = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCourseId || !selectedUserId) {
+      setEnrollError('Please select both an employee and a course.');
+      return;
+    }
+    setEnrolling(true);
+    setEnrollError(null);
+    try {
+      const token = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/admin/courses/${selectedCourseId}/enrollments`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': token,
+        },
+        body: JSON.stringify({ user_id: Number(selectedUserId) }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to enroll user.');
+      }
+      setIsModalOpen(false);
+      await loadEnrollments();
+    } catch (e: any) {
+      setEnrollError(e.message);
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
+  const handleUnenroll = async (enrollment: Enrollment) => {
+    if (!confirm(`Unenroll ${enrollment.employee_name} from ${enrollment.course_title}?`)) return;
+    setUnenrolling(enrollment.id);
+    setOpenMenuId(null);
+    try {
+      const token = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/admin/courses/${enrollment.course_id}/enrollments/${enrollment.user_id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+      });
+      if (!res.ok) throw new Error('Failed to unenroll user.');
+      await loadEnrollments();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setUnenrolling(null);
+    }
+  };
+
+  const displayStatus = (status: string) => {
+    if (status === 'Active') return 'In Progress';
+    return status;
+  };
+
   const filteredEnrollments = enrollments.filter((enrollment) => {
     const matchesSearch =
-    enrollment.employeeName.
-    toLowerCase().
-    includes(searchTerm.toLowerCase()) ||
-    enrollment.courseTitle.toLowerCase().includes(searchTerm.toLowerCase());
+      enrollment.employee_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      enrollment.course_title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus =
-    statusFilter === 'All' || enrollment.status === statusFilter;
+      statusFilter === 'All' ||
+      enrollment.status === statusFilter ||
+      (statusFilter === 'In Progress' && enrollment.status === 'Active');
     return matchesSearch && matchesStatus;
   });
-  const handleEnroll = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsModalOpen(false);
-    alert('Enrollment successful!');
-  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -92,9 +193,8 @@ export function EnrollmentManagement() {
           Enrollment Management
         </h1>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={openModal}
           className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-
           <UserPlus className="h-4 w-4 mr-2" />
           New Enrollment
         </button>
@@ -112,7 +212,6 @@ export function EnrollmentManagement() {
             placeholder="Search employee or course..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)} />
-
         </div>
         <div className="sm:w-48">
           <div className="relative">
@@ -123,7 +222,6 @@ export function EnrollmentManagement() {
               className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}>
-
               <option value="All">All Status</option>
               <option value="Completed">Completed</option>
               <option value="In Progress">In Progress</option>
@@ -134,6 +232,16 @@ export function EnrollmentManagement() {
       </div>
 
       {/* Table */}
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+        </div>
+      ) : error ? (
+        <div className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm">
+          <AlertCircle className="h-4 w-4" />{error}
+          <button onClick={loadEnrollments} className="ml-auto text-sm underline">Retry</button>
+        </div>
+      ) : (
       <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200">
@@ -160,33 +268,38 @@ export function EnrollmentManagement() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
-              {filteredEnrollments.map((enrollment) =>
-              <tr
-                key={enrollment.id}
-                className="hover:bg-slate-50 transition-colors">
-
+              {filteredEnrollments.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">
+                    {enrollments.length === 0 ? 'No enrollments yet.' : 'No enrollments match your search.'}
+                  </td>
+                </tr>
+              ) : filteredEnrollments.map((enrollment) => {
+                const status = displayStatus(enrollment.status);
+                return (
+                <tr
+                  key={enrollment.id}
+                  className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-slate-900">
-                      {enrollment.employeeName}
+                      {enrollment.employee_name}
                     </div>
                     <div className="text-xs text-slate-500">
                       {enrollment.department}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                    {enrollment.courseTitle}
+                    {enrollment.course_title}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                    {enrollment.enrolledDate}
+                    {enrollment.enrolled_at}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="w-full bg-slate-200 rounded-full h-2.5 max-w-[100px]">
                       <div
-                      className="bg-green-600 h-2.5 rounded-full"
-                      style={{
-                        width: `${enrollment.progress}%`
-                      }}>
-                    </div>
+                        className="bg-green-600 h-2.5 rounded-full"
+                        style={{ width: `${enrollment.progress}%` }}>
+                      </div>
                     </div>
                     <span className="text-xs text-slate-500 mt-1">
                       {enrollment.progress}%
@@ -194,105 +307,132 @@ export function EnrollmentManagement() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
-                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${enrollment.status === 'Completed' ? 'bg-green-100 text-green-800' : enrollment.status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-800'}`}>
-
-                      {enrollment.status === 'Completed' &&
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    }
-                      {enrollment.status === 'In Progress' &&
-                    <Clock className="h-3 w-3 mr-1" />
-                    }
-                      {enrollment.status === 'Not Started' &&
-                    <AlertCircle className="h-3 w-3 mr-1" />
-                    }
-                      {enrollment.status}
+                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        status === 'Completed' ? 'bg-green-100 text-green-800' :
+                        status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-slate-100 text-slate-800'
+                      }`}>
+                      {status === 'Completed' && <CheckCircle className="h-3 w-3 mr-1" />}
+                      {status === 'In Progress' && <Clock className="h-3 w-3 mr-1" />}
+                      {status === 'Not Started' && <AlertCircle className="h-3 w-3 mr-1" />}
+                      {status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button className="text-slate-400 hover:text-slate-600">
-                      <MoreVertical className="h-5 w-5" />
-                    </button>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
+                    {unenrolling === enrollment.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-slate-400 inline" />
+                    ) : (
+                      <div className="relative inline-block">
+                        <button
+                          className="text-slate-400 hover:text-slate-600"
+                          onClick={() => setOpenMenuId(openMenuId === enrollment.id ? null : enrollment.id)}
+                        >
+                          <MoreVertical className="h-5 w-5" />
+                        </button>
+                        {openMenuId === enrollment.id && (
+                          <div className="absolute right-0 mt-1 w-36 bg-white rounded-md shadow-lg border border-slate-200 z-10">
+                            <button
+                              onClick={() => handleUnenroll(enrollment)}
+                              className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Unenroll
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
-              )}
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
+      )}
 
       {/* Enrollment Modal */}
-      {isModalOpen &&
+      {isModalOpen && (
       <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div
-            className="fixed inset-0 transition-opacity"
-            aria-hidden="true">
-
-              <div className="absolute inset-0 bg-slate-500 opacity-75"></div>
-            </div>
-            <span
-            className="hidden sm:inline-block sm:align-middle sm:h-screen"
-            aria-hidden="true">
-
-              &#8203;
-            </span>
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <h3 className="text-lg leading-6 font-medium text-slate-900 mb-4">
+        <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+          <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+            <div className="absolute inset-0 bg-slate-500 opacity-75"></div>
+          </div>
+          <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+          <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg leading-6 font-medium text-slate-900">
                   New Enrollment
                 </h3>
-                <form onSubmit={handleEnroll} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700">
-                      Select Employee(s)
-                    </label>
-                    <select className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
-                      <option>Juan Dela Cruz</option>
-                      <option>Maria Santos</option>
-                      <option>All IT Department</option>
-                      <option>All Employees</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700">
-                      Select Course
-                    </label>
-                    <select className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
-                      <option>Cybersecurity Fundamentals</option>
-                      <option>Leadership Training 101</option>
-                      <option>Workplace Safety</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700">
-                      Due Date (Optional)
-                    </label>
-                    <input
-                    type="date"
-                    className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm" />
-
-                  </div>
-                  <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
-                    <button
+                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              {enrollError && (
+                <div className="mb-4 flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />{enrollError}
+                </div>
+              )}
+              <form onSubmit={handleEnroll} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">
+                    Select Employee
+                  </label>
+                  <select
+                    className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    value={selectedUserId}
+                    onChange={(e) => setSelectedUserId(e.target.value)}
+                  >
+                    <option value="">-- Select an employee --</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.fullname} ({u.email}) — {u.department}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">
+                    Select Course
+                  </label>
+                  <select
+                    className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    value={selectedCourseId}
+                    onChange={(e) => setSelectedCourseId(e.target.value)}
+                  >
+                    <option value="">-- Select a course --</option>
+                    {courses.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.title} ({c.department})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
+                  <button
                     type="submit"
-                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:col-start-2 sm:text-sm">
-
-                      Enroll User
-                    </button>
-                    <button
+                    disabled={enrolling}
+                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:col-start-2 sm:text-sm disabled:opacity-50"
+                  >
+                    {enrolling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Enroll User
+                  </button>
+                  <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="mt-3 w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:mt-0 sm:col-start-1 sm:text-sm">
-
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              </div>
+                    className="mt-3 w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:mt-0 sm:col-start-1 sm:text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
-      }
-    </div>);
-
+      </div>
+      )}
+    </div>
+  );
 }

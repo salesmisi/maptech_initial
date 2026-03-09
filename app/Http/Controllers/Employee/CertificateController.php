@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Employee;
 use App\Http\Controllers\Controller;
 use App\Models\Certificate;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class CertificateController extends Controller
 {
@@ -30,9 +31,52 @@ class CertificateController extends Controller
                     'completed_date'   => $cert->completed_at->format('M d, Y'),
                     'score'            => $cert->score,
                     'user_name'        => $user->fullname,
+                    'logo_url'         => $cert->logo_path ? asset('storage/' . $cert->logo_path) : null,
                 ];
             });
 
         return response()->json($certificates);
+    }
+
+    /**
+     * Upload a logo for a certificate.
+     */
+    public function uploadLogo(Request $request, $id)
+    {
+        $user = $request->user();
+        $cert = Certificate::where('user_id', $user->id)->findOrFail($id);
+
+        $request->validate([
+            'logo' => 'required|image|mimes:png,jpg,jpeg,svg|max:2048',
+        ]);
+
+        // Delete old logo if exists
+        if ($cert->logo_path) {
+            Storage::disk('public')->delete($cert->logo_path);
+        }
+
+        $path = $request->file('logo')->store('certificate-logos', 'public');
+        $cert->update(['logo_path' => $path]);
+
+        return response()->json([
+            'message' => 'Logo uploaded successfully',
+            'logo_url' => asset('storage/' . $path),
+        ]);
+    }
+
+    /**
+     * Remove the logo from a certificate.
+     */
+    public function removeLogo(Request $request, $id)
+    {
+        $user = $request->user();
+        $cert = Certificate::where('user_id', $user->id)->findOrFail($id);
+
+        if ($cert->logo_path) {
+            Storage::disk('public')->delete($cert->logo_path);
+            $cert->update(['logo_path' => null]);
+        }
+
+        return response()->json(['message' => 'Logo removed']);
     }
 }

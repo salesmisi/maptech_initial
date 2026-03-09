@@ -12,7 +12,8 @@ import {
   Menu,
   Video,
   MessageCircle,
-  Settings
+  Settings,
+  ClipboardList
 } from 'lucide-react';
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -56,7 +57,7 @@ export function AdminLayout({
   },
   {
     id: 'qa',
-    label: 'Q&A Discussion',
+    label: 'Q&A',
     icon: MessageCircle
   },
   {
@@ -73,6 +74,11 @@ export function AdminLayout({
     id: 'notifications',
     label: 'Notifications',
     icon: Bell
+  },
+  {
+    id: 'audit-logs',
+    label: 'Audit Logs',
+    icon: ClipboardList
   },
   {
     id: 'settings',
