@@ -20,10 +20,18 @@ interface Course {
   description: string;
   department: string;
   instructor: string;
+  instructor_id: number | null;
   status: 'Active' | 'Draft' | 'Inactive';
   modules_count: number;
   enrolled_count: number;
   created_at: string;
+}
+
+interface InstructorOption {
+  id: number;
+  fullname: string;
+  email: string;
+  department: string | null;
 }
 
 function normalizeCourseStatus(status: unknown): 'Active' | 'Draft' | 'Inactive' {
@@ -72,7 +80,7 @@ interface UserOption {
   role: string;
 }
 
-export function CoursesAndContent() {
+export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, courseId?: string) => void }) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -86,6 +94,9 @@ export function CoursesAndContent() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [departments, setDepartments] = useState<{id: number; name: string}[]>([]);
+  const [instructors, setInstructors] = useState<InstructorOption[]>([]);
+  const [editInstructorId, setEditInstructorId] = useState<number | null>(null);
+  const [editDepartment, setEditDepartment] = useState('');
   // Module management state
   const [courseModules, setCourseModules] = useState<ModuleDetail[]>([]);
   const [loadingModules, setLoadingModules] = useState(false);
@@ -141,12 +152,16 @@ export function CoursesAndContent() {
     };
   }, []);
 
-  // Load departments for edit form
+  // Load departments and instructors for edit form
   useEffect(() => {
     fetch('/api/departments')
       .then(res => res.json())
       .then(data => setDepartments(Array.isArray(data) ? data : []))
       .catch(err => console.error('Failed to load departments:', err));
+    fetch('/api/admin/users?role=Instructor', { credentials: 'include', headers: { Accept: 'application/json' } })
+      .then(res => res.json())
+      .then(data => setInstructors(Array.isArray(data) ? data.map((u: any) => ({ id: u.id, fullname: u.fullname, email: u.email, department: u.department })) : []))
+      .catch(err => console.error('Failed to load instructors:', err));
   }, []);
 
   const loadCourses = async () => {
@@ -185,8 +200,9 @@ export function CoursesAndContent() {
       setCourses(rawCourses.map((c: any) => ({
         ...c,
         status: normalizeCourseStatus(c.status),
+        instructor_id: c.instructor_id ?? (c.instructor?.id ?? null),
         instructor: typeof c.instructor === 'object' && c.instructor !== null
-          ? c.instructor.fullName || 'Unassigned'
+          ? c.instructor.fullname || 'Unassigned'
           : c.instructor || 'Unassigned',
         department: typeof c.department === 'object' && c.department !== null
           ? c.department.name || ''
@@ -242,6 +258,8 @@ export function CoursesAndContent() {
 
   const handleEditCourse = (course: Course) => {
     setEditingCourse(course);
+    setEditInstructorId(course.instructor_id);
+    setEditDepartment(course.department);
     setShowEditModal(true);
   };
 
@@ -269,6 +287,7 @@ export function CoursesAndContent() {
           title: formData.get('title'),
           description: formData.get('description'),
           department: formData.get('department'),
+          instructor_id: formData.get('instructor_id') || null,
           status: formData.get('status'),
         }),
       });
@@ -842,7 +861,7 @@ export function CoursesAndContent() {
                 </span>
                 <div className="flex space-x-1">
                   <button
-                    onClick={() => handleManageContent(course)}
+                    onClick={() => onNavigate?.('course-detail', String(course.id))}
                     className="p-1 text-gray-400 hover:text-blue-600"
                     title="Manage Content"
                   >
@@ -888,7 +907,7 @@ export function CoursesAndContent() {
 
               {/* Manage Content Button */}
               <button
-                onClick={() => handleManageContent(course)}
+                onClick={() => onNavigate?.('course-detail', String(course.id))}
                 className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors"
               >
                 Manage Content →
@@ -1660,7 +1679,8 @@ export function CoursesAndContent() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
                   <select
                     name="department"
-                    defaultValue={editingCourse.department}
+                    value={editDepartment}
+                    onChange={(e) => { setEditDepartment(e.target.value); setEditInstructorId(null); }}
                     required
                     className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
@@ -1682,6 +1702,22 @@ export function CoursesAndContent() {
                     <option value="Inactive">Inactive</option>
                   </select>
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assigned to</label>
+                <select
+                  name="instructor_id"
+                  value={editInstructorId ?? ''}
+                  onChange={(e) => setEditInstructorId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="">Unassigned</option>
+                  {instructors
+                    .filter(i => !editDepartment || !i.department || i.department === editDepartment)
+                    .map(i => (
+                      <option key={i.id} value={i.id}>{i.fullname} ({i.email})</option>
+                    ))}
+                </select>
               </div>
               <div className="flex gap-3 pt-4">
                 <button

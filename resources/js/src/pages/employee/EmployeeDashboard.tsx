@@ -358,7 +358,6 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                 </div>
                 <div className="flex items-center justify-end sm:justify-center">
                   <button
-                  <button
                     onClick={() => onNavigate?.('course-viewer', course.id)}
                     className="px-4 py-2 bg-slate-50 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-100 border border-slate-200">
                     Continue

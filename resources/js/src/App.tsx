@@ -21,6 +21,8 @@ import { InstructorCourseManagement } from './pages/instructor/CourseManagement'
 import { InstructorCourseDetail } from './pages/instructor/CourseDetail';
 import { InstructorQuizBuilder } from './pages/instructor/QuizBuilder';
 import { QuizAssessmentManagement } from './pages/instructor/QuizAssessmentManagement';
+import { LessonVideoUpload } from './pages/instructor/LessonVideoUpload';
+import { QuizEvaluation } from './pages/instructor/QuizEvaluation';
 
 // Employee Pages
 import { EmployeeDashboard } from './pages/employee/EmployeeDashboard';
@@ -191,7 +193,8 @@ export function App() {
         {currentPage === 'dashboard' && <AdminDashboard onNavigate={handleNavigate} />}
         {currentPage === 'departments' && <DepartmentManagement />}
         {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
-        {currentPage === 'courses' && <CoursesAndContent />}
+        {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
+        {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management'); }} apiPrefix="admin" />}
         {currentPage === 'enrollments' && <EnrollmentManagement />}
         {currentPage === 'reports' && <ReportsAnalytics />}
         {currentPage === 'notifications' && <NotificationManagement />}
@@ -213,6 +216,9 @@ export function App() {
         user={user}
       >
         {currentPage === 'dashboard' && <InstructorDashboard />}
+        {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
+        {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management'); }} />}
+        {currentPage === 'quiz-management' && <QuizAssessmentManagement />}
         {currentPage === 'lessons' && <LessonVideoUpload />}
         {currentPage === 'quizzes' && <QuizAssessmentManagement />}
         {currentPage === 'evaluation' && <QuizEvaluation />}
@@ -247,9 +253,6 @@ export function App() {
           />
         )}
         {currentPage === 'course-viewer' && (
-          <CourseViewer
-            courseId={selectedCourseId || undefined}
-            onBack={() => handleNavigate('my-courses')}
           <CourseViewer
             courseId={selectedCourseId || undefined}
             onBack={() => handleNavigate('my-courses')}

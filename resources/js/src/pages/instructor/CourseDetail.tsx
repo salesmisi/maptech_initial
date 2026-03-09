@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ArrowLeft,
   BookOpen,
@@ -75,9 +75,10 @@ interface AddQuizFormProps {
   onCreated: (quiz: QuizSummary) => void;
   onCancel: () => void;
   onManageQuiz: (quizId: number, courseId: string) => void;
+  apiPrefix: string;
 }
 
-function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz }: AddQuizFormProps) {
+function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz, apiPrefix }: AddQuizFormProps) {
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   const [passPercent, setPassPercent] = useState(70);
@@ -89,7 +90,7 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz }: 
     setSaving(true); setErr(null);
     try {
       const xsrf = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/instructor/modules/${moduleId}/quizzes`, {
+      const res = await fetch(`${API_BASE}/${apiPrefix}/modules/${moduleId}/quizzes`, {
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': xsrf },
@@ -188,6 +189,7 @@ interface Props {
   courseId: string;
   onBack: () => void;
   onManageQuiz: (quizId: number, courseId: string) => void;
+  apiPrefix?: string;
 }
 
 const fileTypeIcon = (fileType: string | null) => {
@@ -205,7 +207,7 @@ const DEPT_COLORS: Record<string, string> = {
   Marketing: 'bg-orange-600',
 };
 
-export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props) {
+export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPrefix = 'instructor' }: Props) {
   const [course, setCourse] = useState<CourseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -264,7 +266,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
 
   const loadCourse = async () => {
     try {
-      const res = await fetch(`${API_BASE}/instructor/courses/${courseId}`, {
+      const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}`, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
@@ -294,7 +296,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
   const loadQuizzes = async () => {
     setQuizzesLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/instructor/courses/${courseId}/quizzes`, {
+      const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/quizzes`, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
@@ -313,7 +315,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
 
   const loadAllUsers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/instructor/users`, {
+      const res = await fetch(`${API_BASE}/${apiPrefix}/users`, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
@@ -347,7 +349,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
       formData.append('title', moduleTitle.trim());
       if (moduleDescription.trim()) formData.append('description', moduleDescription.trim());
 
-      const res = await fetch(`${API_BASE}/instructor/courses/${courseId}/modules`, {
+      const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/modules`, {
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
@@ -374,7 +376,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
     setDeletingModuleId(moduleId);
     try {
       const token = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/instructor/courses/${courseId}/modules/${moduleId}`, {
+      const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/modules/${moduleId}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
@@ -402,7 +404,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
       if (lessonTextContent.trim()) fd.append('text_content', lessonTextContent.trim());
       if (lessonFile) fd.append('content', lessonFile);
 
-      const res = await fetch(`${API_BASE}/instructor/modules/${moduleId}/lessons`, {
+      const res = await fetch(`${API_BASE}/${apiPrefix}/modules/${moduleId}/lessons`, {
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
@@ -429,7 +431,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
     if (!confirm('Delete this lesson?')) return;
     try {
       const token = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/instructor/modules/${moduleId}/lessons/${lessonId}`, {
+      const res = await fetch(`${API_BASE}/${apiPrefix}/modules/${moduleId}/lessons/${lessonId}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
@@ -454,7 +456,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
     setSavingModule(true);
     try {
       const token = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/instructor/courses/${courseId}/modules/${moduleId}`, {
+      const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/modules/${moduleId}`, {
         method: 'PUT',
         credentials: 'include',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token },
@@ -490,7 +492,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
       fd.append('text_content', editLessonTextContent);
       if (editLessonFile) fd.append('content', editLessonFile);
 
-      const res = await fetch(`${API_BASE}/instructor/modules/${moduleId}/lessons/${lessonId}`, {
+      const res = await fetch(`${API_BASE}/${apiPrefix}/modules/${moduleId}/lessons/${lessonId}`, {
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
@@ -521,7 +523,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
 
     try {
       const token = await getXsrfToken();
-      await fetch(`${API_BASE}/instructor/courses/${courseId}/modules/reorder`, {
+      await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/modules/reorder`, {
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token },
@@ -537,7 +539,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
     setDeletingQuizId(quizId);
     try {
       const token = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/instructor/quizzes/${quizId}`, {
+      const res = await fetch(`${API_BASE}/${apiPrefix}/quizzes/${quizId}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
@@ -563,7 +565,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
     setEnrollSuccess(null);
     try {
       const xsrf = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/instructor/courses/${courseId}/enrollments`, {
+      const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/enrollments`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -592,7 +594,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
     if (!confirm(`Remove ${name} from this course?`)) return;
     try {
       const xsrf = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/instructor/courses/${courseId}/enrollments/${userId}`, {
+      const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/enrollments/${userId}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: { Accept: 'application/json', 'X-XSRF-TOKEN': xsrf },
@@ -1084,6 +1086,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz }: Props
                               }}
                               onCancel={() => setAddingQuizForModule(null)}
                               onManageQuiz={onManageQuiz}
+                              apiPrefix={apiPrefix}
                             />
                           ) : (
                             <button

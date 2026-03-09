@@ -8,21 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('questions', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->string('course');
-            $table->string('department')->nullable();
-            $table->text('question');
-            $table->text('answer')->nullable();
-            $table->foreignId('answered_by_id')->nullable()->constrained('users')->onDelete('set null');
-            $table->timestamp('answered_at')->nullable();
-            $table->timestamps();
-        });
+        // Superseded by 2026_03_06_000001_create_questions_table migration
+        // which uses the correct schema (course_id foreign key instead of course string)
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('questions');
+        //
     }
 };

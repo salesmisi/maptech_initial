@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import {
   Search,
   Plus,
@@ -43,12 +43,7 @@ interface DeptWithSubs {
 
 const API_BASE = 'http://127.0.0.1:8000/api';
 
-interface UserManagementProps {
-  currentUserEmail?: string;
-  onLogout?: () => void;
-}
-
-export function UserManagement({ currentUserEmail, onLogout }: UserManagementProps) {
+export function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +72,14 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
     const parts = value.split(`; ${name}=`);
     if (parts.length === 2) return parts.pop()?.split(';').shift();
   };
+
+  // Helper to get headers with XSRF token
+  const getHeaders = () => ({
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
+    'X-XSRF-TOKEN': decodeURIComponent(getCookie('XSRF-TOKEN') || ''),
+  });
 
   // Fetch CSRF cookie then return decoded XSRF token
   const getXsrfToken = async (): Promise<string> => {
@@ -113,14 +116,10 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Session expired. Please log out and log in again.');
-        }
         if (response.status === 403) {
           throw new Error('Access denied. You are not authorized to view this data.');
         }
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.message || `Failed to load data (HTTP ${response.status})`);
+        throw new Error('Failed to load data');
       }
 
       const data = await response.json();
@@ -150,15 +149,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
     }
 
     try {
-<<<<<<< HEAD
-      await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
-      const xsrfToken = decodeURIComponent(
-        document.cookie.split('; ').find(r => r.startsWith('XSRF-TOKEN='))?.split('=')[1] || ''
-      );
-
-=======
       const xsrfToken = await getXsrfToken();
->>>>>>> origin/merge/kurt_phen
       const response = await fetch(`${API_BASE}/admin/users/${id}`, {
         method: 'DELETE',
         credentials: 'include',
@@ -246,22 +237,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
     }
 
     try {
-<<<<<<< HEAD
-      // Get fresh CSRF cookie and extract XSRF-TOKEN
-      await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
-      const xsrfToken = decodeURIComponent(
-        document.cookie.split('; ').find(r => r.startsWith('XSRF-TOKEN='))?.split('=')[1] || ''
-      );
-
-      if (!xsrfToken) {
-        setFormError('CSRF token not found. Please refresh the page and try again.');
-        setSubmitting(false);
-        return;
-      }
-
-=======
       const xsrfToken = await getXsrfToken();
->>>>>>> origin/merge/kurt_phen
       const url = editingUser
         ? `${API_BASE}/admin/users/${editingUser.id}`
         : `${API_BASE}/admin/users`;
@@ -308,16 +284,6 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
       // Reload users
       await loadUsers();
       handleCloseModal();
-
-      // If the current user changed their own password, log them out
-      const changedOwnPassword =
-        editingUser &&
-        editingUser.email === currentUserEmail &&
-        !!formData.password;
-
-      if (changedOwnPassword && onLogout) {
-        onLogout();
-      }
     } catch (err: any) {
       setFormError(err.message || 'Failed to save user');
     } finally {
@@ -570,7 +536,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
                     <input
                       ref={passwordRef}
                       type="password"
-                      placeholder={editingUser ? '••••••••' : ''}
+                      placeholder={editingUser ? 'ΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇó' : ''}
                       className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     />
                   </div>

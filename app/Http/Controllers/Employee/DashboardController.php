@@ -300,4 +300,88 @@ class DashboardController extends Controller
             'modules'     => $modules->values(),
         ]);
     }
+
+    /**
+     * Employee learning progress summary.
+     */
+    public function progress(Request $request)
+    {
+        $user = $request->user();
+
+        // Enrolled courses with their statuses
+        $enrollments = Enrollment::where('user_id', $user->id)
+            ->with('course:id,title')
+            ->get();
+
+        // Course status counts
+        $completed  = 0;
+        $inProgress = 0;
+        $notStarted = 0;
+
+        foreach ($enrollments as $enrollment) {
+            if (!$enrollment->course) continue;
+            $status = $this->resolveStatus($enrollment, $enrollment->course);
+            if ($status === 'Completed') $completed++;
+            elseif ($status === 'In Progress' || $status === 'Unfinished') $inProgress++;
+            else $notStarted++;
+        }
+
+        // Quiz attempts
+        $attempts = QuizAttempt::where('user_id', $user->id)
+            ->with('quiz:id,title,module_id')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $avgScore = $attempts->count() > 0
+            ? round($attempts->avg('percentage'), 1)
+            : 0;
+
+        // Modules completed: count distinct modules where user has a passing attempt
+        $modulesCompleted = $attempts->where('passed', true)
+            ->pluck('quiz.module_id')
+            ->filter()
+            ->unique()
+            ->count();
+
+        // Total learning time estimate based on completed modules (approx 30 min each)
+        $totalMinutes = $modulesCompleted * 30;
+        $hours = intdiv($totalMinutes, 60);
+        $mins  = $totalMinutes % 60;
+        $learningTime = $hours > 0 ? "{$hours}h {$mins}m" : "{$mins}m";
+
+        // Weekly activity (last 7 days of quiz attempts)
+        $weekDays = collect();
+        for ($i = 6; $i >= 0; $i--) {
+            $day = Carbon::now()->subDays($i);
+            $weekDays->push([
+                'name'  => $day->format('D'),
+                'count' => $attempts->filter(fn ($a) => $a->created_at->isSameDay($day))->count(),
+            ]);
+        }
+
+        // Quiz history (best attempt per quiz)
+        $quizHistory = $attempts->groupBy('quiz_id')->map(function ($group) {
+            $best = $group->sortByDesc('percentage')->first();
+            return [
+                'name'  => $best->quiz?->title ?? 'Quiz',
+                'score' => round((float) $best->percentage),
+                'date'  => $best->created_at->toDateString(),
+            ];
+        })->values()->take(10);
+
+        return response()->json([
+            'summary' => [
+                'total_learning_time' => $learningTime,
+                'avg_quiz_score'      => $avgScore,
+                'modules_completed'   => $modulesCompleted,
+            ],
+            'course_status'   => [
+                ['name' => 'Completed',   'value' => $completed],
+                ['name' => 'In Progress', 'value' => $inProgress],
+                ['name' => 'Not Started', 'value' => $notStarted],
+            ],
+            'weekly_activity' => $weekDays->toArray(),
+            'quiz_history'    => $quizHistory->toArray(),
+        ]);
+    }
 }

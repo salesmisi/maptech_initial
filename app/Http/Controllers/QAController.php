@@ -16,7 +16,7 @@ class QAController extends Controller
     public function employeeIndex(Request $request)
     {
         $questions = Question::where('user_id', $request->user()->id)
-            ->with(['course:id,title', 'answerer:id,fullName', 'replies.user:id,fullName,role', 'replies.reactions'])
+            ->with(['course:id,title', 'answerer:id,fullname', 'replies.user:id,fullname,role', 'replies.reactions'])
             ->orderByDesc('created_at')
             ->get();
 
@@ -39,7 +39,7 @@ class QAController extends Controller
             'question'  => $validated['question'],
         ]);
 
-        $question->load(['course:id,title', 'answerer:id,fullName', 'replies.user:id,fullName,role', 'replies.reactions']);
+        $question->load(['course:id,title', 'answerer:id,fullname', 'replies.user:id,fullname,role', 'replies.reactions']);
 
         return response()->json($question, 201);
     }
@@ -59,7 +59,7 @@ class QAController extends Controller
         ]);
 
         $question->update(['question' => $validated['question']]);
-        $question->load(['course:id,title', 'answerer:id,fullName', 'replies.user:id,fullName,role', 'replies.reactions']);
+        $question->load(['course:id,title', 'answerer:id,fullname', 'replies.user:id,fullname,role', 'replies.reactions']);
 
         return response()->json($question);
     }
@@ -85,10 +85,10 @@ class QAController extends Controller
     public function adminIndex(Request $request)
     {
         $query = Question::with([
-            'user:id,fullName,department',
+            'user:id,fullname,department',
             'course:id,title',
-            'answerer:id,fullName',
-            'replies.user:id,fullName,role',
+            'answerer:id,fullname',
+            'replies.user:id,fullname,role',
             'replies.reactions',
         ])->orderByDesc('created_at');
 
@@ -114,10 +114,10 @@ class QAController extends Controller
 
         $query = Question::whereIn('course_id', $courseIds)
             ->with([
-                'user:id,fullName,department',
+                'user:id,fullname,department',
                 'course:id,title',
-                'answerer:id,fullName',
-                'replies.user:id,fullName,role',
+                'answerer:id,fullname',
+                'replies.user:id,fullname,role',
                 'replies.reactions',
             ])
             ->orderByDesc('created_at');
@@ -150,7 +150,7 @@ class QAController extends Controller
             'answered_at' => now(),
         ]);
 
-        $question->load(['user:id,fullName,department', 'course:id,title', 'answerer:id,fullName', 'replies.user:id,fullName,role', 'replies.reactions']);
+        $question->load(['user:id,fullname,department', 'course:id,title', 'answerer:id,fullname', 'replies.user:id,fullname,role', 'replies.reactions']);
 
         return response()->json($question);
     }
@@ -168,7 +168,7 @@ class QAController extends Controller
             'answered_at' => null,
         ]);
 
-        $question->load(['user:id,fullName,department', 'course:id,title', 'answerer:id,fullName', 'replies.user:id,fullName,role', 'replies.reactions']);
+        $question->load(['user:id,fullname,department', 'course:id,title', 'answerer:id,fullname', 'replies.user:id,fullname,role', 'replies.reactions']);
 
         return response()->json($question);
     }
@@ -190,7 +190,7 @@ class QAController extends Controller
             'message'     => $validated['message'],
         ]);
 
-        $reply->load('user:id,fullName,role');
+        $reply->load('user:id,fullname,role');
         $reply->load('reactions');
 
         return response()->json($reply, 201);

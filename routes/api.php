@@ -149,7 +149,7 @@ Route::get('/test-auth', function () {
         'timestamp' => now(),
         'user' => auth()->user() ? [
             'id' => auth()->user()->id,
-            'name' => auth()->user()->fullName,
+            'name' => auth()->user()->fullname,
             'role' => auth()->user()->role,
             'status' => auth()->user()->status,
         ] : null
@@ -209,6 +209,14 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::post('/quizzes/{quizId}/questions', [AdminQuizController::class, 'addQuestion']);
     Route::put('/quizzes/{quizId}/questions/{questionId}', [AdminQuizController::class, 'updateQuestion']);
     Route::delete('/quizzes/{quizId}/questions/{questionId}', [AdminQuizController::class, 'deleteQuestion']);
+
+    // Q&A (Admin)
+    Route::get('/questions', [\App\Http\Controllers\QAController::class, 'adminIndex']);
+    Route::post('/questions/{id}/answer', [\App\Http\Controllers\QAController::class, 'adminAnswer']);
+    Route::delete('/questions/{id}/answer', [\App\Http\Controllers\QAController::class, 'adminDeleteAnswer']);
+    Route::post('/questions/{id}/replies', [\App\Http\Controllers\QAController::class, 'storeReply']);
+    Route::delete('/questions/{questionId}/replies/{replyId}', [\App\Http\Controllers\QAController::class, 'destroyReply']);
+    Route::post('/questions/{questionId}/replies/{replyId}/reactions', [\App\Http\Controllers\QAController::class, 'toggleReaction']);
 });
 
 
@@ -264,6 +272,12 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::post('/quizzes/{quizId}/questions', [InstructorQuizController::class, 'addQuestion']);
     Route::put('/quizzes/{quizId}/questions/{questionId}', [InstructorQuizController::class, 'updateQuestion']);
     Route::delete('/quizzes/{quizId}/questions/{questionId}', [InstructorQuizController::class, 'deleteQuestion']);
+
+    // Q&A (Instructor)
+    Route::get('/questions', [\App\Http\Controllers\QAController::class, 'instructorIndex']);
+    Route::post('/questions/{id}/replies', [\App\Http\Controllers\QAController::class, 'storeReply']);
+    Route::delete('/questions/{questionId}/replies/{replyId}', [\App\Http\Controllers\QAController::class, 'destroyReply']);
+    Route::post('/questions/{questionId}/replies/{replyId}/reactions', [\App\Http\Controllers\QAController::class, 'toggleReaction']);
 });
 
 
@@ -291,40 +305,26 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
     // Self-enroll
     Route::post('/courses/{id}/enroll', [DashboardController::class, 'enroll']);
 
+    // My Progress
+    Route::get('/progress', [DashboardController::class, 'progress']);
+
     // Quiz taking
     Route::get('/quizzes/{quizId}', [EmployeeQuizController::class, 'show']);
     Route::post('/quizzes/{quizId}/submit', [EmployeeQuizController::class, 'submit']);
     Route::get('/quizzes/{quizId}/attempts', [EmployeeQuizController::class, 'myAttempts']);
+
+    // Q&A (Employee)
+    Route::get('/questions', [\App\Http\Controllers\QAController::class, 'employeeIndex']);
+    Route::post('/questions', [\App\Http\Controllers\QAController::class, 'employeeStore']);
+    Route::put('/questions/{id}', [\App\Http\Controllers\QAController::class, 'employeeUpdate']);
+    Route::delete('/questions/{id}', [\App\Http\Controllers\QAController::class, 'employeeDestroy']);
+    Route::post('/questions/{id}/replies', [\App\Http\Controllers\QAController::class, 'storeReply']);
+    Route::delete('/questions/{questionId}/replies/{replyId}', [\App\Http\Controllers\QAController::class, 'destroyReply']);
+    Route::post('/questions/{questionId}/replies/{replyId}/reactions', [\App\Http\Controllers\QAController::class, 'toggleReaction']);
 });
 
-/*
-|--------------------------------------------------------------------------
-| Q&A ROUTES - All authenticated users
-|--------------------------------------------------------------------------
-*/
-
-use App\Http\Controllers\QAController;
-
-Route::prefix('qa')->middleware(['auth:sanctum', 'status'])->group(function () {
-
-    // Get questions (employees see own; instructor/admin see all)
-    Route::get('/questions', [QAController::class, 'index']);
-
-    // Ask a question (any role)
-    Route::post('/questions', [QAController::class, 'store']);
-
-    // Edit own question (employee only, unanswered)
-    Route::put('/questions/{id}', [QAController::class, 'update']);
-
-    // Delete question (employee: own unanswered; admin: any)
-    Route::delete('/questions/{id}', [QAController::class, 'destroy']);
-
-    // Post/update answer (instructor or admin)
-    Route::post('/questions/{id}/answer', [QAController::class, 'answer']);
-
-    // Remove answer (instructor: own answers; admin: any)
-    Route::delete('/questions/{id}/answer', [QAController::class, 'deleteAnswer']);
-});
+// Q&A routes are now defined inside each role's route group above
+// (employee/questions, admin/questions, instructor/questions)
 
 /*
 |--------------------------------------------------------------------------
@@ -362,7 +362,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         $user = $request->user();
         return response()->json([
             'id' => $user->id,
-            'fullName' => $user->fullName,
+            'fullName' => $user->fullname,
             'email' => $user->email,
             'role' => $user->role,
             'department' => $user->department,
@@ -386,6 +386,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         $validated = $request->validate($rules);
 
+        // Map fullName to fullname (actual DB column)
+        if (isset($validated['fullName'])) {
+            $validated['fullname'] = $validated['fullName'];
+            unset($validated['fullName']);
+        }
+
         // Strip email and password if a non-admin somehow submitted them
         if (!$user->isAdmin()) {
             unset($validated['email']);
@@ -397,12 +403,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
         }
 
         $user->update($validated);
+        $user->refresh();
 
         return response()->json([
             'message' => 'Profile updated successfully.',
             'user' => [
                 'id' => $user->id,
-                'fullName' => $user->fullName,
+                'fullName' => $user->fullname,
                 'email' => $user->email,
                 'role' => $user->role,
                 'department' => $user->department,

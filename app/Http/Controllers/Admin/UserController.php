@@ -210,7 +210,7 @@ if (isset($validated['fullName'])) {
      */
     public function activity()
     {
-        $activity = CourseEnrollment::with(['user:id,fullName', 'course:id,title'])
+        $activity = CourseEnrollment::with(['user:id,fullname', 'course:id,title'])
             ->orderBy('updated_at', 'desc')
             ->take(100)
             ->get()
@@ -222,7 +222,7 @@ if (isset($validated['fullName'])) {
                 };
                 return [
                     'id'     => $enrollment->id,
-                    'user'   => $enrollment->user?->fullName ?? 'Unknown',
+                    'user'   => $enrollment->user?->fullname ?? 'Unknown',
                     'action' => $action,
                     'target' => $enrollment->course?->title ?? 'Unknown',
                     'time'   => $enrollment->updated_at->diffForHumans(),
@@ -305,7 +305,7 @@ if (isset($validated['fullName'])) {
      */
     public function exportReport(): StreamedResponse
     {
-        $enrollments = CourseEnrollment::with(['user:id,fullName,department', 'course:id,title'])
+        $enrollments = CourseEnrollment::with(['user:id,fullname,department', 'course:id,title'])
             ->orderBy('enrolled_at', 'desc')
             ->get();
 
@@ -316,7 +316,7 @@ if (isset($validated['fullName'])) {
             fputcsv($handle, ['Employee', 'Department', 'Course', 'Status', 'Progress (%)', 'Enrolled At', 'Completed At']);
             foreach ($enrollments as $e) {
                 fputcsv($handle, [
-                    $e->user?->fullName ?? 'Unknown',
+                    $e->user?->fullname ?? 'Unknown',
                     $e->user?->department ?? '-',
                     $e->course?->title ?? 'Unknown',
                     $e->status,
@@ -374,7 +374,7 @@ if (isset($validated['fullName'])) {
         })->values();
 
         // Recent activity — last 10 enrollment events
-        $recentActivity = CourseEnrollment::with(['user:id,fullName', 'course:id,title'])
+        $recentActivity = CourseEnrollment::with(['user:id,fullname', 'course:id,title'])
             ->orderBy('updated_at', 'desc')
             ->take(10)
             ->get()
@@ -386,7 +386,7 @@ if (isset($validated['fullName'])) {
                 };
                 return [
                     'id'     => $enrollment->id,
-                    'user'   => $enrollment->user?->fullName ?? 'Unknown',
+                    'user'   => $enrollment->user?->fullname ?? 'Unknown',
                     'action' => $action,
                     'target' => $enrollment->course?->title ?? 'Unknown',
                     'time'   => $enrollment->updated_at->diffForHumans(),

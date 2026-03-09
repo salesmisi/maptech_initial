@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-import React, { useEffect, useState } from 'react';
-=======
-import React, { useState, useEffect } from 'react';
->>>>>>> origin/merge/kurt_phen
+﻿import React, { useState, useEffect } from 'react';
 import {
   BarChart,
   Bar,
@@ -19,105 +15,6 @@ import {
   Line } from
 'recharts';
 import { Download, Calendar } from 'lucide-react';
-<<<<<<< HEAD
-
-interface CompletionItem {
-  name: string;
-  value: number;
-}
-
-interface MonthlyTrendItem {
-  name: string;
-  enrollments: number;
-  completions: number;
-}
-
-interface CoursePopularityItem {
-  name: string;
-  students: number;
-}
-
-interface AnalyticsResponse {
-  completion_status: CompletionItem[];
-  monthly_trends: MonthlyTrendItem[];
-  course_popularity: CoursePopularityItem[];
-  meta?: {
-    months: number;
-    updated_at: string;
-  };
-}
-
-const defaultCompletionData: CompletionItem[] = [
-  { name: 'Completed', value: 0 },
-  { name: 'In Progress', value: 0 },
-  { name: 'Not Started', value: 0 },
-];
-
-const COLORS = ['#22c55e', '#eab308', '#94a3b8'];
-
-const defaultMonthlyTrends: MonthlyTrendItem[] = [
-  { name: 'Jan', enrollments: 0, completions: 0 },
-  { name: 'Feb', enrollments: 0, completions: 0 },
-  { name: 'Mar', enrollments: 0, completions: 0 },
-  { name: 'Apr', enrollments: 0, completions: 0 },
-  { name: 'May', enrollments: 0, completions: 0 },
-  { name: 'Jun', enrollments: 0, completions: 0 },
-];
-
-const defaultCoursePopularity: CoursePopularityItem[] = [];
-
-export function ReportsAnalytics() {
-  const [completionData, setCompletionData] = useState<CompletionItem[]>(defaultCompletionData);
-  const [monthlyTrends, setMonthlyTrends] = useState<MonthlyTrendItem[]>(defaultMonthlyTrends);
-  const [coursePopularity, setCoursePopularity] = useState<CoursePopularityItem[]>(defaultCoursePopularity);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadAnalytics = async (showLoader = false) => {
-    try {
-      if (showLoader) {
-        setLoading(true);
-      }
-      const response = await fetch('/api/admin/reports/analytics?months=6', {
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Failed to load analytics: ${response.status} ${text}`);
-      }
-
-      const data: AnalyticsResponse = await response.json();
-      setCompletionData((data.completion_status && data.completion_status.length > 0) ? data.completion_status : defaultCompletionData);
-      setMonthlyTrends((data.monthly_trends && data.monthly_trends.length > 0) ? data.monthly_trends : defaultMonthlyTrends);
-      setCoursePopularity(data.course_popularity || defaultCoursePopularity);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load analytics');
-    } finally {
-      if (showLoader) {
-        setLoading(false);
-      }
-    }
-  };
-
-  useEffect(() => {
-    loadAnalytics(true);
-
-    // Keep charts close to real-time without overloading the API.
-    const intervalId = window.setInterval(() => {
-      loadAnalytics(false);
-    }, 30000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, []);
-=======
 
 const COLORS = ['#22c55e', '#eab308', '#94a3b8'];
 
@@ -182,7 +79,6 @@ export function ReportsAnalytics() {
   const completionData = data?.completion_status ?? [];
   const monthlyTrends  = data?.monthly_trends ?? [];
   const popularCourses = data?.popular_courses ?? [];
->>>>>>> origin/merge/kurt_phen
 
   return (
     <div className="space-y-6">
@@ -219,22 +115,10 @@ export function ReportsAnalytics() {
             disabled={exporting}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-60">
             <Download className="h-4 w-4 mr-2" />
-            {exporting ? 'Exporting…' : 'Export Report'}
+            {exporting ? 'ExportingΓÇª' : 'Export Report'}
           </button>
         </div>
       </div>
-
-      {loading && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md text-sm">
-          Loading analytics from PostgreSQL...
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-md text-sm">
-          API connection issue: {error}
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Overall Completion Status */}
@@ -243,7 +127,7 @@ export function ReportsAnalytics() {
             Overall Completion Status
           </h3>
           {loading ? (
-            <div className="h-80 flex items-center justify-center text-slate-400">Loading…</div>
+            <div className="h-80 flex items-center justify-center text-slate-400">LoadingΓÇª</div>
           ) : completionData.every((d) => d.value === 0) ? (
             <div className="h-80 flex items-center justify-center text-slate-400">No enrollment data yet</div>
           ) : (
@@ -287,7 +171,7 @@ export function ReportsAnalytics() {
           </h3>
           <div className="h-80">
             {loading ? (
-              <div className="flex items-center justify-center h-full text-slate-400">Loading…</div>
+              <div className="flex items-center justify-center h-full text-slate-400">LoadingΓÇª</div>
             ) : monthlyTrends.length === 0 ? (
               <div className="flex items-center justify-center h-full text-slate-400">No trend data yet</div>
             ) : (
@@ -312,7 +196,7 @@ export function ReportsAnalytics() {
             Most Popular Courses
           </h3>
           {loading ? (
-            <div className="h-80 flex items-center justify-center text-slate-400">Loading…</div>
+            <div className="h-80 flex items-center justify-center text-slate-400">LoadingΓÇª</div>
           ) : popularCourses.length === 0 ? (
             <div className="h-80 flex items-center justify-center text-slate-400">No course enrollment data yet</div>
           ) : (
@@ -328,7 +212,7 @@ export function ReportsAnalytics() {
                     axisLine={false}
                     tickLine={false}
                     tick={{ fontSize: 12 }}
-                    tickFormatter={(v: string) => v.length > 22 ? v.slice(0, 22) + '…' : v}
+                    tickFormatter={(v: string) => v.length > 22 ? v.slice(0, 22) + 'ΓÇª' : v}
                   />
                   <Tooltip formatter={(value) => [value, 'Enrolled Students']} />
                   <Bar dataKey="students" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={28}>

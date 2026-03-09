@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import {
   Plus,
   Pencil,
@@ -79,12 +79,6 @@ export default function DepartmentManagement() {
   const [subName, setSubName] = useState("");
 
   // ================= HELPERS =================
-  const getCookie = (name: string) => {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop()?.split(';').shift();
-  };
-
   const getXsrfToken = async (): Promise<string> => {
     await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
     return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
@@ -157,73 +151,9 @@ export default function DepartmentManagement() {
     const method = editing ? "PUT" : "POST";
     const xsrfToken = await getXsrfToken();
 
-    await fetch(url, {
-      method,
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        'X-XSRF-TOKEN': xsrfToken,
-      },
-      body: JSON.stringify({
-        name: deptForm.name,
-        code: deptForm.code,
-        head: deptForm.head_id ? instructors.find(i => i.id === Number(deptForm.head_id))?.fullname || deptForm.head : deptForm.head,
-        head_id: deptForm.head_id ? Number(deptForm.head_id) : null,
-        description: deptForm.description,
-        status: "Active",
-      };
-      console.log('Request body:', requestBody);
-
+    try {
       const res = await fetch(url, {
         method,
-        credentials: 'include',
-        headers: getHeaders(),
-        body: JSON.stringify(requestBody),
-      });
-
-      console.log('Response status:', res.status);
-      const responseText = await res.text();
-      console.log('Response body:', responseText);
-
-      if (!res.ok) {
-        let errData = {};
-        try {
-          errData = JSON.parse(responseText);
-        } catch (e) {
-          throw new Error(`Failed to save: ${res.status} - ${responseText}`);
-        }
-
-        // Show validation errors if any
-        if ((errData as any).errors) {
-          const errorMessages = Object.values((errData as any).errors).flat().join('\n');
-          throw new Error(errorMessages);
-        }
-        throw new Error((errData as any).message || `Failed to save: ${res.status}`);
-      }
-
-      console.log('Save successful!');
-      setShowDeptModal(false);
-      setEditing(null);
-      setDeptForm({ name: "", code: "", head: "", description: "" });
-      await loadDepartments();
-    } catch (err: any) {
-      console.error('Save error:', err);
-      alert(err.message || "An error occurred");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ================= ADD/EDIT SUB =================
-  const handleSaveSub = async () => {
-    const xsrfToken = await getXsrfToken();
-
-    if (editingSub) {
-      // Edit existing subdepartment
-      await fetch(`${API}/subdepartments/${editingSub.id}`, {
-        method: "PUT",
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -231,16 +161,50 @@ export default function DepartmentManagement() {
           'X-Requested-With': 'XMLHttpRequest',
           'X-XSRF-TOKEN': xsrfToken,
         },
-        body: JSON.stringify({ name: subName }),
+        body: JSON.stringify({
+          name: deptForm.name,
+          code: deptForm.code,
+          head: deptForm.head_id ? instructors.find(i => i.id === Number(deptForm.head_id))?.fullname || deptForm.head : deptForm.head,
+          head_id: deptForm.head_id ? Number(deptForm.head_id) : null,
+          description: deptForm.description,
+          status: "Active",
+        }),
       });
-    } else {
-      // Add new subdepartment
-      if (!selectedDeptId) return;
 
-      await fetch(
-        `${API}/departments/${selectedDeptId}/subdepartments`,
-        {
-          method: "POST",
+      if (!res.ok) {
+        const responseText = await res.text();
+        let errData: any = {};
+        try {
+          errData = JSON.parse(responseText);
+        } catch (e) {
+          throw new Error(`Failed to save: ${res.status} - ${responseText}`);
+        }
+
+        if (errData.errors) {
+          const errorMessages = Object.values(errData.errors).flat().join('\n');
+          throw new Error(errorMessages);
+        }
+        throw new Error(errData.message || `Failed to save: ${res.status}`);
+      }
+
+      setShowDeptModal(false);
+      setEditing(null);
+      setDeptForm({ name: "", code: "", head: "", description: "" });
+      await loadDepartments();
+    } catch (err: any) {
+      alert(err.message || "An error occurred");
+    }
+  };
+
+  // ================= ADD/EDIT SUB =================
+  const handleSaveSub = async () => {
+    const xsrfToken = await getXsrfToken();
+
+    try {
+      if (editingSub) {
+        // Edit existing subdepartment
+        await fetch(`${API}/subdepartments/${editingSub.id}`, {
+          method: "PUT",
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
@@ -249,9 +213,26 @@ export default function DepartmentManagement() {
             'X-XSRF-TOKEN': xsrfToken,
           },
           body: JSON.stringify({ name: subName }),
-        }
-      );
-    }
+        });
+      } else {
+        // Add new subdepartment
+        if (!selectedDeptId) return;
+
+        await fetch(
+          `${API}/departments/${selectedDeptId}/subdepartments`,
+          {
+            method: "POST",
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+              'X-XSRF-TOKEN': xsrfToken,
+            },
+            body: JSON.stringify({ name: subName }),
+          }
+        );
+      }
 
       setSubName("");
       setEditingSub(null);

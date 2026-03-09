@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -11,8 +11,7 @@ import {
   FileText,
   X,
   Upload,
-  Trash,
-  Loader2 } from
+  Trash } from
 'lucide-react';
 
 // Module interface for form handling
@@ -29,15 +28,10 @@ export interface Course {
   description: string;
   department: string;
   instructor: string;
-<<<<<<< HEAD
-  instructorId: number | null;
-  status: 'Active' | 'Draft' | 'Inactive';
-=======
   instructor_id?: number | string | null;
   status: 'Active' | 'Draft' | 'Inactive';
   start_date?: string | null;
   deadline?: string | null;
->>>>>>> origin/merge/kurt_phen
   enrolledCount: number;
   modulesCount: number;
   thumbnail: string;
@@ -48,9 +42,6 @@ export interface Course {
   }>;
 }
 
-<<<<<<< HEAD
-const THUMBNAIL_COLORS = ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-red-500', 'bg-indigo-500', 'bg-teal-500'];
-=======
 interface Instructor {
   id: number;
   fullname: string;
@@ -119,29 +110,9 @@ const initialCourses: Course[] = [
   thumbnail: 'bg-red-500',
   modules: [],
 }];
->>>>>>> origin/merge/kurt_phen
 
-async function getCsrf() {
-  await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
-  return decodeURIComponent(
-    document.cookie.split('; ').find(r => r.startsWith('XSRF-TOKEN='))?.split('=')[1] || ''
-  );
-}
+const API_BASE = '/api';
 
-const API_BASE = 'http://127.0.0.1:8000/api';
-
-function normalizeCourseStatus(status: unknown): 'Active' | 'Draft' | 'Inactive' {
-  if (typeof status !== 'string') return 'Draft';
-  if (status.toLowerCase() === 'active') return 'Active';
-  if (status.toLowerCase() === 'inactive' || status.toLowerCase() === 'archived') return 'Inactive';
-  return 'Draft';
-}
-
-<<<<<<< HEAD
-export function CourseManagement() {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-=======
 // Helper to read a cookie value
 const getCookie = (name: string) => {
   const value = `; ${document.cookie}`;
@@ -157,7 +128,6 @@ const getXsrfToken = async (): Promise<string> => {
 
 export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, courseId?: string) => void }) {
   const [courses, setCourses] = useState<Course[]>(initialCourses);
->>>>>>> origin/merge/kurt_phen
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -190,13 +160,11 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   // Load courses from API on mount
   const loadCourses = async () => {
     try {
-      setIsLoading(true);
       const response = await fetch(`${API_BASE}/admin/courses`, {
         method: 'GET',
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
         },
       });
       if (!response.ok) {
@@ -204,38 +172,24 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
       }
       const data = await response.json();
       // Map API response to Course interface
-      const mappedCourses = data.map((course: any, idx: number) => ({
+      const mappedCourses = data.map((course: any) => ({
         id: course.id,
         title: course.title,
         description: course.description || '',
         department: course.department,
-<<<<<<< HEAD
-        instructor: course.instructor?.fullName || 'Unassigned',
-        instructorId: course.instructor_id ?? course.instructor?.id ?? null,
-        status: normalizeCourseStatus(course.status),
-        enrolledCount: course.enrolled_count || 0,
-=======
         instructor: course.instructor?.fullname || 'Unassigned',
         instructor_id: course.instructor_id,
         status: course.status,
         start_date: course.start_date,
         deadline: course.deadline,
         enrolledCount: course.enrollments_count || 0,
->>>>>>> origin/merge/kurt_phen
         modulesCount: course.modules?.length || 0,
-        thumbnail: THUMBNAIL_COLORS[idx % THUMBNAIL_COLORS.length],
+        thumbnail: 'bg-green-500',
         modules: course.modules || [],
       }));
       setCourses(mappedCourses);
-<<<<<<< HEAD
-    } catch (error) {
-      console.error('Error loading courses:', error);
-    } finally {
-      setIsLoading(false);
-=======
     } catch {
       // silently fail; initial courses remain displayed
->>>>>>> origin/merge/kurt_phen
     }
   };
 
@@ -269,29 +223,13 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   const handleDelete = async (id: number) => {
     if (!window.confirm('Are you sure you want to delete this course?')) return;
     try {
-<<<<<<< HEAD
-      const xsrf = await getCsrf();
-=======
       const xsrfToken = await getXsrfToken();
->>>>>>> origin/merge/kurt_phen
       const response = await fetch(`${API_BASE}/admin/courses/${id}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
-<<<<<<< HEAD
-          'X-XSRF-TOKEN': xsrf,
-        },
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error((data as any).message || 'Failed to delete course');
-      }
-      await loadCourses();
-    } catch (err: any) {
-      alert(err.message);
-=======
           'X-XSRF-TOKEN': xsrfToken,
         },
       });
@@ -299,7 +237,6 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
       setCourses(prev => prev.filter((c) => c.id !== id));
     } catch (err: any) {
       alert(err.message || 'Failed to delete course');
->>>>>>> origin/merge/kurt_phen
     }
   };
   // Modal Handlers
@@ -308,7 +245,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
       setEditingCourse(course);
       // Load existing modules for editing (without files since they're already uploaded)
       setModules(course.modules?.map((m, index) => ({
-        id: m.id ?? index + 1,
+        id: index + 1,
         title: m.title,
         file: null,
       })) || []);
@@ -331,11 +268,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
     const form = e.currentTarget;
     const formData = new FormData(form);
 
-<<<<<<< HEAD
-    // Add modules with file uploads to the form data
-=======
     // Attach modules with file uploads
->>>>>>> origin/merge/kurt_phen
     modules.forEach((module, index) => {
       formData.append(`modules[${index}][title]`, module.title);
       if (module.file) {
@@ -344,11 +277,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
     });
 
     try {
-<<<<<<< HEAD
-      const csrfToken = await getCsrf();
-=======
       const xsrfToken = await getXsrfToken();
->>>>>>> origin/merge/kurt_phen
 
       const url = editingCourse
         ? `${API_BASE}/admin/courses/${editingCourse.id}`
@@ -363,13 +292,8 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
         method: 'POST',
         credentials: 'include',
         headers: {
-<<<<<<< HEAD
-          'X-XSRF-TOKEN': csrfToken,
-=======
           'X-XSRF-TOKEN': xsrfToken,
->>>>>>> origin/merge/kurt_phen
           'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
         },
         body: formData,
       });
@@ -450,17 +374,6 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
       </div>
 
       {/* Course Grid */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-green-600" />
-          <span className="ml-2 text-slate-600">Loading courses...</span>
-        </div>
-      ) : filteredCourses.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-lg border border-slate-200">
-          <BookOpen className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-500">{searchTerm || statusFilter !== 'All' ? 'No courses match your filters.' : 'No courses yet. Click "Create Course" to add one!'}</p>
-        </div>
-      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCourses.map((course) => {
           const notStarted = course.start_date && new Date(course.start_date) > new Date();
@@ -544,7 +457,6 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
           );
         })}
       </div>
-      )}
 
       {/* Add/Edit Modal - Using Portal to render at body level */}
       {isModalOpen && createPortal(
@@ -590,15 +502,14 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
                   <select
                     name="department"
-                    defaultValue={editingCourse?.department || 'IT'}
+                    defaultValue={editingCourse?.department || ''}
                     required
                     className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
-                    <option value="IT">IT</option>
-                    <option value="HR">HR</option>
-                    <option value="Operations">Operations</option>
-                    <option value="Finance">Finance</option>
-                    <option value="Marketing">Marketing</option>
+                    <option value="" disabled>Select Department</option>
+                    {departments.map(dept => (
+                      <option key={dept.id} value={dept.name}>{dept.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -619,11 +530,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                 <label className="block text-sm font-medium text-slate-700 mb-1">Assign Instructor</label>
                 <select
                   name="instructor_id"
-<<<<<<< HEAD
-                  defaultValue={editingCourse?.instructorId ? String(editingCourse.instructorId) : ''}
-=======
                   defaultValue={editingCourse?.instructor_id ?? ''}
->>>>>>> origin/merge/kurt_phen
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">Select Instructor</option>
@@ -672,12 +579,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                               type="file"
                               accept="video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
                               onChange={(e) => {
-<<<<<<< HEAD
-                                const file = e.target.files?.[0] || null;
-                                updateModuleFile(module.id, file);
-=======
                                 updateModuleFile(module.id, e.target.files?.[0] || null);
->>>>>>> origin/merge/kurt_phen
                               }}
                               className="w-full text-sm text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-medium file:bg-green-50 file:text-green-700"
                             />
