@@ -63,7 +63,9 @@ export function EnrollmentManagement() {
   // Modal state
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
+  const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [selectedDeptId, setSelectedDeptId] = useState<number | ''>('');
   // multi-select users
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<UserOption[]>([]);
@@ -103,6 +105,7 @@ export function EnrollmentManagement() {
       const [coursesRes, usersRes] = await Promise.all([
         fetch(`${API_BASE}/admin/courses`, { credentials: 'include', headers: { Accept: 'application/json' } }),
         fetch(`${API_BASE}/admin/users`, { credentials: 'include', headers: { Accept: 'application/json' } }),
+        fetch(`${API_BASE}/departments`, { credentials: 'include', headers: { Accept: 'application/json' } }),
       ]);
       if (coursesRes.ok) {
         const c = await coursesRes.json();
@@ -111,6 +114,15 @@ export function EnrollmentManagement() {
       if (usersRes.ok) {
         const u = await usersRes.json();
         setUsers(u.map((x: any) => ({ id: x.id, fullname: x.fullname, email: x.email, department: x.department })));
+      }
+      if (/* departmentsRes exists */ true) {
+        try {
+          const dRes = await fetch(`${API_BASE}/departments`, { credentials: 'include', headers: { Accept: 'application/json' } });
+          if (dRes.ok) {
+            const d = await dRes.json();
+            setDepartments(d.map((x: any) => ({ id: x.id, name: x.name })));
+          }
+        } catch {}
       }
     } catch {}
   };
@@ -122,6 +134,13 @@ export function EnrollmentManagement() {
     }
     try {
       setIsSearchingUsers(true);
+      // If we already loaded the full users list, perform client-side search and department filter
+      if (users && users.length > 0) {
+        const deptName = selectedDeptId ? departments.find(d => d.id === Number(selectedDeptId))?.name : undefined;
+        const matched = users.filter(u => u.fullname.toLowerCase().includes(q.toLowerCase()) && (!deptName || (u.department || '').toLowerCase() === (deptName || '').toLowerCase()));
+        setSearchResults(matched);
+        return;
+      }
       const res = await fetch(`${API_BASE}/admin/users?q=${encodeURIComponent(q)}`, { credentials: 'include', headers: { Accept: 'application/json' } });
       if (!res.ok) return setSearchResults([]);
       const data = await res.json();
@@ -148,6 +167,7 @@ export function EnrollmentManagement() {
     setSelectedCourseId('');
     setSelectedUserIds([]);
     setSelectedUsers([]);
+    setSelectedDeptId('');
     setEnrollError(null);
     loadModalData();
   };
@@ -417,7 +437,19 @@ export function EnrollmentManagement() {
               )}
               <form onSubmit={handleEnroll} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700">Select Employees</label>
+                  <label className="block text-sm font-medium text-slate-700">Select Department</label>
+                  <select
+                    className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    value={selectedDeptId}
+                    onChange={(e) => { const v = e.target.value; setSelectedDeptId(v ? Number(v) : ''); setSearchResults([]); setUserQuery(''); }}
+                  >
+                    <option value="">-- All Departments --</option>
+                    {departments.map(d => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+
+                  <label className="block text-sm font-medium text-slate-700 mt-3">Search Employees</label>
                   <input
                     type="text"
                     value={userQuery}
