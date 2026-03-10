@@ -48,12 +48,8 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp }: { scope?
     const loadLessons = async () => {
       try {
         await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-        // Use scope-appropriate endpoint
-        const lessonsEndpoint = scope === 'admin'
-          ? '/api/admin/lessons'
-          : scope === 'instructor'
-            ? '/api/instructor/lessons'
-            : '/api/employee/enrolled-lessons';
+        // Use scope-appropriate endpoint - all use /lessons now
+        const lessonsEndpoint = `${API_PREFIX}/lessons`;
         const res = await fetch(lessonsEndpoint, { credentials: 'include', headers: getHeaders() });
         if (res.ok) setLessons(await res.json());
       } catch { /* ignore */ }

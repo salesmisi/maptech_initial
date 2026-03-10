@@ -21,6 +21,7 @@ interface Course {
   status: 'In Progress' | 'Completed' | 'Not Started' | 'Unfinished';
   thumbnail: string;
   is_enrolled?: boolean;
+  start_date?: string | null;
   deadline?: string | null;
 }
 
@@ -80,6 +81,7 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
     status: c.my_status ?? (c.progress === 100 ? 'Completed' : c.progress > 0 ? 'In Progress' : 'Not Started'),
     thumbnail: getThumbnailColor(c.department),
     is_enrolled: c.is_enrolled ?? true,
+    start_date: c.start_date ?? null,
     deadline: c.deadline ?? null,
   });
 
@@ -135,18 +137,26 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
   };
 
   const CourseCard = ({ course }: { course: Course }) => {
+    const isExpired = course.deadline && new Date(course.deadline) <= new Date();
+    const notStartedYet = course.start_date && new Date(course.start_date) > new Date();
+    const isLocked = isExpired || notStartedYet;
+
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
-        <div className={`h-40 ${course.thumbnail} relative`}>
+      <div className={`rounded-lg shadow-sm border overflow-hidden transition-shadow flex flex-col ${
+        isLocked ? 'bg-gray-100 border-gray-300 opacity-75' : 'bg-white border-slate-200 hover:shadow-md'
+      }`}>
+        <div className={`h-40 ${isLocked ? 'bg-gray-400' : course.thumbnail} relative`}>
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
             <BookOpen className="h-12 w-12 text-white opacity-75" />
           </div>
           <div className="absolute top-4 right-4">
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/90 text-slate-800 shadow-sm">
-              {course.department}
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium shadow-sm ${
+              isExpired ? 'bg-red-100 text-red-800' : notStartedYet ? 'bg-gray-200 text-gray-600' : 'bg-white/90 text-slate-800'
+            }`}>
+              {isExpired ? 'Locked' : notStartedYet ? 'Not Started' : course.department}
             </span>
           </div>
-          {course.deadline && (
+          {course.deadline && !isExpired && (
             <div className="absolute bottom-2 left-3">
               <span className="text-xs text-white/90 bg-black/40 rounded px-1.5 py-0.5">
                 Due {new Date(course.deadline).toLocaleDateString()}
@@ -157,9 +167,21 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
 
         <div className="p-6 flex-1 flex flex-col">
           <div className="flex-1">
-            <h3 className="text-lg font-bold text-slate-900 line-clamp-2 mb-1">{course.title}</h3>
-            <p className="text-sm text-slate-500 line-clamp-2 mb-3">{course.description}</p>
-            <div className="flex items-center text-xs text-slate-500 mb-4 gap-2">
+            <h3 className={`text-lg font-bold line-clamp-2 mb-1 ${isLocked ? 'text-gray-500' : 'text-slate-900'}`}>{course.title}</h3>
+            <p className={`text-sm line-clamp-2 mb-3 ${isLocked ? 'text-gray-400' : 'text-slate-500'}`}>{course.description}</p>
+
+            {isExpired && (
+              <p className="text-xs text-red-600 font-medium mb-2">
+                This course has ended and is locked.
+              </p>
+            )}
+            {notStartedYet && course.start_date && (
+              <p className="text-xs text-gray-500 mb-2">
+                Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            )}
+
+            <div className={`flex items-center text-xs mb-4 gap-2 ${isLocked ? 'text-gray-400' : 'text-slate-500'}`}>
               <BookOpen className="h-4 w-4" />
               {course.modulesCount} Modules
               <span>•</span>
@@ -169,35 +191,48 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
 
           {course.is_enrolled ? (
             <div className="mt-auto">
-              <div className="flex justify-between text-xs text-slate-500 mb-1">
+              <div className={`flex justify-between text-xs mb-1 ${isLocked ? 'text-gray-400' : 'text-slate-500'}`}>
                 <span>Progress</span>
                 <span>{course.progress}%</span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-2 mb-3">
                 <div
                   className={`h-2 rounded-full transition-all duration-500 ${
+                    isLocked ? 'bg-gray-400' :
                     course.status === 'Completed' ? 'bg-green-500' :
                     course.status === 'Unfinished' ? 'bg-red-400' : 'bg-blue-500'
                   }`}
                   style={{ width: `${course.progress}%` }}
                 />
               </div>
-              <button
-                onClick={() => onNavigate('course-viewer', course.id)}
-                className={`w-full flex justify-center items-center py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white transition-colors ${
-                  course.status === 'Completed' ? 'bg-slate-600 hover:bg-slate-700' : 'bg-green-600 hover:bg-green-700'
-                }`}
-              >
-                {course.status === 'Not Started' ? 'Start Course' :
-                 course.status === 'Completed' ? 'Review Course' : 'Continue Learning'}
-                <PlayCircle className="ml-2 h-4 w-4" />
-              </button>
+              {isLocked ? (
+                <button
+                  disabled
+                  className="w-full flex justify-center items-center py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white bg-gray-400 cursor-not-allowed"
+                >
+                  {isExpired ? 'Course Locked' : 'Course Not Started'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => onNavigate('course-viewer', course.id)}
+                  className={`w-full flex justify-center items-center py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white transition-colors ${
+                    course.status === 'Completed' ? 'bg-slate-600 hover:bg-slate-700' : 'bg-green-600 hover:bg-green-700'
+                  }`}
+                >
+                  {course.status === 'Not Started' ? 'Start Course' :
+                   course.status === 'Completed' ? 'Review Course' : 'Continue Learning'}
+                  <PlayCircle className="ml-2 h-4 w-4" />
+                </button>
+              )}
             </div>
           ) : (
             <div className="mt-auto">
               <button
-                onClick={() => onNavigate('course-enroll', course.id)}
-                className="w-full flex justify-center items-center py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                onClick={() => !isLocked && onNavigate('course-enroll', course.id)}
+                disabled={isLocked}
+                className={`w-full flex justify-center items-center py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white transition-colors ${
+                  isLocked ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+                }`}
               >
                 View &amp; Enroll
                 <PlusCircle className="ml-2 h-4 w-4" />

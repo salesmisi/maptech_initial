@@ -569,6 +569,44 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Start Date <span className="text-slate-400 text-xs">(optional)</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    name="start_date"
+                    defaultValue={editingCourse?.start_date ? new Date(editingCourse.start_date).toISOString().slice(0, 16) : ''}
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    End Date <span className="text-slate-400 text-xs">(optional)</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    name="deadline"
+                    defaultValue={editingCourse?.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Course Logo <span className="text-slate-400 text-xs">(for certificate)</span>
+                </label>
+                <input
+                  type="file"
+                  name="logo"
+                  accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                  className="w-full text-sm text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                />
+                <p className="mt-1 text-xs text-slate-400">This logo will appear on certificates issued for this course.</p>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Assign Instructor</label>
                 <select

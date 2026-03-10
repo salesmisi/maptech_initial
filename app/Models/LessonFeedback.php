@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LessonFeedback extends Model
 {
+    protected $table = 'lesson_feedbacks';
+
     protected $fillable = [
         'user_id',
         'lesson_id',

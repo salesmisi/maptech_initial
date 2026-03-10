@@ -1,224 +1,470 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Send, Clock, CheckCircle, Plus, Trash2 } from 'lucide-react';
+import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X } from 'lucide-react';
+
 interface Notification {
+  id: number;
+  user_id: number;
+  course_id: string | null;
+  type: string;
+  title: string;
+  message: string;
+  data: {
+    from_user_id?: number;
+    from_user_name?: string;
+    from_role?: string;
+    course_title?: string;
+  } | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+interface SentNotification {
   id: number;
   title: string;
   message: string;
   target: string;
   date: string;
-  status: 'Sent' | 'Scheduled';
+  status: 'Sent';
+  recipients_count: number;
 }
-const initialNotifications: Notification[] = [
-{
-  id: 1,
-  title: 'System Maintenance',
-  message: 'LearnHub will be down for maintenance on Sunday at 2AM.',
-  target: 'All Users',
-  date: '2025-02-15',
-  status: 'Sent'
-},
-{
-  id: 2,
-  title: 'New Course Available',
-  message: 'Check out the new Leadership Training module.',
-  target: 'Managers',
-  date: '2025-02-18',
-  status: 'Scheduled'
-},
-{
-  id: 3,
-  title: 'Compliance Reminder',
-  message: 'Please complete your Data Privacy training by Friday.',
-  target: 'All Employees',
-  date: '2025-02-10',
-  status: 'Sent'
-}];
 
 export function NotificationManagement() {
-  const [notifications, setNotifications] =
-  useState<Notification[]>(initialNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [sentHistory, setSentHistory] = useState<SentNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [departments, setDepartments] = useState<{id: number; name: string}[]>([]);
+  const [isSending, setIsSending] = useState(false);
+  const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
 
-  // Load departments from API for target audience
+  // Form state
+  const [formData, setFormData] = useState({
+    title: '',
+    message: '',
+    roles: [] as string[],
+    course_id: '',
+  });
+
+  const token = localStorage.getItem('token');
+
+  // Load notifications
   useEffect(() => {
-    fetch('/api/departments')
-      .then(res => res.json())
-      .then(data => setDepartments(Array.isArray(data) ? data : []))
-      .catch(err => console.error('Failed to load departments:', err));
+    fetchNotifications();
+    fetchUnreadCount();
   }, []);
-  const handleSend = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsModalOpen(false);
-    alert('Notification scheduled!');
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/admin/notifications', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      const data = await res.json();
+      setNotifications(data.notifications?.data || []);
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const fetchUnreadCount = async () => {
+    try {
+      const res = await fetch('/api/admin/notifications/unread-count', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      const data = await res.json();
+      setUnreadCount(data.count || 0);
+    } catch (err) {
+      console.error('Failed to load unread count:', err);
+    }
+  };
+
+  const markAsRead = async (id: number) => {
+    try {
+      await fetch(`/api/admin/notifications/${id}/read`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      fetchNotifications();
+      fetchUnreadCount();
+    } catch (err) {
+      console.error('Failed to mark as read:', err);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      await fetch('/api/admin/notifications/read-all', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      fetchNotifications();
+      fetchUnreadCount();
+    } catch (err) {
+      console.error('Failed to mark all as read:', err);
+    }
+  };
+
+  const deleteNotification = async (id: number) => {
+    if (!confirm('Delete this notification?')) return;
+    try {
+      await fetch(`/api/admin/notifications/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      fetchNotifications();
+    } catch (err) {
+      console.error('Failed to delete notification:', err);
+    }
+  };
+
+  const handleRoleToggle = (role: string) => {
+    setFormData(prev => ({
+      ...prev,
+      roles: prev.roles.includes(role)
+        ? prev.roles.filter(r => r !== role)
+        : [...prev.roles, role]
+    }));
+  };
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (formData.roles.length === 0) {
+      alert('Please select at least one target audience');
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const res = await fetch('/api/admin/notifications/announce', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          title: formData.title,
+          message: formData.message,
+          roles: formData.roles,
+          course_id: formData.course_id || null,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        alert(`Announcement sent to ${data.recipients_count} users!`);
+        setIsModalOpen(false);
+        setFormData({ title: '', message: '', roles: [], course_id: '' });
+
+        // Add to sent history
+        setSentHistory(prev => [{
+          id: Date.now(),
+          title: formData.title,
+          message: formData.message,
+          target: formData.roles.join(', '),
+          date: new Date().toISOString().split('T')[0],
+          status: 'Sent',
+          recipients_count: data.recipients_count,
+        }, ...prev]);
+      } else {
+        alert(data.message || 'Failed to send announcement');
+      }
+    } catch (err) {
+      console.error('Failed to send announcement:', err);
+      alert('Failed to send announcement');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-slate-900">
-          Notification System
-        </h1>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700">
-
-          <Plus className="h-4 w-4 mr-2" />
-          Create Notification
-        </button>
-      </div>
-
-      <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Title
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Message
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Target Audience
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="relative px-6 py-3">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-slate-200">
-              {notifications.map((notification) =>
-              <tr
-                key={notification.id}
-                className="hover:bg-slate-50 transition-colors">
-
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <Bell className="h-5 w-5 text-slate-400 mr-3" />
-                      <div className="text-sm font-medium text-slate-900">
-                        {notification.title}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-slate-500 truncate max-w-xs">
-                      {notification.message}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                    {notification.target}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                    {notification.date}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${notification.status === 'Sent' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-
-                      {notification.status === 'Sent' ?
-                    <CheckCircle className="h-3 w-3 mr-1" /> :
-
-                    <Clock className="h-3 w-3 mr-1" />
-                    }
-                      {notification.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button className="text-slate-400 hover:text-red-600">
-                      <Trash2 className="h-5 w-5" />
-                    </button>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Notification System
+          </h1>
+          {unreadCount > 0 && (
+            <p className="text-sm text-slate-500 mt-1">
+              You have {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {unreadCount > 0 && (
+            <button
+              onClick={markAllAsRead}
+              className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Mark All Read
+            </button>
+          )}
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Send Announcement
+          </button>
         </div>
       </div>
 
-      {/* Create Notification Modal */}
-      {isModalOpen &&
-      <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div
-            className="fixed inset-0 transition-opacity"
-            aria-hidden="true">
+      {/* Tabs */}
+      <div className="border-b border-slate-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('received')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'received'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            Received ({notifications.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('sent')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'sent'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            Sent History ({sentHistory.length})
+          </button>
+        </nav>
+      </div>
 
+      {/* Received Notifications */}
+      {activeTab === 'received' && (
+        <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
+          {loading ? (
+            <div className="p-8 text-center text-slate-500">Loading...</div>
+          ) : notifications.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">
+              <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300" />
+              <p>No notifications yet</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-200">
+              {notifications.map((notification) => (
+                <div
+                  key={notification.id}
+                  className={`p-4 hover:bg-slate-50 transition-colors ${
+                    !notification.read_at ? 'bg-green-50' : ''
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-3">
+                      <div className={`mt-1 p-2 rounded-full ${
+                        notification.type === 'announcement' ? 'bg-blue-100' :
+                        notification.type === 'employee_message' ? 'bg-yellow-100' :
+                        'bg-slate-100'
+                      }`}>
+                        {notification.type === 'announcement' ? (
+                          <Bell className="h-4 w-4 text-blue-600" />
+                        ) : notification.type === 'employee_message' ? (
+                          <Users className="h-4 w-4 text-yellow-600" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-slate-600" />
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-medium text-slate-900">
+                          {notification.title}
+                          {!notification.read_at && (
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                              New
+                            </span>
+                          )}
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-600">{notification.message}</p>
+                        {notification.data?.from_user_name && (
+                          <p className="mt-1 text-xs text-slate-400">
+                            From: {notification.data.from_user_name} ({notification.data.from_role})
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-slate-400">
+                          {formatDate(notification.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {!notification.read_at && (
+                        <button
+                          onClick={() => markAsRead(notification.id)}
+                          className="text-slate-400 hover:text-green-600"
+                          title="Mark as read"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => deleteNotification(notification.id)}
+                        className="text-slate-400 hover:text-red-600"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sent History */}
+      {activeTab === 'sent' && (
+        <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
+          {sentHistory.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">
+              <Send className="h-12 w-12 mx-auto mb-4 text-slate-300" />
+              <p>No announcements sent yet</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Title</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Message</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Target</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Recipients</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-200">
+                  {sentHistory.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                        {item.title}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-500 truncate max-w-xs">
+                        {item.message}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                        {item.target}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                        {item.recipients_count} users
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                        {item.date}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Create Announcement Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
               <div className="absolute inset-0 bg-slate-500 opacity-75"></div>
             </div>
-            <span
-            className="hidden sm:inline-block sm:align-middle sm:h-screen"
-            aria-hidden="true">
-
-              &#8203;
-            </span>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
             <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="absolute top-4 right-4">
+                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
               <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <h3 className="text-lg leading-6 font-medium text-slate-900 mb-4">
-                  Send New Notification
+                  Send Announcement
                 </h3>
                 <form onSubmit={handleSend} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">
-                      Title
-                    </label>
+                    <label className="block text-sm font-medium text-slate-700">Title *</label>
                     <input
-                    type="text"
-                    className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    placeholder="Notification subject" />
-
+                      type="text"
+                      required
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      placeholder="Announcement title"
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">
-                      Message
-                    </label>
+                    <label className="block text-sm font-medium text-slate-700">Message *</label>
                     <textarea
-                    rows={3}
-                    className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    placeholder="Type your message here..." />
-
+                      rows={4}
+                      required
+                      value={formData.message}
+                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      placeholder="Type your announcement here..."
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">
-                      Target Audience
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Target Audience *
                     </label>
-                    <select className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
-                      <option>All Users</option>
-                      <option>All Employees</option>
-                      <option>All Admins</option>
-                      {departments.map(dept => (
-                        <option key={dept.id} value={dept.name}>{dept.name} Department</option>
+                    <div className="space-y-2">
+                      {['Instructor', 'Employee', 'Admin'].map((role) => (
+                        <label key={role} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={formData.roles.includes(role)}
+                            onChange={() => handleRoleToggle(role)}
+                            className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
+                          />
+                          <span className="ml-2 text-sm text-slate-700">{role}s</span>
+                        </label>
                       ))}
-                    </select>
+                    </div>
                   </div>
-                  <div className="flex items-center">
-                    <input
-                    type="checkbox"
-                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded" />
-
-                    <label className="ml-2 block text-sm text-slate-900">
-                      Schedule for later
-                    </label>
-                  </div>
-                  <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
+                  <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
                     <button
-                    type="submit"
-                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:col-start-2 sm:text-sm">
-
-                      <Send className="h-4 w-4 mr-2" />
-                      Send Notification
+                      type="button"
+                      onClick={() => setIsModalOpen(false)}
+                      className="w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 sm:text-sm"
+                    >
+                      Cancel
                     </button>
                     <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="mt-3 w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:mt-0 sm:col-start-1 sm:text-sm">
-
-                      Cancel
+                      type="submit"
+                      disabled={isSending}
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 disabled:opacity-50 sm:text-sm"
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      {isSending ? 'Sending...' : 'Send Announcement'}
                     </button>
                   </div>
                 </form>
@@ -226,7 +472,7 @@ export function NotificationManagement() {
             </div>
           </div>
         </div>
-      }
-    </div>);
-
+      )}
+    </div>
+  );
 }

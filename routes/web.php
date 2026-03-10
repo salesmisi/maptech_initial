@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\LoginController;
+use App\Http\Controllers\YouTubeController;
 
 /*
 |--------------------------------------------------------------------------
@@ -29,3 +30,10 @@ Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth');
 // GET AUTH USER
 // =====================
 Route::get('/user', [LoginController::class, 'user'])->middleware('auth');
+
+// =====================
+// YOUTUBE API INTEGRATION
+// =====================
+Route::get('/youtube', [YouTubeController::class, 'index'])->name('youtube.index');
+Route::get('/youtube/callback', [YouTubeController::class, 'callback'])->name('youtube.callback');
+Route::post('/youtube/logout', [YouTubeController::class, 'logout'])->name('youtube.logout');

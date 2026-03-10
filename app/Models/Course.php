@@ -46,6 +46,7 @@ class Course extends Model
         'status',
         'start_date',
         'deadline',
+        'logo_path',
     ];
 
     protected $casts = [

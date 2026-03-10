@@ -95,10 +95,17 @@ class CourseController extends Controller
                 'status'             => ['nullable', Rule::in(['Active', 'Inactive', 'Draft'])],
                 'start_date'         => 'nullable|date',
                 'deadline'           => 'nullable|date',
+                'logo'               => 'nullable|image|mimes:png,jpg,jpeg,svg|max:2048',
                 'modules'            => 'nullable|array',
                 'modules.*.title'    => 'nullable|string|max:255',
                 'modules.*.content'  => 'nullable|file|max:102400',
             ]);
+
+            // Handle logo upload
+            $logoPath = null;
+            if ($request->hasFile('logo')) {
+                $logoPath = $request->file('logo')->store('course-logos', 'public');
+            }
 
             $course = Course::create([
                 'title'         => $validated['title'],
@@ -108,6 +115,7 @@ class CourseController extends Controller
                 'status'        => $validated['status'] ?? 'Active',
                 'start_date'    => $validated['start_date'] ?? null,
                 'deadline'      => $validated['deadline'] ?? null,
+                'logo_path'     => $logoPath,
             ]);
 
             if (!empty($validated['modules'])) {
@@ -152,13 +160,28 @@ class CourseController extends Controller
                 'status'            => ['sometimes', Rule::in(['Active', 'Inactive', 'Draft'])],
                 'start_date'        => 'nullable|date',
                 'deadline'          => 'nullable|date',
+                'logo'              => 'nullable|image|mimes:png,jpg,jpeg,svg|max:2048',
+                'remove_logo'       => 'nullable|boolean',
                 'modules'           => 'nullable|array',
                 'modules.*.title'   => 'nullable|string|max:255',
                 'modules.*.content' => 'nullable|file|max:102400',
             ]);
 
+            // Handle logo
+            if ($request->hasFile('logo')) {
+                if ($course->logo_path) {
+                    Storage::disk('public')->delete($course->logo_path);
+                }
+                $course->logo_path = $request->file('logo')->store('course-logos', 'public');
+            } elseif ($request->input('remove_logo')) {
+                if ($course->logo_path) {
+                    Storage::disk('public')->delete($course->logo_path);
+                }
+                $course->logo_path = null;
+            }
+
             $course->update(array_filter($validated, fn ($k) =>
-                in_array($k, ['title', 'description', 'department', 'status', 'start_date', 'deadline']),
+                in_array($k, ['title', 'description', 'department', 'status', 'start_date', 'deadline', 'logo_path']),
                 ARRAY_FILTER_USE_KEY
             ));
 

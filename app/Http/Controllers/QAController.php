@@ -321,4 +321,33 @@ class QAController extends Controller
 
         return response()->json($lessons);
     }
+
+    /**
+     * Employee: get lessons only from courses they are enrolled in.
+     */
+    public function employeeLessons(Request $request)
+    {
+        $userId = $request->user()->id;
+
+        // Get course IDs from the user's enrollments
+        $courseIds = Enrollment::where('user_id', $userId)->pluck('course_id');
+
+        $lessons = Lesson::whereHas('module', function ($q) use ($courseIds) {
+            $q->whereIn('course_id', $courseIds);
+        })
+        ->with('module:id,title,course_id', 'module.course:id,title')
+        ->orderBy('module_id')
+        ->orderBy('order')
+        ->get()
+        ->map(function ($lesson) {
+            return [
+                'id'           => $lesson->id,
+                'title'        => $lesson->title,
+                'module_title' => $lesson->module?->title ?? '',
+                'course_title' => $lesson->module?->course?->title ?? '',
+            ];
+        });
+
+        return response()->json($lessons);
+    }
 }

@@ -14,6 +14,7 @@ interface Certificate {
   score: string;
   user_name: string;
   logo_url: string | null;
+  has_course_logo?: boolean;
 }
 
 export function MyCertificates() {
@@ -250,7 +251,7 @@ export function MyCertificates() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-900">My Certificates</h1>
       <p className="text-slate-500">
-        View and download your earned certificates. You can upload a custom logo for each certificate.
+        View and download your earned certificates. Certificates display the course logo set by the instructor, or you can upload a custom logo.
       </p>
 
       {/* Hidden file input for logo upload */}
@@ -328,23 +329,32 @@ export function MyCertificates() {
                     ID: {cert.certificate_code}
                   </span>
                   <div className="flex items-center gap-2">
-                    {cert.logo_url ? (
-                      <button
-                        onClick={() => handleRemoveLogo(cert.id)}
-                        className="text-red-500 hover:text-red-700 text-sm flex items-center"
-                        title="Remove logo"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    ) : null}
-                    <button
-                      onClick={() => handleUploadLogo(cert.id)}
-                      className="text-blue-600 hover:text-blue-700 text-sm flex items-center"
-                      title={cert.logo_url ? 'Change logo' : 'Upload logo'}
-                    >
-                      <Upload className="h-4 w-4 mr-1" />
-                      Logo
-                    </button>
+                    {cert.has_course_logo ? (
+                      <span className="text-xs text-slate-400 flex items-center" title="Logo set by course instructor">
+                        <Image className="h-3 w-3 mr-1" />
+                        Course Logo
+                      </span>
+                    ) : (
+                      <>
+                        {cert.logo_url && (
+                          <button
+                            onClick={() => handleRemoveLogo(cert.id)}
+                            className="text-red-500 hover:text-red-700 text-sm flex items-center"
+                            title="Remove logo"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleUploadLogo(cert.id)}
+                          className="text-blue-600 hover:text-blue-700 text-sm flex items-center"
+                          title={cert.logo_url ? 'Change logo' : 'Upload logo'}
+                        >
+                          <Upload className="h-4 w-4 mr-1" />
+                          Logo
+                        </button>
+                      </>
+                    )}
                     <button
                       onClick={() => handleDownloadPdf(cert)}
                       className="text-green-600 hover:text-green-700 font-medium text-sm flex items-center"

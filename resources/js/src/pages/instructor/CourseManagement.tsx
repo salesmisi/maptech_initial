@@ -411,6 +411,19 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Course Logo <span className="text-slate-400 text-xs">(for certificate)</span>
+                </label>
+                <input
+                  type="file"
+                  name="logo"
+                  accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                  className="w-full text-sm text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                />
+                <p className="mt-1 text-xs text-slate-400">This logo will appear on certificates issued for this course.</p>
+              </div>
+
               {/* Module Upload Section */}
               <div className="border-t border-slate-200 pt-4">
                 <div className="flex justify-between items-center mb-3">

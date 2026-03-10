@@ -246,6 +246,28 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
         return $query->paginate(50);
     });
+
+    // YouTube Video Management (Admin)
+    Route::prefix('youtube')->group(function () {
+        Route::get('/auth-check', [\App\Http\Controllers\YouTubeController::class, 'checkAuth']);
+        Route::get('/videos', [\App\Http\Controllers\YouTubeController::class, 'listVideos']);
+        Route::get('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'getVideo']);
+        Route::put('/videos', [\App\Http\Controllers\YouTubeController::class, 'updateVideo']);
+        Route::post('/videos/tags', [\App\Http\Controllers\YouTubeController::class, 'updateVideoTags']);
+        Route::post('/videos/upload', [\App\Http\Controllers\YouTubeController::class, 'uploadVideo']);
+        Route::delete('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'deleteVideo']);
+    });
+
+    // Notification Management (Admin)
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index']);
+        Route::get('/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount']);
+        Route::post('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead']);
+        Route::post('/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
+        Route::delete('/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy']);
+        Route::post('/announce', [\App\Http\Controllers\NotificationController::class, 'adminAnnounce']);
+        Route::post('/notify-user', [\App\Http\Controllers\NotificationController::class, 'adminNotifyUser']);
+    });
 });
 
 
@@ -308,6 +330,27 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::post('/questions/{id}/replies', [\App\Http\Controllers\QAController::class, 'storeReply']);
     Route::delete('/questions/{questionId}/replies/{replyId}', [\App\Http\Controllers\QAController::class, 'destroyReply']);
     Route::post('/questions/{questionId}/replies/{replyId}/reactions', [\App\Http\Controllers\QAController::class, 'toggleReaction']);
+
+    // YouTube Video Management (Instructor)
+    Route::prefix('youtube')->group(function () {
+        Route::get('/auth-check', [\App\Http\Controllers\YouTubeController::class, 'checkAuth']);
+        Route::get('/videos', [\App\Http\Controllers\YouTubeController::class, 'listVideos']);
+        Route::get('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'getVideo']);
+        Route::put('/videos', [\App\Http\Controllers\YouTubeController::class, 'updateVideo']);
+        Route::post('/videos/tags', [\App\Http\Controllers\YouTubeController::class, 'updateVideoTags']);
+        Route::post('/videos/upload', [\App\Http\Controllers\YouTubeController::class, 'uploadVideo']);
+        Route::delete('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'deleteVideo']);
+    });
+
+    // Notification Management (Instructor)
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index']);
+        Route::get('/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount']);
+        Route::post('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead']);
+        Route::post('/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
+        Route::delete('/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy']);
+        Route::post('/notify-employees', [\App\Http\Controllers\NotificationController::class, 'instructorNotify']);
+    });
 });
 
 
@@ -357,6 +400,7 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
     Route::get('/quizzes/{quizId}/attempts', [EmployeeQuizController::class, 'myAttempts']);
 
     // Q&A (Employee)
+    Route::get('/lessons', [\App\Http\Controllers\QAController::class, 'employeeLessons']);
     Route::get('/questions', [\App\Http\Controllers\QAController::class, 'employeeIndex']);
     Route::post('/questions', [\App\Http\Controllers\QAController::class, 'employeeStore']);
     Route::put('/questions/{id}', [\App\Http\Controllers\QAController::class, 'employeeUpdate']);
@@ -364,6 +408,17 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
     Route::post('/questions/{id}/replies', [\App\Http\Controllers\QAController::class, 'storeReply']);
     Route::delete('/questions/{questionId}/replies/{replyId}', [\App\Http\Controllers\QAController::class, 'destroyReply']);
     Route::post('/questions/{questionId}/replies/{replyId}/reactions', [\App\Http\Controllers\QAController::class, 'toggleReaction']);
+
+    // Notification Management (Employee)
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index']);
+        Route::get('/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount']);
+        Route::post('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead']);
+        Route::post('/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
+        Route::delete('/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy']);
+        Route::post('/notify-instructor', [\App\Http\Controllers\NotificationController::class, 'employeeNotifyInstructor']);
+        Route::post('/report-admin', [\App\Http\Controllers\NotificationController::class, 'employeeReportToAdmin']);
+    });
 });
 
 // Q&A routes are now defined inside each role's route group above

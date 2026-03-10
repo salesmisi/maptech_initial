@@ -24,6 +24,7 @@ import { InstructorQuizBuilder } from './pages/instructor/QuizBuilder';
 import { QuizAssessmentManagement } from './pages/instructor/QuizAssessmentManagement';
 import { LessonVideoUpload } from './pages/instructor/LessonVideoUpload';
 import { QuizEvaluation } from './pages/instructor/QuizEvaluation';
+import { InstructorNotifications } from './pages/instructor/InstructorNotifications';
 
 // Employee Pages
 import { EmployeeDashboard } from './pages/employee/EmployeeDashboard';
@@ -34,6 +35,7 @@ import { MyProgress } from './pages/employee/MyProgress';
 import { MyCertificates } from './pages/employee/MyCertificates';
 import { QAModule } from './pages/employee/QAModule';
 import { MyFeedback } from './pages/employee/MyFeedback';
+import { EmployeeNotifications } from './pages/employee/EmployeeNotifications';
 
 // Shared Pages
 import { ProfileSettings } from './pages/shared/ProfileSettings';
@@ -225,6 +227,7 @@ export function App() {
         {currentPage === 'quizzes' && <QuizAssessmentManagement />}
         {currentPage === 'evaluation' && <QuizEvaluation />}
         {currentPage === 'qa-discussion' && <InstructorQADiscussion userId={user.id} />}
+        {currentPage === 'notifications' && <InstructorNotifications />}
         {currentPage === 'settings' && <ProfileSettings />}
       </InstructorLayout>
     );
@@ -264,6 +267,7 @@ export function App() {
         {currentPage === 'certificates' && <MyCertificates />}
         {currentPage === 'qa' && <QAModule userId={user.id} />}
         {currentPage === 'feedback' && <MyFeedback />}
+        {currentPage === 'notifications' && <EmployeeNotifications />}
         {currentPage === 'settings' && <ProfileSettings />}
       </EmployeeLayout>
     );

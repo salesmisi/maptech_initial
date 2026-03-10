@@ -197,12 +197,27 @@ if (isset($validated['fullName'])) {
      */
     public function destroy(string $id)
     {
-        $user = User::findOrFail($id);
-        $user->delete();
+        try {
+            $user = User::findOrFail($id);
 
-        return response()->json([
-            'message' => 'User deleted successfully'
-        ]);
+            // Delete related records first to avoid foreign key issues
+            $user->tokens()->delete(); // Sanctum tokens
+
+            $user->delete();
+
+            return response()->json([
+                'message' => 'User deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Failed to delete user', [
+                'user_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to delete user: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

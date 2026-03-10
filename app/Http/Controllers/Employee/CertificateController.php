@@ -17,10 +17,12 @@ class CertificateController extends Controller
         $user = $request->user();
 
         $certificates = Certificate::where('user_id', $user->id)
-            ->with('course:id,title,department,subdepartment_id')
+            ->with('course:id,title,department,subdepartment_id,logo_path')
             ->orderByDesc('completed_at')
             ->get()
             ->map(function (Certificate $cert) use ($user) {
+                // Use course logo if available, otherwise fall back to certificate's own logo
+                $logoPath = $cert->course?->logo_path ?? $cert->logo_path;
                 return [
                     'id'               => $cert->id,
                     'course_id'        => $cert->course_id,
@@ -31,7 +33,8 @@ class CertificateController extends Controller
                     'completed_date'   => $cert->completed_at->format('M d, Y'),
                     'score'            => $cert->score,
                     'user_name'        => $user->fullname,
-                    'logo_url'         => $cert->logo_path ? asset('storage/' . $cert->logo_path) : null,
+                    'logo_url'         => $logoPath ? asset('storage/' . $logoPath) : null,
+                    'has_course_logo'  => (bool) $cert->course?->logo_path,
                 ];
             });
 

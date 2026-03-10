@@ -41,7 +41,7 @@ interface DeptWithSubs {
   subdepartments: { id: number; name: string }[];
 }
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = '/api';
 
 export function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
@@ -83,7 +83,7 @@ export function UserManagement() {
 
   // Fetch CSRF cookie then return decoded XSRF token
   const getXsrfToken = async (): Promise<string> => {
-    await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
     return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
   };
 
@@ -161,7 +161,8 @@ export function UserManagement() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete user');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to delete user');
       }
 
       setUsers(users.filter((user) => user.id !== id));
