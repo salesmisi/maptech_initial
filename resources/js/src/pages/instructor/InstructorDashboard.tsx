@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ClipboardCheck,
   Users,
@@ -20,64 +20,433 @@ import {
   Line,
   Legend } from
 'recharts';
-const performanceData = [
-{
-  name: 'Week 1',
-  avgScore: 72,
-  submissions: 45
-},
-{
-  name: 'Week 2',
-  avgScore: 78,
-  submissions: 52
-},
-{
-  name: 'Week 3',
-  avgScore: 75,
-  submissions: 38
-},
-{
-  name: 'Week 4',
-  avgScore: 82,
-  submissions: 61
-},
-{
-  name: 'Week 5',
-  avgScore: 80,
-  submissions: 55
-},
-{
-  name: 'Week 6',
-  avgScore: 85,
-  submissions: 48
-}];
 
-const courseStats = [
-{
-  name: 'Cybersecurity',
-  enrolled: 145,
-  completed: 98
-},
-{
-  name: 'Leadership',
-  enrolled: 32,
-  completed: 12
-},
-{
-  name: 'Data Privacy',
-  enrolled: 75,
-  completed: 45
-}];
+const API_BASE = 'http://127.0.0.1:8000/api';
 
-const pendingEvaluations = [
-{
-  id: 1,
-  student: 'Juan Dela Cruz',
-  quiz: 'Module 3 Essay',
-  course: 'Cybersecurity Fundamentals',
-  submitted: '2 hours ago',
-  type: 'Essay'
-},
+const getCookie = (name: string) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift();
+};
+
+const getXsrfToken = async (): Promise<string> => {
+  await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+  return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
+};
+
+interface DashboardStats {
+  pending_reviews: number;
+  total_courses: number;
+  total_students: number;
+  avg_pass_rate: number;
+  new_students_month: number;
+}
+
+interface PerformancePoint {
+  name: string;
+  avgScore: number;
+  submissions: number;
+}
+
+interface CourseStat {
+  name: string;
+  enrolled: number;
+  completed: number;
+}
+
+interface PendingEvaluation {
+  id: number;
+  student: string;
+  question: string;
+  course: string;
+  submitted: string;
+  type: string;
+}
+
+interface RecentQuestion {
+  id: number;
+  student: string;
+  question: string;
+  course: string;
+  time: string;
+  answered: boolean;
+}
+
+interface DashboardData {
+  user: { id: number; name: string; email: string; role: string; profile_picture: string | null };
+  stats: DashboardStats;
+  performance_trend: PerformancePoint[];
+  course_stats: CourseStat[];
+  pending_evaluations: PendingEvaluation[];
+  recent_questions: RecentQuestion[];
+}
+
+export function InstructorDashboard() {
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState('');
+
+  useEffect(() => {
+    loadDashboard();
+  }, []);
+
+  const loadDashboard = async () => {
+    try {
+      setLoading(true);
+      const token = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/instructor/dashboard`, {
+        credentials: 'include',
+        headers: { 'X-XSRF-TOKEN': token, Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error('Failed to load dashboard');
+      const json: DashboardData = await res.json();
+      setData(json);
+      const now = new Date();
+      setLastUpdated(
+        now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      );
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="flex justify-between items-center">
+          <div>
+            <div className="h-7 bg-slate-200 rounded w-56 mb-2" />
+            <div className="h-4 bg-slate-200 rounded w-44" />
+          </div>
+          <div className="h-4 bg-slate-200 rounded w-32" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+              <div className="h-5 bg-slate-200 rounded w-32 mb-4" />
+              <div className="h-8 bg-slate-200 rounded w-16" />
+            </div>
+          ))}
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-slate-100 h-64" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-lg shadow-sm border border-slate-100 h-80" />
+          <div className="bg-white rounded-lg shadow-sm border border-slate-100 h-80" />
+        </div>
+      </div>
+    );
+  }
+
+  const stats = data?.stats;
+  const performanceData = data?.performance_trend ?? [];
+  const courseStats = data?.course_stats ?? [];
+  const pendingEvaluations = data?.pending_evaluations ?? [];
+  const recentQuestions = data?.recent_questions ?? [];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Instructor Dashboard
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Welcome back, {data?.user.name ?? 'Instructor'}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-slate-500">
+            Last updated: Today, {lastUpdated}
+          </span>
+          <button
+            onClick={loadDashboard}
+            className="text-xs font-medium text-green-600 hover:text-green-700 border border-green-200 rounded px-2 py-1">
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">
+                Pending Reviews
+              </p>
+              <p className="text-2xl font-bold text-amber-600">{stats?.pending_reviews ?? 0}</p>
+            </div>
+            <div className="p-3 bg-amber-50 rounded-full">
+              <AlertCircle className="h-6 w-6 text-amber-600" />
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">Unanswered student questions</p>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">My Courses</p>
+              <p className="text-2xl font-bold text-slate-900">{stats?.total_courses ?? 0}</p>
+            </div>
+            <div className="p-3 bg-blue-50 rounded-full">
+              <BookOpen className="h-6 w-6 text-blue-600" />
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">Active courses assigned</p>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">
+                Total Students
+              </p>
+              <p className="text-2xl font-bold text-slate-900">{stats?.total_students ?? 0}</p>
+            </div>
+            <div className="p-3 bg-green-50 rounded-full">
+              <Users className="h-6 w-6 text-green-600" />
+            </div>
+          </div>
+          {(stats?.new_students_month ?? 0) > 0 ? (
+            <p className="mt-2 text-xs text-green-600 font-medium">
+              +{stats?.new_students_month} this month
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-slate-500">Enrolled across all courses</p>
+          )}
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">
+                Avg. Pass Rate
+              </p>
+              <p className="text-2xl font-bold text-slate-900">{stats?.avg_pass_rate ?? 0}%</p>
+            </div>
+            <div className="p-3 bg-purple-50 rounded-full">
+              <TrendingUp className="h-6 w-6 text-purple-600" />
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">Based on quiz attempts</p>
+        </div>
+      </div>
+
+      {/* Pending Evaluations */}
+      <div className="bg-white rounded-lg shadow-sm border border-slate-100 overflow-hidden">
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+          <div className="flex items-center">
+            <h3 className="text-lg font-semibold text-slate-900">
+              Pending Student Questions
+            </h3>
+            <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+              {pendingEvaluations.length} pending
+            </span>
+          </div>
+        </div>
+        {pendingEvaluations.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-sm">
+            No pending questions — all caught up!
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Student
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Question
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Submitted
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Action
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-slate-200">
+                {pendingEvaluations.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold text-sm">
+                          {item.student.charAt(0)}
+                        </div>
+                        <span className="ml-3 text-sm font-medium text-slate-900">
+                          {item.student}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-slate-900 max-w-xs truncate">{item.question}</div>
+                      <div className="text-xs text-slate-500">{item.course}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                        {item.type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                      {item.submitted}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button className="text-sm font-medium text-green-600 hover:text-green-700">
+                        Reply
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">
+            Student Performance Trends
+          </h3>
+          {performanceData.every((d) => d.avgScore === 0 && d.submissions === 0) ? (
+            <div className="h-72 flex items-center justify-center text-slate-400 text-sm">
+              No quiz data available yet
+            </div>
+          ) : (
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={performanceData}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="#e2e8f0" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                  <YAxis axisLine={false} tickLine={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="avgScore"
+                    stroke="#22c55e"
+                    strokeWidth={2}
+                    name="Avg Score (%)" />
+                  <Line
+                    type="monotone"
+                    dataKey="submissions"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    name="Submissions" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">
+            Course Enrollment vs Completion
+          </h3>
+          {courseStats.length === 0 ? (
+            <div className="h-72 flex items-center justify-center text-slate-400 text-sm">
+              No courses found
+            </div>
+          ) : (
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={courseStats}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="#e2e8f0" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
+                  <YAxis axisLine={false} tickLine={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar
+                    dataKey="enrolled"
+                    fill="#22c55e"
+                    name="Enrolled"
+                    radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="completed"
+                    fill="#3b82f6"
+                    name="Completed"
+                    radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Recent Q&A */}
+      <div className="bg-white rounded-lg shadow-sm border border-slate-100 p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-slate-900">
+            Recent Student Questions
+          </h3>
+        </div>
+        {recentQuestions.length === 0 ? (
+          <div className="text-center py-6 text-slate-400 text-sm">
+            No student questions yet
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {recentQuestions.map((q) => (
+              <div
+                key={q.id}
+                className="flex items-start p-4 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">
+                  {q.student.charAt(0)}
+                </div>
+                <div className="ml-3 flex-1">
+                  <div className="flex justify-between">
+                    <p className="text-sm font-medium text-slate-900">
+                      {q.student}{' '}
+                      <span className="text-slate-400 font-normal">
+                        in {q.course}
+                      </span>
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {q.answered ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                          <CheckCircle className="h-3 w-3" /> Answered
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                          <Clock className="h-3 w-3" /> Pending
+                        </span>
+                      )}
+                      <span className="text-xs text-slate-400">{q.time}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-600 mt-1">{q.question}</p>
+                  {!q.answered && (
+                    <button className="mt-2 text-xs font-medium text-green-600 hover:text-green-700">
+                      Reply →
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>);
+
+}
+
 {
   id: 2,
   student: 'Maria Santos',

@@ -6,7 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Module;
+use App\Models\Question;
+use App\Models\Quiz;
+use App\Models\QuizAttempt;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -32,25 +36,113 @@ class CourseController extends Controller
     }
 
     /**
-     * Get instructor dashboard.
+     * Get instructor dashboard with live stats, chart data, and Q&A.
      */
     public function dashboard(Request $request)
     {
         $user = $request->user();
 
-        $courses = Course::where('instructor_id', $user->id)->get();
+        // IDs scoped to this instructor
+        $courseIds = Course::where('instructor_id', $user->id)->pluck('id');
+        $quizIds   = Quiz::whereIn('course_id', $courseIds)->pluck('id');
+
+        // ── Stats ────────────────────────────────────────────────────────────
+        $totalCourses  = $courseIds->count();
+        $totalStudents = Enrollment::whereIn('course_id', $courseIds)
+                            ->distinct('user_id')
+                            ->count('user_id');
+        $avgPassRate   = $quizIds->isNotEmpty()
+                            ? (int) round(QuizAttempt::whereIn('quiz_id', $quizIds)->avg('percentage') ?? 0)
+                            : 0;
+        $pendingCount  = Question::whereIn('course_id', $courseIds)
+                            ->whereNull('answer')
+                            ->count();
+        $newThisMonth  = Enrollment::whereIn('course_id', $courseIds)
+                            ->where('created_at', '>=', Carbon::now()->startOfMonth())
+                            ->distinct('user_id')
+                            ->count('user_id');
+
+        // ── Performance trend (last 6 weeks) ─────────────────────────────────
+        $performanceTrend = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $start = Carbon::now()->startOfWeek()->subWeeks($i);
+            $end   = Carbon::now()->startOfWeek()->subWeeks($i)->endOfWeek();
+            $agg   = QuizAttempt::whereIn('quiz_id', $quizIds)
+                        ->whereBetween('created_at', [$start, $end])
+                        ->selectRaw('AVG(percentage) as avg_score, COUNT(*) as submissions')
+                        ->first();
+            $performanceTrend[] = [
+                'name'        => 'Week ' . (6 - $i),
+                'avgScore'    => (int) round($agg->avg_score ?? 0),
+                'submissions' => (int) ($agg->submissions ?? 0),
+            ];
+        }
+
+        // ── Course enrollment vs completion ───────────────────────────────────
+        $courseStats = Course::where('instructor_id', $user->id)
+            ->withCount([
+                'enrollments',
+                'enrollments as completed_count' => fn ($q) => $q->where('status', 'completed'),
+            ])
+            ->get()
+            ->map(fn ($c) => [
+                'name'      => $c->title,
+                'enrolled'  => $c->enrollments_count,
+                'completed' => $c->completed_count,
+            ]);
+
+        // ── Pending evaluations (unanswered student questions) ────────────────
+        $pendingEvaluations = Question::whereIn('course_id', $courseIds)
+            ->whereNull('answer')
+            ->with(['user:id,fullname', 'course:id,title'])
+            ->orderBy('created_at', 'desc')
+            ->take(10)
+            ->get()
+            ->map(fn ($q) => [
+                'id'        => $q->id,
+                'student'   => $q->user->fullname ?? 'Unknown',
+                'question'  => $q->question,
+                'course'    => $q->course->title ?? 'Unknown',
+                'submitted' => $q->created_at->diffForHumans(),
+                'type'      => 'Question',
+            ]);
+
+        // ── Recent student questions ──────────────────────────────────────────
+        $recentQuestions = Question::whereIn('course_id', $courseIds)
+            ->with(['user:id,fullname', 'course:id,title'])
+            ->orderBy('created_at', 'desc')
+            ->take(5)
+            ->get()
+            ->map(fn ($q) => [
+                'id'       => $q->id,
+                'student'  => $q->user->fullname ?? 'Unknown',
+                'question' => $q->question,
+                'course'   => $q->course->title ?? 'Unknown',
+                'time'     => $q->created_at->diffForHumans(),
+                'answered' => !is_null($q->answer),
+            ]);
 
         return response()->json([
             'user' => [
-                'id'   => $user->id,
-                'name' => $user->fullname,
-                'email' => $user->email,
-                'role' => $user->role,
+                'id'              => $user->id,
+                'name'            => $user->fullname,
+                'email'           => $user->email,
+                'role'            => $user->role,
+                'profile_picture' => $user->profile_picture
+                                        ? asset('storage/' . $user->profile_picture)
+                                        : null,
             ],
-            'total_courses'  => $courses->count(),
-            'active_courses' => $courses->where('status', 'Active')->count(),
-            'draft_courses'  => $courses->where('status', 'Draft')->count(),
-            'courses'        => $courses,
+            'stats' => [
+                'pending_reviews'    => $pendingCount,
+                'total_courses'      => $totalCourses,
+                'total_students'     => $totalStudents,
+                'avg_pass_rate'      => $avgPassRate,
+                'new_students_month' => $newThisMonth,
+            ],
+            'performance_trend'   => $performanceTrend,
+            'course_stats'        => $courseStats,
+            'pending_evaluations' => $pendingEvaluations,
+            'recent_questions'    => $recentQuestions,
         ]);
     }
 
