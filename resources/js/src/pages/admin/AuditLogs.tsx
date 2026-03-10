@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { LogIn, LogOut, Search, ChevronLeft, ChevronRight, Filter, Users, GraduationCap, Shield, Clock } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { LogIn, LogOut, Search, ChevronLeft, ChevronRight, Filter, Users, GraduationCap, Shield, Clock, RefreshCw } from "lucide-react";
 
 interface AuditUser {
   id: number;
@@ -50,16 +50,20 @@ export function AuditLogs() {
 
   const [logs, setLogs] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [now, setNow] = useState(new Date());
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("All");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchLogs = async (pageNum: number) => {
+  const doFetch = useCallback(async (pageNum: number, silent = false) => {
     try {
-      setLoading(true);
-      await fetch("/sanctum/csrf-cookie", { credentials: "include" });
+      if (silent) setRefreshing(true);
+      else setLoading(true);
       const res = await fetch(`${API}/audit-logs?page=${pageNum}&per_page=100`, {
         credentials: "include",
         headers: {
@@ -74,15 +78,28 @@ export function AuditLogs() {
       setPage(data.current_page);
       setLastPage(data.last_page);
       setTotal(data.total);
+      setLastRefreshed(new Date());
     } catch {
       /* ignore */
     } finally {
-      setLoading(false);
+      if (silent) setRefreshing(false);
+      else setLoading(false);
     }
-  };
+  }, [API]);
 
+  const fetchLogs = (pageNum: number) => doFetch(pageNum, false);
+
+  // Initial load + start 30-second auto-poll
   useEffect(() => {
-    fetchLogs(1);
+    doFetch(1, false);
+    pollRef.current = setInterval(() => doFetch(1, true), 30_000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [doFetch]);
+
+  // Tick every second to drive the live elapsed timer
+  useEffect(() => {
+    const tick = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(tick);
   }, []);
 
   // Group logs into sessions (pair login with logout)
@@ -187,6 +204,17 @@ export function AuditLogs() {
     totalSessions: sessions.length,
   };
 
+  // Format elapsed time for active sessions
+  const formatElapsed = (isoStart: string): string => {
+    const diff = Math.max(0, Math.floor((now.getTime() - new Date(isoStart).getTime()) / 1000));
+    const h = Math.floor(diff / 3600);
+    const m = Math.floor((diff % 3600) / 60);
+    const s = diff % 60;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  };
+
   const formatDateTime = (iso: string | null) => {
     if (!iso) return null;
     const d = new Date(iso);
@@ -236,14 +264,22 @@ export function AuditLogs() {
             Track login and logout activity by role
           </p>
         </div>
-        <span className="text-sm text-gray-500">{total} total entries</span>
-      </div>
-
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 text-purple-700 mb-1">
-            <Shield className="w-4 h-4" />
+        <div className="flex items-center gap-3">
+          {lastRefreshed && (
+            <span className="text-xs text-gray-400">
+              Updated {lastRefreshed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })}
+            </span>
+          )}
+          <button
+            onClick={() => doFetch(page, true)}
+            disabled={refreshing}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-md hover:bg-gray-50 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+          <span className="text-sm text-gray-500">{total} total entries</span>
+        </div>
             <span className="text-xs font-medium">Admin Sessions</span>
           </div>
           <p className="text-2xl font-bold text-purple-800">{stats.admin}</p>
@@ -424,10 +460,10 @@ export function AuditLogs() {
                             <span className="text-xs text-gray-500">{timeIn.date}</span>
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-green-600">{timeIn.time}</span>
-                              {!timeOut && (
+                              {!timeOut && session.time_in && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
                                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                                  Active
+                                  {formatElapsed(session.time_in)}
                                 </span>
                               )}
                             </div>
