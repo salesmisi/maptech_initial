@@ -94,7 +94,7 @@ export default function DepartmentManagement() {
 
   // ================= HELPERS =================
   const getXsrfToken = async (): Promise<string> => {
-    await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
     return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
   };
 
@@ -129,7 +129,7 @@ export default function DepartmentManagement() {
 
   const loadInstructors = async () => {
     try {
-      await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
       const res = await fetch(`${API}/admin/users?role=Instructor`, {
         credentials: 'include',
         headers: {
@@ -145,7 +145,7 @@ export default function DepartmentManagement() {
 
   const loadEmployees = async () => {
     try {
-      await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
       const res = await fetch(`${API}/admin/users?role=Employee`, {
         credentials: 'include',
         headers: {

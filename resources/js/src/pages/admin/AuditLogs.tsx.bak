@@ -1,5 +1,11 @@
-import { useState, useEffect } from "react";
-import { LogIn, LogOut, Search, ChevronLeft, ChevronRight, Filter, Users, GraduationCap, Shield, Clock } from "lucide-react";
+await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', {
+  credentials: 'include',
+});await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', {
+  credentials: 'include',
+});await fetch('/sanctum/csrf-cookie', {
+  credentials: 'include',
+});import { useState, useEffect, useRef, useCallback } from "react";
+import { LogIn, LogOut, Search, ChevronLeft, ChevronRight, Filter, Users, GraduationCap, Shield, Clock, RefreshCw } from "lucide-react";
 
 interface AuditUser {
   id: number;
@@ -29,7 +35,9 @@ interface PaginatedResponse {
 interface Session {
   id: string;
   user: AuditUser | null;
-  user_id: number;
+  user_id: number;npm run build
+php artisan view:clear
+php artisan cache:clear
   time_in: string | null;
   time_out: string | null;
   ip_address: string | null;
@@ -50,16 +58,20 @@ export function AuditLogs() {
 
   const [logs, setLogs] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [now, setNow] = useState(new Date());
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("All");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchLogs = async (pageNum: number) => {
+  const doFetch = useCallback(async (pageNum: number, silent = false) => {
     try {
-      setLoading(true);
-      await fetch("/sanctum/csrf-cookie", { credentials: "include" });
+      if (silent) setRefreshing(true);
+      else setLoading(true);
       const res = await fetch(`${API}/audit-logs?page=${pageNum}&per_page=100`, {
         credentials: "include",
         headers: {
@@ -74,15 +86,28 @@ export function AuditLogs() {
       setPage(data.current_page);
       setLastPage(data.last_page);
       setTotal(data.total);
+      setLastRefreshed(new Date());
     } catch {
       /* ignore */
     } finally {
-      setLoading(false);
+      if (silent) setRefreshing(false);
+      else setLoading(false);
     }
-  };
+  }, [API]);
 
+  const fetchLogs = (pageNum: number) => doFetch(pageNum, false);
+
+  // Initial load + start 30-second auto-poll
   useEffect(() => {
-    fetchLogs(1);
+    doFetch(1, false);
+    pollRef.current = setInterval(() => doFetch(1, true), 30_000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [doFetch]);
+
+  // Tick every second to drive the live elapsed timer
+  useEffect(() => {
+    const tick = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(tick);
   }, []);
 
   // Group logs into sessions (pair login with logout)
@@ -97,51 +122,67 @@ export function AuditLogs() {
       userLogs[userId].push(entry);
     });
 
-    // For each user, pair logins with logouts
+    // For each user, pair logins with logouts using a LIFO stack (ascending order)
+    // Each logout pairs with the most recent unmatched login before it
     Object.keys(userLogs).forEach((userIdStr) => {
       const userId = parseInt(userIdStr);
+      // Sort ascending by time, using id as tiebreaker for same-timestamp entries
       const userEntries = userLogs[userId].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        (a, b) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime() ||
+          a.id - b.id
       );
 
-      // Track pending logout entries
-      const pendingLogouts: AuditEntry[] = [];
+      const loginStack: AuditEntry[] = [];
 
       userEntries.forEach((entry) => {
-        if (entry.action === "logout") {
-          pendingLogouts.push(entry);
-        } else if (entry.action === "login") {
-          // Pair with most recent pending logout if exists
-          const matchingLogout = pendingLogouts.shift();
-          sessions.push({
-            id: `session-${entry.id}`,
-            user: entry.user,
-            user_id: userId,
-            time_in: entry.created_at,
-            time_out: matchingLogout ? matchingLogout.created_at : null,
-            ip_address: entry.ip_address,
-            login_id: entry.id,
-            logout_id: matchingLogout ? matchingLogout.id : null,
-          });
+        if (entry.action === "login") {
+          loginStack.push(entry);
+        } else if (entry.action === "logout") {
+          if (loginStack.length > 0) {
+            const matchedLogin = loginStack.pop()!;
+            sessions.push({
+              id: `session-${matchedLogin.id}`,
+              user: matchedLogin.user,
+              user_id: userId,
+              time_in: matchedLogin.created_at,
+              time_out: entry.created_at,
+              ip_address: matchedLogin.ip_address,
+              login_id: matchedLogin.id,
+              logout_id: entry.id,
+            });
+          } else {
+            // Orphaned logout with no matching login
+            sessions.push({
+              id: `session-${entry.id}`,
+              user: entry.user,
+              user_id: userId,
+              time_in: null,
+              time_out: entry.created_at,
+              ip_address: entry.ip_address,
+              login_id: null,
+              logout_id: entry.id,
+            });
+          }
         }
       });
 
-      // Handle any remaining pending logouts (logouts without matching logins)
-      pendingLogouts.forEach((logout) => {
+      // Remaining logins in the stack have no matching logout yet (Active sessions)
+      loginStack.forEach((login) => {
         sessions.push({
-          id: `session-${logout.id}`,
-          user: logout.user,
+          id: `session-${login.id}`,
+          user: login.user,
           user_id: userId,
-          time_in: null,
-          time_out: logout.created_at,
-          ip_address: logout.ip_address,
-          login_id: null,
-          logout_id: logout.id,
+          time_in: login.created_at,
+          time_out: null,
+          ip_address: login.ip_address,
+          login_id: login.id,
+          logout_id: null,
         });
       });
     });
 
-    // Sort sessions by most recent activity
+    // Sort sessions by most recent activity (descending)
     return sessions.sort((a, b) => {
       const aTime = a.time_in || a.time_out || "";
       const bTime = b.time_in || b.time_out || "";
@@ -169,6 +210,17 @@ export function AuditLogs() {
     instructor: sessions.filter((s) => s.user?.role?.toLowerCase() === "instructor").length,
     employee: sessions.filter((s) => s.user?.role?.toLowerCase() === "employee").length,
     totalSessions: sessions.length,
+  };
+
+  // Format elapsed time for active sessions
+  const formatElapsed = (isoStart: string): string => {
+    const diff = Math.max(0, Math.floor((now.getTime() - new Date(isoStart).getTime()) / 1000));
+    const h = Math.floor(diff / 3600);
+    const m = Math.floor((diff % 3600) / 60);
+    const s = diff % 60;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
   };
 
   const formatDateTime = (iso: string | null) => {
@@ -220,7 +272,21 @@ export function AuditLogs() {
             Track login and logout activity by role
           </p>
         </div>
-        <span className="text-sm text-gray-500">{total} total entries</span>
+        <div className="flex items-center gap-3">
+          {lastRefreshed && (
+            <span className="text-xs text-gray-400">
+              Updated {lastRefreshed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })}
+            </span>
+          )}
+          <button
+            onClick={() => doFetch(page, true)}
+            disabled={refreshing}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-md hover:bg-gray-50 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+          <span className="text-sm text-gray-500">{total} total entries</span>
       </div>
 
       {/* Statistics Cards */}
@@ -408,10 +474,10 @@ export function AuditLogs() {
                             <span className="text-xs text-gray-500">{timeIn.date}</span>
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-green-600">{timeIn.time}</span>
-                              {!timeOut && (
+                              {!timeOut && session.time_in && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
                                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                                  Active
+                                  {formatElapsed(session.time_in)}
                                 </span>
                               )}
                             </div>

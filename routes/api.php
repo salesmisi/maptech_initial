@@ -145,6 +145,21 @@ Route::get('/user', [LoginController::class, 'user'])
 Route::post('/logout', [LoginController::class, 'logout'])
     ->middleware('auth:sanctum');
 
+// Current user's audit logs (authenticated users)
+Route::get('/me/audit-logs', function (Request $request) {
+    $user = $request->user();
+    if (!$user) {
+        return response()->json(['message' => 'Unauthenticated'], 401);
+    }
+
+    $logs = AuditLog::where('user_id', $user->id)
+        ->with('user:id,fullname,email,role,department')
+        ->orderByDesc('created_at')
+        ->get();
+
+    return response()->json(['data' => $logs]);
+})->middleware(['auth:sanctum', 'status']);
+
 
 /*
 |--------------------------------------------------------------------------
@@ -159,14 +174,15 @@ use App\Http\Controllers\Admin\QuizController as AdminQuizController;
 
 // Test route for debugging
 Route::get('/test-auth', function () {
+    $user = request()->user();
     return response()->json([
         'message' => 'API is working',
         'timestamp' => now(),
-        'user' => auth()->user() ? [
-            'id' => auth()->user()->id,
-            'name' => auth()->user()->fullname,
-            'role' => auth()->user()->role,
-            'status' => auth()->user()->status,
+        'user' => $user ? [
+            'id' => $user->id,
+            'name' => $user->fullname,
+            'role' => $user->role,
+            'status' => $user->status,
         ] : null
     ]);
 });

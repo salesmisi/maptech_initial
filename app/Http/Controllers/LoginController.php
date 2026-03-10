@@ -42,18 +42,6 @@ class LoginController extends Controller
 
         $request->session()->regenerate();
 
-        // Auto-close any previously open session (login without matching logout)
-        $lastLog = AuditLog::where('user_id', $user->id)
-            ->latest('created_at')
-            ->first();
-        if ($lastLog && $lastLog->action === 'login') {
-            AuditLog::create([
-                'user_id' => $user->id,
-                'action' => 'logout',
-                'ip_address' => $request->ip(),
-            ]);
-        }
-
         AuditLog::create([
             'user_id' => $user->id,
             'action' => 'login',
@@ -103,18 +91,6 @@ class LoginController extends Controller
         // Create new token with abilities based on role
         $abilities = $this->getTokenAbilities($user);
         $token = $user->createToken('auth-token', $abilities)->plainTextToken;
-
-        // Auto-close any previously open session (login without matching logout)
-        $lastLog = AuditLog::where('user_id', $user->id)
-            ->latest('created_at')
-            ->first();
-        if ($lastLog && $lastLog->action === 'login') {
-            AuditLog::create([
-                'user_id' => $user->id,
-                'action' => 'logout',
-                'ip_address' => $request->ip(),
-            ]);
-        }
 
         AuditLog::create([
             'user_id' => $user->id,

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Admin;
 
+use Illuminate\Support\Facades\Log;
+
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Course;
@@ -136,28 +138,14 @@ $user = User::create([
             ], 422);
         }
 
-// Update fields
-if (isset($validated['fullName'])) {
-    $user->fullname = $validated['fullName'];
-}
-        if (isset($validated['email'])) {
-            $user->email = $validated['email'];
+        // Map fullName to fullname for fillable
+        if (isset($validated['fullName'])) {
+            $validated['fullname'] = $validated['fullName'];
+            unset($validated['fullName']);
         }
-        if (isset($validated['password'])) {
-            $user->password = $validated['password'];
-        }
-        if (isset($validated['role'])) {
-            $user->role = $validated['role'];
-        }
-        if (array_key_exists('department', $validated)) {
-            $user->department = $validated['department'];
-        }
-        if (array_key_exists('subdepartment_id', $validated)) {
-            $user->subdepartment_id = $validated['subdepartment_id'];
-        }
-        if (isset($validated['status'])) {
-            $user->status = $validated['status'];
-        }
+
+        $user->fill($validated);
+        $user->save();
 
         $user->save();
 

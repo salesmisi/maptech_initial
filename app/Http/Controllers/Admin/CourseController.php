@@ -439,6 +439,9 @@ class CourseController extends Controller
             'title'        => 'required|string|max:255',
             'text_content' => 'nullable|string',
             'content'      => 'nullable|file|max:102400',
+            'content_url'  => 'nullable|url|max:2000',
+            'type'         => 'nullable|in:Video,Document,Text',
+            'status'       => 'nullable|in:Published,Draft',
         ]);
 
         $nextOrder = $module->lessons()->max('order') + 1;
@@ -449,8 +452,19 @@ class CourseController extends Controller
             'order'        => $nextOrder,
         ];
 
-        if ($request->hasFile('content')) {
+        // If provided an external content URL (YouTube embed), save it directly
+        if ($request->filled('content_url')) {
+            $data['content_path'] = $request->input('content_url');
+        } elseif ($request->hasFile('content')) {
             $data['content_path'] = $request->file('content')->store('course-content', 'public');
+        }
+
+        if ($request->filled('type')) {
+            $data['type'] = $request->input('type');
+        }
+
+        if ($request->filled('status')) {
+            $data['status'] = $request->input('status');
         }
 
         $lesson = $module->lessons()->create($data);

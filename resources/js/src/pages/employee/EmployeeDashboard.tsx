@@ -9,6 +9,7 @@ import {
   Bell,
   FileQuestion } from
 'lucide-react';
+import { UserTimeLog } from '../../components/UserTimeLog';
 
 const API_BASE = '/api';
 
@@ -76,7 +77,9 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       });
       if (res.ok) {
         const data = await res.json();
-        setNotifications(data);
+        // API may return an object with `{ data: [...] }` or the array directly.
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        setNotifications(list);
       }
     } catch (err) {
       console.error('Failed to load notifications:', err);
@@ -118,7 +121,8 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
         const data = await response.json();
 
         // Map courses to include thumbnail colors
-        const mappedCourses = data.courses.map((course: any) => ({
+        const coursesArr = data.courses || [];
+        const mappedCourses = coursesArr.map((course: any) => ({
           id: course.id,
           title: course.title,
           progress: course.my_progress ?? course.progress ?? 0,
@@ -130,7 +134,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
 
         setDashboardData({
-          user: dashData?.user ?? { id: 0, name: 'Employee', email: '', department: '' },
+          user: (data && data.user) ? data.user : { id: 0, name: 'Employee', email: '', department: '' },
           courses: mappedCourses,
           total_courses: mappedCourses.length,
         });

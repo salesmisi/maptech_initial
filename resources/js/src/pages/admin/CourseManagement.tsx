@@ -131,7 +131,7 @@ const getCookie = (name: string) => {
 
 // Fetch CSRF cookie then return decoded XSRF token
 const getXsrfToken = async (): Promise<string> => {
-  await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+  await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
   return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
 };
 

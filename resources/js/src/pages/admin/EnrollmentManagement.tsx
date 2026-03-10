@@ -12,7 +12,7 @@ import {
   X,
 } from 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = '/api';
 
 const getCookie = (name: string) => {
   const value = `; ${document.cookie}`;
@@ -21,7 +21,7 @@ const getCookie = (name: string) => {
 };
 
 const getXsrfToken = async (): Promise<string> => {
-  await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+  await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
   return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
 };
 
@@ -64,7 +64,13 @@ export function EnrollmentManagement() {
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState('');
-  const [selectedUserId, setSelectedUserId] = useState('');
+  // multi-select users
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<UserOption[]>([]);
+  const [userQuery, setUserQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<UserOption[]>([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const userSearchTimer = React.useRef<number | null>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollError, setEnrollError] = useState<string | null>(null);
 
@@ -109,25 +115,55 @@ export function EnrollmentManagement() {
     } catch {}
   };
 
+  const searchUsers = async (q: string) => {
+    if (!q || q.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      setIsSearchingUsers(true);
+      const res = await fetch(`${API_BASE}/admin/users?q=${encodeURIComponent(q)}`, { credentials: 'include', headers: { Accept: 'application/json' } });
+      if (!res.ok) return setSearchResults([]);
+      const data = await res.json();
+      const usersFound = Array.isArray(data) ? data : (data?.data || []);
+      setSearchResults(usersFound.map((x: any) => ({ id: x.id, fullname: x.fullname || x.name || `${x.first_name || ''} ${x.last_name || ''}`.trim(), email: x.email, department: x.department })));
+    } catch (e) {
+      setSearchResults([]);
+    } finally {
+      setIsSearchingUsers(false);
+    }
+  };
+
+  // debounce user search
+  useEffect(() => {
+    if (userSearchTimer.current) window.clearTimeout(userSearchTimer.current);
+    userSearchTimer.current = window.setTimeout(() => {
+      searchUsers(userQuery);
+    }, 300) as unknown as number;
+    return () => { if (userSearchTimer.current) window.clearTimeout(userSearchTimer.current); };
+  }, [userQuery]);
+
   const openModal = () => {
     setIsModalOpen(true);
     setSelectedCourseId('');
-    setSelectedUserId('');
+    setSelectedUserIds([]);
+    setSelectedUsers([]);
     setEnrollError(null);
     loadModalData();
   };
 
   const handleEnroll = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCourseId || !selectedUserId) {
-      setEnrollError('Please select both an employee and a course.');
+    if (!selectedCourseId || selectedUserIds.length === 0) {
+      setEnrollError('Please select at least one employee and a course.');
       return;
     }
     setEnrolling(true);
     setEnrollError(null);
     try {
       const token = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/admin/courses/${selectedCourseId}/enrollments`, {
+      // Enroll each selected user (send requests in parallel)
+      const promises = selectedUserIds.map((uid) => fetch(`${API_BASE}/admin/courses/${selectedCourseId}/enrollments`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -135,11 +171,15 @@ export function EnrollmentManagement() {
           'Content-Type': 'application/json',
           'X-XSRF-TOKEN': token,
         },
-        body: JSON.stringify({ user_id: Number(selectedUserId) }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to enroll user.');
+        body: JSON.stringify({ user_id: Number(uid) }),
+      }));
+      const results = await Promise.all(promises);
+      // Check for errors
+      for (const r of results) {
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.message || 'Failed to enroll one or more users.');
+        }
       }
       setIsModalOpen(false);
       await loadEnrollments();
@@ -377,21 +417,44 @@ export function EnrollmentManagement() {
               )}
               <form onSubmit={handleEnroll} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700">
-                    Select Employee
-                  </label>
-                  <select
+                  <label className="block text-sm font-medium text-slate-700">Select Employees</label>
+                  <input
+                    type="text"
+                    value={userQuery}
+                    onChange={(e) => setUserQuery(e.target.value)}
+                    placeholder="Type name to search employees..."
                     className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    value={selectedUserId}
-                    onChange={(e) => setSelectedUserId(e.target.value)}
-                  >
-                    <option value="">-- Select an employee --</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.fullname} ({u.email}) — {u.department}
-                      </option>
-                    ))}
-                  </select>
+                  />
+                  {searchResults.length > 0 && (
+                    <div className="mt-1 border border-slate-200 rounded bg-white max-h-48 overflow-auto">
+                      {searchResults.map(u => (
+                        <div key={u.id} className="px-3 py-2 hover:bg-slate-50 cursor-pointer" onClick={() => {
+                          if (!selectedUserIds.includes(u.id)) {
+                            setSelectedUserIds(prev => [...prev, u.id]);
+                            setSelectedUsers(prev => [...prev, u]);
+                          }
+                          setSearchResults([]);
+                          setUserQuery('');
+                        }}>
+                          <div className="text-sm font-medium text-slate-900">{u.fullname}</div>
+                          <div className="text-xs text-slate-400">{u.email} — {u.department}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {selectedUsers.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedUsers.map(u => (
+                        <span key={u.id} className="inline-flex items-center gap-2 px-2 py-1 bg-slate-100 text-slate-700 rounded-full text-xs">
+                          <span>{u.fullname}</span>
+                          <button type="button" onClick={() => {
+                            setSelectedUserIds(prev => prev.filter(id => id !== u.id));
+                            setSelectedUsers(prev => prev.filter(x => x.id !== u.id));
+                          }} className="text-slate-400 hover:text-red-600">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700">

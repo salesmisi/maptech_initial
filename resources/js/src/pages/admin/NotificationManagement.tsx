@@ -43,7 +43,14 @@ export function NotificationManagement() {
     message: '',
     roles: [] as string[],
     course_id: '',
+    target_user_ids: [] as number[],
   });
+
+  // User search state
+  const [userQuery, setUserQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{ id: number; fullname: string; role: string }[]>([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const userSearchTimer = React.useRef<number | null>(null);
 
   const token = localStorage.getItem('token');
 
@@ -139,9 +146,59 @@ export function NotificationManagement() {
       ...prev,
       roles: prev.roles.includes(role)
         ? prev.roles.filter(r => r !== role)
-        : [...prev.roles, role]
+        : [...prev.roles, role],
+      // clear selected users when role deselected
+      target_user_ids: prev.roles.includes(role) ? prev.target_user_ids.filter(id => {
+        // keep only users whose role is still selected — we'll filter after fetching details
+        return true;
+      }) : prev.target_user_ids,
     }));
   };
+
+  const handleAddUser = (user: { id: number; fullname: string; role: string }) => {
+    if (formData.target_user_ids.includes(user.id)) return;
+    setFormData(prev => ({ ...prev, target_user_ids: [...prev.target_user_ids, user.id] }));
+    setSearchResults([]);
+    setUserQuery('');
+  };
+
+  const handleRemoveUser = (userId: number) => {
+    setFormData(prev => ({ ...prev, target_user_ids: prev.target_user_ids.filter(id => id !== userId) }));
+  };
+
+  const searchUsers = async (q: string) => {
+    if (!q || q.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      setIsSearchingUsers(true);
+      const roleParam = formData.roles.length === 1 ? `&role=${encodeURIComponent(formData.roles[0])}` : '';
+      const res = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}${roleParam}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      const data = await res.json();
+      // normalize: expect array of users
+      const users = Array.isArray(data) ? data : (data?.data || []);
+      setSearchResults(users.map((u: any) => ({ id: u.id, fullname: u.fullname || u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim(), role: u.role || '' })));
+    } catch (err) {
+      console.error('User search failed', err);
+    } finally {
+      setIsSearchingUsers(false);
+    }
+  };
+
+  // debounce user search
+  useEffect(() => {
+    if (userSearchTimer.current) window.clearTimeout(userSearchTimer.current);
+    userSearchTimer.current = window.setTimeout(() => {
+      searchUsers(userQuery);
+    }, 300) as unknown as number;
+    return () => { if (userSearchTimer.current) window.clearTimeout(userSearchTimer.current); };
+  }, [userQuery, formData.roles]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,6 +221,7 @@ export function NotificationManagement() {
           message: formData.message,
           roles: formData.roles,
           course_id: formData.course_id || null,
+          target_user_ids: formData.target_user_ids && formData.target_user_ids.length > 0 ? formData.target_user_ids : null,
         }),
       });
 
@@ -172,14 +230,14 @@ export function NotificationManagement() {
       if (res.ok) {
         alert(`Announcement sent to ${data.recipients_count} users!`);
         setIsModalOpen(false);
-        setFormData({ title: '', message: '', roles: [], course_id: '' });
+        setFormData({ title: '', message: '', roles: [], course_id: '', target_user_ids: [] });
 
         // Add to sent history
         setSentHistory(prev => [{
           id: Date.now(),
           title: formData.title,
           message: formData.message,
-          target: formData.roles.join(', '),
+          target: formData.target_user_ids && formData.target_user_ids.length > 0 ? `Users: ${formData.target_user_ids.length}` : formData.roles.join(', '),
           date: new Date().toISOString().split('T')[0],
           status: 'Sent',
           recipients_count: data.recipients_count,
@@ -448,6 +506,37 @@ export function NotificationManagement() {
                           <span className="ml-2 text-sm text-slate-700">{role}s</span>
                         </label>
                       ))}
+                    </div>
+                    {/* Search specific users */}
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium text-slate-700">Search Users (by name)</label>
+                      <input
+                        type="text"
+                        value={userQuery}
+                        onChange={(e) => setUserQuery(e.target.value)}
+                        placeholder="Type a name to search instructors or employees"
+                        className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      />
+                      {searchResults.length > 0 && (
+                        <div className="mt-1 border border-slate-200 rounded bg-white max-h-48 overflow-auto">
+                          {searchResults.map(u => (
+                            <div key={u.id} className="px-3 py-2 hover:bg-slate-50 cursor-pointer" onClick={() => handleAddUser(u)}>
+                              <div className="text-sm font-medium text-slate-900">{u.fullname}</div>
+                              <div className="text-xs text-slate-400">{u.role}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {formData.target_user_ids.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {formData.target_user_ids.map(id => (
+                            <span key={id} className="inline-flex items-center gap-2 px-2 py-1 bg-slate-100 text-slate-700 rounded-full text-xs">
+                              <span>User {id}</span>
+                              <button type="button" onClick={() => handleRemoveUser(id)} className="text-slate-400 hover:text-red-600">×</button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">

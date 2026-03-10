@@ -11,7 +11,7 @@ import {
   Trash,
 } from 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = '/api';
 
 const getCookie = (name: string) => {
   const value = `; ${document.cookie}`;
@@ -20,7 +20,7 @@ const getCookie = (name: string) => {
 };
 
 const getXsrfToken = async (): Promise<string> => {
-  await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+  await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
   return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
 };
 
