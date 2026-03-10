@@ -22,7 +22,7 @@ class CourseController extends Controller
     public function index(Request $request)
     {
         // Eager-load instructor and modules so API returns module data/count
-        $query = Course::with(['instructor:id,fullname,email', 'modules'])
+        $query = Course::with(['instructor:id,fullname,email,profile_picture', 'modules'])
             ->withCount('enrollments');
 
         // Filter by department
@@ -132,7 +132,7 @@ class CourseController extends Controller
 
             return response()->json([
                 'message' => 'Course created successfully',
-                'course' => $course->load('instructor:id,fullname,email', 'modules')
+                'course' => $course->load('instructor:id,fullname,email,profile_picture', 'modules')
             ], 201);
         } catch (ValidationException $e) {
             Log::error('Validation failed', $e->errors());
@@ -155,7 +155,7 @@ class CourseController extends Controller
     public function show(string $id)
     {
         $course = Course::with([
-            'instructor:id,fullname,email',
+            'instructor:id,fullname,email,profile_picture',
             'modules.lessons',
             'enrolledUsers:id,fullname,email,department,role,status',
         ])->findOrFail($id);
@@ -243,7 +243,7 @@ class CourseController extends Controller
 
             return response()->json([
                 'message' => 'Course updated successfully',
-                'course' => $course->load('instructor:id,fullname,email', 'modules')
+                'course' => $course->load('instructor:id,fullname,email,profile_picture', 'modules')
             ]);
         } catch (ValidationException $e) {
             Log::error('Validation failed on update', $e->errors());

@@ -10,6 +10,7 @@ use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -38,7 +39,7 @@ class UserController extends Controller
         }
 
         $users = $query->select([
-            'id', 'fullname', 'email', 'role', 'department', 'subdepartment_id', 'status', 'created_at'
+            'id', 'fullname', 'email', 'role', 'department', 'subdepartment_id', 'status', 'profile_picture', 'created_at'
         ])->orderBy('created_at', 'desc')->get();
 
         // Eager load subdepartment name, departments headed, and instructor subdepartments
@@ -218,6 +219,31 @@ if (isset($validated['fullName'])) {
                 'message' => 'Failed to delete user: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Upload profile picture for a user.
+     */
+    public function uploadPhoto(Request $request, string $id)
+    {
+        $user = User::findOrFail($id);
+
+        $request->validate([
+            'profile_picture' => 'required|image|mimes:png,jpg,jpeg|max:2048',
+        ]);
+
+        // Delete old photo if exists
+        if ($user->profile_picture) {
+            Storage::disk('public')->delete($user->profile_picture);
+        }
+
+        $path = $request->file('profile_picture')->store('profile-pictures', 'public');
+        $user->update(['profile_picture' => $path]);
+
+        return response()->json([
+            'message' => 'Photo uploaded successfully',
+            'profile_picture' => asset('storage/' . $path),
+        ]);
     }
 
     /**

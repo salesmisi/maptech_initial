@@ -188,6 +188,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::get('/users/{id}', [UserController::class, 'show']);
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
+    Route::post('/users/{id}/photo', [UserController::class, 'uploadPhoto']);
 
     // Course Management (Admin can manage all courses)
     Route::get('/courses', [AdminCourseController::class, 'index']);

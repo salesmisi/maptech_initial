@@ -12,6 +12,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   XMarkIcon,
+  CameraIcon,
 } from '@heroicons/react/24/outline';
 
 interface Course {
@@ -21,6 +22,7 @@ interface Course {
   department: string;
   instructor: string;
   instructor_id: number | null;
+  instructor_profile_picture?: string | null;
   status: 'Active' | 'Draft' | 'Inactive';
   modules_count: number;
   enrolled_count: number;
@@ -32,6 +34,7 @@ interface InstructorOption {
   fullname: string;
   email: string;
   department: string | null;
+  profile_picture?: string | null;
 }
 
 function normalizeCourseStatus(status: unknown): 'Active' | 'Draft' | 'Inactive' {
@@ -96,7 +99,12 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   const [departments, setDepartments] = useState<{id: number; name: string}[]>([]);
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
   const [editInstructorId, setEditInstructorId] = useState<number | null>(null);
+  const [createInstructorId, setCreateInstructorId] = useState<number | null>(null);
   const [editDepartment, setEditDepartment] = useState('');
+  // Instructor photo upload in edit modal
+  const [editInstructorPhotoFile, setEditInstructorPhotoFile] = useState<File | null>(null);
+  const [editInstructorPhotoPreview, setEditInstructorPhotoPreview] = useState<string | null>(null);
+  const editInstructorPhotoRef = useRef<HTMLInputElement>(null);
   // Module management state
   const [courseModules, setCourseModules] = useState<ModuleDetail[]>([]);
   const [loadingModules, setLoadingModules] = useState(false);
@@ -198,7 +206,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       .catch(err => console.error('Failed to load departments:', err));
     fetch('/api/admin/users?role=Instructor', { credentials: 'include', headers: { Accept: 'application/json' } })
       .then(res => res.json())
-      .then(data => setInstructors(Array.isArray(data) ? data.map((u: any) => ({ id: u.id, fullname: u.fullname, email: u.email, department: u.department })) : []))
+      .then(data => setInstructors(Array.isArray(data) ? data.map((u: any) => ({ id: u.id, fullname: u.fullname, email: u.email, department: u.department, profile_picture: u.profile_picture ? `/storage/${u.profile_picture}` : null })) : []))
       .catch(err => console.error('Failed to load instructors:', err));
   }, []);
 
@@ -242,6 +250,9 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
         instructor: typeof c.instructor === 'object' && c.instructor !== null
           ? c.instructor.fullname || 'Unassigned'
           : c.instructor || 'Unassigned',
+        instructor_profile_picture: typeof c.instructor === 'object' && c.instructor !== null && c.instructor.profile_picture
+          ? `/storage/${c.instructor.profile_picture}`
+          : null,
         department: typeof c.department === 'object' && c.department !== null
           ? c.department.name || ''
           : c.department || '',
@@ -298,6 +309,10 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     setEditingCourse(course);
     setEditInstructorId(course.instructor_id);
     setEditDepartment(course.department);
+    // Pre-load existing instructor photo preview
+    const assigned = instructors.find(i => i.id === course.instructor_id);
+    setEditInstructorPhotoPreview(assigned?.profile_picture ?? null);
+    setEditInstructorPhotoFile(null);
     setShowEditModal(true);
   };
 
@@ -337,6 +352,33 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
       setShowEditModal(false);
       setEditingCourse(null);
+
+      // Upload instructor photo if one was selected
+      if (editInstructorPhotoFile && editInstructorId) {
+        try {
+          const csrfToken2 = getXsrfToken();
+          const photoFd = new FormData();
+          photoFd.append('profile_picture', editInstructorPhotoFile);
+          const photoRes = await fetch(`/api/admin/users/${editInstructorId}/photo`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrfToken2 },
+            body: photoFd,
+          });
+          if (photoRes.ok) {
+            const photoData = await photoRes.json();
+            // Update instructors list so cards reflect new photo immediately
+            setInstructors(prev => prev.map(i =>
+              i.id === editInstructorId
+                ? { ...i, profile_picture: photoData.profile_picture }
+                : i
+            ));
+          }
+        } catch { /* ignore photo upload failure */ }
+      }
+
+      setEditInstructorPhotoFile(null);
+      setEditInstructorPhotoPreview(null);
       await loadCourses();
     } catch (err: any) {
       alert(err.message);
@@ -889,8 +931,16 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           <div key={course.id} className="bg-white rounded-lg shadow hover:shadow-md transition-shadow">
             {/* Course Icon */}
             <div className="h-32 bg-gradient-to-br from-green-400 to-green-600 rounded-t-lg flex items-center justify-center">
-              <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center">
-                <AcademicCapIcon className="h-8 w-8 text-green-600" />
+              <div className="w-16 h-16 bg-white rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 shadow-md">
+                {course.instructor_profile_picture ? (
+                  <img src={course.instructor_profile_picture} alt={course.instructor} className="w-full h-full object-cover" />
+                ) : course.instructor !== 'Unassigned' ? (
+                  <span className="text-2xl font-bold text-green-600">
+                    {course.instructor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </span>
+                ) : (
+                  <AcademicCapIcon className="h-8 w-8 text-green-600" />
+                )}
               </div>
             </div>
 
@@ -942,9 +992,26 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               </div>
 
               {/* Department and Instructor */}
-              <div className="text-sm text-gray-600 mb-4">
-                <div className="font-medium">{course.department}</div>
-                <div>Instructor: {course.instructor}</div>
+              <div className="flex items-center gap-2 mb-4">
+                {course.instructor_profile_picture ? (
+                  <img
+                    src={course.instructor_profile_picture}
+                    alt={course.instructor}
+                    className="w-8 h-8 rounded-full object-cover border border-gray-200 flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-green-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-semibold text-green-700">
+                      {course.instructor !== 'Unassigned'
+                        ? course.instructor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+                        : '?'}
+                    </span>
+                  </div>
+                )}
+                <div className="text-sm text-gray-600">
+                  <div className="font-medium">{course.department}</div>
+                  <div>{course.instructor}</div>
+                </div>
               </div>
 
               {/* Manage Content Button */}
@@ -1571,7 +1638,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             <div className="p-6 border-b flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-900">Create New Course</h2>
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); }}
                 className="text-gray-400 hover:text-gray-600 text-xl"
               >
                 <XMarkIcon className="h-6 w-6" />
@@ -1583,6 +1650,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 setIsSubmitting(true);
                 const form = e.currentTarget;
                 const fd = new FormData(form);
+                if (createInstructorId) fd.set('instructor_id', String(createInstructorId));
                 try {
                   await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
                   const csrf = getXsrfToken();
@@ -1590,23 +1658,17 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     method: 'POST',
                     credentials: 'include',
                     headers: {
-                      'Content-Type': 'application/json',
                       'Accept': 'application/json',
                       'X-XSRF-TOKEN': csrf,
                     },
-                    body: JSON.stringify({
-                      title: fd.get('title'),
-                      description: fd.get('description'),
-                      department: fd.get('department'),
-                      instructor_id: fd.get('instructor_id') || null,
-                      status: fd.get('status'),
-                    }),
+                    body: fd,
                   });
                   if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
                     throw new Error(err.message || 'Failed to create course');
                   }
                   setShowCreateModal(false);
+                  setCreateInstructorId(null);
                   await loadCourses();
                 } catch (err: any) {
                   alert(err.message);
@@ -1662,6 +1724,45 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   </select>
                 </div>
               </div>
+
+              {/* Assign Instructor */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assign Instructor</label>
+                {createInstructorId !== null && (() => {
+                  const sel = instructors.find(i => i.id === createInstructorId);
+                  return sel ? (
+                    <div className="flex items-center gap-3 mb-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                      {sel.profile_picture ? (
+                        <img
+                          src={sel.profile_picture}
+                          alt={sel.fullname}
+                          className="w-12 h-12 rounded-full object-cover border-2 border-green-300 flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-green-200 border-2 border-green-300 flex items-center justify-center flex-shrink-0">
+                          <span className="text-base font-bold text-green-800">
+                            {sel.fullname.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{sel.fullname}</p>
+                        <p className="text-xs text-green-600">Assigned Instructor</p>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+                <select
+                  value={createInstructorId ?? ''}
+                  onChange={(e) => setCreateInstructorId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="">Select Instructor</option>
+                  {instructors.map(i => (
+                    <option key={i.id} value={i.id}>{i.fullname}</option>
+                  ))}
+                </select>
+              </div>
               <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
@@ -1672,7 +1773,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); }}
                   className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-md hover:bg-gray-50"
                 >
                   Cancel
@@ -1690,7 +1791,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             <div className="p-6 border-b flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-900">Edit Course</h2>
               <button
-                onClick={() => { setShowEditModal(false); setEditingCourse(null); }}
+                onClick={() => { setShowEditModal(false); setEditingCourse(null); setEditInstructorPhotoFile(null); setEditInstructorPhotoPreview(null); }}
                 className="text-gray-400 hover:text-gray-600 text-xl"
               >
                 ✕
@@ -1747,10 +1848,71 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Assigned to</label>
+                {editInstructorId !== null && (() => {
+                  const sel = instructors.find(i => i.id === editInstructorId);
+                  return sel ? (
+                    <div className="flex items-center gap-3 mb-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                      {/* Clickable avatar with camera overlay */}
+                      <div
+                        className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-green-300 cursor-pointer flex-shrink-0 group"
+                        onClick={() => editInstructorPhotoRef.current?.click()}
+                        title="Click to upload photo"
+                      >
+                        {editInstructorPhotoPreview || sel.profile_picture ? (
+                          <img
+                            src={editInstructorPhotoPreview ?? sel.profile_picture!}
+                            alt={sel.fullname}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-green-200 flex items-center justify-center">
+                            <span className="text-base font-bold text-green-800">
+                              {sel.fullname.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                        {/* Camera overlay on hover */}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity rounded-full">
+                          <CameraIcon className="h-5 w-5 text-white" />
+                          <span className="text-white text-[9px] font-medium mt-0.5">Upload</span>
+                        </div>
+                      </div>
+                      <input
+                        ref={editInstructorPhotoRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          setEditInstructorPhotoFile(file);
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => setEditInstructorPhotoPreview(reader.result as string);
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{sel.fullname}</p>
+                        <p className="text-xs text-green-600">Assigned Instructor</p>
+                        {editInstructorPhotoFile && (
+                          <p className="text-xs text-blue-600 mt-0.5">📷 New photo ready to save</p>
+                        )}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
                 <select
                   name="instructor_id"
                   value={editInstructorId ?? ''}
-                  onChange={(e) => setEditInstructorId(e.target.value ? Number(e.target.value) : null)}
+                  onChange={(e) => {
+                    const newId = e.target.value ? Number(e.target.value) : null;
+                    setEditInstructorId(newId);
+                    // Reset photo state to the new instructor's existing photo
+                    const newInst = instructors.find(i => i.id === newId);
+                    setEditInstructorPhotoPreview(newInst?.profile_picture ?? null);
+                    setEditInstructorPhotoFile(null);
+                  }}
                   className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">Unassigned</option>
@@ -1771,7 +1933,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setShowEditModal(false); setEditingCourse(null); }}
+                  onClick={() => { setShowEditModal(false); setEditingCourse(null); setEditInstructorPhotoFile(null); setEditInstructorPhotoPreview(null); }}
                   className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-md hover:bg-gray-50"
                 >
                   Cancel

@@ -7,7 +7,8 @@ import {
   Filter,
   X,
   AlertCircle,
-  Loader2
+  Loader2,
+  Camera
 } from 'lucide-react';
 
 interface User {
@@ -22,6 +23,7 @@ interface User {
   role: 'Admin' | 'Instructor' | 'Employee';
   status: 'Active' | 'Inactive';
   created_at?: string;
+  profile_picture?: string | null;
 }
 
 interface FormData {
@@ -59,12 +61,15 @@ export function UserManagement() {
   const [formRole, setFormRole] = useState<'Admin' | 'Instructor' | 'Employee'>('Employee');
   const [formSubdepartmentIds, setFormSubdepartmentIds] = useState<number[]>([]);
   const [formIsHead, setFormIsHead] = useState(false);
+  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
+  const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
 
   // Form refs
   const fullNameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const statusRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Helper to read a cookie value
   const getCookie = (name: string) => {
@@ -180,6 +185,8 @@ export function UserManagement() {
     setFormSubdepartmentIds(user?.subdepartments?.map(s => s.id) || []);
     setFormIsHead(user?.head_of_departments && user.head_of_departments.length > 0 ? true : false);
     setFormError(null);
+    setProfilePictureFile(null);
+    setProfilePicturePreview(user?.profile_picture ? `/storage/${user.profile_picture}` : null);
     setIsModalOpen(true);
   };
 
@@ -192,6 +199,8 @@ export function UserManagement() {
     setFormSubdepartmentIds([]);
     setFormIsHead(false);
     setFormError(null);
+    setProfilePictureFile(null);
+    setProfilePicturePreview(null);
   };
 
   // Form submit handler
@@ -280,6 +289,22 @@ export function UserManagement() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || 'Failed to save user');
+      }
+
+      // Upload photo if a new file was selected
+      if (profilePictureFile) {
+        const userId = editingUser?.id ?? (await response.json().catch(() => ({}))).user?.id;
+        if (userId) {
+          const xsrfToken2 = await getXsrfToken();
+          const photoFormData = new FormData();
+          photoFormData.append('profile_picture', profilePictureFile);
+          await fetch(`${API_BASE}/admin/users/${userId}/photo`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': xsrfToken2 },
+            body: photoFormData,
+          }).catch(() => { /* silently ignore photo upload failure */ });
+        }
       }
 
       // Reload users
@@ -400,9 +425,17 @@ export function UserManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold">
-                            {(user.fullname || '?').charAt(0).toUpperCase()}
-                          </div>
+                          {user.profile_picture ? (
+                            <img
+                              src={`/storage/${user.profile_picture}`}
+                              alt={user.fullname}
+                              className="h-10 w-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold">
+                              {(user.fullname || '?').charAt(0).toUpperCase()}
+                            </div>
+                          )}
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-slate-900">
@@ -507,6 +540,42 @@ export function UserManagement() {
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* Profile Picture Upload */}
+                  <div className="flex flex-col items-center pb-2">
+                    <div
+                      className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-dashed border-green-300 cursor-pointer hover:border-green-500 group"
+                      onClick={() => photoInputRef.current?.click()}
+                    >
+                      {profilePicturePreview ? (
+                        <img src={profilePicturePreview} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-green-50 flex flex-col items-center justify-center">
+                          <Camera className="h-8 w-8 text-green-400 group-hover:text-green-600" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-full">
+                        <Camera className="h-6 w-6 text-white" />
+                      </div>
+                    </div>
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setProfilePictureFile(file);
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => setProfilePicturePreview(reader.result as string);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    <p className="text-xs text-slate-400 mt-2">
+                      {profilePicturePreview ? 'Click photo to change' : 'Click to upload photo'}
+                    </p>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700">
                       Full Name <span className="text-red-500">*</span>

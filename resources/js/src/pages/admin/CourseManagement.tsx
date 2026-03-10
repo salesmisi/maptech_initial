@@ -30,6 +30,7 @@ export interface Course {
   subdepartment_id?: number | null;
   instructor: string;
   instructor_id?: number | string | null;
+  instructor_profile_picture?: string | null;
   status: 'Active' | 'Draft' | 'Inactive';
   start_date?: string | null;
   deadline?: string | null;
@@ -46,6 +47,7 @@ export interface Course {
 interface Instructor {
   id: number;
   fullname: string;
+  profile_picture?: string | null;
 }
 
 interface DeptWithSubs {
@@ -144,6 +146,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [departments, setDepartments] = useState<DeptWithSubs[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [selectedInstructorId, setSelectedInstructorId] = useState<number | string>('');
 
   // Debug: Monitor modules state changes
   useEffect(() => {
@@ -190,6 +193,9 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
         subdepartment_id: course.subdepartment_id || null,
         instructor: course.instructor?.fullname || 'Unassigned',
         instructor_id: course.instructor_id,
+        instructor_profile_picture: course.instructor?.profile_picture
+          ? `/storage/${course.instructor.profile_picture}`
+          : null,
         status: course.status,
         start_date: course.start_date,
         deadline: course.deadline,
@@ -212,7 +218,11 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
       });
       if (!res.ok) return;
       const data = await res.json();
-      setInstructors(data.map((u: any) => ({ id: u.id, fullname: u.fullname })));
+      setInstructors(data.map((u: any) => ({
+        id: u.id,
+        fullname: u.fullname,
+        profile_picture: u.profile_picture ? `/storage/${u.profile_picture}` : null,
+      })));
     } catch { /* ignore */ }
   }, []);
 
@@ -268,6 +278,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
     if (course) {
       setEditingCourse(course);
       setSelectedDepartment(course.department || '');
+      setSelectedInstructorId(course.instructor_id ?? '');
       // Load existing modules for editing (without files since they're already uploaded)
       setModules(course.modules?.map((m, index) => ({
         id: index + 1,
@@ -277,6 +288,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
     } else {
       setEditingCourse(null);
       setSelectedDepartment('');
+      setSelectedInstructorId('');
       setModules([]);
     }
     setIsModalOpen(true);
@@ -284,6 +296,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingCourse(null);
+    setSelectedInstructorId('');
     setModules([]);
   };
   // Form Submit Handler
@@ -412,7 +425,21 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
             <div
             className={`h-32 ${notStarted ? 'bg-gray-400' : course.thumbnail} flex items-center justify-center`}>
 
-              <BookOpen className="h-12 w-12 text-white opacity-50" />
+              {course.instructor_profile_picture ? (
+                <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-white/80 shadow-md">
+                  <img src={course.instructor_profile_picture} alt={course.instructor} className="w-full h-full object-cover" />
+                </div>
+              ) : course.instructor !== 'Unassigned' ? (
+                <div className="w-16 h-16 rounded-full bg-white/20 border-4 border-white/80 shadow-md flex items-center justify-center">
+                  <span className="text-2xl font-bold text-white">
+                    {course.instructor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </span>
+                </div>
+              ) : (
+                <div className="w-16 h-16 bg-white/20 rounded-lg flex items-center justify-center">
+                  <BookOpen className="h-12 w-12 text-white opacity-50" />
+                </div>
+              )}
             </div>
             <div className="p-6">
               <div className="flex justify-between items-start">
@@ -464,13 +491,30 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
               )}
 
               <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
-                <div>
-                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                    {course.department}
-                  </span>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Instructor: {course.instructor}
-                  </p>
+                <div className="flex items-center gap-2">
+                  {course.instructor_profile_picture ? (
+                    <img
+                      src={course.instructor_profile_picture}
+                      alt={course.instructor}
+                      className="w-8 h-8 rounded-full object-cover border border-slate-200 flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-green-100 border border-slate-200 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-semibold text-green-700">
+                        {course.instructor !== 'Unassigned'
+                          ? course.instructor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+                          : '?'}
+                      </span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                      {course.department}
+                    </span>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {course.instructor}
+                    </p>
+                  </div>
                 </div>
                 <button
                   onClick={() => onNavigate?.('course-detail', String(course.id))}
@@ -609,9 +653,35 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Assign Instructor</label>
+                {/* Selected instructor preview */}
+                {selectedInstructorId !== '' && (() => {
+                  const sel = instructors.find(i => String(i.id) === String(selectedInstructorId));
+                  return sel ? (
+                    <div className="flex items-center gap-3 mb-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                      {sel.profile_picture ? (
+                        <img
+                          src={sel.profile_picture}
+                          alt={sel.fullname}
+                          className="w-10 h-10 rounded-full object-cover border-2 border-green-300 flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-green-200 border-2 border-green-300 flex items-center justify-center flex-shrink-0">
+                          <span className="text-sm font-bold text-green-800">
+                            {sel.fullname.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">{sel.fullname}</p>
+                        <p className="text-xs text-green-600">Assigned Instructor</p>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+                <input type="hidden" name="instructor_id" value={selectedInstructorId} />
                 <select
-                  name="instructor_id"
-                  defaultValue={editingCourse?.instructor_id ?? ''}
+                  value={selectedInstructorId}
+                  onChange={(e) => setSelectedInstructorId(e.target.value)}
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">Select Instructor</option>
