@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { LogIn, LogOut, RefreshCw, Clock } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { RefreshCw, Clock, LogOut } from "lucide-react";
 
 interface AuditEntry {
   id: number;
@@ -113,22 +113,46 @@ export function UserTimeLog() {
 
   const formatDateTime = (iso: string | null) => {
     if (!iso) return null;
-    const d = new Date(iso);
+    // Robust parsing: if the timestamp is a space-separated local datetime
+    // like "YYYY-MM-DD HH:MM:SS" we'll parse components and construct
+    // a Date in local time to avoid cross-browser inconsistencies.
+    const parseToDate = (s: string): Date => {
+      const localPattern = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/;
+      const m = s.match(localPattern);
+      if (m) {
+        const year = parseInt(m[1], 10);
+        const month = parseInt(m[2], 10) - 1;
+        const day = parseInt(m[3], 10);
+        const hour = parseInt(m[4], 10);
+        const minute = parseInt(m[5], 10);
+        const second = m[6] ? parseInt(m[6], 10) : 0;
+        return new Date(year, month, day, hour, minute, second);
+      }
+      // Fallback to native parser for ISO strings with timezone
+      return new Date(s);
+    };
+
+    const d = parseToDate(iso);
     const now = new Date();
     const isToday = d.toDateString() === now.toDateString();
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
     const isYesterday = d.toDateString() === yesterday.toDateString();
-    const timeStr = d.toLocaleTimeString("en-US", {
+
+    // Build localized time string with AM/PM, then split into time and period.
+    const fullTime = d.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
-      second: "2-digit",
       hour12: true,
     });
+    const m = fullTime.match(/^(.*)\s?(AM|PM)$/i);
+    const timeOnly = m ? m[1].trim() : fullTime;
+    const period = m ? m[2].toUpperCase() : (d.getHours() >= 12 ? "PM" : "AM");
+
     if (isToday) {
-      return { date: "Today", time: timeStr };
+      return { date: "Today", time: timeOnly, period };
     } else if (isYesterday) {
-      return { date: "Yesterday", time: timeStr };
+      return { date: "Yesterday", time: timeOnly, period };
     } else {
       return {
         date: d.toLocaleDateString("en-US", {
@@ -137,7 +161,8 @@ export function UserTimeLog() {
           day: "numeric",
           year: "numeric",
         }),
-        time: timeStr,
+        time: timeOnly,
+        period,
       };
     }
   };
@@ -193,19 +218,25 @@ export function UserTimeLog() {
                 const timeOut = formatDateTime(session.time_out);
                 return (
                   <tr key={session.id}>
-                    <td className="px-4 py-2">
-                      {timeIn ? (
-                        <div>
-                          <span className="block text-xs text-gray-500">{timeIn.date}</span>
-                          <span className="block text-green-700 font-semibold">{timeIn.time}</span>
-                        </div>
-                      ) : <span className="text-gray-400">—</span>}
-                    </td>
+                        <td className="px-4 py-2">
+                          {timeIn ? (
+                            <div>
+                              <span className="block text-xs text-gray-500">{timeIn.date}</span>
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-green-700 font-semibold">{timeIn.time}</span>
+                                <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{timeIn.period}</span>
+                              </div>
+                            </div>
+                          ) : <span className="text-gray-400">—</span>}
+                        </td>
                     <td className="px-4 py-2">
                       {timeOut ? (
                         <div>
                           <span className="block text-xs text-gray-500">{timeOut.date}</span>
-                          <span className="block text-red-600 font-semibold">{timeOut.time}</span>
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-red-600 font-semibold">{timeOut.time}</span>
+                            <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{timeOut.period}</span>
+                          </div>
                         </div>
                       ) : <span className="text-gray-400">—</span>}
                     </td>

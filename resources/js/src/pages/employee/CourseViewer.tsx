@@ -17,6 +17,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { sanitizeHtml } from '../../components/RichTextEditor';
+import YouTubePlayer from '../../components/YouTubePlayer';
 
 const API_BASE = '/api';
 
@@ -321,13 +322,20 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     ) : null;
 
     if (file_type === 'video') {
+      // Check if content_url is a YouTube link
+      const isYouTube = content_url && (/youtube\.com|youtu\.be/.test(content_url));
       return (
         <div className="space-y-4">
           {textBlock}
           <div className="aspect-video bg-slate-900 rounded-xl overflow-hidden">
-            <video controls className="w-full h-full" src={content_url}>
-              Your browser does not support the video tag.
-            </video>
+            {isYouTube ? (
+              // YouTube player container; we'll initialize the YT player via JS API
+              <YouTubePlayer contentUrl={content_url!} lessonId={currentLesson!.id} />
+            ) : (
+              <video controls className="w-full h-full" src={content_url}>
+                Your browser does not support the video tag.
+              </video>
+            )}
           </div>
         </div>
       );
@@ -980,3 +988,5 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     </div>
   );
 }
+
+// YouTube player now provided by shared component at ../../components/YouTubePlayer

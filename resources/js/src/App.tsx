@@ -39,6 +39,7 @@ import { EmployeeNotifications } from './pages/employee/EmployeeNotifications';
 
 // Shared Pages
 import { ProfileSettings } from './pages/shared/ProfileSettings';
+import { YTDebug } from './pages/debug/YTDebug';
 
 interface User {
   id?: number;
@@ -173,6 +174,11 @@ export function App() {
         <div className="text-slate-600">Loading...</div>
       </div>
     );
+  }
+
+  // Unauthenticated debug route for YouTube player preview
+  if (typeof window !== 'undefined' && window.location.pathname === '/yt-debug') {
+    return <YTDebug />;
   }
 
   // =========================

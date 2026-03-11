@@ -102,7 +102,7 @@ export function EnrollmentManagement() {
 
   const loadModalData = async () => {
     try {
-      const [coursesRes, usersRes] = await Promise.all([
+      const [coursesRes, usersRes, departmentsRes] = await Promise.all([
         fetch(`${API_BASE}/admin/courses`, { credentials: 'include', headers: { Accept: 'application/json' } }),
         fetch(`${API_BASE}/admin/users`, { credentials: 'include', headers: { Accept: 'application/json' } }),
         fetch(`${API_BASE}/departments`, { credentials: 'include', headers: { Accept: 'application/json' } }),
@@ -115,16 +115,13 @@ export function EnrollmentManagement() {
         const u = await usersRes.json();
         setUsers(u.map((x: any) => ({ id: x.id, fullname: x.fullname, email: x.email, department: x.department })));
       }
-      if (/* departmentsRes exists */ true) {
-        try {
-          const dRes = await fetch(`${API_BASE}/departments`, { credentials: 'include', headers: { Accept: 'application/json' } });
-          if (dRes.ok) {
-            const d = await dRes.json();
-            setDepartments(d.map((x: any) => ({ id: x.id, name: x.name })));
-          }
-        } catch {}
+      if (departmentsRes && departmentsRes.ok) {
+        const d = await departmentsRes.json();
+        setDepartments(d.map((x: any) => ({ id: x.id, name: x.name })));
       }
-    } catch {}
+    } catch (e) {
+      // ignore for now
+    }
   };
 
   const searchUsers = async (q: string) => {
@@ -134,14 +131,14 @@ export function EnrollmentManagement() {
     }
     try {
       setIsSearchingUsers(true);
-      // If we already loaded the full users list, perform client-side search and department filter
-      if (users && users.length > 0) {
-        const deptName = selectedDeptId ? departments.find(d => d.id === Number(selectedDeptId))?.name : undefined;
-        const matched = users.filter(u => u.fullname.toLowerCase().includes(q.toLowerCase()) && (!deptName || (u.department || '').toLowerCase() === (deptName || '').toLowerCase()));
-        setSearchResults(matched);
-        return;
+      // Always query backend so newly created users are immediately searchable.
+      const params = new URLSearchParams();
+      params.set('q', q);
+      if (selectedDeptId) {
+        const deptName = departments.find(d => d.id === Number(selectedDeptId))?.name;
+        if (deptName) params.set('department', deptName);
       }
-      const res = await fetch(`${API_BASE}/admin/users?q=${encodeURIComponent(q)}`, { credentials: 'include', headers: { Accept: 'application/json' } });
+      const res = await fetch(`${API_BASE}/admin/users?${params.toString()}`, { credentials: 'include', headers: { Accept: 'application/json' } });
       if (!res.ok) return setSearchResults([]);
       const data = await res.json();
       const usersFound = Array.isArray(data) ? data : (data?.data || []);
@@ -171,6 +168,21 @@ export function EnrollmentManagement() {
     setEnrollError(null);
     loadModalData();
   };
+
+  // Poll for updates while modal is open so newly created users appear in search
+  useEffect(() => {
+    let timer: number | null = null;
+    if (isModalOpen) {
+      // ensure initial data loaded
+      loadModalData();
+      timer = window.setInterval(() => {
+        loadModalData();
+      }, 5000) as unknown as number;
+    }
+    return () => {
+      if (timer) window.clearInterval(timer as unknown as number);
+    };
+  }, [isModalOpen]);
 
   const handleEnroll = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -461,12 +473,17 @@ export function EnrollmentManagement() {
                     <div className="mt-1 border border-slate-200 rounded bg-white max-h-48 overflow-auto">
                       {searchResults.map(u => (
                         <div key={u.id} className="px-3 py-2 hover:bg-slate-50 cursor-pointer" onClick={() => {
-                          if (!selectedUserIds.includes(u.id)) {
-                            setSelectedUserIds(prev => [...prev, u.id]);
-                            setSelectedUsers(prev => [...prev, u]);
-                          }
-                          setSearchResults([]);
-                          setUserQuery('');
+                              if (!selectedUserIds.includes(u.id)) {
+                                setSelectedUserIds(prev => [...prev, u.id]);
+                                setSelectedUsers(prev => [...prev, u]);
+                              }
+                              // If no department selected yet, auto-select the user's department
+                              if (!selectedDeptId && u.department) {
+                                const dept = departments.find(d => d.name === u.department);
+                                if (dept) setSelectedDeptId(dept.id);
+                              }
+                              setSearchResults([]);
+                              setUserQuery('');
                         }}>
                           <div className="text-sm font-medium text-slate-900">{u.fullname}</div>
                           <div className="text-xs text-slate-400">{u.email} — {u.department}</div>
@@ -498,11 +515,15 @@ export function EnrollmentManagement() {
                     onChange={(e) => setSelectedCourseId(e.target.value)}
                   >
                     <option value="">-- Select a course --</option>
-                    {courses.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.title} ({c.department})
-                      </option>
-                    ))}
+                    {(() => {
+                      const deptName = selectedDeptId ? departments.find(d => d.id === Number(selectedDeptId))?.name : null;
+                      const filtered = deptName ? courses.filter(c => c.department === deptName) : courses;
+                      return filtered.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.title} ({c.department})
+                        </option>
+                      ));
+                    })()}
                   </select>
                 </div>
                 <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">

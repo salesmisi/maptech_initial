@@ -180,17 +180,18 @@ export function AuditLogs() {
     yesterday.setDate(yesterday.getDate() - 1);
     const isYesterday = d.toDateString() === yesterday.toDateString();
 
-    const timeStr = d.toLocaleTimeString("en-US", {
+    const fullTime = d.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
-      second: "2-digit",
       hour12: true,
     });
+    const time = fullTime.replace(/\s?(AM|PM)$/i, "").trim();
+    const period = d.getHours() >= 12 ? "PM" : "AM";
 
     if (isToday) {
-      return { date: "Today", time: timeStr };
+      return { date: "Today", time, period };
     } else if (isYesterday) {
-      return { date: "Yesterday", time: timeStr };
+      return { date: "Yesterday", time, period };
     } else {
       return {
         date: d.toLocaleDateString("en-US", {
@@ -199,7 +200,8 @@ export function AuditLogs() {
           day: "numeric",
           year: "numeric",
         }),
-        time: timeStr,
+        time,
+        period,
       };
     }
   };
@@ -408,6 +410,7 @@ export function AuditLogs() {
                             <span className="text-xs text-gray-500">{timeIn.date}</span>
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-green-600">{timeIn.time}</span>
+                              <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{timeIn.period}</span>
                               {!timeOut && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
                                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
@@ -424,7 +427,10 @@ export function AuditLogs() {
                         {timeOut ? (
                           <div className="flex flex-col">
                             <span className="text-xs text-gray-500">{timeOut.date}</span>
-                            <span className="text-sm font-medium text-red-600">{timeOut.time}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-red-600">{timeOut.time}</span>
+                              <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{timeOut.period}</span>
+                            </div>
                           </div>
                         ) : (
                           <span className="text-sm text-gray-400">—</span>

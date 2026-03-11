@@ -23,5 +23,7 @@ User::factory()->create([
     'role' => 'employee',
     'status' => 'Active',
 ]);
+        // Add example YouTube lesson for testing (seed separately)
+        $this->call(\Database\Seeders\YouTubeLessonSeeder::class);
     }
 }

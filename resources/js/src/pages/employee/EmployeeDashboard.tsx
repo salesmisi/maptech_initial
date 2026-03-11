@@ -414,6 +414,12 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
               View Certificates
             </button>
           </div>
+
+          {/* Time Log */}
+          <div className="bg-white rounded-lg shadow-sm border border-slate-100 p-6">
+            <h3 className="text-lg font-bold mb-4">Time Log</h3>
+            <UserTimeLog />
+          </div>
         </div>
       </div>
     </div>);

@@ -23,6 +23,7 @@ import {
   UserMinus,
 } from 'lucide-react';
 import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
+import YouTubePlayer from '../../components/YouTubePlayer';
 
 const API_BASE = '/api';
 
@@ -949,9 +950,15 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                       )}
                                       {lesson.content_url && lesson.file_type === 'video' && (
                                         <div className="px-4 pb-3 pt-1 border-t border-slate-200">
-                                          <video controls className="w-full max-h-80 rounded-md bg-black">
-                                            <source src={lesson.content_url} />
-                                          </video>
+                                          {/(youtube\.com|youtu\.be)/.test(lesson.content_url) ? (
+                                            <div className="w-full max-h-80 rounded-md overflow-hidden">
+                                              <YouTubePlayer contentUrl={lesson.content_url} lessonId={lesson.id} />
+                                            </div>
+                                          ) : (
+                                            <video controls className="w-full max-h-80 rounded-md bg-black">
+                                              <source src={lesson.content_url} />
+                                            </video>
+                                          )}
                                         </div>
                                       )}
                                       {lesson.content_url && lesson.file_type === 'pdf' && (

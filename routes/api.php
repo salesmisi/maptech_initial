@@ -171,6 +171,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\CourseController as AdminCourseController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\QuizController as AdminQuizController;
+use App\Http\Controllers\AnalyticsController;
 
 // Test route for debugging
 Route::get('/test-auth', function () {
@@ -269,7 +270,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         Route::get('/auth-check', [\App\Http\Controllers\YouTubeController::class, 'checkAuth']);
         Route::get('/videos', [\App\Http\Controllers\YouTubeController::class, 'listVideos']);
         Route::get('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'getVideo']);
-        Route::put('/videos', [\App\Http\Controllers\YouTubeController::class, 'updateVideo']);
+        Route::put('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'updateVideo']);
         Route::post('/videos/tags', [\App\Http\Controllers\YouTubeController::class, 'updateVideoTags']);
         Route::post('/videos/upload', [\App\Http\Controllers\YouTubeController::class, 'uploadVideo']);
         Route::delete('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'deleteVideo']);
@@ -286,6 +287,12 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         Route::post('/notify-user', [\App\Http\Controllers\NotificationController::class, 'adminNotifyUser']);
     });
 });
+
+// Public (authenticated) endpoint to record lesson events (play/pause/progress)
+Route::post('/lesson-events', [AnalyticsController::class, 'recordLessonEvent'])->middleware(['auth:sanctum', 'status']);
+
+// Admin: get recent lesson events (optionally filter by lesson or user)
+Route::get('/admin/lesson-events', [AnalyticsController::class, 'recentLessonEvents'])->middleware(['auth:sanctum', 'status', 'role:Admin']);
 
 
 /*
@@ -353,7 +360,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
         Route::get('/auth-check', [\App\Http\Controllers\YouTubeController::class, 'checkAuth']);
         Route::get('/videos', [\App\Http\Controllers\YouTubeController::class, 'listVideos']);
         Route::get('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'getVideo']);
-        Route::put('/videos', [\App\Http\Controllers\YouTubeController::class, 'updateVideo']);
+        Route::put('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'updateVideo']);
         Route::post('/videos/tags', [\App\Http\Controllers\YouTubeController::class, 'updateVideoTags']);
         Route::post('/videos/upload', [\App\Http\Controllers\YouTubeController::class, 'uploadVideo']);
         Route::delete('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'deleteVideo']);

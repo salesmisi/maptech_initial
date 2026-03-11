@@ -623,7 +623,71 @@ export function UserManagement() {
                     </select>
                   </div>
 
-                  {/* Department and subdepartment selection removed from Add/Edit User modal per request */}
+                  {/* Department and subdepartment selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700">Department</label>
+                    <select
+                      value={formDepartment}
+                      onChange={(e) => {
+                        setFormDepartment(e.target.value);
+                        setFormSubdepartment('');
+                        setFormSubdepartmentIds([]);
+                        setFormIsHead(false);
+                      }}
+                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    >
+                      <option value="">Select department</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.name}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {formRole === 'Employee' && formDepartment && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700">Subdepartment</label>
+                      <select
+                        value={formSubdepartment}
+                        onChange={(e) => setFormSubdepartment(e.target.value)}
+                        className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      >
+                        <option value="">Select subdepartment (optional)</option>
+                        {(departments.find(d => d.name === formDepartment)?.subdepartments || []).map(s => (
+                          <option key={s.id} value={String(s.id)}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {formRole === 'Instructor' && formDepartment && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700">Instructor Subdepartments</label>
+                      <select
+                        multiple
+                        value={formSubdepartmentIds.map(String)}
+                        onChange={(e) => {
+                          const vals = Array.from(e.target.selectedOptions).map(o => Number(o.value));
+                          setFormSubdepartmentIds(vals);
+                        }}
+                        className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 h-28 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      >
+                        {(departments.find(d => d.name === formDepartment)?.subdepartments || []).map(s => (
+                          <option key={s.id} value={String(s.id)}>{s.name}</option>
+                        ))}
+                      </select>
+
+                      <div className="flex items-center mt-2">
+                        <input
+                          type="checkbox"
+                          checked={formIsHead}
+                          onChange={(e) => setFormIsHead(e.target.checked)}
+                          className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
+                        />
+                        <label className="ml-2 block text-sm text-slate-900">Set as Department Head</label>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-center">
                     <input
                       ref={statusRef}
