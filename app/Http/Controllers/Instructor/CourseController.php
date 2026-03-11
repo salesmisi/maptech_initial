@@ -582,7 +582,6 @@ $module = $course->modules()->create($data);
 
         $course->enrollments()->create([
             'user_id'     => $request->user_id,
-            'status'      => 'Not Started',
             'progress'    => 0,
             'enrolled_at' => now(),
         ]);

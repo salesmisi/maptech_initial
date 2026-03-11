@@ -51,8 +51,23 @@ export function NotificationManagement() {
   const [searchResults, setSearchResults] = useState<{ id: number; fullname: string; role: string }[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const userSearchTimer = React.useRef<number | null>(null);
+  const [selectedUsers, setSelectedUsers] = useState<{ id: number; fullname: string; role: string }[]>([]);
+  const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
 
   const token = localStorage.getItem('token');
+
+  // Helper to read cookie value
+  const getCookie = (name: string) => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
+  };
+
+  const getXsrfToken = async (): Promise<string> => {
+    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+    return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
+  };
 
   // Load notifications
   useEffect(() => {
@@ -156,25 +171,32 @@ export function NotificationManagement() {
   };
 
   const handleAddUser = (user: { id: number; fullname: string; role: string }) => {
-    if (formData.target_user_ids.includes(user.id)) return;
-    setFormData(prev => ({ ...prev, target_user_ids: [...prev.target_user_ids, user.id] }));
+    // Ensure we always keep canonical selected user objects for display.
+    if (!formData.target_user_ids.includes(user.id)) {
+      setFormData(prev => ({ ...prev, target_user_ids: [...prev.target_user_ids, user.id] }));
+    }
+    if (!selectedUsers.find(u => u.id === user.id)) {
+      setSelectedUsers(prev => [...prev, user]);
+    }
     setSearchResults([]);
     setUserQuery('');
   };
 
   const handleRemoveUser = (userId: number) => {
     setFormData(prev => ({ ...prev, target_user_ids: prev.target_user_ids.filter(id => id !== userId) }));
+    setSelectedUsers(prev => prev.filter(u => u.id !== userId));
   };
 
   const searchUsers = async (q: string) => {
-    if (!q || q.length < 2) {
+    if (!q || q.length < 1) {
       setSearchResults([]);
       return;
     }
     try {
       setIsSearchingUsers(true);
       const roleParam = formData.roles.length === 1 ? `&role=${encodeURIComponent(formData.roles[0])}` : '';
-      const res = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}${roleParam}`, {
+      const deptParam = selectedDepartment ? `&department_id=${encodeURIComponent(selectedDepartment)}` : '';
+      const res = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}${roleParam}${deptParam}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
@@ -198,7 +220,15 @@ export function NotificationManagement() {
       searchUsers(userQuery);
     }, 300) as unknown as number;
     return () => { if (userSearchTimer.current) window.clearTimeout(userSearchTimer.current); };
-  }, [userQuery, formData.roles]);
+  }, [userQuery, formData.roles, selectedDepartment]);
+
+  // load departments for selector
+  useEffect(() => {
+    fetch('/api/departments')
+      .then(res => res.json())
+      .then(data => setDepartments(Array.isArray(data) ? data : []))
+      .catch(err => console.error('Failed to load departments:', err));
+  }, []);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,18 +239,23 @@ export function NotificationManagement() {
 
     setIsSending(true);
     try {
+      const xsrf = await getXsrfToken();
       const res = await fetch('/api/admin/notifications/announce', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrf,
         },
         body: JSON.stringify({
           title: formData.title,
           message: formData.message,
           roles: formData.roles,
           course_id: formData.course_id || null,
+            department_id: selectedDepartment ? Number(selectedDepartment) : null,
           target_user_ids: formData.target_user_ids && formData.target_user_ids.length > 0 ? formData.target_user_ids : null,
         }),
       });
@@ -507,16 +542,29 @@ export function NotificationManagement() {
                         </label>
                       ))}
                     </div>
-                    {/* Search specific users */}
-                    <div className="mt-3">
-                      <label className="block text-sm font-medium text-slate-700">Search Users (by name)</label>
-                      <input
-                        type="text"
-                        value={userQuery}
-                        onChange={(e) => setUserQuery(e.target.value)}
-                        placeholder="Type a name to search instructors or employees"
-                        className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                      />
+                    <div className="mt-3 grid grid-cols-1 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700">Department (optional)</label>
+                        <select
+                          value={selectedDepartment}
+                          onChange={(e) => setSelectedDepartment(e.target.value)}
+                          className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                        >
+                          <option value="">All departments</option>
+                          {departments.map(d => (
+                            <option key={d.id} value={String(d.id)}>{d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700">Search Users (by name)</label>
+                        <input
+                          type="text"
+                          value={userQuery}
+                          onChange={(e) => setUserQuery(e.target.value)}
+                          placeholder="Type a name to search instructors or employees"
+                          className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                        />
                       {searchResults.length > 0 && (
                         <div className="mt-1 border border-slate-200 rounded bg-white max-h-48 overflow-auto">
                           {searchResults.map(u => (
@@ -527,16 +575,17 @@ export function NotificationManagement() {
                           ))}
                         </div>
                       )}
-                      {formData.target_user_ids.length > 0 && (
+                      {selectedUsers.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {formData.target_user_ids.map(id => (
-                            <span key={id} className="inline-flex items-center gap-2 px-2 py-1 bg-slate-100 text-slate-700 rounded-full text-xs">
-                              <span>User {id}</span>
-                              <button type="button" onClick={() => handleRemoveUser(id)} className="text-slate-400 hover:text-red-600">×</button>
+                          {selectedUsers.map(u => (
+                            <span key={u.id} className="inline-flex items-center gap-2 px-2 py-1 bg-slate-100 text-slate-700 rounded-full text-xs">
+                              <span>{u.fullname}</span>
+                              <button type="button" onClick={() => handleRemoveUser(u.id)} className="text-slate-400 hover:text-red-600">×</button>
                             </span>
                           ))}
                         </div>
                       )}
+                      </div>
                     </div>
                   </div>
                   <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">

@@ -15,6 +15,7 @@ import { EnrollmentManagement } from './pages/admin/EnrollmentManagement';
 import { ReportsAnalytics } from './pages/admin/ReportsAnalytics';
 import { NotificationManagement } from './pages/admin/NotificationManagement';
 import { AuditLogs } from './pages/admin/AuditLogs';
+import { AdminFeedback } from './pages/admin/AdminFeedback';
 
 // Instructor Pages
 import { InstructorDashboard } from './pages/instructor/InstructorDashboard';
@@ -25,6 +26,7 @@ import { QuizAssessmentManagement } from './pages/instructor/QuizAssessmentManag
 import { LessonVideoUpload } from './pages/instructor/LessonVideoUpload';
 import { QuizEvaluation } from './pages/instructor/QuizEvaluation';
 import { InstructorNotifications } from './pages/instructor/InstructorNotifications';
+import { InstructorFeedback } from './pages/instructor/InstructorFeedback';
 
 // Employee Pages
 import { EmployeeDashboard } from './pages/employee/EmployeeDashboard';
@@ -209,6 +211,7 @@ export function App() {
         {currentPage === 'notifications' && <NotificationManagement />}
         {currentPage === 'qa' && <AdminQADiscussion userId={user.id} />}
         {currentPage === 'audit-logs' && <AuditLogs />}
+        {currentPage === 'feedbacks' && <AdminFeedback />}
         {currentPage === 'settings' && <ProfileSettings />}
       </AdminLayout>
     );
@@ -234,6 +237,7 @@ export function App() {
         {currentPage === 'evaluation' && <QuizEvaluation />}
         {currentPage === 'qa-discussion' && <InstructorQADiscussion userId={user.id} />}
         {currentPage === 'notifications' && <InstructorNotifications />}
+        {currentPage === 'feedbacks' && <InstructorFeedback />}
         {currentPage === 'settings' && <ProfileSettings />}
       </InstructorLayout>
     );

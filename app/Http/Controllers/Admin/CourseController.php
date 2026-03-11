@@ -355,7 +355,6 @@ class CourseController extends Controller
 
         $course->enrollments()->create([
             'user_id'     => $request->user_id,
-            'status'      => 'Active',
             'progress'    => 0,
             'enrolled_at' => now(),
         ]);

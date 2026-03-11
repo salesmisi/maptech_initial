@@ -472,10 +472,27 @@ export function EnrollmentManagement() {
                   {searchResults.length > 0 && (
                     <div className="mt-1 border border-slate-200 rounded bg-white max-h-48 overflow-auto">
                       {searchResults.map(u => (
-                        <div key={u.id} className="px-3 py-2 hover:bg-slate-50 cursor-pointer" onClick={() => {
+                        <div key={u.id} className="px-3 py-2 hover:bg-slate-50 cursor-pointer" onClick={async () => {
                               if (!selectedUserIds.includes(u.id)) {
                                 setSelectedUserIds(prev => [...prev, u.id]);
-                                setSelectedUsers(prev => [...prev, u]);
+                                // Resolve canonical user object: prefer preloaded `users`, otherwise fetch single user
+                                const existing = users.find(x => x.id === u.id);
+                                if (existing) {
+                                  setSelectedUsers(prev => [...prev, existing]);
+                                } else {
+                                  try {
+                                    const res = await fetch(`${API_BASE}/admin/users/${u.id}`, { credentials: 'include', headers: { Accept: 'application/json' } });
+                                    if (res.ok) {
+                                      const full = await res.json();
+                                      const mapped = { id: full.id, fullname: full.fullname || full.name || `${full.first_name || ''} ${full.last_name || ''}`.trim(), email: full.email, department: full.department };
+                                      setSelectedUsers(prev => [...prev, mapped]);
+                                    } else {
+                                      setSelectedUsers(prev => [...prev, u]);
+                                    }
+                                  } catch {
+                                    setSelectedUsers(prev => [...prev, u]);
+                                  }
+                                }
                               }
                               // If no department selected yet, auto-select the user's department
                               if (!selectedDeptId && u.department) {

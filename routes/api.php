@@ -265,17 +265,6 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         return $query->paginate(50);
     });
 
-    // YouTube Video Management (Admin)
-    Route::prefix('youtube')->group(function () {
-        Route::get('/auth-check', [\App\Http\Controllers\YouTubeController::class, 'checkAuth']);
-        Route::get('/videos', [\App\Http\Controllers\YouTubeController::class, 'listVideos']);
-        Route::get('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'getVideo']);
-        Route::put('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'updateVideo']);
-        Route::post('/videos/tags', [\App\Http\Controllers\YouTubeController::class, 'updateVideoTags']);
-        Route::post('/videos/upload', [\App\Http\Controllers\YouTubeController::class, 'uploadVideo']);
-        Route::delete('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'deleteVideo']);
-    });
-
     // Notification Management (Admin)
     Route::prefix('notifications')->group(function () {
         Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index']);
@@ -286,6 +275,15 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         Route::post('/announce', [\App\Http\Controllers\NotificationController::class, 'adminAnnounce']);
         Route::post('/notify-user', [\App\Http\Controllers\NotificationController::class, 'adminNotifyUser']);
     });
+
+    // Admin: view lesson feedbacks by department/course/lesson
+    Route::get('/feedbacks', [\App\Http\Controllers\Admin\FeedbackController::class, 'index']);
+    Route::delete('/feedbacks/{id}', [\App\Http\Controllers\Admin\FeedbackController::class, 'destroy']);
+    Route::post('/feedbacks/bulk-delete', [\App\Http\Controllers\Admin\FeedbackController::class, 'bulkDelete']);
+    // Replies to feedback (admin)
+    Route::get('/feedbacks/{id}/replies', [\App\Http\Controllers\Admin\FeedbackReplyController::class, 'index']);
+    Route::post('/feedbacks/{id}/replies', [\App\Http\Controllers\Admin\FeedbackReplyController::class, 'store']);
+    Route::delete('/feedbacks/replies/{id}', [\App\Http\Controllers\Admin\FeedbackReplyController::class, 'destroy']);
 });
 
 // Public (authenticated) endpoint to record lesson events (play/pause/progress)
@@ -375,6 +373,8 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
         Route::delete('/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy']);
         Route::post('/notify-employees', [\App\Http\Controllers\NotificationController::class, 'instructorNotify']);
     });
+    // Instructor access to feedback listing (uses same controller logic)
+    Route::get('/feedbacks', [\App\Http\Controllers\Admin\FeedbackController::class, 'index']);
 });
 
 

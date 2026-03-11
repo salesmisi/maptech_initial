@@ -19,6 +19,7 @@ interface LessonOption {
   title: string;
   module_title: string;
   course_title: string;
+  course_department?: string | null;
 }
 
 export function MyFeedback() {
@@ -40,6 +41,8 @@ export function MyFeedback() {
 
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [lessons, setLessons] = useState<LessonOption[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [userDepartment, setUserDepartment] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<Feedback | null>(null);
@@ -72,6 +75,23 @@ export function MyFeedback() {
       if (res.ok) setLessons(await res.json());
     } catch { /* ignore */ }
   };
+
+  // Load user's profile and default their department
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const prof = await fetch('/api/profile', { credentials: 'include', headers: { Accept: 'application/json' } });
+        if (prof.ok) {
+          const p = await prof.json();
+          if (p.department) {
+            setUserDepartment(p.department);
+            setSelectedDepartment(p.department);
+          }
+        }
+      } catch (err) { /* ignore */ }
+    };
+    load();
+  }, []);
 
   useEffect(() => {
     loadFeedbacks();
@@ -233,7 +253,9 @@ export function MyFeedback() {
                         required
                       >
                         <option value="">-- Select a lesson --</option>
-                        {lessons.map((l) => (
+                        {lessons
+                          .filter(l => !selectedDepartment || (l.course_department || '') === selectedDepartment)
+                          .map((l) => (
                           <option key={l.id} value={l.id}>
                             {l.course_title} &rsaquo; {l.module_title} &rsaquo; {l.title}
                           </option>
@@ -241,6 +263,7 @@ export function MyFeedback() {
                       </select>
                     </div>
                   )}
+                  {/* Department is fixed to the authenticated user's department; no chooser shown */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Rating</label>
                     <div className="flex space-x-1">

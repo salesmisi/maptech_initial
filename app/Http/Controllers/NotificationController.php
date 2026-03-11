@@ -6,6 +6,7 @@ use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class NotificationController extends Controller
 {
@@ -113,18 +114,61 @@ class NotificationController extends Controller
             'roles' => 'required|array|min:1',
             'roles.*' => 'string|in:Instructor,Employee,Admin',
             'course_id' => 'nullable|exists:courses,id',
+            'department' => 'nullable|string|max:255',
+            'target_user_ids' => 'nullable|array',
+            'target_user_ids.*' => 'integer|exists:users,id',
         ]);
 
         $admin = Auth::user();
+
+        // Temporary debug: log incoming payload for troubleshooting
+        Log::debug('adminAnnounce payload', $request->all());
         $roles = $request->input('roles');
+        // Normalize roles to lowercase to match storage convention in User::setRoleAttribute
+        $normalizedRoles = is_array($roles) ? array_map('strtolower', $roles) : [];
         $title = $request->input('title');
         $message = $request->input('message');
         $courseId = $request->input('course_id');
+        $department = $request->input('department');
+        $department_id = $request->input('department_id');
+        // If department_id provided, resolve to department name
+        if ($department_id && !$department) {
+            $dept = \App\Models\Department::find($department_id);
+            if ($dept) {
+                $department = $dept->name;
+            }
+        }
 
-        // Get all users with specified roles
-        $users = User::whereIn('role', $roles)
-            ->where('id', '!=', $admin->id)
-            ->get();
+        // If specific user IDs provided, target those (respecting department/roles)
+        $targetIds = $request->input('target_user_ids');
+        if (is_array($targetIds) && count($targetIds) > 0) {
+            $users = User::whereIn('id', $targetIds)
+                ->where('id', '!=', $admin->id)
+                ->when($normalizedRoles, function ($q) use ($normalizedRoles) {
+                    return $q->whereIn('role', $normalizedRoles);
+                })
+                ->when($department, function ($q) use ($department) {
+                    return $q->where('department', $department);
+                })
+                ->get();
+        } else {
+            // Get all users with specified roles
+            $users = User::whereIn('role', $normalizedRoles)
+                ->where('id', '!=', $admin->id)
+                ->when($department, function ($q) use ($department) {
+                    return $q->where('department', $department);
+                })
+                ->get();
+        }
+
+        // Temporary debug: log matched users (ids + count)
+        Log::debug('adminAnnounce matched users', [
+            'count' => $users->count(),
+            'ids' => $users->pluck('id')->values()->all(),
+            'department_resolved' => $department,
+            'roles' => $roles,
+            'roles_normalized' => $normalizedRoles,
+        ]);
 
         $notifications = [];
         foreach ($users as $user) {
@@ -142,10 +186,17 @@ class NotificationController extends Controller
             ]);
         }
 
-        return response()->json([
+        $payload = [
             'message' => 'Announcement sent successfully',
             'recipients_count' => count($notifications),
-        ]);
+        ];
+
+        // If app debug is enabled, include matched user ids for troubleshooting
+        if (config('app.debug')) {
+            $payload['matched_user_ids'] = $users->pluck('id')->values()->all();
+        }
+
+        return response()->json($payload);
     }
 
     /**

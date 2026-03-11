@@ -7,8 +7,8 @@ import {
   PlayCircle,
   ArrowRight,
   Bell,
-  FileQuestion } from
-'lucide-react';
+  FileQuestion,
+} from 'lucide-react';
 import { UserTimeLog } from '../../components/UserTimeLog';
 
 const API_BASE = '/api';
@@ -68,6 +68,8 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const lastUnreadRef = React.useRef<number>(0);
+  const [toasts, setToasts] = React.useState<{ id: number; title: string; message: string }[]>([]);
 
   const loadNotifications = async () => {
     try {
@@ -80,18 +82,23 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
         // API may return an object with `{ data: [...] }` or the array directly.
         const list = Array.isArray(data) ? data : (data?.data || []);
         setNotifications(list);
+        return list;
       }
+      return [];
     } catch (err) {
       console.error('Failed to load notifications:', err);
+      return [];
     }
   };
 
   const markAsRead = async (id: number) => {
     try {
       await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-      const v = `; ${document.cookie}`;
-      const parts = v.split('; XSRF-TOKEN=');
-      const xsrf = parts.length === 2 ? decodeURIComponent(parts.pop()?.split(';').shift() || '') : '';
+      const getCookie = (name: string) => {
+        const match = document.cookie.match(new RegExp('(^|; )' + name + '=([^;]*)'));
+        return match ? decodeURIComponent(match[2]) : '';
+      };
+      const xsrf = getCookie('XSRF-TOKEN');
       await fetch(`${API_BASE}/employee/notifications/${id}/read`, {
         method: 'PUT',
         credentials: 'include',
@@ -145,19 +152,57 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       }
     };
 
-    loadDashboard();
-    loadNotifications();
+    let interval: any;
+    (async () => {
+      await loadDashboard();
+      const initial = await loadNotifications();
+
+      // initialize last unread count after initial load
+      lastUnreadRef.current = (initial || []).filter((n: any) => !n.read).length;
+
+      // Poll for new notifications every 3s
+      interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/employee/notifications/unread-count`, {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const count = data.count || 0;
+        if (count > lastUnreadRef.current) {
+          // new notifications arrived
+          const latest = await loadNotifications();
+          const newOnes = (latest || []).filter((n: any) => !n.read).slice(0, count - lastUnreadRef.current);
+          newOnes.forEach(n => {
+            setToasts(prev => [...prev, { id: n.id, title: n.title, message: n.message }]);
+            // auto-dismiss after 6s
+            setTimeout(() => setToasts(prev => prev.filter(t => t.id !== n.id)), 6000);
+          });
+          lastUnreadRef.current = count;
+        } else {
+          lastUnreadRef.current = count;
+        }
+      } catch (err) {
+        // ignore polling errors
+      }
+    }, 3000);
+
+    })();
+
+    return () => clearInterval(interval);
   }, []);
 
   const getThumbnailColor = (department: string) => {
     const colors: Record<string, string> = {
-      'IT': 'bg-blue-500',
-      'HR': 'bg-purple-500',
-      'Operations': 'bg-green-500',
-      'Finance': 'bg-yellow-500',
-      'Marketing': 'bg-orange-500',
+      it: 'bg-blue-500',
+      hr: 'bg-purple-500',
+      operations: 'bg-green-500',
+      finance: 'bg-yellow-500',
+      marketing: 'bg-orange-500',
     };
-    return colors[department] || 'bg-slate-500';
+    const key = (department || '').toLowerCase();
+    return colors[key] || 'bg-slate-500';
   };
 
   const myCourses = dashboardData?.courses || [];
@@ -166,7 +211,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
   // Find the most-recently-active in-progress course for Resume Learning
   const resumeCourse = myCourses
-    .filter(c => c.progress > 0 && c.enroll_status !== 'Completed')
+    .filter(c => c.progress > 0 && ((c.enroll_status || '').toLowerCase() !== 'completed'))
     .sort((a, b) => {
       if (!a.last_activity && !b.last_activity) return 0;
       if (!a.last_activity) return 1;
@@ -184,6 +229,15 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   }
   return (
     <div className="space-y-8">
+      {/* Toasts container */}
+      <div className="fixed top-6 right-6 z-50 flex flex-col gap-2">
+        {toasts.map(t => (
+          <div key={t.id} className="max-w-sm w-full bg-white shadow-lg rounded-md border border-slate-200 p-3">
+            <div className="font-semibold text-slate-900">{t.title}</div>
+            <div className="text-sm text-slate-600 mt-1 truncate">{t.message}</div>
+          </div>
+        ))}
+      </div>
       {/* Welcome Section */}
       <div className="bg-white rounded-lg shadow-sm border border-slate-100 p-6 flex justify-between items-center">
         <div>
@@ -277,7 +331,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                   <p className="text-sm font-medium text-slate-900">{notif.title}</p>
                   <p className="text-xs text-slate-600 mt-1">{notif.message}</p>
                   <p className="text-xs text-slate-400 mt-1">
-                    {new Date(notif.created_at).toLocaleDateString()} at {new Date(notif.created_at).toLocaleTimeString()}
+                    {notif.created_at ? `${new Date(notif.created_at).toLocaleDateString()} at ${new Date(notif.created_at).toLocaleTimeString()}` : ''}
                   </p>
                 </div>
                 <div className="flex gap-2 shrink-0">

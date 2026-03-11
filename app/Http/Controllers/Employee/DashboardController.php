@@ -244,7 +244,6 @@ class DashboardController extends Controller
         Enrollment::create([
             'user_id'     => $user->id,
             'course_id'   => $id,
-            'status'      => 'Not Started',
             'progress'    => 0,
             'enrolled_at' => now(),
         ]);

@@ -43,13 +43,14 @@ class FeedbackController extends Controller
     {
         $user = $request->user();
 
-        $enrolledCourseIds = Enrollment::where('user_id', $user->id)
-            ->pluck('course_id');
-
-        $lessons = Lesson::whereHas('module', function ($q) use ($enrolledCourseIds) {
-            $q->whereIn('course_id', $enrolledCourseIds);
+        // Return lessons belonging to the authenticated user's department.
+        // Previously this was limited to enrolled courses; change here so all
+        // employees within a department can give feedback on lessons/modules
+        // that belong to their department.
+        $lessons = Lesson::whereHas('module.course', function ($q) use ($user) {
+            $q->where('department', $user->department);
         })
-        ->with('module:id,title,course_id', 'module.course:id,title')
+        ->with('module:id,title,course_id', 'module.course:id,title,department')
         ->orderBy('module_id')
         ->orderBy('order')
         ->get()
@@ -59,6 +60,7 @@ class FeedbackController extends Controller
                 'title'        => $lesson->title,
                 'module_title' => $lesson->module?->title ?? '',
                 'course_title' => $lesson->module?->course?->title ?? '',
+                'course_department' => $lesson->module?->course?->department ?? null,
             ];
         });
 
@@ -84,6 +86,14 @@ class FeedbackController extends Controller
             return response()->json([
                 'message' => 'You have already given feedback for this lesson.',
             ], 422);
+        }
+
+        // Ensure the lesson belongs to the user's department
+        $lesson = Lesson::with('module.course:id,department')->find($validated['lesson_id']);
+        if (!$lesson || ($lesson->module?->course?->department ?? null) !== $request->user()->department) {
+            return response()->json([
+                'message' => 'You are not allowed to give feedback for lessons outside your department.'
+            ], 403);
         }
 
         $feedback = LessonFeedback::create([
