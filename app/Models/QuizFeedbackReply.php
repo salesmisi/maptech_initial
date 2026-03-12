@@ -4,19 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class AuditLog extends Model
+class QuizFeedbackReply extends Model
 {
-    public $timestamps = false;
+    protected $table = 'quiz_feedback_replies';
 
     protected $fillable = [
+        'quiz_feedback_id',
         'user_id',
-        'action',
-        'ip_address',
-    ];
-
-    protected $casts = [
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
+        'comment',
     ];
 
     public function user()

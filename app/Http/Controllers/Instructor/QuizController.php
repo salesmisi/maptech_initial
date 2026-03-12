@@ -18,30 +18,62 @@ class QuizController extends Controller
     /** Verify course belongs to this instructor and return it or 404/403. */
     private function ownedCourse(string $courseId, Request $request): Course
     {
+        $user = $request->user();
         $course = Course::findOrFail($courseId);
-        if ($course->instructor_id !== $request->user()->id) {
+
+        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedDept = $user->department;
+
+        $allowed = ($course->instructor_id === $user->id)
+            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || ($assignedDept && $course->department === $assignedDept);
+
+        if (!$allowed) {
             abort(403, 'Forbidden.');
         }
+
         return $course;
     }
 
     /** Verify quiz belongs to one of this instructor's courses. */
     private function ownedQuiz(int $quizId, Request $request): Quiz
     {
+        $user = $request->user();
         $quiz = Quiz::with('course')->findOrFail($quizId);
-        if ($quiz->course->instructor_id !== $request->user()->id) {
+
+        $course = $quiz->course;
+        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedDept = $user->department;
+
+        $allowed = ($course->instructor_id === $user->id)
+            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || ($assignedDept && $course->department === $assignedDept);
+
+        if (!$allowed) {
             abort(403, 'Forbidden.');
         }
+
         return $quiz;
     }
 
     /** Verify module belongs to one of this instructor's courses. */
     private function ownedModule(int $moduleId, Request $request): Module
     {
+        $user = $request->user();
         $module = Module::with('course')->findOrFail($moduleId);
-        if ($module->course->instructor_id !== $request->user()->id) {
+
+        $course = $module->course;
+        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedDept = $user->department;
+
+        $allowed = ($course->instructor_id === $user->id)
+            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || ($assignedDept && $course->department === $assignedDept);
+
+        if (!$allowed) {
             abort(403, 'Forbidden.');
         }
+
         return $module;
     }
 

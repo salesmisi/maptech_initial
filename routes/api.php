@@ -157,7 +157,18 @@ Route::get('/me/audit-logs', function (Request $request) {
         ->orderByDesc('created_at')
         ->get();
 
-    return response()->json(['data' => $logs]);
+    // Return ISO8601 UTC timestamps
+    $data = $logs->map(function ($log) {
+        return [
+            'id' => $log->id,
+            'user_id' => $log->user_id,
+            'action' => $log->action,
+            'ip_address' => $log->ip_address,
+            'created_at' => optional($log->created_at)->toIso8601String(),
+            'updated_at' => optional($log->updated_at)->toIso8601String(),
+        ];
+    });
+    return response()->json(['data' => $data]);
 })->middleware(['auth:sanctum', 'status']);
 
 
@@ -213,6 +224,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::get('/courses/{id}', [AdminCourseController::class, 'show']);
     Route::put('/courses/{id}', [AdminCourseController::class, 'update']);
     Route::delete('/courses/{id}', [AdminCourseController::class, 'destroy']);
+    // Bulk assign courses to an instructor
+    Route::post('/courses/bulk-assign', [AdminCourseController::class, 'bulkAssign']);
 
     // Course Enrollment Management
     Route::get('/enrollments', [AdminCourseController::class, 'allEnrollments']);
@@ -324,6 +337,8 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::get('/courses/{id}/enrollments', [InstructorCourseController::class, 'enrollments']);
     Route::post('/courses/{id}/enrollments', [InstructorCourseController::class, 'enroll']);
     Route::delete('/courses/{courseId}/enrollments/{userId}', [InstructorCourseController::class, 'unenroll']);
+    Route::post('/courses/{courseId}/enrollments/{userId}/lock', [InstructorCourseController::class, 'lockEnrollment']);
+    Route::post('/courses/{courseId}/enrollments/{userId}/unlock', [InstructorCourseController::class, 'unlockEnrollment']);
 
     // Users list (for enrollment dropdown)
     Route::get('/users', [InstructorCourseController::class, 'listUsers']);
@@ -413,15 +428,24 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
 
     // Lesson Feedback
     Route::get('/feedbacks', [\App\Http\Controllers\Employee\FeedbackController::class, 'index']);
+    Route::get('/quiz-feedbacks', [\App\Http\Controllers\Employee\FeedbackController::class, 'quizIndex']);
     Route::post('/feedbacks', [\App\Http\Controllers\Employee\FeedbackController::class, 'store']);
     Route::put('/feedbacks/{id}', [\App\Http\Controllers\Employee\FeedbackController::class, 'update']);
     Route::delete('/feedbacks/{id}', [\App\Http\Controllers\Employee\FeedbackController::class, 'destroy']);
     Route::get('/enrolled-lessons', [\App\Http\Controllers\Employee\FeedbackController::class, 'enrolledLessons']);
+    Route::get('/enrolled-quizzes', [\App\Http\Controllers\Employee\FeedbackController::class, 'enrolledQuizzes']);
+    // Quiz feedback
+    Route::post('/quiz-feedbacks', [\App\Http\Controllers\Employee\FeedbackController::class, 'storeQuiz']);
+    Route::put('/quiz-feedbacks/{id}', [\App\Http\Controllers\Employee\FeedbackController::class, 'updateQuiz']);
+    Route::delete('/quiz-feedbacks/{id}', [\App\Http\Controllers\Employee\FeedbackController::class, 'destroyQuiz']);
 
     // Quiz taking
     Route::get('/quizzes/{quizId}', [EmployeeQuizController::class, 'show']);
     Route::post('/quizzes/{quizId}/submit', [EmployeeQuizController::class, 'submit']);
     Route::get('/quizzes/{quizId}/attempts', [EmployeeQuizController::class, 'myAttempts']);
+
+    // Quiz reminders (upcoming deadlines)
+    Route::get('/quiz-reminders', [DashboardController::class, 'quizReminders']);
 
     // Q&A (Employee)
     Route::get('/lessons', [\App\Http\Controllers\QAController::class, 'employeeLessons']);

@@ -5,12 +5,13 @@ const API = '/api/employee';
 
 interface Feedback {
   id: number;
-  lesson_id: number;
-  lesson_title: string;
+  type: 'lesson' | 'quiz';
+  item_id: number; // lesson_id or quiz_id
+  title: string;
   module_title: string;
   course_title: string;
   rating: number;
-  comment: string;
+  comment?: string;
   date: string;
 }
 
@@ -41,6 +42,8 @@ export function MyFeedback() {
 
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [lessons, setLessons] = useState<LessonOption[]>([]);
+  const [quizzes, setQuizzes] = useState<LessonOption[]>([]);
+  const [feedbackType, setFeedbackType] = useState<'lesson' | 'quiz'>('lesson');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
   const [userDepartment, setUserDepartment] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -54,13 +57,49 @@ export function MyFeedback() {
   const loadFeedbacks = async () => {
     try {
       await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-      const res = await fetch(`${API}/feedbacks`, {
+      // load lesson feedbacks
+      const resLessons = await fetch(`${API}/feedbacks`, {
         credentials: 'include',
         headers: getHeaders(),
       });
-      if (res.ok) {
-        setFeedbacks(await res.json());
-      }
+      const lessonsList = resLessons.ok ? await resLessons.json() : [];
+
+      // load quiz feedbacks
+      const resQuizzes = await fetch(`${API}/quiz-feedbacks`, {
+        credentials: 'include',
+        headers: getHeaders(),
+      });
+      const quizzesList = resQuizzes.ok ? await resQuizzes.json() : [];
+
+      // normalize into unified list
+      const normalized: Feedback[] = [
+        ...(Array.isArray(lessonsList) ? lessonsList.map((l: any) => ({
+          id: l.id,
+          type: 'lesson' as const,
+          item_id: l.lesson_id,
+          title: l.lesson_title,
+          module_title: l.module_title,
+          course_title: l.course_title,
+          rating: l.rating,
+          comment: l.comment,
+          date: l.date,
+        })) : []),
+        ...(Array.isArray(quizzesList) ? quizzesList.map((q: any) => ({
+          id: q.id,
+          type: 'quiz' as const,
+          item_id: q.quiz_id,
+          title: q.quiz_title,
+          module_title: q.module_title,
+          course_title: q.course_title,
+          rating: q.rating,
+          comment: q.comment,
+          date: q.date,
+        })) : []),
+      ];
+
+      // sort by date desc
+      normalized.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      setFeedbacks(normalized);
     } catch { /* ignore */ } finally {
       setLoading(false);
     }
@@ -73,6 +112,16 @@ export function MyFeedback() {
         headers: getHeaders(),
       });
       if (res.ok) setLessons(await res.json());
+    } catch { /* ignore */ }
+  };
+
+  const loadQuizzes = async () => {
+    try {
+      const res = await fetch(`${API}/enrolled-quizzes`, {
+        credentials: 'include',
+        headers: getHeaders(),
+      });
+      if (res.ok) setQuizzes(await res.json());
     } catch { /* ignore */ }
   };
 
@@ -96,6 +145,7 @@ export function MyFeedback() {
   useEffect(() => {
     loadFeedbacks();
     loadLessons();
+    loadQuizzes();
   }, []);
 
   const openAdd = () => {
@@ -108,7 +158,7 @@ export function MyFeedback() {
 
   const openEdit = (fb: Feedback) => {
     setEditing(fb);
-    setFormLessonId(fb.lesson_id);
+    setFormLessonId(fb.item_id);
     setFormRating(fb.rating);
     setFormComment(fb.comment || '');
     setIsModalOpen(true);
@@ -119,45 +169,84 @@ export function MyFeedback() {
     await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
 
     if (editing) {
-      const res = await fetch(`${API}/feedbacks/${editing.id}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: getHeaders(),
-        body: JSON.stringify({ rating: formRating, comment: formComment }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(err.message || 'Failed to update');
-        return;
+      if (editing.type === 'lesson') {
+        const res = await fetch(`${API}/feedbacks/${editing.id}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: getHeaders(),
+          body: JSON.stringify({ rating: formRating, comment: formComment }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.message || 'Failed to update');
+          return;
+        }
+      } else {
+        const res = await fetch(`${API}/quiz-feedbacks/${editing.id}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: getHeaders(),
+          body: JSON.stringify({ rating: formRating, comment: formComment }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.message || 'Failed to update');
+          return;
+        }
       }
     } else {
-      if (!formLessonId) { alert('Please select a lesson'); return; }
-      const res = await fetch(`${API}/feedbacks`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: getHeaders(),
-        body: JSON.stringify({ lesson_id: formLessonId, rating: formRating, comment: formComment }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(err.message || 'Failed to submit');
-        return;
+      if (feedbackType === 'lesson') {
+        if (!formLessonId) { alert('Please select a lesson'); return; }
+        const res = await fetch(`${API}/feedbacks`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: getHeaders(),
+          body: JSON.stringify({ lesson_id: formLessonId, rating: formRating, comment: formComment }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.message || 'Failed to submit');
+          return;
+        }
+      } else {
+        // quiz feedback
+        if (!formLessonId) { alert('Please select a quiz'); return; }
+        const res = await fetch(`${API}/quiz-feedbacks`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: getHeaders(),
+          body: JSON.stringify({ quiz_id: formLessonId, rating: formRating, comment: formComment }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.message || 'Failed to submit');
+          return;
+        }
       }
     }
 
     setIsModalOpen(false);
-    loadFeedbacks();
+    // reload both feedback types
+    await loadFeedbacks();
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (fb: Feedback) => {
     if (!window.confirm('Delete this feedback?')) return;
     await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-    await fetch(`${API}/feedbacks/${id}`, {
-      method: 'DELETE',
-      credentials: 'include',
-      headers: getHeaders(),
-    });
-    loadFeedbacks();
+    if (fb.type === 'lesson') {
+      await fetch(`${API}/feedbacks/${fb.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: getHeaders(),
+      });
+    } else {
+      await fetch(`${API}/quiz-feedbacks/${fb.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: getHeaders(),
+      });
+    }
+    await loadFeedbacks();
   };
 
   if (loading) return <div className="p-6 text-slate-500">Loading...</div>;
@@ -236,7 +325,7 @@ export function MyFeedback() {
               <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg leading-6 font-medium text-slate-900">
-                    {editing ? 'Edit Feedback' : 'Give Lesson Feedback'}
+                    {editing ? 'Edit Feedback' : (feedbackType === 'lesson' ? 'Give Lesson Feedback' : 'Give Quiz Feedback')}
                   </h3>
                   <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-500">
                     <X className="h-6 w-6" />
@@ -245,15 +334,27 @@ export function MyFeedback() {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {!editing && (
                     <div>
-                      <label className="block text-sm font-medium text-slate-700">Select Lesson</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Feedback Type</label>
+                      <div className="flex items-center gap-4 mb-3">
+                        <label className="inline-flex items-center">
+                          <input type="radio" name="fbtype" checked={feedbackType === 'lesson'} onChange={() => setFeedbackType('lesson')} />
+                          <span className="ml-2 text-sm">Lesson</span>
+                        </label>
+                        <label className="inline-flex items-center">
+                          <input type="radio" name="fbtype" checked={feedbackType === 'quiz'} onChange={() => setFeedbackType('quiz')} />
+                          <span className="ml-2 text-sm">Quiz</span>
+                        </label>
+                      </div>
+
+                      <label className="block text-sm font-medium text-slate-700">{feedbackType === 'lesson' ? 'Select Lesson' : 'Select Quiz'}</label>
                       <select
                         value={formLessonId}
                         onChange={(e) => setFormLessonId(Number(e.target.value))}
                         className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                         required
                       >
-                        <option value="">-- Select a lesson --</option>
-                        {lessons
+                        <option value="">-- Select a {feedbackType} --</option>
+                        {(feedbackType === 'lesson' ? lessons : quizzes)
                           .filter(l => !selectedDepartment || (l.course_department || '') === selectedDepartment)
                           .map((l) => (
                           <option key={l.id} value={l.id}>

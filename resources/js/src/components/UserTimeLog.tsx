@@ -113,26 +113,9 @@ export function UserTimeLog() {
 
   const formatDateTime = (iso: string | null) => {
     if (!iso) return null;
-    // Robust parsing: if the timestamp is a space-separated local datetime
-    // like "YYYY-MM-DD HH:MM:SS" we'll parse components and construct
-    // a Date in local time to avoid cross-browser inconsistencies.
-    const parseToDate = (s: string): Date => {
-      const localPattern = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/;
-      const m = s.match(localPattern);
-      if (m) {
-        const year = parseInt(m[1], 10);
-        const month = parseInt(m[2], 10) - 1;
-        const day = parseInt(m[3], 10);
-        const hour = parseInt(m[4], 10);
-        const minute = parseInt(m[5], 10);
-        const second = m[6] ? parseInt(m[6], 10) : 0;
-        return new Date(year, month, day, hour, minute, second);
-      }
-      // Fallback to native parser for ISO strings with timezone
-      return new Date(s);
-    };
-
-    const d = parseToDate(iso);
+    // Use native Date parsing for ISO8601 timestamps (with timezone)
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
     const now = new Date();
     const isToday = d.toDateString() === now.toDateString();
     const yesterday = new Date(now);

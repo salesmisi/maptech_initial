@@ -69,7 +69,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const lastUnreadRef = React.useRef<number>(0);
-  const [toasts, setToasts] = React.useState<{ id: number; title: string; message: string }[]>([]);
+  const [toasts, setToasts] = React.useState<{ id: number | string; title: string; message: string }[]>([]);
 
   const loadNotifications = async () => {
     try {
@@ -87,6 +87,33 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       return [];
     } catch (err) {
       console.error('Failed to load notifications:', err);
+      return [];
+    }
+  };
+
+  const loadQuizReminders = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/employee/quiz-reminders?hours=48`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' },
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) return [];
+
+      // Show toasts for each reminder
+      data.forEach((r: any) => {
+        const title = `Quiz due soon: ${r.title}`;
+        const dateText = r.deadline ? new Date(r.deadline).toLocaleString() : 'Soon';
+        const toastId = `qr-${r.id}-${Date.now()}`;
+        setToasts(prev => [...prev, { id: toastId, title, message: `${r.course_title} • Due ${dateText}` }]);
+        // auto-dismiss
+        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== toastId)), 8000);
+      });
+
+      return data;
+    } catch (err) {
+      // ignore
       return [];
     }
   };
@@ -153,44 +180,52 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     };
 
     let interval: any;
-    (async () => {
+    const runAsync = async () => {
       await loadDashboard();
       const initial = await loadNotifications();
-
+      await loadQuizReminders();
       // initialize last unread count after initial load
       lastUnreadRef.current = (initial || []).filter((n: any) => !n.read).length;
-
       // Poll for new notifications every 3s
       interval = setInterval(async () => {
-      try {
-        const res = await fetch(`${API_BASE}/employee/notifications/unread-count`, {
-          credentials: 'include',
-          headers: { 'Accept': 'application/json' },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        const count = data.count || 0;
-        if (count > lastUnreadRef.current) {
-          // new notifications arrived
-          const latest = await loadNotifications();
-          const newOnes = (latest || []).filter((n: any) => !n.read).slice(0, count - lastUnreadRef.current);
-          newOnes.forEach(n => {
-            setToasts(prev => [...prev, { id: n.id, title: n.title, message: n.message }]);
-            // auto-dismiss after 6s
-            setTimeout(() => setToasts(prev => prev.filter(t => t.id !== n.id)), 6000);
+        try {
+          const res = await fetch(`${API_BASE}/employee/notifications/unread-count`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' },
           });
-          lastUnreadRef.current = count;
-        } else {
-          lastUnreadRef.current = count;
+          if (!res.ok) return;
+          const data = await res.json();
+          const count = data.count || 0;
+          if (count > lastUnreadRef.current) {
+            // new notifications arrived
+            const latest = await loadNotifications();
+            const newOnes = (latest || []).filter((n: any) => !n.read).slice(0, count - lastUnreadRef.current);
+            newOnes.forEach(n => {
+              setToasts(prev => [...prev, { id: n.id, title: n.title, message: n.message }]);
+              // auto-dismiss after 6s
+              setTimeout(() => setToasts(prev => prev.filter(t => t.id !== n.id)), 6000);
+            });
+            lastUnreadRef.current = count;
+          } else {
+            lastUnreadRef.current = count;
+          }
+        } catch (err) {
+          // ignore polling errors
         }
-      } catch (err) {
-        // ignore polling errors
-      }
-    }, 3000);
+      }, 3000);
 
-    })();
-
-    return () => clearInterval(interval);
+      // Reminders polling (every 15 minutes)
+      const reminderInterval = setInterval(async () => {
+        await loadQuizReminders();
+      }, 15 * 60 * 1000);
+      // store on outer scope so cleanup can clear it too
+      (interval as any)._reminder = reminderInterval;
+    };
+    runAsync();
+    return () => {
+      clearInterval(interval);
+      if ((interval as any)._reminder) clearInterval((interval as any)._reminder);
+    };
   }, []);
 
   const getThumbnailColor = (department: string) => {

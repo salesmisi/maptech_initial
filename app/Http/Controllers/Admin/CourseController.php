@@ -274,6 +274,33 @@ class CourseController extends Controller
     }
 
     /**
+     * Bulk assign multiple courses to an instructor (or unassign if instructor_id is null).
+     */
+    public function bulkAssign(Request $request)
+    {
+        $validated = $request->validate([
+            'course_ids' => 'required|array|min:1',
+            'course_ids.*' => 'required|exists:courses,id',
+            'instructor_id' => 'nullable|exists:users,id',
+        ]);
+
+        $courseIds = $validated['course_ids'];
+        $instructorId = $validated['instructor_id'] ?? null;
+
+        try {
+            $updated = Course::whereIn('id', $courseIds)->update(['instructor_id' => $instructorId]);
+
+            return response()->json([
+                'message' => 'Bulk assignment completed',
+                'updated_count' => $updated,
+            ]);
+        } catch (Exception $e) {
+            Log::error('Bulk assign failed', ['error' => $e->getMessage(), 'course_ids' => $courseIds, 'instructor_id' => $instructorId]);
+            return response()->json(['message' => 'Bulk assignment failed', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * List ALL enrollments across all courses.
      */
     public function allEnrollments(Request $request)

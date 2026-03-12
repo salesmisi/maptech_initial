@@ -98,6 +98,10 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [departments, setDepartments] = useState<{id: number; name: string}[]>([]);
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
+  const [selectedCourseIds, setSelectedCourseIds] = useState<number[]>([]);
+  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
+  const [bulkInstructorId, setBulkInstructorId] = useState<number | null>(null);
+  const [isBulkAssigning, setIsBulkAssigning] = useState(false);
   const [editInstructorId, setEditInstructorId] = useState<number | null>(null);
   const [createInstructorId, setCreateInstructorId] = useState<number | null>(null);
   const [editDepartment, setEditDepartment] = useState('');
@@ -899,6 +903,14 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           <PlusIcon className="h-5 w-5" />
           Create Course
         </button>
+        <button
+          onClick={() => setShowBulkAssignModal(true)}
+          className="ml-3 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          disabled={selectedCourseIds.length === 0}
+          title={selectedCourseIds.length === 0 ? 'Select courses first' : `${selectedCourseIds.length} selected`}
+        >
+          Bulk Assign ({selectedCourseIds.length})
+        </button>
       </div>
 
       {/* Search and Filter */}
@@ -928,7 +940,18 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       {/* Courses Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCourses.map((course) => (
-          <div key={course.id} className="bg-white rounded-lg shadow hover:shadow-md transition-shadow">
+          <div key={course.id} className="relative bg-white rounded-lg shadow hover:shadow-md transition-shadow">
+            <div className="absolute top-3 left-3 bg-white/90 rounded-md p-1 z-10">
+              <input
+                type="checkbox"
+                checked={selectedCourseIds.includes(course.id)}
+                onChange={() => {
+                  setSelectedCourseIds(prev => prev.includes(course.id) ? prev.filter(id => id !== course.id) : [...prev, course.id]);
+                }}
+                aria-label={`Select course ${course.title}`}
+                className="w-4 h-4"
+              />
+            </div>
             {/* Course Icon */}
             <div className="h-32 bg-gradient-to-br from-green-400 to-green-600 rounded-t-lg flex items-center justify-center">
               <div className="w-16 h-16 bg-white rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 shadow-md">
@@ -1626,6 +1649,66 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Assign Modal */}
+      {showBulkAssignModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Bulk Assign Courses</h3>
+              <button onClick={() => setShowBulkAssignModal(false)} className="text-gray-400 hover:text-gray-600"><XMarkIcon className="h-5 w-5"/></button>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">Assign {selectedCourseIds.length} selected course(s) to an instructor. Choose 'Unassigned' to clear assignment.</p>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Instructor</label>
+              <select
+                value={bulkInstructorId ?? ''}
+                onChange={(e) => setBulkInstructorId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full border border-gray-300 rounded-md py-2 px-3"
+              >
+                <option value="">Unassigned</option>
+                {instructors.map(i => (
+                  <option key={i.id} value={i.id}>{i.fullname} ({i.email})</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowBulkAssignModal(false)} className="px-4 py-2 border rounded-md">Cancel</button>
+              <button
+                onClick={async () => {
+                  setIsBulkAssigning(true);
+                  try {
+                    const res = await fetch('/api/admin/courses/bulk-assign', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({ course_ids: selectedCourseIds, instructor_id: bulkInstructorId }),
+                    });
+                    if (!res.ok) throw new Error(`Status ${res.status}`);
+                    const data = await res.json();
+                    // refresh courses
+                    await loadCourses();
+                    setSelectedCourseIds([]);
+                    setShowBulkAssignModal(false);
+                  } catch (err) {
+                    console.error('Bulk assign failed', err);
+                    alert('Bulk assign failed. See console for details.');
+                  } finally {
+                    setIsBulkAssigning(false);
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                disabled={isBulkAssigning}
+              >
+                {isBulkAssigning ? 'Assigning...' : 'Assign'}
+              </button>
             </div>
           </div>
         </div>

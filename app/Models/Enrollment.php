@@ -24,10 +24,12 @@ class Enrollment extends Model
         'status',
         'progress',
         'enrolled_at',
+        'locked',
     ];
 
     protected $casts = [
         'enrolled_at' => 'datetime',
+        'locked' => 'boolean',
     ];
 
     public function user(): BelongsTo

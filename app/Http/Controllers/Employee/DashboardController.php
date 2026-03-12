@@ -108,6 +108,7 @@ class DashboardController extends Controller
                 'progress'       => $enrollment?->progress ?? 0,
                 'enroll_status'  => $enrollment?->status ?? null,
                 'last_activity'  => $enrollment?->updated_at?->toISOString() ?? null,
+                'locked'         => $enrollment?->locked ?? false,
             ]);
         });
 
@@ -118,7 +119,7 @@ class DashboardController extends Controller
                 'email'      => $user->email,
                 'department' => $user->department,
             ],
-            'courses'       => $courses,
+            'courses'       => $coursesWithProgress,
             'total_courses' => $courses->count(),
         ]);
     }
@@ -160,6 +161,7 @@ class DashboardController extends Controller
                 'is_enrolled'   => (bool) $enrollment,
                 'my_progress'   => $enrollment?->progress ?? 0,
                 'my_status'     => $enrollment ? $this->resolveStatus($enrollment, $course) : null,
+                'locked'        => $enrollment?->locked ?? false,
             ];
         });
 
@@ -200,6 +202,7 @@ class DashboardController extends Controller
                 'progress'     => $enrollment->progress,
                 'status'       => $this->resolveStatus($enrollment, $course),
                 'enrolled_at'  => $enrollment->enrolled_at,
+                'locked'       => $enrollment->locked ?? false,
             ];
         })->values();
 
@@ -270,6 +273,14 @@ class DashboardController extends Controller
 
         if (!$course) {
             return response()->json(['message' => 'Course not found or not accessible.'], 404);
+        }
+
+        // Prevent access if the instructor locked this enrollment
+        $enrollmentRecord = Enrollment::where('user_id', $user->id)
+            ->where('course_id', $id)
+            ->first();
+        if ($enrollmentRecord && ($enrollmentRecord->locked ?? false)) {
+            return response()->json(['message' => 'This course has been locked by the instructor.'], 403);
         }
 
         // Load quizzes for every module in this course (keyed by module_id)
@@ -458,5 +469,62 @@ class DashboardController extends Controller
             'weekly_activity' => $weekDays->toArray(),
             'quiz_history'    => $quizHistory->toArray(),
         ]);
+    }
+
+    /**
+     * Return quizzes with upcoming course deadlines that the user hasn't passed yet.
+     * Query param `hours` controls the reminder window (default 48 hours).
+     */
+    public function quizReminders(Request $request)
+    {
+        $user = $request->user();
+        $hours = (int) ($request->query('hours') ?? 48);
+        $now = Carbon::now();
+        $until = $now->copy()->addHours($hours);
+
+        // Courses in the user's department/subdepartment whose deadline is within the window
+        $courses = Course::active()
+            ->whereBetween('deadline', [$now, $until])
+            ->where(function ($q) use ($user) {
+                $this->scopeCoursesForUser($q, $user);
+            })
+            ->with('modules')
+            ->get();
+
+        if ($courses->isEmpty()) {
+            return response()->json([]);
+        }
+
+        // Collect module ids
+        $moduleIds = $courses->flatMap(fn($c) => $c->modules->pluck('id'))->unique()->values();
+
+        if ($moduleIds->isEmpty()) {
+            return response()->json([]);
+        }
+
+        // Find quizzes in these modules
+        $quizzes = Quiz::whereIn('module_id', $moduleIds)
+            ->with(['module:id,title', 'course:id,title,deadline'])
+            ->get();
+
+        if ($quizzes->isEmpty()) {
+            return response()->json([]);
+        }
+
+        // Quizzes the user already passed
+        $passed = QuizAttempt::where('user_id', $user->id)->where('passed', true)->pluck('quiz_id')->toArray();
+
+        $reminders = $quizzes->filter(fn($q) => !in_array($q->id, $passed))->map(function ($q) {
+            return [
+                'id' => $q->id,
+                'title' => $q->title,
+                'module_title' => $q->module?->title,
+                'course_title' => $q->course?->title,
+                'deadline' => $q->course?->deadline?->toISOString(),
+                'type' => 'quiz',
+            ];
+        })->values();
+
+        return response()->json($reminders);
     }
 }

@@ -72,6 +72,13 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [modules, setModules] = useState<ModuleInput[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<{ id: string; title: string; message: string }[]>([]);
+
+  const pushToast = (title: string, message: string, duration = 5000) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setToasts((prev) => [...prev, { id, title, message }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), duration);
+  };
 
   const loadCourses = async () => {
     try {
@@ -171,12 +178,60 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to save course');
 
-      await loadCourses();
+      // Update courses list optimistically from the server response so the
+      // newly created/updated course appears immediately without waiting
+      // for a full reload.
+      const returned = data.course ?? data;
+      if (editingCourse) {
+        setCourses((prev) => prev.map((c) => (String(c.id) === String(returned.id) ? { ...c, ...returned } : c)));
+        pushToast('Course updated', `"${returned.title}" updated successfully.`);
+      } else {
+        setCourses((prev) => [returned, ...prev]);
+        pushToast('Course created', `"${returned.title}" created successfully.`);
+      }
+
       handleCloseModal();
     } catch (err: any) {
       setFormError(err.message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleUnlockAll = async (courseId: string) => {
+    if (!confirm('Unlock all enrollments for this course?')) return;
+    try {
+      const token = await getXsrfToken();
+      // fetch course details to get enrolled users
+      const res = await fetch(`${API_BASE}/instructor/courses/${courseId}`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error('Failed to load course enrollments');
+      const course = await res.json();
+      const users = course.enrolledUsers || [];
+
+      for (const u of users) {
+        try {
+          const r = await fetch(`${API_BASE}/instructor/courses/${courseId}/enrollments/${u.id}/unlock`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+          });
+          if (!r.ok) {
+            const text = await r.text();
+            console.error(`Unlock failed for ${u.id}: ${r.status} ${text}`);
+          }
+        } catch (e) {
+          console.error('Failed to unlock', u.id, e);
+        }
+      }
+
+      alert('All enrollments unlocked (where possible).');
+      await loadCourses();
+    } catch (e) {
+      console.error(e);
+      alert('Failed to unlock enrollments.');
     }
   };
 
@@ -188,6 +243,15 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Toasts container */}
+      <div className="fixed top-6 right-6 z-50 flex flex-col gap-2">
+        {toasts.map(t => (
+          <div key={t.id} className="max-w-sm w-full bg-white shadow-lg rounded-md border border-slate-200 p-3">
+            <div className="font-semibold text-slate-900">{t.title}</div>
+            <div className="text-sm text-slate-600 mt-1 truncate">{t.message}</div>
+          </div>
+        ))}
+      </div>
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold text-slate-900">Courses &amp; Content</h1>
@@ -295,12 +359,30 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 )}
 
                 <div className="mt-auto pt-3 border-t border-slate-100">
-                  <button
-                    onClick={() => onNavigate?.('course-detail', String(course.id))}
-                    className="text-sm font-medium text-green-600 hover:text-green-700"
-                  >
-                    Manage Content &rarr;
-                  </button>
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => onNavigate?.('course-detail', String(course.id))}
+                      className="text-sm font-medium text-green-600 hover:text-green-700"
+                    >
+                      Manage Content &rarr;
+                    </button>
+                    {ended && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => onNavigate?.('course-detail', String(course.id))}
+                          className="text-sm px-3 py-1 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-50"
+                        >
+                          Manage Enrollments
+                        </button>
+                        <button
+                          onClick={() => handleUnlockAll(String(course.id))}
+                          className="text-sm px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                        >
+                          Unlock All
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

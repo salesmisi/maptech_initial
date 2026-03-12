@@ -13,6 +13,7 @@ import {
   CheckCircle,
   HelpCircle,
   Lock,
+  Unlock,
   ChevronDown,
   ChevronUp,
   Pencil,
@@ -285,12 +286,47 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
           enrolled_at: u.pivot?.enrolled_at ?? u.enrolled_at,
           progress: u.pivot?.progress ?? u.progress ?? 0,
           enrollment_status: u.pivot?.status ?? u.enrollment_status ?? 'Not Started',
+          locked: u.pivot?.locked ?? false,
         })),
       });
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+
+
+  const handleLock = async (userId: number) => {
+    if (!confirm('Lock this student\'s access to the course?')) return;
+    try {
+      const token = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/enrollments/${userId}/lock`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+      });
+      if (!res.ok) throw new Error('Failed to lock enrollment');
+      await loadCourse();
+    } catch (e: any) {
+      alert(e.message || 'Failed to lock');
+    }
+  };
+
+  const handleUnlock = async (userId: number) => {
+    if (!confirm('Unlock this student\'s access to the course?')) return;
+    try {
+      const token = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/enrollments/${userId}/unlock`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+      });
+      if (!res.ok) throw new Error('Failed to unlock enrollment');
+      await loadCourse();
+    } catch (e: any) {
+      alert(e.message || 'Failed to unlock');
     }
   };
 
@@ -1240,13 +1276,32 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                           : '—'}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => handleUnenroll(user.id, user.fullname)}
-                          className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
-                          title="Remove from course"
-                        >
-                          <UserMinus className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          {user.locked ? (
+                            <button
+                              onClick={() => handleUnlock(user.id)}
+                              className="p-1 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded"
+                              title="Unlock access"
+                            >
+                              <Unlock className="h-4 w-4" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleLock(user.id)}
+                              className="p-1 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded"
+                              title="Lock access"
+                            >
+                              <Lock className="h-4 w-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleUnenroll(user.id, user.fullname)}
+                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
+                            title="Remove from course"
+                          >
+                            <UserMinus className="h-4 w-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

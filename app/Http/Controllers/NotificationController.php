@@ -241,28 +241,81 @@ class NotificationController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'message' => 'required|string',
-            'course_id' => 'required|exists:courses,id',
+            'course_id' => 'nullable|exists:courses,id',
+            'department' => 'nullable|string|max:255',
+            'department_id' => 'nullable|integer|exists:departments,id',
             'type' => 'nullable|string|in:announcement,lesson_update,quiz_reminder',
         ]);
 
         $instructor = Auth::user();
+
         $courseId = $request->input('course_id');
+        $department = $request->input('department');
+        $departmentId = $request->input('department_id');
 
-        // Verify instructor owns this course
-        $course = \App\Models\Course::where('id', $courseId)
-            ->where('instructor_id', $instructor->id)
-            ->firstOrFail();
-
-        // Get all enrolled employees
-        $enrollments = \App\Models\Enrollment::where('course_id', $courseId)
-            ->with('user')
-            ->get();
+        // If department_id provided, resolve to name
+        if ($departmentId && !$department) {
+            $dept = \App\Models\Department::find($departmentId);
+            if ($dept) $department = $dept->name;
+        }
 
         $notifications = [];
-        foreach ($enrollments as $enrollment) {
+        $recipients = collect();
+
+        if ($courseId) {
+            // Verify instructor has access to the course (ownership or assigned area)
+            $course = \App\Models\Course::findOrFail($courseId);
+            $assignedSubIds = $instructor->subdepartments()->pluck('id')->toArray();
+            $assignedDept = $instructor->department;
+
+            $allowed = ($course->instructor_id === $instructor->id)
+                || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+                || ($assignedDept && $course->department === $assignedDept);
+
+            if (!$allowed) {
+                return response()->json(['message' => 'Forbidden'], 403);
+            }
+
+            $enrollments = \App\Models\Enrollment::where('course_id', $courseId)->with('user')->get();
+            foreach ($enrollments as $enrollment) {
+                $recipients->push([$enrollment->user_id, $course->title, $course->id]);
+            }
+        } elseif ($department) {
+            // Send to enrolled employees across courses in the department that the instructor can manage
+            $assignedSubIds = $instructor->subdepartments()->pluck('id')->toArray();
+            $assignedDept = $instructor->department;
+
+            // Instructor must belong to the department or have assigned subdepartments matching the department
+            if (!($assignedDept === $department) && empty($assignedSubIds)) {
+                return response()->json(['message' => 'Forbidden'], 403);
+            }
+
+            $courses = \App\Models\Course::where('department', $department)
+                ->get()
+                ->filter(function ($c) use ($instructor, $assignedSubIds, $assignedDept) {
+                    return ($c->instructor_id === $instructor->id)
+                        || (!empty($assignedSubIds) && in_array($c->subdepartment_id, $assignedSubIds))
+                        || ($assignedDept && $c->department === $assignedDept);
+                });
+
+            foreach ($courses as $course) {
+                $enrollments = \App\Models\Enrollment::where('course_id', $course->id)->with('user')->get();
+                foreach ($enrollments as $enrollment) {
+                    $recipients->push([$enrollment->user_id, $course->title, $course->id]);
+                }
+            }
+        } else {
+            return response()->json(['message' => 'Please provide course_id or department'], 422);
+        }
+
+        // Deduplicate recipients by user_id
+        $unique = $recipients->unique(function ($item) { return $item[0]; });
+
+        foreach ($unique as $item) {
+            [$userId, $courseTitle, $courseIdForData] = $item;
             $notifications[] = Notification::create([
-                'user_id' => $enrollment->user_id,
-                'course_id' => $courseId,
+                'user_id' => $userId,
+                'course_id' => $courseIdForData,
                 'type' => $request->input('type', 'announcement'),
                 'title' => $request->input('title'),
                 'message' => $request->input('message'),
@@ -270,7 +323,7 @@ class NotificationController extends Controller
                     'from_user_id' => $instructor->id,
                     'from_user_name' => $instructor->fullname,
                     'from_role' => 'Instructor',
-                    'course_title' => $course->title,
+                    'course_title' => $courseTitle,
                 ],
             ]);
         }

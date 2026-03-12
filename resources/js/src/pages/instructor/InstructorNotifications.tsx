@@ -30,6 +30,7 @@ export function InstructorNotifications() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [departments, setDepartments] = useState<{id:number;name:string}[]>([]);
 
   // Form state for sending to employees
   const [formData, setFormData] = useState({
@@ -45,6 +46,7 @@ export function InstructorNotifications() {
     fetchNotifications();
     fetchUnreadCount();
     fetchCourses();
+    fetchDepartments();
   }, []);
 
   const fetchCourses = async () => {
@@ -59,6 +61,16 @@ export function InstructorNotifications() {
       setCourses(Array.isArray(data) ? data : data.data || []);
     } catch (err) {
       console.error('Failed to load courses:', err);
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await fetch('/api/departments', { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
+      const data = await res.json();
+      setDepartments(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load departments:', err);
     }
   };
 
@@ -145,13 +157,23 @@ export function InstructorNotifications() {
 
   const handleSendToEmployees = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.course_id) {
-      alert('Please select a course');
+
+    // allow either department or course selection
+    if (!formData.course_id && !formData['department_id']) {
+      alert('Please select a department or a course');
       return;
     }
 
     setIsSending(true);
     try {
+      const payload: any = {
+        title: formData.title,
+        message: formData.message,
+        type: formData.type,
+      };
+      if (formData.course_id) payload.course_id = formData.course_id;
+      if ((formData as any).department_id) payload.department_id = (formData as any).department_id;
+
       const res = await fetch('/api/instructor/notifications/notify-employees', {
         method: 'POST',
         headers: {
@@ -159,12 +181,7 @@ export function InstructorNotifications() {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({
-          title: formData.title,
-          message: formData.message,
-          course_id: formData.course_id,
-          type: formData.type,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -337,21 +354,31 @@ export function InstructorNotifications() {
                 </h3>
                 <form onSubmit={handleSendToEmployees} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Course *</label>
+                    <label className="block text-sm font-medium text-slate-700">Department *</label>
                     <select
-                      required
-                      value={formData.course_id}
-                      onChange={(e) => setFormData({ ...formData, course_id: e.target.value })}
+                      value={(formData as any).department_id ?? ''}
+                      onChange={(e) => setFormData({ ...formData, course_id: '', department_id: e.target.value ? Number(e.target.value) : '' })}
                       className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     >
-                      <option value="">Select a course</option>
+                      <option value="">Select a department</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Notification will be sent to all enrolled employees across courses in this department (where you have access)
+                    </p>
+                    <div className="mt-3 text-xs text-slate-500">Or choose a specific course below:</div>
+                    <select
+                      value={formData.course_id}
+                      onChange={(e) => setFormData({ ...formData, course_id: e.target.value, department_id: '' })}
+                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    >
+                      <option value="">Select a course (optional)</option>
                       {courses.map((course) => (
                         <option key={course.id} value={course.id}>{course.title}</option>
                       ))}
                     </select>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Notification will be sent to all enrolled employees in this course
-                    </p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700">Type</label>
