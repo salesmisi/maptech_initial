@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../../components/ToastProvider';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -72,13 +73,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [modules, setModules] = useState<ModuleInput[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [toasts, setToasts] = useState<{ id: string; title: string; message: string }[]>([]);
-
-  const pushToast = (title: string, message: string, duration = 5000) => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    setToasts((prev) => [...prev, { id, title, message }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), duration);
-  };
+  const { pushToast } = useToast();
 
   const loadCourses = async () => {
     try {
@@ -97,6 +92,20 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   };
 
   useEffect(() => { loadCourses(); }, []);
+
+  // Refresh courses list when a module is added in the CourseDetail page
+  useEffect(() => {
+    const handler = (e: any) => {
+      // e.detail.courseId may be present; reload to update modules count
+      try {
+        loadCourses();
+      } catch (err) {
+        // ignore
+      }
+    };
+    window.addEventListener('module:added', handler as EventListener);
+    return () => window.removeEventListener('module:added', handler as EventListener);
+  }, []);
 
   const openCreate = () => {
     setEditingCourse(null);
@@ -184,10 +193,10 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       const returned = data.course ?? data;
       if (editingCourse) {
         setCourses((prev) => prev.map((c) => (String(c.id) === String(returned.id) ? { ...c, ...returned } : c)));
-        pushToast('Course updated', `"${returned.title}" updated successfully.`);
+        pushToast('Course updated', `"${returned.title}" updated successfully.`, 'updated');
       } else {
         setCourses((prev) => [returned, ...prev]);
-        pushToast('Course created', `"${returned.title}" created successfully.`);
+        pushToast('Course created', `"${returned.title}" created successfully.`, 'created');
       }
 
       handleCloseModal();
@@ -243,15 +252,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Toasts container */}
-      <div className="fixed top-6 right-6 z-50 flex flex-col gap-2">
-        {toasts.map(t => (
-          <div key={t.id} className="max-w-sm w-full bg-white shadow-lg rounded-md border border-slate-200 p-3">
-            <div className="font-semibold text-slate-900">{t.title}</div>
-            <div className="text-sm text-slate-600 mt-1 truncate">{t.message}</div>
-          </div>
-        ))}
-      </div>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold text-slate-900">Courses &amp; Content</h1>

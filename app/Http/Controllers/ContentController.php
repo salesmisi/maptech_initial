@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Exception;
+use Illuminate\Support\Facades\Auth;
 
 class ContentController extends Controller
 {
@@ -21,6 +22,20 @@ class ContentController extends Controller
     {
         $course = Course::with('modules.lessons')->findOrFail($courseId);
 
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
+
+        // If the requester is an employee, only allow access to courses for their department
+        if ($user && $user->isEmployee()) {
+            if (!$user->department) {
+                return response()->json(['message' => 'User has no department assigned'], 403);
+            }
+
+            if (strtolower($user->department) !== strtolower($course->department)) {
+                return response()->json(['message' => 'Forbidden: course not in your department'], 403);
+            }
+        }
+
         return response()->json($course->modules);
     }
 
@@ -29,6 +44,16 @@ class ContentController extends Controller
      */
     public function storeModule(Request $request, string $courseId)
     {
+        /** @var \App\Models\User|null $user */
+        $user = $request->user();
+        if ($user && $user->isEmployee()) {
+            // Allow if user is in IT department and the course belongs to IT
+            $course = Course::findOrFail($courseId);
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot create modules'], 403);
+            }
+        }
+
         $course = Course::findOrFail($courseId);
 
         $validated = $request->validate([
@@ -51,7 +76,17 @@ class ContentController extends Controller
      */
     public function updateModule(Request $request, int $moduleId)
     {
-        $module = Module::findOrFail($moduleId);
+        /** @var \App\Models\User|null $user */
+        $user = $request->user();
+        if ($user && $user->isEmployee()) {
+            $module = Module::findOrFail($moduleId);
+            $course = $module->course;
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot update modules'], 403);
+            }
+        } else {
+            $module = Module::findOrFail($moduleId);
+        }
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
@@ -67,7 +102,17 @@ class ContentController extends Controller
      */
     public function destroyModule(int $moduleId)
     {
-        $module = Module::with('lessons')->findOrFail($moduleId);
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
+        if ($user && $user->isEmployee()) {
+            $module = Module::with('lessons')->findOrFail($moduleId);
+            $course = $module->course;
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot delete modules'], 403);
+            }
+        } else {
+            $module = Module::with('lessons')->findOrFail($moduleId);
+        }
 
         // Delete associated files
         foreach ($module->lessons as $lesson) {
@@ -88,7 +133,17 @@ class ContentController extends Controller
      */
     public function storeLesson(Request $request, int $moduleId)
     {
-        $module = Module::findOrFail($moduleId);
+        /** @var \App\Models\User|null $user */
+        $user = $request->user();
+        if ($user && $user->isEmployee()) {
+            $module = Module::findOrFail($moduleId);
+            $course = $module->course;
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot create lessons'], 403);
+            }
+        } else {
+            $module = Module::findOrFail($moduleId);
+        }
 
         $validated = $request->validate([
             'title'   => 'required|string|max:255',
@@ -147,7 +202,17 @@ class ContentController extends Controller
      */
     public function updateLesson(Request $request, int $lessonId)
     {
-        $lesson = Lesson::findOrFail($lessonId);
+        /** @var \App\Models\User|null $user */
+        $user = $request->user();
+        if ($user && $user->isEmployee()) {
+            $lesson = Lesson::findOrFail($lessonId);
+            $course = $lesson->module->course;
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot update lessons'], 403);
+            }
+        } else {
+            $lesson = Lesson::findOrFail($lessonId);
+        }
 
         $validated = $request->validate([
             'title'  => 'sometimes|required|string|max:255',
@@ -202,7 +267,17 @@ class ContentController extends Controller
      */
     public function destroyLesson(int $lessonId)
     {
-        $lesson = Lesson::findOrFail($lessonId);
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
+        if ($user && $user->isEmployee()) {
+            $lesson = Lesson::findOrFail($lessonId);
+            $course = $lesson->module->course;
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot delete lessons'], 403);
+            }
+        } else {
+            $lesson = Lesson::findOrFail($lessonId);
+        }
 
         if ($lesson->content_path) {
             Storage::disk('public')->delete($lesson->content_path);

@@ -129,6 +129,16 @@ class User extends Authenticatable
     }
 
     /**
+     * Modules manually unlocked for this user (pivot `module_user`).
+     */
+    public function modules()
+    {
+        return $this->belongsToMany(Module::class, 'module_user')
+            ->withPivot('unlocked', 'unlocked_at')
+            ->withTimestamps();
+    }
+
+    /**
      * Get departments where this user is the head.
      */
     public function headOfDepartments()

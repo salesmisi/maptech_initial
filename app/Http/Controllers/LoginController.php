@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 use App\Models\AuditLog;
+use App\Events\AuditLogCreated;
 
 class LoginController extends Controller
 {
@@ -42,11 +43,12 @@ class LoginController extends Controller
 
         $request->session()->regenerate();
 
-        AuditLog::create([
+        $log = AuditLog::create([
             'user_id' => $user->id,
             'action' => 'login',
             'ip_address' => $request->ip(),
         ]);
+        event(new AuditLogCreated($log));
 
         return response()->json([
             'id' => $user->id,
@@ -92,11 +94,12 @@ class LoginController extends Controller
         $abilities = $this->getTokenAbilities($user);
         $token = $user->createToken('auth-token', $abilities)->plainTextToken;
 
-        AuditLog::create([
+        $log = AuditLog::create([
             'user_id' => $user->id,
             'action' => 'login',
             'ip_address' => $request->ip(),
         ]);
+        event(new AuditLogCreated($log));
 
         return response()->json([
             'token' => $token,
@@ -120,11 +123,12 @@ class LoginController extends Controller
         $user = $request->user();
 
         if ($user) {
-            AuditLog::create([
+            $log = AuditLog::create([
                 'user_id' => $user->id,
                 'action' => 'logout',
                 'ip_address' => $request->ip(),
             ]);
+            event(new AuditLogCreated($log));
         }
 
         // For API token logout

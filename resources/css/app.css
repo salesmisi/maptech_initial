@@ -1,3 +1,26 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Design tokens (global) — XLSX design system */
+:root {
+	--GREEN_DARK: #154734;
+	--GREEN_MID: #2FAD52;
+	--GREEN_PALE: #E8FAF0;
+	--GREEN_TEXT: #065F46;
+	--WHITE: #FFFFFF;
+	--ALT_ROW: #F0FDF4;
+	--BORDER_CLR: #D1FAE5;
+	--GRAY_ROW: #F9FAFB;
+
+	--PDF-HEADER-BG: #154734;
+	--PDF-BODY-FG: #1f2937;
+}
+
+/* Small helper class for pdf-style summary panels */
+.pdf-token {
+	background-color: var(--GREEN_DARK);
+	color: var(--WHITE);
+	padding: 0.5rem 0.75rem;
+	border-radius: 4px;
+}

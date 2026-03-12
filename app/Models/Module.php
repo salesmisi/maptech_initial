@@ -99,4 +99,14 @@ class Module extends Model
     {
         return $this->hasOne(Quiz::class);
     }
+
+    /**
+     * Users who have this module explicitly unlocked (pivot `module_user`).
+     */
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'module_user')
+            ->withPivot('unlocked', 'unlocked_at')
+            ->withTimestamps();
+    }
 }

@@ -330,6 +330,70 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
     }
   };
 
+  const handleUnlockModuleForUser = async (userId: number) => {
+    if (!course || !course.modules || course.modules.length === 0) {
+      alert('No modules available for this course.');
+      return;
+    }
+
+    const list = course.modules.map((m: any, i: number) => `${i + 1}. ${m.title}`).join('\n');
+    const choice = prompt(`Select module to unlock for this user:\n${list}\nEnter number:`);
+    if (!choice) return;
+    const idx = parseInt(choice, 10) - 1;
+    if (Number.isNaN(idx) || idx < 0 || idx >= course.modules.length) {
+      alert('Invalid selection');
+      return;
+    }
+    const moduleId = course.modules[idx].id;
+    if (!confirm(`Unlock module "${course.modules[idx].title}" for this user?`)) return;
+
+    try {
+      const token = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/modules/${moduleId}/enrollments/${userId}/unlock`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+      });
+      if (!res.ok) throw new Error('Failed to unlock module');
+      await loadCourse();
+      alert('Module unlocked for user');
+    } catch (e: any) {
+      alert(e.message || 'Failed to unlock module');
+    }
+  };
+
+  const handleLockModuleForUser = async (userId: number) => {
+    if (!course || !course.modules || course.modules.length === 0) {
+      alert('No modules available for this course.');
+      return;
+    }
+
+    const list = course.modules.map((m: any, i: number) => `${i + 1}. ${m.title}`).join('\n');
+    const choice = prompt(`Select module to lock for this user:\n${list}\nEnter number:`);
+    if (!choice) return;
+    const idx = parseInt(choice, 10) - 1;
+    if (Number.isNaN(idx) || idx < 0 || idx >= course.modules.length) {
+      alert('Invalid selection');
+      return;
+    }
+    const moduleId = course.modules[idx].id;
+    if (!confirm(`Lock module "${course.modules[idx].title}" for this user?`)) return;
+
+    try {
+      const token = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/modules/${moduleId}/enrollments/${userId}/lock`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+      });
+      if (!res.ok) throw new Error('Failed to lock module');
+      await loadCourse();
+      alert('Module locked for user');
+    } catch (e: any) {
+      alert(e.message || 'Failed to lock module');
+    }
+  };
+
   const loadQuizzes = async () => {
     setQuizzesLoading(true);
     try {
@@ -400,6 +464,12 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       setModuleDescription('');
       setAddingModule(false);
       await loadCourse();
+      // Notify other parts of the UI (Courses list) that a module was added
+      try {
+        window.dispatchEvent(new CustomEvent('module:added', { detail: { courseId } }));
+      } catch (e) {
+        // ignore
+      }
       setTimeout(() => setModuleSuccess(null), 3000);
     } catch (e: any) {
       setModuleError(e.message);
@@ -592,7 +662,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
   // ─── ENROLLMENT HANDLERS ──────────────────────────────────────────────────
   const enrolledIds = new Set(course?.enrolled_users.map(u => u.id) ?? []);
-  const availableUsers = allUsers.filter(u => !enrolledIds.has(u.id));
+  // Only show employees from the same department as the course (exclude already-enrolled)
+  const availableUsers = allUsers.filter(u => !enrolledIds.has(u.id) && String(u.department) === String(course?.department));
 
   const handleEnroll = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1294,6 +1365,20 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                               <Lock className="h-4 w-4" />
                             </button>
                           )}
+                          <button
+                            onClick={() => handleUnlockModuleForUser(user.id)}
+                            className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded"
+                            title="Unlock specific module for user"
+                          >
+                            <BookOpen className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleLockModuleForUser(user.id)}
+                            className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded"
+                            title="Lock specific module for user"
+                          >
+                            <Lock className="h-4 w-4" />
+                          </button>
                           <button
                             onClick={() => handleUnenroll(user.id, user.fullname)}
                             className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"

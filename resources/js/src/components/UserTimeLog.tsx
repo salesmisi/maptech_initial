@@ -23,6 +23,7 @@ export function UserTimeLog() {
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [now, setNow] = useState(new Date());
+  const [userId, setUserId] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Fetch only current user's logs
@@ -55,6 +56,23 @@ export function UserTimeLog() {
     pollRef.current = setInterval(() => fetchLogs(true), 30_000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [fetchLogs]);
+
+  // Fetch current user id for realtime channel subscription
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/user', { credentials: 'include', headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+        if (res.ok) {
+          const data = await res.json();
+          if (mounted && data?.id) setUserId(data.id);
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   // Tick every second for live timer
   useEffect(() => {
@@ -110,6 +128,38 @@ export function UserTimeLog() {
   };
 
   const sessions = groupIntoSessions(logs);
+
+  // Realtime: subscribe to user's private channel for new audit log entries
+  useEffect(() => {
+    if (!userId) return;
+    const Echo = (window as any).Echo;
+    if (!Echo || typeof Echo.private !== 'function') return;
+
+    const channel = Echo.private('user.' + userId);
+    const handler = (payload: any) => {
+      // Payload follows {id,user_id,action,ip_address,created_at}
+      const entry: AuditEntry = {
+        id: payload.id,
+        user_id: payload.user_id,
+        action: payload.action,
+        ip_address: payload.ip_address,
+        created_at: payload.created_at,
+      };
+      setLogs((prev) => [entry, ...prev]);
+      setLastRefreshed(new Date());
+    };
+
+    // Listen for the event name 'AuditLogCreated'
+    channel.listen('AuditLogCreated', handler);
+
+    return () => {
+      try {
+        channel.stopListening('AuditLogCreated');
+      } catch (e) {
+        // ignore
+      }
+    };
+  }, [userId]);
 
   const formatDateTime = (iso: string | null) => {
     if (!iso) return null;

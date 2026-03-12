@@ -21,10 +21,10 @@ class QuizController extends Controller
         $user = $request->user();
         $course = Course::findOrFail($courseId);
 
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
-        $allowed = ($course->instructor_id === $user->id)
+        $allowed = ($course->instructor_id == $user->id)
             || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
@@ -42,10 +42,10 @@ class QuizController extends Controller
         $quiz = Quiz::with('course')->findOrFail($quizId);
 
         $course = $quiz->course;
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
-        $allowed = ($course->instructor_id === $user->id)
+        $allowed = ($course->instructor_id == $user->id)
             || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
@@ -63,10 +63,10 @@ class QuizController extends Controller
         $module = Module::with('course')->findOrFail($moduleId);
 
         $course = $module->course;
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
-        $allowed = ($course->instructor_id === $user->id)
+        $allowed = ($course->instructor_id == $user->id)
             || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 

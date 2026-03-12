@@ -305,6 +305,56 @@ Route::post('/lesson-events', [AnalyticsController::class, 'recordLessonEvent'])
 // Admin: get recent lesson events (optionally filter by lesson or user)
 Route::get('/admin/lesson-events', [AnalyticsController::class, 'recentLessonEvents'])->middleware(['auth:sanctum', 'status', 'role:Admin']);
 
+if (env('APP_ENV') === 'local') {
+    Route::get('/dev/create-it-test', function () {
+        $u = \App\Models\User::firstOrCreate([
+            'email' => 'it-test@example.com'
+        ], [
+            'fullname' => 'IT Tester',
+            'password' => bcrypt('password'),
+            'role' => 'employee',
+            'department' => 'IT',
+            'status' => 'Active',
+        ]);
+
+        $s = \App\Models\User::firstOrCreate([
+            'email' => 'student-test@example.com'
+        ], [
+            'fullname' => 'Student Tester',
+            'password' => bcrypt('password'),
+            'role' => 'employee',
+            'department' => 'IT',
+            'status' => 'Active',
+        ]);
+
+        $course = \App\Models\Course::firstOrCreate([
+            'title' => 'IT Test Course'
+        ], [
+            'description' => 'Test course',
+            'department' => 'IT',
+            'status' => 'Active',
+        ]);
+
+        if (!\App\Models\Enrollment::where('course_id', $course->id)->where('user_id', $s->id)->exists()) {
+            $course->enrollments()->create([
+                'user_id' => $s->id,
+                'progress' => 0,
+                'enrolled_at' => now(),
+                'status' => 'Not Started',
+            ]);
+        }
+
+        $token = $u->createToken('it-test-token')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'course_id' => $course->id,
+            'student_id' => $s->id,
+            'actor_id' => $u->id,
+        ]);
+    });
+}
+
 
 /*
 |--------------------------------------------------------------------------
@@ -339,6 +389,10 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::delete('/courses/{courseId}/enrollments/{userId}', [InstructorCourseController::class, 'unenroll']);
     Route::post('/courses/{courseId}/enrollments/{userId}/lock', [InstructorCourseController::class, 'lockEnrollment']);
     Route::post('/courses/{courseId}/enrollments/{userId}/unlock', [InstructorCourseController::class, 'unlockEnrollment']);
+
+    // Per-module lock/unlock for a specific user
+    Route::post('/courses/{courseId}/modules/{moduleId}/enrollments/{userId}/lock', [InstructorCourseController::class, 'lockModule']);
+    Route::post('/courses/{courseId}/modules/{moduleId}/enrollments/{userId}/unlock', [InstructorCourseController::class, 'unlockModule']);
 
     // Users list (for enrollment dropdown)
     Route::get('/users', [InstructorCourseController::class, 'listUsers']);

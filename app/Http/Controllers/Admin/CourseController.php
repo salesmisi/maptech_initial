@@ -13,6 +13,7 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Exception;
+use App\Models\Notification;
 
 class CourseController extends Controller
 {
@@ -289,6 +290,34 @@ class CourseController extends Controller
 
         try {
             $updated = Course::whereIn('id', $courseIds)->update(['instructor_id' => $instructorId]);
+
+            // If an instructor was assigned, create a notification for them
+            if ($instructorId) {
+                $instructor = \App\Models\User::find($instructorId);
+                if ($instructor) {
+                    $assignedCourses = Course::whereIn('id', $courseIds)->pluck('title')->toArray();
+                    $title = 'Courses assigned to you';
+                    $message = 'You have been assigned ' . count($assignedCourses) . ' course(s): ' . implode(', ', array_slice($assignedCourses, 0, 5));
+
+                    Notification::create([
+                        'user_id' => $instructor->id,
+                        'course_id' => null,
+                        'type' => 'info',
+                        'title' => $title,
+                        'message' => $message,
+                        'data' => [
+                            'course_ids' => $courseIds,
+                        ],
+                    ]);
+
+                    // Broadcast an event so the instructor can update in real-time
+                    try {
+                        event(new \App\Events\InstructorCoursesAssigned($instructor->id, $courseIds));
+                    } catch (Exception $ex) {
+                        Log::warning('Failed to broadcast InstructorCoursesAssigned', ['error' => $ex->getMessage()]);
+                    }
+                }
+            }
 
             return response()->json([
                 'message' => 'Bulk assignment completed',

@@ -265,7 +265,7 @@ class NotificationController extends Controller
         if ($courseId) {
             // Verify instructor has access to the course (ownership or assigned area)
             $course = \App\Models\Course::findOrFail($courseId);
-            $assignedSubIds = $instructor->subdepartments()->pluck('id')->toArray();
+            $assignedSubIds = $instructor->subdepartments()->pluck('subdepartments.id')->toArray();
             $assignedDept = $instructor->department;
 
             $allowed = ($course->instructor_id === $instructor->id)
@@ -282,7 +282,7 @@ class NotificationController extends Controller
             }
         } elseif ($department) {
             // Send to enrolled employees across courses in the department that the instructor can manage
-            $assignedSubIds = $instructor->subdepartments()->pluck('id')->toArray();
+            $assignedSubIds = $instructor->subdepartments()->pluck('subdepartments.id')->toArray();
             $assignedDept = $instructor->department;
 
             // Instructor must belong to the department or have assigned subdepartments matching the department

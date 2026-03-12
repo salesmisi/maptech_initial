@@ -10,12 +10,16 @@ use App\Models\Question;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
 use App\Models\User;
+use App\Events\EnrollmentUnlocked;
+use App\Events\ModuleUnlocked;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
 use Exception;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class CourseController extends Controller
 {
@@ -27,7 +31,7 @@ class CourseController extends Controller
         $user = $request->user();
 
         // scope courses to instructor ownership OR to departments/subdepartments assigned to this instructor
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
         $courses = Course::with(['modules.lessons'])
@@ -44,6 +48,16 @@ class CourseController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
+        try {
+            Log::info('Instructor::index returning courses', [
+                'user_id' => $user->id,
+                'count' => $courses->count(),
+                'course_ids' => $courses->pluck('id')->toArray(),
+            ]);
+        } catch (\Exception $e) {
+            // ignore logging failures
+        }
+
         return response()->json($courses);
     }
 
@@ -55,7 +69,7 @@ class CourseController extends Controller
         $user = $request->user();
 
         // IDs scoped to this instructor or to assigned departments/subdepartments
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
         $courseQueryForIds = Course::where(function ($q) use ($user, $assignedSubIds, $assignedDept) {
@@ -195,10 +209,10 @@ class CourseController extends Controller
             return response()->json(['message' => 'Course not found.'], 404);
         }
 
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
-        $allowed = ($course->instructor_id === $user->id)
+        $allowed = ($course->instructor_id == $user->id)
             || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
@@ -286,10 +300,10 @@ class CourseController extends Controller
 
         $course = Course::findOrFail($id);
 
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
-        $allowed = ($course->instructor_id === $user->id)
+        $allowed = ($course->instructor_id == $user->id)
             || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
@@ -362,10 +376,10 @@ class CourseController extends Controller
 
         $course = Course::findOrFail($id);
 
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
-        $allowed = ($course->instructor_id === $user->id)
+        $allowed = ($course->instructor_id == $user->id)
             || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
@@ -387,10 +401,10 @@ class CourseController extends Controller
 
         $course = Course::findOrFail($id);
 
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
-        $allowed = ($course->instructor_id === $user->id)
+        $allowed = ($course->instructor_id == $user->id)
             || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
@@ -417,6 +431,16 @@ if ($request->hasFile('content')) {
 }
 
 $module = $course->modules()->create($data);
+        try {
+                Log::info('Instructor::addModule created module', [
+                'user_id' => $user->id,
+                'course_id' => $course->id,
+                'module_id' => $module->id,
+                'module_title' => $module->title,
+            ]);
+        } catch (\Exception $e) {
+            // ignore
+        }
 
         return response()->json(['message' => 'Module added successfully', 'module' => $module], 201);
     }
@@ -430,7 +454,7 @@ $module = $course->modules()->create($data);
 
         $course = Course::findOrFail($courseId);
 
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id === $user->id)
@@ -455,10 +479,10 @@ $module = $course->modules()->create($data);
         $user = $request->user();
         $module = Module::with('course')->findOrFail($moduleId);
 
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
-        $allowed = ($module->course->instructor_id === $user->id)
+        $allowed = ($module->course->instructor_id == $user->id)
             || (!empty($assignedSubIds) && in_array($module->course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $module->course->department === $assignedDept);
 
@@ -511,10 +535,10 @@ $module = $course->modules()->create($data);
         $user = $request->user();
         $module = Module::with('course')->findOrFail($moduleId);
 
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
-        $allowed = ($module->course->instructor_id === $user->id)
+        $allowed = ($module->course->instructor_id == $user->id)
             || (!empty($assignedSubIds) && in_array($module->course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $module->course->department === $assignedDept);
 
@@ -540,10 +564,10 @@ $module = $course->modules()->create($data);
     {
         $user = $request->user();
         $course = Course::findOrFail($courseId);
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
-        $allowed = ($course->instructor_id === $user->id)
+        $allowed = ($course->instructor_id == $user->id)
             || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
@@ -606,10 +630,10 @@ $module = $course->modules()->create($data);
         $user = $request->user();
         $course = Course::findOrFail($courseId);
 
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
-        $allowed = ($course->instructor_id === $user->id)
+        $allowed = ($course->instructor_id == $user->id)
             || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
@@ -653,10 +677,10 @@ $module = $course->modules()->create($data);
         $user = $request->user();
         $course = Course::findOrFail($id);
 
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
-        $allowed = ($course->instructor_id === $user->id)
+        $allowed = ($course->instructor_id == $user->id)
             || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
@@ -698,7 +722,7 @@ $module = $course->modules()->create($data);
         $user = $request->user();
         $course = Course::findOrFail($courseId);
 
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id === $user->id)
@@ -709,6 +733,7 @@ $module = $course->modules()->create($data);
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
+        /** @var \App\Models\CourseEnrollment|null $enrollment */
         $enrollment = $course->enrollments()->where('user_id', $userId)->first();
         if (!$enrollment) {
             return response()->json(['message' => 'Enrollment not found'], 404);
@@ -727,7 +752,7 @@ $module = $course->modules()->create($data);
         $user = $request->user();
         $course = Course::findOrFail($courseId);
 
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id === $user->id)
@@ -738,14 +763,89 @@ $module = $course->modules()->create($data);
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
+        /** @var \App\Models\CourseEnrollment|null $enrollment */
         $enrollment = $course->enrollments()->where('user_id', $userId)->first();
         if (!$enrollment) {
             return response()->json(['message' => 'Enrollment not found'], 404);
         }
 
         $enrollment->update(['locked' => false]);
+            // Broadcast to the user so their UI can refresh in realtime
+            try {
+                event(new EnrollmentUnlocked($enrollment->user_id, $course->id));
+            } catch (\Throwable $e) {
+                // Don't fail the API if broadcasting isn't configured
+                Log::warning('Failed to broadcast EnrollmentUnlocked: ' . $e->getMessage());
+            }
 
         return response()->json(['message' => 'Enrollment unlocked']);
+    }
+
+    /**
+     * Unlock a specific module for a given user.
+     */
+    public function unlockModule(Request $request, string $courseId, string $moduleId, int $userId)
+    {
+        $user = $request->user();
+        $course = Course::findOrFail($courseId);
+
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
+        $assignedDept = $user->department;
+
+        $allowed = ($course->instructor_id === $user->id)
+            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || ($assignedDept && $course->department === $assignedDept);
+
+        if (!$allowed) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $module = Module::where('course_id', $course->id)->where('id', $moduleId)->first();
+        if (!$module) return response()->json(['message' => 'Module not found'], 404);
+
+        // Upsert pivot
+        DB::table('module_user')->updateOrInsert(
+            ['module_id' => $module->id, 'user_id' => $userId],
+            ['unlocked' => true, 'unlocked_at' => now(), 'updated_at' => now(), 'created_at' => now()]
+        );
+
+        try {
+            event(new ModuleUnlocked($userId, $course->id, $module->id));
+        } catch (\Throwable $e) {
+            Log::warning('Failed to broadcast ModuleUnlocked: ' . $e->getMessage());
+        }
+
+        return response()->json(['message' => 'Module unlocked for user']);
+    }
+
+    /**
+     * Lock a specific module for a given user.
+     */
+    public function lockModule(Request $request, string $courseId, string $moduleId, int $userId)
+    {
+        $user = $request->user();
+        $course = Course::findOrFail($courseId);
+
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
+        $assignedDept = $user->department;
+
+        $allowed = ($course->instructor_id === $user->id)
+            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || ($assignedDept && $course->department === $assignedDept);
+
+        if (!$allowed) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $module = Module::where('course_id', $course->id)->where('id', $moduleId)->first();
+        if (!$module) return response()->json(['message' => 'Module not found'], 404);
+
+        DB::table('module_user')->updateOrInsert(
+            ['module_id' => $module->id, 'user_id' => $userId],
+            ['unlocked' => false, 'unlocked_at' => null, 'updated_at' => now(), 'created_at' => now()]
+        );
+
+        return response()->json(['message' => 'Module locked for user']);
     }
 
     /**
@@ -760,7 +860,7 @@ $module = $course->modules()->create($data);
         $user = $request->user();
         $course = Course::findOrFail($id);
 
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id === $user->id)
@@ -798,7 +898,7 @@ $module = $course->modules()->create($data);
         $user = $request->user();
         $course = Course::findOrFail($courseId);
 
-        $assignedSubIds = $user->subdepartments()->pluck('id')->toArray();
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id === $user->id)

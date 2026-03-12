@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../../components/ToastProvider';
 import {
   BookOpen,
   Clock,
@@ -69,7 +70,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const lastUnreadRef = React.useRef<number>(0);
-  const [toasts, setToasts] = React.useState<{ id: number | string; title: string; message: string }[]>([]);
+  const { pushToast } = useToast();
 
   const loadNotifications = async () => {
     try {
@@ -101,14 +102,11 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       const data = await res.json();
       if (!Array.isArray(data) || data.length === 0) return [];
 
-      // Show toasts for each reminder
+      // Show toasts for each reminder via global toast provider
       data.forEach((r: any) => {
         const title = `Quiz due soon: ${r.title}`;
         const dateText = r.deadline ? new Date(r.deadline).toLocaleString() : 'Soon';
-        const toastId = `qr-${r.id}-${Date.now()}`;
-        setToasts(prev => [...prev, { id: toastId, title, message: `${r.course_title} • Due ${dateText}` }]);
-        // auto-dismiss
-        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== toastId)), 8000);
+        pushToast(title, `${r.course_title} • Due ${dateText}`, 'info', 8000);
       });
 
       return data;
@@ -201,9 +199,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             const latest = await loadNotifications();
             const newOnes = (latest || []).filter((n: any) => !n.read).slice(0, count - lastUnreadRef.current);
             newOnes.forEach(n => {
-              setToasts(prev => [...prev, { id: n.id, title: n.title, message: n.message }]);
-              // auto-dismiss after 6s
-              setTimeout(() => setToasts(prev => prev.filter(t => t.id !== n.id)), 6000);
+              pushToast(n.title, n.message, 'info', 6000);
             });
             lastUnreadRef.current = count;
           } else {
@@ -264,15 +260,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   }
   return (
     <div className="space-y-8">
-      {/* Toasts container */}
-      <div className="fixed top-6 right-6 z-50 flex flex-col gap-2">
-        {toasts.map(t => (
-          <div key={t.id} className="max-w-sm w-full bg-white shadow-lg rounded-md border border-slate-200 p-3">
-            <div className="font-semibold text-slate-900">{t.title}</div>
-            <div className="text-sm text-slate-600 mt-1 truncate">{t.message}</div>
-          </div>
-        ))}
-      </div>
+
       {/* Welcome Section */}
       <div className="bg-white rounded-lg shadow-sm border border-slate-100 p-6 flex justify-between items-center">
         <div>

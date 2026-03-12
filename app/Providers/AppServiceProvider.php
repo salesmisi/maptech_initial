@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Log;
+
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,6 +21,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // If app is configured to use the Pusher broadcaster but the Pusher PHP
+        // SDK is not installed, fallback to the `log` broadcaster to avoid
+        // a fatal exception when creating the broadcaster.
+        $envDriver = env('BROADCAST_DRIVER');
+        $currentDefault = config('broadcasting.default') ?? $envDriver;
+
+        if (strtolower((string) $currentDefault) === 'pusher' && !class_exists(\Pusher\Pusher::class)) {
+            // Set fallback to `log` so the app continues to work without Pusher.
+            config(['broadcasting.default' => 'log']);
+            Log::warning('Pusher PHP SDK not found; falling back to log broadcaster. Install pusher/pusher-php-server to enable Pusher.');
+        }
     }
 }

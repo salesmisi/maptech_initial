@@ -114,6 +114,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<number | null>(null);
 
   // Quiz state
   const [quizState, setQuizState] = useState<null | 'loading' | 'taking' | 'submitted'>(null);
@@ -157,6 +158,47 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
   useEffect(() => {
     if (courseId) loadCourse();
   }, [courseId]);
+
+  // Subscribe to realtime enrollment unlock events for the current user
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/user', { credentials: 'include', headers: { Accept: 'application/json' } });
+        if (res.ok) {
+          const data = await res.json();
+          if (mounted && data?.id) setUserId(data.id);
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    const Echo = (window as any).Echo;
+    if (!Echo || typeof Echo.private !== 'function') return;
+
+    const channel = Echo.private('user.' + userId);
+    const handler = (payload: any) => {
+      if (!payload || payload.course_id == null) return;
+      // If this event is for the currently-open course, reload it so modules reflect unlock
+      if (String(payload.course_id) === String(courseId)) {
+        loadCourse();
+      }
+    };
+
+    channel.listen('EnrollmentUnlocked', handler);
+    channel.listen('ModuleUnlocked', handler);
+
+    return () => {
+      try { channel.stopListening('EnrollmentUnlocked'); } catch (e) { /* ignore */ }
+      try { channel.stopListening('ModuleUnlocked'); } catch (e) { /* ignore */ }
+    };
+  }, [userId, courseId]);
 
   // Reset quiz state when module changes
   useEffect(() => {

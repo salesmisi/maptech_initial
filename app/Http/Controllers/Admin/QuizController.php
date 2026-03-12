@@ -18,6 +18,10 @@ class QuizController extends Controller
     /** GET /admin/quizzes — all quizzes across all courses */
     public function index(Request $request)
     {
+        $user = $request->user();
+        if ($user && $user->isEmployee() && strtolower($user->department) !== 'it') {
+            return response()->json(['message' => 'Forbidden: employees cannot access quizzes'], 403);
+        }
         $quizzes = Quiz::with(['course.subdepartment', 'module', 'questions'])
             ->latest()
             ->get()
@@ -45,7 +49,13 @@ class QuizController extends Controller
     /** GET /admin/courses/{courseId}/quizzes — quizzes for a specific course */
     public function forCourse(Request $request, string $courseId)
     {
-        Course::findOrFail($courseId);
+        $course = Course::findOrFail($courseId);
+        $user = $request->user();
+        if ($user && $user->isEmployee()) {
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot access quizzes for this course'], 403);
+            }
+        }
 
         $quizzes = Quiz::with(['questions', 'module'])
             ->where('course_id', $courseId)
@@ -68,7 +78,14 @@ class QuizController extends Controller
     /** GET /admin/modules/{moduleId}/quizzes — quiz attached to a specific module */
     public function forModule(Request $request, int $moduleId)
     {
-        Module::findOrFail($moduleId);
+        $module = Module::findOrFail($moduleId);
+        $course = $module->course;
+        $user = $request->user();
+        if ($user && $user->isEmployee()) {
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot access quizzes for this module'], 403);
+            }
+        }
 
         $quizzes = Quiz::with('questions')
             ->where('module_id', $moduleId)
@@ -90,7 +107,13 @@ class QuizController extends Controller
     /** POST /admin/courses/{courseId}/quizzes — create quiz */
     public function store(Request $request, string $courseId)
     {
-        Course::findOrFail($courseId);
+        $course = Course::findOrFail($courseId);
+        $user = $request->user();
+        if ($user && $user->isEmployee()) {
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot create quizzes for this course'], 403);
+            }
+        }
 
         $validated = $request->validate([
             'title'           => 'required|string|max:255',
@@ -123,6 +146,13 @@ class QuizController extends Controller
     public function storeForModule(Request $request, int $moduleId)
     {
         $module = Module::findOrFail($moduleId);
+        $course = $module->course;
+        $user = $request->user();
+        if ($user && $user->isEmployee()) {
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot create quizzes for this module'], 403);
+            }
+        }
 
         if (Quiz::where('module_id', $moduleId)->exists()) {
             return response()->json(['message' => 'This module already has a quiz. Delete it first to create a new one.'], 422);
@@ -158,6 +188,13 @@ class QuizController extends Controller
     public function show(Request $request, int $id)
     {
         $quiz = Quiz::with(['course', 'module', 'questions.options'])->findOrFail($id);
+        $user = $request->user();
+        if ($user && $user->isEmployee()) {
+            $course = $quiz->course;
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot view this quiz'], 403);
+            }
+        }
 
         return response()->json([
             'id'              => $quiz->id,
@@ -177,6 +214,13 @@ class QuizController extends Controller
     public function update(Request $request, int $id)
     {
         $quiz = Quiz::findOrFail($id);
+        $user = $request->user();
+        if ($user && $user->isEmployee()) {
+            $course = $quiz->course;
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot update this quiz'], 403);
+            }
+        }
 
         $validated = $request->validate([
             'title'           => 'required|string|max:255',
@@ -193,6 +237,13 @@ class QuizController extends Controller
     public function destroy(Request $request, int $id)
     {
         $quiz = Quiz::with('questions')->findOrFail($id);
+        $user = $request->user();
+        if ($user && $user->isEmployee()) {
+            $course = $quiz->course;
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot delete this quiz'], 403);
+            }
+        }
 
         foreach ($quiz->questions as $question) {
             if ($question->image_path) Storage::disk('public')->delete($question->image_path);
@@ -210,6 +261,13 @@ class QuizController extends Controller
     public function addQuestion(Request $request, int $quizId)
     {
         $quiz = Quiz::findOrFail($quizId);
+        $user = $request->user();
+        if ($user && $user->isEmployee()) {
+            $course = $quiz->course;
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot add questions to this quiz'], 403);
+            }
+        }
 
         $request->validate([
             'question_text'          => 'required|string',
@@ -257,7 +315,15 @@ class QuizController extends Controller
     /** PUT /admin/quizzes/{quizId}/questions/{questionId} */
     public function updateQuestion(Request $request, int $quizId, int $questionId)
     {
-        Quiz::findOrFail($quizId);
+        $quiz = Quiz::findOrFail($quizId);
+        $user = $request->user();
+        if ($user && $user->isEmployee()) {
+            $course = $quiz->course;
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot update questions for this quiz'], 403);
+            }
+        }
+
         $question = QuizQuestion::where('quiz_id', $quizId)->findOrFail($questionId);
 
         $request->validate([
@@ -315,7 +381,14 @@ class QuizController extends Controller
     /** DELETE /admin/quizzes/{quizId}/questions/{questionId} */
     public function deleteQuestion(Request $request, int $quizId, int $questionId)
     {
-        Quiz::findOrFail($quizId);
+        $quiz = Quiz::findOrFail($quizId);
+        $user = $request->user();
+        if ($user && $user->isEmployee()) {
+            $course = $quiz->course;
+            if (strtolower($user->department) !== 'it' || strtolower($course->department) !== 'it') {
+                return response()->json(['message' => 'Forbidden: employees cannot delete questions for this quiz'], 403);
+            }
+        }
         $question = QuizQuestion::where('quiz_id', $quizId)->findOrFail($questionId);
 
         if ($question->image_path) Storage::disk('public')->delete($question->image_path);

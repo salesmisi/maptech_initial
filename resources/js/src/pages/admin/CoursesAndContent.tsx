@@ -202,6 +202,19 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     };
   }, []);
 
+  // Refresh courses list when a module is added elsewhere (instructor UI)
+  useEffect(() => {
+    const handler = (e: any) => {
+      try {
+        loadCourses();
+      } catch (err) {
+        // ignore
+      }
+    };
+    window.addEventListener('module:added', handler as EventListener);
+    return () => window.removeEventListener('module:added', handler as EventListener);
+  }, []);
+
   // Load departments and instructors for edit form
   useEffect(() => {
     fetch('/api/departments')
@@ -823,13 +836,6 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-gray-900">Course Management</h1>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
-            >
-              <PlusIcon className="h-5 w-5" />
-              Create Course
-            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -896,21 +902,6 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Course Management</h1>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
-        >
-          <PlusIcon className="h-5 w-5" />
-          Create Course
-        </button>
-        <button
-          onClick={() => setShowBulkAssignModal(true)}
-          className="ml-3 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-          disabled={selectedCourseIds.length === 0}
-          title={selectedCourseIds.length === 0 ? 'Select courses first' : `${selectedCourseIds.length} selected`}
-        >
-          Bulk Assign ({selectedCourseIds.length})
-        </button>
       </div>
 
       {/* Search and Filter */}
@@ -1060,12 +1051,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               : 'Get started by creating your first course'
             }
           </p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-          >
-            Create Course
-          </button>
+          {/* Create Course removed on admin UI */}
         </div>
       )}
 
@@ -1685,13 +1671,20 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 onClick={async () => {
                   setIsBulkAssigning(true);
                   try {
+                    // Ensure Laravel's CSRF cookie is set for Sanctum stateful auth
+                    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+                    const csrf = getXsrfToken();
+
                     const res = await fetch('/api/admin/courses/bulk-assign', {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-XSRF-TOKEN': csrf },
                       credentials: 'include',
                       body: JSON.stringify({ course_ids: selectedCourseIds, instructor_id: bulkInstructorId }),
                     });
-                    if (!res.ok) throw new Error(`Status ${res.status}`);
+                    if (!res.ok) {
+                      const text = await res.text().catch(() => `Status ${res.status}`);
+                      throw new Error(text || `Status ${res.status}`);
+                    }
                     const data = await res.json();
                     // refresh courses
                     await loadCourses();

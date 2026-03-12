@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useToast } from '../../components/ToastProvider';
 // icons removed — not used in this component
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 import { UserTimeLog } from '../../components/UserTimeLog';
@@ -36,6 +37,65 @@ export function InstructorDashboard() {
         setPassRateDelta(data.stats?.pass_rate_delta || 0); // backend should provide this
       })
       .finally(() => setLoading(false));
+  }, []);
+
+  const { pushToast } = useToast();
+
+  // Real-time listener: if Laravel Echo is configured on the page, subscribe
+  useEffect(() => {
+    let channel: any = null;
+    // We need the instructor id to subscribe to private channel
+    const setup = async () => {
+      try {
+        const resp = await fetch('/api/instructor/dashboard', { credentials: 'include' });
+        if (!resp.ok) return;
+        const info = await resp.json();
+        const instructorId = info.user?.id;
+        if (!instructorId) return;
+
+        if ((window as any).Echo) {
+          try {
+            channel = (window as any).Echo.private('instructor.' + instructorId);
+            channel.listen('InstructorCoursesAssigned', (payload: any) => {
+              // Show a toast and refresh dashboard data when an assignment event arrives
+              try {
+                const count = Array.isArray(payload.course_ids) ? payload.course_ids.length : 0;
+                pushToast('Courses assigned', `You were assigned ${count} new course(s). Refreshing...`, 'info', 6000);
+              } catch (e) {
+                // ignore toast errors
+              }
+              fetch('/api/instructor/dashboard', { credentials: 'include' })
+                .then(r => r.ok ? r.json() : null)
+                .then((d) => {
+                  if (!d) return;
+                  setPendingEvaluations(d.pending_evaluations || []);
+                  setCourseStats(d.course_stats || []);
+                  setPerformanceData(d.performance_trend || []);
+                  setRecentQuestions(d.recent_questions || []);
+                  setStudentCount(d.stats?.total_students || 0);
+                  setAvgPassRate(d.stats?.avg_pass_rate || 0);
+                  setNewStudentsMonth(d.stats?.new_students_month || 0);
+                  setPassRateDelta(d.stats?.pass_rate_delta || 0);
+                });
+            });
+          } catch (err) {
+            console.warn('Failed to attach Echo listener', err);
+          }
+        } else {
+          // Echo not available; no-op. To enable realtime, install and configure laravel-echo + pusher-js.
+          // See README for setup steps.
+        }
+      } catch (err) {
+        // ignore
+      }
+    };
+    setup();
+
+    return () => {
+      try {
+        if (channel && channel.leave) channel.leave();
+      } catch (e) {}
+    };
   }, []);
 
   return (

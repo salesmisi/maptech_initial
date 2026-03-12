@@ -22,9 +22,12 @@ class CheckAccountStatus
             ], 401);
         }
 
-        if (!$user->isActive()) {
+        // Accept case-insensitive status values (e.g. 'active' or 'Active')
+        $status = $user->status ?? '';
+        if (strtolower($status) !== 'active') {
             return response()->json([
-                'message' => 'Your account is inactive. Please contact administrator.'
+                'message' => 'Your account is inactive. Please contact administrator.',
+                'status' => $user->status,
             ], 403);
         }
 
