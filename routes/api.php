@@ -640,5 +640,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
             'profile_picture' => asset('storage/' . $path),
         ]);
     });
+
+    // Time Log: Punch in / Punch out / My logs
+    Route::prefix('time-logs')->group(function () {
+        Route::post('/punch-in', [\App\Http\Controllers\TimeLogController::class, 'punchIn'])->middleware(['auth:sanctum', 'status']);
+        Route::post('/punch-out', [\App\Http\Controllers\TimeLogController::class, 'punchOut'])->middleware(['auth:sanctum', 'status']);
+        Route::get('/me', [\App\Http\Controllers\TimeLogController::class, 'myLogs'])->middleware(['auth:sanctum', 'status']);
+        // Admin/Instructor: Get logs for any user
+        Route::get('/{userId}', [\App\Http\Controllers\TimeLogController::class, 'userLogs'])->middleware(['auth:sanctum', 'status']);
+    });
 });
 

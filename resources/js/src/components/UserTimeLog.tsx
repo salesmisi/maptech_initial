@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { RefreshCw, Clock, LogOut } from "lucide-react";
 
-interface AuditEntry {
+interface TimeLogEntry {
   id: number;
   user_id: number;
-  action: "login" | "logout";
-  ip_address: string | null;
+  time_in: string | null;
+  time_out: string | null;
+  note?: string | null;
   created_at: string;
 }
 
@@ -13,12 +14,11 @@ interface Session {
   id: string;
   time_in: string | null;
   time_out: string | null;
-  login_id: number | null;
-  logout_id: number | null;
+  note?: string | null;
 }
 
 export function UserTimeLog() {
-  const [logs, setLogs] = useState<AuditEntry[]>([]);
+  const [logs, setLogs] = useState<TimeLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
@@ -26,12 +26,12 @@ export function UserTimeLog() {
   const [userId, setUserId] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Fetch only current user's logs
+  // Fetch only current user's time logs
   const fetchLogs = useCallback(async (silent = false) => {
     try {
       if (silent) setRefreshing(true);
       else setLoading(true);
-      const res = await fetch("/api/me/audit-logs", {
+      const res = await fetch("/api/time-logs/me", {
         credentials: "include",
         headers: {
           Accept: "application/json",
@@ -40,7 +40,7 @@ export function UserTimeLog() {
       });
       if (!res.ok) throw new Error("Failed to load logs");
       const data = await res.json();
-      setLogs(data.data || []);
+      setLogs(Array.isArray(data) ? data : []);
       setLastRefreshed(new Date());
     } catch {
       /* ignore */
@@ -80,46 +80,14 @@ export function UserTimeLog() {
     return () => clearInterval(tick);
   }, []);
 
-  // Group into sessions (LIFO stack)
-  const groupIntoSessions = (entries: AuditEntry[]): Session[] => {
-    const sessions: Session[] = [];
-    const stack: AuditEntry[] = [];
-    const sorted = [...entries].sort((a, b) =>
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime() || a.id - b.id
-    );
-    sorted.forEach((entry) => {
-      if (entry.action === "login") {
-        stack.push(entry);
-      } else if (entry.action === "logout") {
-        if (stack.length > 0) {
-          const login = stack.pop()!;
-          sessions.push({
-            id: `session-${login.id}`,
-            time_in: login.created_at,
-            time_out: entry.created_at,
-            login_id: login.id,
-            logout_id: entry.id,
-          });
-        } else {
-          sessions.push({
-            id: `session-${entry.id}`,
-            time_in: null,
-            time_out: entry.created_at,
-            login_id: null,
-            logout_id: entry.id,
-          });
-        }
-      }
-    });
-    stack.forEach((login) => {
-      sessions.push({
-        id: `session-${login.id}`,
-        time_in: login.created_at,
-        time_out: null,
-        login_id: login.id,
-        logout_id: null,
-      });
-    });
+  // Convert TimeLog entries into sessions
+  const groupIntoSessions = (entries: TimeLogEntry[]): Session[] => {
+    const sessions = entries.map((e) => ({
+      id: `timelog-${e.id}`,
+      time_in: e.time_in,
+      time_out: e.time_out,
+      note: e.note,
+    }));
     return sessions.sort((a, b) => {
       const aTime = a.time_in || a.time_out || "";
       const bTime = b.time_in || b.time_out || "";
@@ -129,28 +97,29 @@ export function UserTimeLog() {
 
   const sessions = groupIntoSessions(logs);
 
-  // Realtime: subscribe to user's private channel for new audit log entries
+  // Realtime: subscribe to user's private channel for new time-log entries
   useEffect(() => {
     if (!userId) return;
     const Echo = (window as any).Echo;
     if (!Echo || typeof Echo.private !== 'function') return;
 
-    const channel = Echo.private('user.' + userId);
+    const channel = Echo.private('time-logs.' + userId);
     const handler = (payload: any) => {
-      // Payload follows {id,user_id,action,ip_address,created_at}
-      const entry: AuditEntry = {
-        id: payload.id,
-        user_id: payload.user_id,
-        action: payload.action,
-        ip_address: payload.ip_address,
-        created_at: payload.created_at,
+      // payload contains { time_log: { id, user_id, time_in, time_out, note, ... } }
+      const tl = payload.time_log || payload;
+      const entry: TimeLogEntry = {
+        id: tl.id,
+        user_id: tl.user_id,
+        time_in: tl.time_in,
+        time_out: tl.time_out,
+        note: tl.note ?? null,
+        created_at: tl.created_at ?? tl.time_in ?? new Date().toISOString(),
       };
-      setLogs((prev) => [entry, ...prev]);
+      setLogs((prev) => [entry, ...prev.filter((p) => p.id !== entry.id)]);
       setLastRefreshed(new Date());
     };
 
-    // Listen for the event name 'AuditLogCreated'
-    channel.listen('AuditLogCreated', handler);
+    channel.listen('TimeLogUpdated', handler);
 
     return () => {
       try {

@@ -69,9 +69,43 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       setEmail('');
       setPassword('');
 
+      // Auto punch-in for employee/instructor if no open time log
+      const role = data.role?.toLowerCase();
+      if (role === 'employee' || role === 'instructor') {
+        try {
+          // Check for open time log
+          const logsRes = await fetch('/api/time-logs/me', {
+            credentials: 'include',
+            headers: {
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+            },
+          });
+          if (logsRes.ok) {
+            const logs = await logsRes.json();
+            const hasOpen = Array.isArray(logs) && logs.some((l) => l.time_in && !l.time_out);
+            if (!hasOpen) {
+              // Punch in if no open log
+              await fetch('/api/time-logs/punch-in', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json',
+                  'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({}),
+              });
+            }
+          }
+        } catch (e) {
+          // ignore punch-in errors
+        }
+      }
+
       // Pass role (lowercase), name, email, and department
       onLogin(
-        data.role?.toLowerCase() as 'admin' | 'instructor' | 'employee',
+        role as 'admin' | 'instructor' | 'employee',
         data.name,
         data.email,
         data.department,
