@@ -21,7 +21,7 @@ import { AdminFeedback } from './pages/admin/AdminFeedback';
 import { InstructorDashboard } from './pages/instructor/InstructorDashboard';
 import { InstructorCourseManagement } from './pages/instructor/CourseManagement';
 import { InstructorCourseDetail } from './pages/instructor/CourseDetail';
-import { InstructorQuizBuilder } from './pages/instructor/QuizBuilder';
+// InstructorQuizBuilder was unused and removed to fix TS warning
 import { QuizAssessmentManagement } from './pages/instructor/QuizAssessmentManagement';
 import { LessonVideoUpload } from './pages/instructor/LessonVideoUpload';
 import { QuizEvaluation } from './pages/instructor/QuizEvaluation';
@@ -171,6 +171,12 @@ export function App() {
         localStorage.setItem(`maptech_courseId_${user.role}`, courseId);
       }
     }
+    if (typeof quizId !== 'undefined') {
+      setSelectedQuizId(quizId ?? null);
+      if (user) {
+        try { localStorage.setItem(`maptech_quizId_${user.role}`, String(quizId ?? '')); } catch (e) { /* ignore */ }
+      }
+    }
   };
 
   // =========================
@@ -211,7 +217,7 @@ export function App() {
         {currentPage === 'departments' && <DepartmentManagement />}
         {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
         {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
-        {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management'); }} apiPrefix="admin" />}
+        {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); setSelectedQuizId(quizId ?? null); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
         {currentPage === 'enrollments' && <EnrollmentManagement />}
         {currentPage === 'reports' && <ReportsAnalytics />}
         {currentPage === 'notifications' && <NotificationManagement />}
@@ -236,7 +242,7 @@ export function App() {
       >
         {currentPage === 'dashboard' && <InstructorDashboard />}
         {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
-        {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management'); }} />}
+        {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); setSelectedQuizId(quizId ?? null); handleNavigate('quiz-management', courseId, quizId); }} />}
         {currentPage === 'quiz-management' && <QuizAssessmentManagement />}
         {currentPage === 'lessons' && <LessonVideoUpload />}
         {currentPage === 'quizzes' && <QuizAssessmentManagement />}
