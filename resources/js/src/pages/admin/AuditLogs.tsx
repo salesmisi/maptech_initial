@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { LogIn, LogOut, Search, ChevronLeft, ChevronRight, Filter, Users, GraduationCap, Shield, Clock } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { LogIn, LogOut, Search, ChevronLeft, ChevronRight, Filter, Users, GraduationCap, Shield, Clock, RefreshCw } from "lucide-react";
 
 interface AuditUser {
   id: number;
@@ -16,6 +16,12 @@ interface AuditEntry {
   ip_address: string | null;
   created_at: string;
   user: AuditUser | null;
+  time_log?: {
+    id: number;
+    time_in: string | null;
+    time_out: string | null;
+    note?: string | null;
+  } | null;
 }
 
 interface PaginatedResponse {
@@ -41,7 +47,28 @@ type RoleFilter = "All" | "Employee" | "Instructor" | "Admin";
 
 export function AuditLogs() {
   const API = "/api/admin";
+  // Sorting state
+  const [sortField, setSortField] = useState<'time_in' | 'time_out' | 'name'>('time_in');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
+  // Custom sorting function
+  const sortSessions = (sessions: Session[]) => {
+    return [...sessions].sort((a, b) => {
+      let aVal, bVal;
+      if (sortField === 'name') {
+        aVal = a.user?.fullname || '';
+        bVal = b.user?.fullname || '';
+      } else {
+        aVal = a[sortField] || '';
+        bVal = b[sortField] || '';
+      }
+      if (sortOrder === 'asc') {
+        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+      } else {
+        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+      }
+    });
+  };
   const getCookie = (name: string) => {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -50,17 +77,25 @@ export function AuditLogs() {
 
   const [logs, setLogs] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [now, setNow] = useState(new Date());
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("All");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchLogs = async (pageNum: number) => {
+  const doFetch = useCallback(async (pageNum: number, silent = false) => {
     try {
-      setLoading(true);
-      await fetch("/sanctum/csrf-cookie", { credentials: "include" });
-      const res = await fetch(`${API}/audit-logs?page=${pageNum}&per_page=100`, {
+      if (silent) setRefreshing(true);
+      else setLoading(true);
+      let url = `${API}/audit-logs?page=${pageNum}&per_page=100`;
+      if (roleFilter !== "All") {
+        url += `&role=${encodeURIComponent(roleFilter.toLowerCase())}`;
+      }
+      const res = await fetch(url, {
         credentials: "include",
         headers: {
           Accept: "application/json",
@@ -74,137 +109,261 @@ export function AuditLogs() {
       setPage(data.current_page);
       setLastPage(data.last_page);
       setTotal(data.total);
+      setLastRefreshed(new Date());
     } catch {
       /* ignore */
     } finally {
-      setLoading(false);
+      if (silent) setRefreshing(false);
+      else setLoading(false);
     }
-  };
+  }, [API, roleFilter]);
 
+  const fetchLogs = (pageNum: number) => doFetch(pageNum, false);
+
+  // Initial load + start 30-second auto-poll
   useEffect(() => {
-    fetchLogs(1);
-  }, []);
+    doFetch(1, false);
+    pollRef.current = setInterval(() => doFetch(1, true), 30_000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [doFetch]);
 
+  // Tick every second to drive the live elapsed timer
+  useEffect(() => {
+    const tick = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(tick);
+  }, []);
   // Group logs into sessions (pair login with logout)
   const groupIntoSessions = (entries: AuditEntry[]): Session[] => {
-    const sessions: Session[] = [];
-    const userLogs: { [userId: number]: AuditEntry[] } = {};
-
-    // Group by user
-    entries.forEach((entry) => {
-      const userId = entry.user_id;
-      if (!userLogs[userId]) userLogs[userId] = [];
-      userLogs[userId].push(entry);
-    });
-
-    // For each user, pair logins with logouts
-    Object.keys(userLogs).forEach((userIdStr) => {
-      const userId = parseInt(userIdStr);
-      const userEntries = userLogs[userId].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-
-      // Track pending logout entries
-      const pendingLogouts: AuditEntry[] = [];
-
-      userEntries.forEach((entry) => {
-        if (entry.action === "logout") {
-          pendingLogouts.push(entry);
-        } else if (entry.action === "login") {
-          // Pair with most recent pending logout if exists
-          const matchingLogout = pendingLogouts.shift();
-          sessions.push({
-            id: `session-${entry.id}`,
-            user: entry.user,
-            user_id: userId,
-            time_in: entry.created_at,
-            time_out: matchingLogout ? matchingLogout.created_at : null,
-            ip_address: entry.ip_address,
-            login_id: entry.id,
-            logout_id: matchingLogout ? matchingLogout.id : null,
+    const byUser: Record<number, Session[]> = {};
+    const sorted = [...entries].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    for (const e of sorted) {
+      const uid = e.user_id;
+      if (!byUser[uid]) byUser[uid] = [];
+      if (e.action === "login") {
+        byUser[uid].push({
+          id: `session-login-${e.id}`,
+          user: e.user,
+          user_id: uid,
+          time_in: e.created_at,
+          time_out: null,
+          ip_address: e.ip_address,
+          login_id: e.id,
+          logout_id: null,
+        });
+      } else {
+        const userSessions = byUser[uid];
+        const last = userSessions[userSessions.length - 1];
+        if (last && last.time_out === null) {
+          last.time_out = e.created_at;
+          last.logout_id = e.id;
+        } else {
+          userSessions.push({
+            id: `session-logout-${e.id}`,
+            user: e.user,
+            user_id: uid,
+            time_in: null,
+            time_out: e.created_at,
+            ip_address: e.ip_address,
+            login_id: null,
+            logout_id: e.id,
           });
         }
-      });
+      }
+    }
 
-      // Handle any remaining pending logouts (logouts without matching logins)
-      pendingLogouts.forEach((logout) => {
-        sessions.push({
-          id: `session-${logout.id}`,
-          user: logout.user,
-          user_id: userId,
-          time_in: null,
-          time_out: logout.created_at,
-          ip_address: logout.ip_address,
-          login_id: null,
-          logout_id: logout.id,
-        });
-      });
-    });
-
-    // Sort sessions by most recent activity
-    return sessions.sort((a, b) => {
+    let sessionsArr: Session[] = Object.values(byUser).flat();
+    sessionsArr = sessionsArr.sort((a, b) => {
       const aTime = a.time_in || a.time_out || "";
       const bTime = b.time_in || b.time_out || "";
       return new Date(bTime).getTime() - new Date(aTime).getTime();
     });
+    return sessionsArr;
   };
 
-  // Filter logs by search and role
-  const filteredLogs = logs.filter((l) => {
-    const matchesSearch = search.trim()
-      ? l.user?.fullname.toLowerCase().includes(search.toLowerCase()) ||
-        l.user?.email.toLowerCase().includes(search.toLowerCase())
-      : true;
-    const matchesRole =
-      roleFilter === "All" ||
-      l.user?.role?.toLowerCase() === roleFilter.toLowerCase();
-    return matchesSearch && matchesRole;
+  const sessions = groupIntoSessions(logs);
+
+  // Apply role/search filters
+  const filteredSessions = sortSessions(
+    sessions.filter((s) => {
+      if (roleFilter !== "All" && (s.user?.role || "") !== roleFilter) return false;
+      if (!search) return true;
+      const q = search.toLowerCase();
+      return (s.user?.fullname || "").toLowerCase().includes(q) || (s.user?.email || "").toLowerCase().includes(q);
+    })
+  );
+
+  const groupedByUser: Record<number, Session[]> = {};
+  filteredSessions.forEach((s) => {
+    groupedByUser[s.user_id] = groupedByUser[s.user_id] || [];
+    groupedByUser[s.user_id].push(s);
   });
 
-  const sessions = groupIntoSessions(filteredLogs);
+  Object.keys(groupedByUser).forEach((k) => {
+    groupedByUser[Number(k)] = groupedByUser[Number(k)].sort((a, b) => {
+      const aTime = a.time_in || a.time_out || "";
+      const bTime = b.time_in || b.time_out || "";
+      return new Date(bTime).getTime() - new Date(aTime).getTime();
+    });
+  });
 
-  // Group filtered logs by role for statistics
+  const userGroups = Object.values(groupedByUser);
+
   const stats = {
-    admin: sessions.filter((s) => s.user?.role?.toLowerCase() === "admin").length,
-    instructor: sessions.filter((s) => s.user?.role?.toLowerCase() === "instructor").length,
-    employee: sessions.filter((s) => s.user?.role?.toLowerCase() === "employee").length,
+    admin: sessions.filter((s) => (s.user?.role || "").toLowerCase() === "admin").length,
+    instructor: sessions.filter((s) => (s.user?.role || "").toLowerCase() === "instructor").length,
+    employee: sessions.filter((s) => (s.user?.role || "").toLowerCase() === "employee").length,
     totalSessions: sessions.length,
   };
 
   const formatDateTime = (iso: string | null) => {
     if (!iso) return null;
     const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
     const now = new Date();
     const isToday = d.toDateString() === now.toDateString();
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
     const isYesterday = d.toDateString() === yesterday.toDateString();
-
-    const fullTime = d.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-    const time = fullTime.replace(/\s?(AM|PM)$/i, "").trim();
-    const period = d.getHours() >= 12 ? "PM" : "AM";
-
-    if (isToday) {
-      return { date: "Today", time, period };
-    } else if (isYesterday) {
-      return { date: "Yesterday", time, period };
-    } else {
-      return {
-        date: d.toLocaleDateString("en-US", {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
-        time,
-        period,
-      };
-    }
+    const fullTime = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    const m = fullTime.match(/^(.*)\s?(AM|PM)$/i);
+    const timeOnly = m ? m[1].trim() : fullTime;
+    const period = m ? m[2].toUpperCase() : (d.getHours() >= 12 ? "PM" : "AM");
+    if (isToday) return { date: "Today", time: timeOnly, period };
+    if (isYesterday) return { date: "Yesterday", time: timeOnly, period };
+    return {
+      date: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }),
+      time: timeOnly,
+      period,
+    };
   };
+
+  // Realtime: subscribe to admin time-log updates so the admin list refreshes
+  useEffect(() => {
+    const Echo = (window as any).Echo;
+    if (!Echo || typeof Echo.private !== 'function') return;
+    const channel = Echo.private('time-logs.admin');
+    const handler = (payload: any) => {
+      // Refresh audit logs when a time-log is updated
+      fetchLogs(1);
+    };
+    channel.listen('TimeLogUpdated', handler);
+    return () => {
+      try { channel.stopListening('TimeLogUpdated'); } catch (e) { /* ignore */ }
+    };
+  }, []);
+
+  // Realtime: listen for audit-log creations so admin view updates on user login/logout
+  useEffect(() => {
+    const Echo = (window as any).Echo;
+    if (!Echo || typeof Echo.private !== 'function') return;
+    const channel = Echo.private('audit-logs.admin');
+    const handler = (payload: any) => {
+      // Refresh audit logs when a new audit log is created
+      fetchLogs(1);
+    };
+    channel.listen('AuditLogCreated', handler);
+    return () => {
+      try { channel.stopListening('AuditLogCreated'); } catch (e) { /* ignore */ }
+    };
+  }, []);
+
+  // Modal state for managing a user's time logs
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalUser, setModalUser] = useState<AuditUser | null>(null);
+  const [modalTimeLogs, setModalTimeLogs] = useState<any[]>([]);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [selectedLogIds, setSelectedLogIds] = useState<number[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+
+  const getCookieValue = (name: string) => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
+  };
+
+  const fetchUserTimeLogs = useCallback(async (userId: number) => {
+    try {
+      setModalLoading(true);
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      const res = await fetch(`/api/time-logs/${userId}`, {
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': decodeURIComponent(getCookieValue('XSRF-TOKEN') || ''),
+        },
+      });
+      if (!res.ok) throw new Error('Failed to load user time logs');
+      const data = await res.json();
+      setModalTimeLogs(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setModalTimeLogs([]);
+    } finally {
+      setModalLoading(false);
+    }
+  }, []);
+
+  const getXsrf = () => decodeURIComponent(getCookieValue('XSRF-TOKEN') || '');
+
+  const sessionPrimaryId = (s: Session) => s.logout_id ?? s.login_id ?? null;
+
+  const visibleSessionIds = Array.from(
+    new Set(
+      userGroups
+        .flat()
+        .map((s) => sessionPrimaryId(s))
+        .filter((id): id is number => !!id)
+    )
+  );
+
+  const updateTimeLog = async (id: number, payload: any) => {
+    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+    const res = await fetch(`/api/time-logs/admin/${id}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error('Update failed');
+    await fetchLogs(1);
+  };
+
+  const archiveTimeLog = async (id: number, archived: boolean) => {
+    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+    const res = await fetch(`/api/time-logs/admin/${id}/archive`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
+      body: JSON.stringify({ archived }),
+    });
+    if (!res.ok) throw new Error('Archive failed');
+    await fetchLogs(1);
+  };
+
+  const deleteTimeLog = async (id: number) => {
+    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+    const res = await fetch(`/api/time-logs/admin/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { 'X-XSRF-TOKEN': getXsrf() },
+    });
+    if (!res.ok) throw new Error('Delete failed');
+    await fetchLogs(1);
+  };
+
+  const openManageModal = (user: AuditUser | null) => {
+    if (!user) return;
+    setModalUser(user);
+    setModalOpen(true);
+    fetchUserTimeLogs(user.id);
+  };
+
+  const closeManageModal = () => {
+    setModalOpen(false);
+    setModalUser(null);
+    setModalTimeLogs([]);
+  };
+
 
   const roleFilterButtons: { value: RoleFilter; label: string; icon: React.ReactNode; color: string }[] = [
     { value: "All", label: "All Roles", icon: <Filter className="w-4 h-4" />, color: "bg-gray-100 text-gray-700 hover:bg-gray-200" },
@@ -215,15 +374,100 @@ export function AuditLogs() {
 
   return (
     <div className="p-6">
+      {/* Sorting Controls */}
+      <div className="mb-4 flex gap-2 items-center">
+        <span className="text-sm text-gray-600">Sort by:</span>
+        <select value={sortField} onChange={e => setSortField(e.target.value as any)} className="px-2 py-1 border rounded text-sm">
+          <option value="time_in">Time In</option>
+          <option value="time_out">Time Out</option>
+          <option value="name">Name</option>
+        </select>
+        <button
+          className="px-2 py-1 border rounded text-sm"
+          onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
+        >
+          {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+        </button>
+      </div>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-semibold">Audit Logs</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Track login and logout activity by role
+            Shows login/logout activity and user time logs for all users (Admins, Instructors, Employees). Use the role filters to narrow results.
           </p>
         </div>
         <span className="text-sm text-gray-500">{total} total entries</span>
       </div>
+
+      {/* Manage Time Logs Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black opacity-40" onClick={closeManageModal}></div>
+          <div className="bg-white rounded-lg shadow-lg w-11/12 max-w-2xl z-50 p-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium">Manage Time Logs for {modalUser?.fullname}</h3>
+              <button onClick={closeManageModal} className="text-gray-500">Close</button>
+            </div>
+            <div>
+              {modalLoading ? (
+                <div className="text-center text-gray-500">Loading...</div>
+              ) : modalTimeLogs.length === 0 ? (
+                <div className="text-center text-gray-500">No time logs for this user.</div>
+              ) : (
+                <div className="space-y-3">
+                  {modalTimeLogs.map((tl) => (
+                    <div key={tl.id} className="border rounded p-3 flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm text-gray-600">Time In: {tl.time_in || '—'}</div>
+                        <div className="text-sm text-gray-600">Time Out: {tl.time_out || '—'}</div>
+                        <div className="text-sm text-gray-600">Status: {(tl.time_out == null) ? 'Active' : 'Inactive'}</div>
+                        <div className="text-sm text-gray-500">Note: {tl.note || '—'}</div>
+                        <div className="text-sm text-gray-400">Archived: {tl.archived ? 'Yes' : 'No'}</div>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <button
+                          onClick={async () => {
+                            const newIn = prompt('Enter new Time In (ISO or YYYY-MM-DD HH:MM):', tl.time_in || '');
+                            const newOut = prompt('Enter new Time Out (ISO or YYYY-MM-DD HH:MM):', tl.time_out || '');
+                            if (newIn === null && newOut === null) return;
+                            try {
+                              await updateTimeLog(tl.id, { time_in: newIn || null, time_out: newOut || null });
+                              alert('Updated');
+                            } catch (e) { alert('Update failed'); }
+                          }}
+                          className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-50"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await archiveTimeLog(tl.id, !tl.archived);
+                              alert(tl.archived ? 'Unarchived' : 'Archived');
+                            } catch (e) { alert('Archive failed'); }
+                          }}
+                          className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-50"
+                        >
+                          {tl.archived ? 'Unarchive' : 'Archive'}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!confirm('Delete this time log?')) return;
+                            try { await deleteTimeLog(tl.id); alert('Deleted'); } catch (e) { alert('Delete failed'); }
+                          }}
+                          className="px-2 py-1 text-xs border rounded bg-red-50 text-red-700 hover:bg-red-100"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -306,141 +550,414 @@ export function AuditLogs() {
               <button onClick={() => setSearch("")} className="ml-1 text-gray-400 hover:text-gray-600">×</button>
             </span>
           )}
-          <span className="text-gray-400">({sessions.length} sessions)</span>
+          <span className="text-gray-400">({filteredSessions.length} sessions)</span>
+        </div>
+      )}
+
+      {/* Bulk actions (visible when users selected) */}
+      {selectedLogIds.length > 0 && (
+        <div className="mb-4 flex items-center gap-3">
+          <div className="text-sm text-gray-700">{selectedLogIds.length} item(s) selected</div>
+          <button
+            onClick={async () => {
+              if (!confirm(`Delete ${selectedLogIds.length} selected log(s)?`)) return;
+              try {
+                setLoading(true);
+                await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+                const res = await fetch('/api/admin/audit-logs/bulk-delete', {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
+                  body: JSON.stringify({ ids: selectedLogIds }),
+                });
+                if (!res.ok) {
+                  const txt = await res.text().catch(() => '');
+                  throw new Error(txt || 'Bulk delete failed');
+                }
+                const data = await res.json().catch(() => null);
+                await fetchLogs(1);
+                setSelectedLogIds([]);
+                setSelectedUserIds([]);
+                alert(data && data.deleted !== undefined ? `Deleted ${data.deleted} rows` : 'Bulk delete completed');
+              } catch (e: any) {
+                if ((e?.message || '').toLowerCase().includes('forbidden') || (e?.message || '').toLowerCase().includes('unauthorized')) {
+                  alert('Bulk delete failed: not authorized');
+                } else {
+                  alert('Bulk delete failed');
+                }
+              } finally { setLoading(false); }
+            }}
+            className="px-3 py-1 text-sm bg-red-50 text-red-700 border rounded hover:bg-red-100"
+          >
+            Delete Logs
+          </button>
+          <button onClick={() => { setSelectedLogIds([]); setSelectedUserIds([]); }} className="px-2 py-1 text-sm border rounded">Clear</button>
+        </div>
+      )}
+
+      {/* Bulk actions (visible when users selected) */}
+      {selectedUserIds.length > 0 && (
+        <div className="mb-4 flex items-center gap-3">
+          <div className="text-sm text-gray-700">{selectedUserIds.length} user(s) selected</div>
+          <button
+            onClick={async () => {
+              if (!confirm(`Delete all audit logs for ${selectedUserIds.length} selected user(s)?`)) return;
+              try {
+                setLoading(true);
+                await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+                const res = await fetch('/api/admin/audit-logs/bulk-delete-by-users', {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
+                  body: JSON.stringify({ user_ids: selectedUserIds }),
+                });
+                if (!res.ok) throw new Error('Bulk delete by users failed');
+                const data = await res.json().catch(() => null);
+                await fetchLogs(1);
+                setSelectedUserIds([]);
+                setSelectedLogIds([]);
+                alert(data && data.deleted !== undefined ? `Deleted ${data.deleted} rows` : 'Bulk delete completed');
+              } catch (e) { alert('Bulk delete failed'); } finally { setLoading(false); }
+            }}
+            className="px-3 py-1 text-sm bg-red-600 text-white border rounded hover:bg-red-700"
+          >
+            Delete All Logs For Selected Users
+          </button>
+          <button onClick={() => setSelectedUserIds([])} className="px-2 py-1 text-sm border rounded">Clear</button>
         </div>
       )}
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table style={{minWidth: '1400px'}} className="min-w-full divide-y divide-gray-200 table-fixed w-full">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <input
+                    type="checkbox"
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      if (e.target.checked) {
+                        setSelectedLogIds(visibleSessionIds);
+                        // select all visible users as well
+                        const visibleUserIds = userGroups.map((g) => g[0].user_id).filter(Boolean) as number[];
+                        setSelectedUserIds(visibleUserIds);
+                      } else {
+                        setSelectedLogIds([]);
+                        setSelectedUserIds([]);
+                      }
+                    }}
+                    checked={visibleSessionIds.length > 0 && selectedLogIds.length === visibleSessionIds.length}
+                    className="h-4 w-4 text-green-600 border-slate-300 rounded"
+                  />
+                </th>
+                <th style={{width: '220px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   User
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th style={{width: '90px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Role
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th style={{width: '120px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Department
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th style={{width: '120px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   IP Address
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th style={{width: '140px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   <div className="flex items-center gap-1 text-green-600">
                     <LogIn className="w-3 h-3" />
-                    Time In
+                    Login (Audit)
                   </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th style={{width: '140px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                  <div className="flex items-center gap-1 text-green-700">
+                    <Clock className="w-3 h-3" />
+                    Actual Time In
+                  </div>
+                </th>
+                <th style={{width: '140px'}} className="px-6 py-3 text-left text-xs font-medium text-red-600 uppercase tracking-wider whitespace-nowrap">
                   <div className="flex items-center gap-1 text-red-600">
                     <LogOut className="w-3 h-3" />
-                    Time Out
+                    Time Out (Actual)
                   </div>
                 </th>
+                <th style={{width: '100px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider whitespace-nowrap">
+                  Status
+                </th>
+                <th style={{width: '100px'}} className="px-6 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider whitespace-nowrap">
+                  <div className="flex items-center gap-1 text-blue-700">
+                    <Clock className="w-3 h-3" />
+                    Duration
+                  </div>
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {loading ? (
+            {loading ? (
+              <tbody className="bg-white divide-y divide-gray-200">
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
+                  <td colSpan={11} className="px-6 py-8 text-center text-gray-400">
                     Loading...
                   </td>
                 </tr>
-              ) : sessions.length === 0 ? (
+              </tbody>
+            ) : userGroups.length === 0 ? (
+              <tbody className="bg-white divide-y divide-gray-200">
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
+                  <td colSpan={11} className="px-6 py-8 text-center text-gray-400">
                     No audit logs found.
                   </td>
                 </tr>
-              ) : (
-                sessions.map((session) => {
-                  const timeIn = formatDateTime(session.time_in);
-                  const timeOut = formatDateTime(session.time_out);
-
-                  return (
-                    <tr key={session.id} className="hover:bg-gray-50">
+              </tbody>
+            ) : (
+              userGroups.map((group) => {
+                const latest = group[0];
+                return (
+                  <tbody key={`group-${latest.user_id}`} className="bg-white divide-y divide-gray-200">
+                    <tr className="hover:bg-gray-50 bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div
-                            className={`h-8 w-8 rounded-full flex items-center justify-center font-semibold text-sm ${
-                              session.user?.role?.toLowerCase() === "admin"
+                          <input
+                            type="checkbox"
+                            checked={selectedLogIds.includes(sessionPrimaryId(latest) || -1)}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              const id = sessionPrimaryId(latest);
+                              if (!id) return;
+                              if (e.target.checked) {
+                                setSelectedLogIds((s) => Array.from(new Set([...s, id])));
+                                // also select the user for user-level bulk actions
+                                if (latest.user_id) setSelectedUserIds((u) => Array.from(new Set([...u, latest.user_id])));
+                              } else {
+                                setSelectedLogIds((s) => s.filter((i) => i !== id));
+                                if (latest.user_id) setSelectedUserIds((u) => u.filter((x) => x !== latest.user_id));
+                              }
+                            }}
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap overflow-hidden" style={{width: '220px'}}>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedUserIds.includes(latest.user_id)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                const uid = latest.user_id;
+                                if (!uid) return;
+                                const groupIds = group
+                                  .map((s) => sessionPrimaryId(s))
+                                  .filter((id): id is number => !!id);
+                                if (e.target.checked) {
+                                  setSelectedUserIds((u) => Array.from(new Set([...u, uid])));
+                                  setSelectedLogIds((s) => Array.from(new Set([...s, ...groupIds])));
+                                } else {
+                                  setSelectedUserIds((u) => u.filter((x) => x !== uid));
+                                  setSelectedLogIds((s) => s.filter((x) => !groupIds.includes(x)));
+                                }
+                              }}
+                              className="h-4 w-4 text-green-600 border-slate-300 rounded"
+                            />
+                              <div className="flex items-center min-w-0">
+                              <div
+                                className={`h-8 w-8 rounded-full flex items-center justify-center font-semibold text-sm ${
+                                  latest.user?.role?.toLowerCase() === "admin"
+                                    ? "bg-purple-100 text-purple-700"
+                                    : latest.user?.role?.toLowerCase() === "instructor"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-green-100 text-green-700"
+                                }`}
+                              >
+                                {(latest.user?.fullname || "?").charAt(0).toUpperCase()}
+                              </div>
+                              <div className="ml-3 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">{latest.user?.fullname || "Unknown"}</p>
+                                <p className="text-xs text-gray-500 truncate">{latest.user?.email || "—"}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap overflow-hidden" style={{width: '90px'}}>
+                          <span
+                            className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
+                              latest.user?.role?.toLowerCase() === "admin"
                                 ? "bg-purple-100 text-purple-700"
-                                : session.user?.role?.toLowerCase() === "instructor"
+                                : latest.user?.role?.toLowerCase() === "instructor"
                                 ? "bg-blue-100 text-blue-700"
                                 : "bg-green-100 text-green-700"
                             }`}
                           >
-                            {session.user?.fullname?.charAt(0) || "?"}
-                          </div>
-                          <div className="ml-3">
-                            <p className="text-sm font-medium text-gray-900">
-                              {session.user?.fullname || "Unknown"}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {session.user?.email || "—"}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
-                            session.user?.role?.toLowerCase() === "admin"
-                              ? "bg-purple-100 text-purple-700"
-                              : session.user?.role?.toLowerCase() === "instructor"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-green-100 text-green-700"
-                          }`}
-                        >
-                          {session.user?.role || "—"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {session.user?.department || "—"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                        {session.ip_address || "—"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {timeIn ? (
-                          <div className="flex flex-col">
-                            <span className="text-xs text-gray-500">{timeIn.date}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-green-600">{timeIn.time}</span>
-                              <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{timeIn.period}</span>
-                              {!timeOut && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
-                                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                                  Active
-                                </span>
-                              )}
+                            {latest.user?.role || "—"}
+                          </span>
+                        </td>
+                        <td style={{width: '120px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-600">{latest.user?.department || "—"}</td>
+                        <td style={{width: '120px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-500 font-mono">{latest.ip_address || "—"}</td>
+                        <td style={{width: '140px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
+                          {formatDateTime(latest.time_in ?? latest.created_at ?? latest.time_log?.time_in) ? (
+                            <div className="flex flex-col">
+                              <span className="text-xs text-gray-500">{formatDateTime(latest.time_in ?? latest.created_at ?? latest.time_log?.time_in)?.date}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-green-600">{formatDateTime(latest.time_in ?? latest.created_at ?? latest.time_log?.time_in)?.time}</span>
+                                <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(latest.time_in ?? latest.created_at ?? latest.time_log?.time_in)?.period}</span>
+                              </div>
                             </div>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">—</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {timeOut ? (
-                          <div className="flex flex-col">
-                            <span className="text-xs text-gray-500">{timeOut.date}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-red-600">{timeOut.time}</span>
-                              <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{timeOut.period}</span>
+                          ) : (
+                            <span className="text-sm text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td style={{width: '140px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
+                          {(latest.time_in ?? latest.time_log?.time_in) ? (
+                            <div className="flex flex-col">
+                              <span className="text-xs text-gray-500">{formatDateTime(latest.time_in ?? latest.time_log?.time_in)?.date}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-green-700">{formatDateTime(latest.time_in ?? latest.time_log?.time_in)?.time}</span>
+                                <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(latest.time_in ?? latest.time_log?.time_in)?.period}</span>
+                              </div>
                             </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td style={{width: '140px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
+                          {(latest.time_out ?? latest.time_log?.time_out) ? (
+                            <div className="flex flex-col">
+                              <span className="text-xs text-gray-500">{formatDateTime(latest.time_out ?? latest.time_log?.time_out)?.date}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-red-600">{formatDateTime(latest.time_out ?? latest.time_log?.time_out)?.time}</span>
+                                <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(latest.time_out ?? latest.time_log?.time_out)?.period}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td style={{width: '100px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
+                          {((latest.time_out ?? latest.time_log?.time_out) == null) ? (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">Inactive</span>
+                          )}
+                        </td>
+                        <td style={{width: '100px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-blue-700 font-semibold">
+                          {(() => {
+                            const timeIn = latest.time_in ?? latest.time_log?.time_in;
+                            const timeOut = latest.time_out ?? latest.time_log?.time_out;
+                            if (!timeIn || !timeOut) return '—';
+                            const diff = Math.abs(new Date(timeOut).getTime() - new Date(timeIn).getTime());
+                            const hours = Math.floor(diff / 3600000);
+                            const mins = Math.floor((diff % 3600000) / 60000);
+                            return `${hours}h ${mins}m`;
+                          })()}
+                        </td>
+                        <td style={{width: '120px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button onClick={() => openManageModal(latest.user)} className="px-2 py-1 text-xs border rounded text-gray-700 hover:bg-gray-50">Manage</button>
+                            <button
+                              onClick={async () => {
+                                const id = sessionPrimaryId(latest);
+                                if (!id) return;
+                                if (!confirm('Delete this audit log?')) return;
+                                try {
+                                  setLoading(true);
+                                  await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+                                  const res = await fetch('/api/admin/audit-logs/bulk-delete', {
+                                    method: 'POST',
+                                    credentials: 'include',
+                                    headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
+                                    body: JSON.stringify({ ids: [id] }),
+                                  });
+                                  if (!res.ok) throw new Error('Delete failed');
+                                  await fetchLogs(1);
+                                  setSelectedLogIds((s) => s.filter((i) => i !== id));
+                                } catch (e) { alert('Delete failed'); } finally { setLoading(false); }
+                              }}
+                              className="px-2 py-1 text-xs border rounded text-red-700 bg-red-50 hover:bg-red-100"
+                            >
+                              Delete
+                            </button>
                           </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">—</span>
-                        )}
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
+
+                      {/* Older sessions for this user */}
+                      {group.slice(1).map((older) => (
+                        <tr key={older.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-2 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={selectedLogIds.includes(sessionPrimaryId(older) || -1)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                const id = sessionPrimaryId(older);
+                                if (!id) return;
+                                if (e.target.checked) setSelectedLogIds((s) => Array.from(new Set([...s, id])));
+                                else setSelectedLogIds((s) => s.filter((i) => i !== id));
+                              }}
+                            />
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap overflow-hidden" style={{width: '220px'}}>
+                            <div className="ml-3 min-w-0">
+                              <p className="text-sm font-medium text-gray-700 truncate">{older.user?.fullname || 'Unknown'}</p>
+                              <p className="text-xs text-gray-400 truncate">Past session</p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap overflow-hidden" style={{width: '90px'}}><span className="text-xs text-gray-500">{older.user?.role || '—'}</span></td>
+                          <td style={{width: '120px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-gray-600">{older.user?.department || '—'}</td>
+                          <td style={{width: '120px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-gray-500 font-mono">{older.ip_address || '—'}</td>
+                          <td style={{width: '140px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden">
+                            {formatDateTime(older.time_in) ? (
+                              <div>
+                                <span className="text-xs text-gray-500">{formatDateTime(older.time_in)?.date}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-gray-700">{formatDateTime(older.time_in)?.time}</span>
+                                  <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(older.time_in)?.period}</span>
+                                </div>
+                              </div>
+                            ) : <span className="text-sm text-gray-400">—</span>}
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap">
+                            {formatDateTime(older.time_out) ? (
+                              <div>
+                                <span className="text-xs text-gray-500">{formatDateTime(older.time_out)?.date}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-gray-600">{formatDateTime(older.time_out)?.time}</span>
+                                  <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(older.time_out)?.period}</span>
+                                </div>
+                              </div>
+                            ) : <span className="text-sm text-gray-400">—</span>}
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={async () => {
+                                  const id = sessionPrimaryId(older);
+                                  if (!id) return;
+                                  if (!confirm('Delete this audit log?')) return;
+                                  try {
+                                    setLoading(true);
+                                    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+                                    const res = await fetch('/api/admin/audit-logs/bulk-delete', {
+                                      method: 'POST',
+                                      credentials: 'include',
+                                      headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
+                                      body: JSON.stringify({ ids: [id] }),
+                                    });
+                                    if (!res.ok) throw new Error('Delete failed');
+                                    await fetchLogs(1);
+                                    setSelectedLogIds((s) => s.filter((i) => i !== id));
+                                  } catch (e) { alert('Delete failed'); } finally { setLoading(false); }
+                                }}
+                                className="px-2 py-1 text-xs border rounded text-red-700 bg-red-50 hover:bg-red-100"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
                   );
                 })
               )}
-            </tbody>
           </table>
         </div>
 

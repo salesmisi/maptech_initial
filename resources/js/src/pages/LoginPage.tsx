@@ -86,6 +86,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             const hasOpen = Array.isArray(logs) && logs.some((l) => l.time_in && !l.time_out);
             if (!hasOpen) {
               // Punch in if no open log
+              // include XSRF token for session-authenticated POST
+              const xsrf = getCookie('XSRF-TOKEN');
               await fetch('/api/time-logs/punch-in', {
                 method: 'POST',
                 credentials: 'include',
@@ -93,6 +95,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   'Accept': 'application/json',
                   'Content-Type': 'application/json',
                   'X-Requested-With': 'XMLHttpRequest',
+                  'X-XSRF-TOKEN': decodeURIComponent(xsrf || ''),
                 },
                 body: JSON.stringify({}),
               });
@@ -106,11 +109,23 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       // Pass role (lowercase), name, email, and department
       onLogin(
         role as 'admin' | 'instructor' | 'employee',
-        data.name,
+        data.fullName ?? data.fullname ?? data.name,
         data.email,
         data.department,
         data.profile_picture
       );
+
+      // If server returned the created time_log, emit a window event so dashboard can update immediately
+      try {
+        if (data?.time_log) {
+          // Fire event for mounted dashboards
+          window.dispatchEvent(new CustomEvent('timeLogCreated', { detail: data.time_log }));
+          // Also persist briefly so dashboards that mount after navigation can pick it up
+          try { sessionStorage.setItem('last_time_log', JSON.stringify(data.time_log)); } catch (e) { /* ignore */ }
+        }
+      } catch (e) {
+        // ignore
+      }
 
     } catch (err: any) {
       setError(err.message || 'Invalid credentials.');
@@ -142,7 +157,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           <form className="space-y-6" onSubmit={handleSubmit}>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700">
+              <label htmlFor="login-email" className="block text-sm font-medium text-slate-700">
                 Email address
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
@@ -150,6 +165,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   <Mail className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
+                  id="login-email"
+                  name="email"
+                  autoComplete="email"
                   type="email"
                   required
                   value={email}
@@ -161,7 +179,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700">
+              <label htmlFor="login-password" className="block text-sm font-medium text-slate-700">
                 Password
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
@@ -169,6 +187,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   <Lock className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
+                  id="login-password"
+                  name="password"
+                  autoComplete="current-password"
                   type="password"
                   required
                   value={password}

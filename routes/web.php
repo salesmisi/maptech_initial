@@ -20,6 +20,10 @@ Route::get('/', function () {
 // LOGIN (Session-based for SPA)
 // =====================
 Route::post('/login', [LoginController::class, 'login']);
+// Serve SPA for the login page via GET so the React app can handle routing
+Route::get('/login', function () {
+    return view('welcome');
+});
 
 // =====================
 // LOGOUT
@@ -30,6 +34,13 @@ Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth');
 // GET AUTH USER
 // =====================
 Route::get('/user', [LoginController::class, 'user'])->middleware('auth');
+
+// Expose time-log API endpoints for session-authenticated SPA requests
+Route::prefix('api/time-logs')->middleware('auth')->group(function () {
+    Route::get('/me', [\App\Http\Controllers\TimeLogController::class, 'myLogs']);
+    Route::post('/punch-in', [\App\Http\Controllers\TimeLogController::class, 'punchIn']);
+    Route::post('/punch-out', [\App\Http\Controllers\TimeLogController::class, 'punchOut']);
+});
 
 // =====================
 // YOUTUBE API INTEGRATION

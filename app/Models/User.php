@@ -27,6 +27,9 @@ class User extends Authenticatable
      * The attributes that are mass assignable.
      */
     protected $fillable = [
+
+        // support both column name variants (legacy inconsistencies)
+        'fullName',
         'fullname',
         'email',
         'password',

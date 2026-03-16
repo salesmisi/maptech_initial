@@ -16,11 +16,13 @@ class TimeLog extends Model
         'time_in',
         'time_out',
         'note',
+        'archived',
     ];
 
     protected $casts = [
         'time_in' => 'datetime',
         'time_out' => 'datetime',
+        'archived' => 'boolean',
     ];
 
     public function user()

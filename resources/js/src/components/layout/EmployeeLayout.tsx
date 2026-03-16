@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   BookOpen,
@@ -18,7 +18,9 @@ interface EmployeeLayoutProps {
   onNavigate: (page: string) => void;
   onLogout: () => void;
   user: {
-    name: string;
+    name?: string;
+    fullName?: string;
+    fullname?: string;
     email: string;
     profile_picture?: string | null;
   };
@@ -35,6 +37,60 @@ export function EmployeeLayout({
   onGlobalSearch,
 }: EmployeeLayoutProps) {
   const [showPicPreview, setShowPicPreview] = useState(false);
+  let storedName: string | null = null;
+  try {
+    storedName = typeof localStorage !== 'undefined' ? localStorage.getItem('maptech_user_name') : null;
+  } catch (e) {
+    storedName = null;
+  }
+
+  const initialName = user?.fullName || user?.fullname || user?.name || storedName || '';
+  const [displayName, setDisplayName] = useState<string>(initialName);
+
+  useEffect(() => {
+    // Always fetch the authoritative user record on mount to ensure sidebar shows the correct name.
+    let cancelled = false;
+    (async () => {
+      try {
+        // first try localStorage fallback (set by App) to avoid flashing
+        try {
+          if (typeof localStorage !== 'undefined') {
+            const stored = localStorage.getItem('maptech_user_name');
+            if (stored) setDisplayName(stored);
+          }
+        } catch (e) {
+          // ignore
+        }
+
+        const res = await fetch('/user', { credentials: 'include', headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+        if (!res.ok) return;
+        const d = await res.json();
+        if (cancelled) return;
+        const name = d.fullName || d.fullname || d.name;
+        if (name) {
+          setDisplayName(name);
+          try { localStorage.setItem('maptech_user_name', name); } catch (e) { /* ignore */ }
+        }
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
+
+  // Update display name if `user` prop changes after initial mount
+  useEffect(() => {
+    try {
+      const nameFromUser = user?.fullName || user?.fullname || user?.name;
+      if (nameFromUser) {
+        setDisplayName(nameFromUser);
+        try { localStorage.setItem('maptech_user_name', nameFromUser); } catch (e) { /* ignore */ }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [user]);
   const navItems = [
   {
     id: 'dashboard',
@@ -119,10 +175,10 @@ export function EmployeeLayout({
             <div className="flex-shrink-0 w-full group block">
               <div className="flex items-center">
                 <div className="h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
-                  {user.name.charAt(0)}
+                  {(displayName?.charAt(0) ?? 'E').toUpperCase()}
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-white">{user.name}</p>
+                  <p className="text-sm font-medium text-white">{displayName || ''}</p>
                   <p className="text-xs font-medium text-slate-400">Employee</p>
                 </div>
                 <button

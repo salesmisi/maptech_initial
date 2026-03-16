@@ -46,7 +46,9 @@ import { YTDebug } from './pages/debug/YTDebug';
 interface User {
   id?: number;
   role: 'admin' | 'instructor' | 'employee';
-  name: string;
+  name?: string;
+  fullName?: string;
+  fullname?: string;
   email: string;
   department?: string;
   profile_picture?: string | null;
@@ -80,11 +82,14 @@ export function App() {
           setUser({
             id: data.id,
             role,
-            name: data.name,
+            name: data.fullName ?? data.fullname ?? data.name,
+            fullName: data.fullName ?? data.fullname ?? data.name,
             email: data.email,
             department: data.department,
             profile_picture: data.profile_picture,
           });
+          // persist display name as a quick fallback for UI components
+          try { localStorage.setItem('maptech_user_name', (data.fullName ?? data.fullname ?? data.name) || ''); } catch (e) { /* ignore */ }
 
           // Restore saved page for this role
           const savedPage = localStorage.getItem(`maptech_page_${role}`);
@@ -112,7 +117,8 @@ export function App() {
     department?: string,
     profile_picture?: string | null
   ) => {
-    setUser({ role, name, email, department, profile_picture });
+    setUser({ role, name, fullName: name, email, department, profile_picture });
+    try { localStorage.setItem('maptech_user_name', name || ''); } catch (e) { /* ignore */ }
     setCurrentPage('dashboard');
     localStorage.setItem(`maptech_page_${role}`, 'dashboard');
     localStorage.removeItem(`maptech_courseId_${role}`);

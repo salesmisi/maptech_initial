@@ -139,7 +139,7 @@ export default function DepartmentManagement() {
       });
       if (!res.ok) return;
       const data = await res.json();
-      setInstructors(data.map((u: any) => ({ id: u.id, fullname: u.fullname })));
+      setInstructors(data.map((u: any) => ({ id: u.id, fullname: u.fullname || u.fullName || u.name })));
     } catch { /* ignore */ }
   };
 
@@ -155,7 +155,7 @@ export default function DepartmentManagement() {
       });
       if (!res.ok) return;
       const data = await res.json();
-      setEmployees(data.map((u: any) => ({ id: u.id, fullname: u.fullname })));
+      setEmployees(data.map((u: any) => ({ id: u.id, fullname: u.fullname || u.fullName || u.name })));
     } catch { /* ignore */ }
   };
 

@@ -24,6 +24,7 @@ export function UserTimeLog() {
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [now, setNow] = useState(new Date());
   const [userId, setUserId] = useState<number | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Fetch only current user's time logs
@@ -38,12 +39,24 @@ export function UserTimeLog() {
           "X-Requested-With": "XMLHttpRequest",
         },
       });
-      if (!res.ok) throw new Error("Failed to load logs");
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Failed to load logs: ${res.status} ${text}`);
+      }
       const data = await res.json();
-      setLogs(Array.isArray(data) ? data : []);
+      // Accept both array and { data: [...] } shapes
+      let logsArr: any = [];
+      if (Array.isArray(data)) {
+        logsArr = data;
+      } else if (data && Array.isArray(data.data)) {
+        logsArr = data.data;
+      } else {
+        logsArr = [];
+      }
+      setLogs(logsArr);
       setLastRefreshed(new Date());
-    } catch {
-      /* ignore */
+    } catch (e: any) {
+      // Do not clear logs on error; just leave as is
     } finally {
       if (silent) setRefreshing(false);
       else setLoading(false);
@@ -57,7 +70,31 @@ export function UserTimeLog() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [fetchLogs]);
 
-  // Fetch current user id for realtime channel subscription
+  // Consume any short-lived time log stored during login (in case event fired before dashboard mounted)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('last_time_log');
+      if (raw) {
+        const tl = JSON.parse(raw);
+        if (tl && tl.id) {
+          const entry: TimeLogEntry = {
+            id: tl.id,
+            user_id: tl.user_id,
+            time_in: tl.time_in,
+            time_out: tl.time_out,
+            note: tl.note ?? null,
+            created_at: tl.created_at ?? tl.time_in ?? new Date().toISOString(),
+          };
+          setLogs((prev) => [entry, ...prev.filter((p) => p.id !== entry.id)]);
+        }
+        sessionStorage.removeItem('last_time_log');
+      }
+    } catch (e) {
+      // ignore JSON errors
+    }
+  }, []);
+
+  // Fetch current user id and role for realtime channel subscription and permissions
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -66,6 +103,7 @@ export function UserTimeLog() {
         if (res.ok) {
           const data = await res.json();
           if (mounted && data?.id) setUserId(data.id);
+          if (mounted && data?.role) setUserRole(data.role);
         }
       } catch (e) {
         // ignore
@@ -82,12 +120,16 @@ export function UserTimeLog() {
 
   // Convert TimeLog entries into sessions
   const groupIntoSessions = (entries: TimeLogEntry[]): Session[] => {
-    const sessions = entries.map((e) => ({
-      id: `timelog-${e.id}`,
-      time_in: e.time_in,
-      time_out: e.time_out,
-      note: e.note,
-    }));
+    if (!Array.isArray(entries)) return [];
+    const sessions = entries
+      .filter((e) => e && typeof e === "object" && e.id)
+      .map((e) => ({
+        id: `timelog-${e.id}`,
+        // prefer display_time_in/display_time_out if provided by API (audit timestamps)
+        time_in: (e as any).display_time_in ?? e.time_in,
+        time_out: (e as any).display_time_out ?? e.time_out,
+        note: e.note,
+      }));
     return sessions.sort((a, b) => {
       const aTime = a.time_in || a.time_out || "";
       const bTime = b.time_in || b.time_out || "";
@@ -121,14 +163,42 @@ export function UserTimeLog() {
 
     channel.listen('TimeLogUpdated', handler);
 
-    return () => {
-      try {
-        channel.stopListening('AuditLogCreated');
-      } catch (e) {
-        // ignore
+    // Also subscribe to user-level audit log events so we can refresh UI
+    const userChannel = Echo.private('user.' + userId);
+    const auditHandler = (payload: any) => {
+      // payload: { id, user_id, action, ip_address, created_at }
+      if (payload?.action === 'login' || payload?.action === 'logout') {
+        // refresh logs to ensure timestamps match audit records
+        fetchLogs(true);
       }
     };
+    userChannel.listen('AuditLogCreated', auditHandler);
+
+    return () => {
+      try { channel.stopListening('TimeLogUpdated'); } catch (e) { /* ignore */ }
+      try { userChannel.stopListening('AuditLogCreated'); } catch (e) { /* ignore */ }
+    };
   }, [userId]);
+
+  // Listen for manual timeLogCreated event emitted right after login
+  useEffect(() => {
+    const listener = (e: any) => {
+      const tl = e?.detail;
+      if (!tl) return;
+      const entry: TimeLogEntry = {
+        id: tl.id,
+        user_id: tl.user_id,
+        time_in: tl.time_in,
+        time_out: tl.time_out,
+        note: tl.note ?? null,
+        created_at: tl.created_at ?? tl.time_in ?? new Date().toISOString(),
+      };
+      setLogs((prev) => [entry, ...prev.filter((p) => p.id !== entry.id)]);
+      setLastRefreshed(new Date());
+    };
+    window.addEventListener('timeLogCreated', listener as EventListener);
+    return () => window.removeEventListener('timeLogCreated', listener as EventListener);
+  }, []);
 
   const formatDateTime = (iso: string | null) => {
     if (!iso) return null;
@@ -151,10 +221,21 @@ export function UserTimeLog() {
     const timeOnly = m ? m[1].trim() : fullTime;
     const period = m ? m[2].toUpperCase() : (d.getHours() >= 12 ? "PM" : "AM");
 
+    // Always return full date/time string for tooltip and display
+    const fullDateTime = d.toLocaleString("en-US", {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+
     if (isToday) {
-      return { date: "Today", time: timeOnly, period };
+      return { date: "Today", time: timeOnly, period, fullDateTime };
     } else if (isYesterday) {
-      return { date: "Yesterday", time: timeOnly, period };
+      return { date: "Yesterday", time: timeOnly, period, fullDateTime };
     } else {
       return {
         date: d.toLocaleDateString("en-US", {
@@ -165,6 +246,7 @@ export function UserTimeLog() {
         }),
         time: timeOnly,
         period,
+        fullDateTime,
       };
     }
   };
@@ -207,38 +289,47 @@ export function UserTimeLog() {
               <th className="px-4 py-2 text-left">Time In</th>
               <th className="px-4 py-2 text-left">Time Out</th>
               <th className="px-4 py-2 text-left">Status</th>
+              {userRole === 'Admin' && <th className="px-4 py-2 text-left">Actions</th>}
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
             {loading ? (
-              <tr><td colSpan={3} className="px-4 py-6 text-center text-gray-400">Loading...</td></tr>
+              <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">Loading...</td></tr>
             ) : sessions.length === 0 ? (
-              <tr><td colSpan={3} className="px-4 py-6 text-center text-gray-400">No time logs found.</td></tr>
+              <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">No time logs found.</td></tr>
             ) : (
-              sessions.slice(0, 5).map((session) => {
+              sessions.map((session) => {
                 const timeIn = formatDateTime(session.time_in);
                 const timeOut = formatDateTime(session.time_out);
+                const extractId = (sid: string) => {
+                  const parts = sid.split('-');
+                  const n = parts[parts.length - 1];
+                  return Number(n) || null;
+                };
+                const tlId = extractId(session.id);
                 return (
                   <tr key={session.id}>
-                        <td className="px-4 py-2">
-                          {timeIn ? (
-                            <div>
-                              <span className="block text-xs text-gray-500">{timeIn.date}</span>
-                              <div className="flex items-baseline gap-2">
-                                <span className="text-green-700 font-semibold">{timeIn.time}</span>
-                                <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{timeIn.period}</span>
-                              </div>
-                            </div>
-                          ) : <span className="text-gray-400">—</span>}
-                        </td>
+                    <td className="px-4 py-2">
+                      {timeIn ? (
+                        <div>
+                          <span className="block text-xs text-gray-500">{timeIn.date}</span>
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-green-700 font-semibold">{timeIn.time}</span>
+                            <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{timeIn.period}</span>
+                          </div>
+                        </div>
+                      ) : <span className="text-gray-400">—</span>}
+                    </td>
                     <td className="px-4 py-2">
                       {timeOut ? (
-                        <div>
+                        <div title={`Logged out at ${timeOut.fullDateTime}`}>
                           <span className="block text-xs text-gray-500">{timeOut.date}</span>
                           <div className="flex items-baseline gap-2">
                             <span className="text-red-600 font-semibold">{timeOut.time}</span>
                             <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{timeOut.period}</span>
+                            <span className="ml-2 text-xs text-blue-500 bg-blue-50 rounded px-1.5 py-0.5" title="This is the logout time">Logged out</span>
                           </div>
+                          <span className="block text-xs text-gray-400 mt-1">{timeOut.fullDateTime}</span>
                         </div>
                       ) : <span className="text-gray-400">—</span>}
                     </td>
@@ -255,6 +346,48 @@ export function UserTimeLog() {
                         </span>
                       )}
                     </td>
+                    {userRole === 'Admin' && (
+                      <td className="px-4 py-2 text-right">
+                        {tlId ? (
+                          <button
+                            onClick={async () => {
+                              if (!confirm('Delete this time log?')) return;
+                              try {
+                                // ensure csrf cookie
+                                await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+                                const xsrf = (() => {
+                                  const value = `; ${document.cookie}`;
+                                  const parts = value.split(`; XSRF-TOKEN=`);
+                                  if (parts.length === 2) return decodeURIComponent(parts.pop()!.split(';').shift() || '');
+                                  return '';
+                                })();
+                                const res = await fetch(`/api/time-logs/admin/${tlId}`, {
+                                  method: 'DELETE',
+                                  credentials: 'include',
+                                  headers: { 'X-XSRF-TOKEN': xsrf },
+                                });
+                                if (!res.ok) {
+                                  const txt = await res.text().catch(() => '');
+                                  throw new Error(txt || 'Delete failed');
+                                }
+                                // remove from UI
+                                setLogs((prev) => prev.filter((l) => l.id !== tlId));
+                                alert('Deleted');
+                              } catch (e: any) {
+                                if (e?.message?.toLowerCase().includes('unauthorized') || e?.message?.toLowerCase().includes('forbidden')) {
+                                  alert('Delete failed: not authorized');
+                                } else {
+                                  alert('Delete failed');
+                                }
+                              }
+                            }}
+                            className="px-2 py-1 text-xs border rounded bg-red-50 text-red-700 hover:bg-red-100"
+                          >
+                            Delete
+                          </button>
+                        ) : null}
+                      </td>
+                    )}
                   </tr>
                 );
               })

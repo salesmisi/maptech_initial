@@ -7,6 +7,9 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use App\Events\NotificationCountUpdated;
+use Illuminate\Support\Carbon;
 
 class NotificationController extends Controller
 {
@@ -43,10 +46,16 @@ class NotificationController extends Controller
      */
     public function unreadCount()
     {
-        $user = Auth::user();
+        $userId = Auth::id();
+
+        // Cache the unread count for a very short window to avoid repeated DB hits
+        // (frontend polls this endpoint frequently). TTL: 3 seconds.
+        $count = Cache::remember("user:{$userId}:notifications:unread_count", 3, function () use ($userId) {
+            return Notification::where('user_id', $userId)->whereNull('read_at')->count();
+        });
 
         return response()->json([
-            'count' => Notification::where('user_id', $user->id)->whereNull('read_at')->count(),
+            'count' => $count,
         ]);
     }
 
@@ -61,7 +70,7 @@ class NotificationController extends Controller
             ->where('user_id', $user->id)
             ->firstOrFail();
 
-        $notification->update(['read_at' => now()]);
+        $notification->update(['read_at' => Carbon::now()->utc()]);
 
         return response()->json([
             'message' => 'Notification marked as read',
@@ -78,7 +87,11 @@ class NotificationController extends Controller
 
         Notification::where('user_id', $user->id)
             ->whereNull('read_at')
-            ->update(['read_at' => now()]);
+            ->update(['read_at' => Carbon::now()->utc()]);
+
+        // Clear cached unread count and broadcast updated count (now zero)
+        Cache::forget("user:{$user->id}:notifications:unread_count");
+        event(new NotificationCountUpdated($user->id, 0));
 
         return response()->json([
             'message' => 'All notifications marked as read',

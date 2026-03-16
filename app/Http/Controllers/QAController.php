@@ -9,6 +9,7 @@ use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\Enrollment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class QAController extends Controller
 {
@@ -172,7 +173,7 @@ class QAController extends Controller
         $question->update([
             'answer'      => $validated['answer'],
             'answered_by' => $request->user()->id,
-            'answered_at' => now(),
+            'answered_at' => Carbon::now()->utc(),
         ]);
 
         $question->load(['user:id,fullname,department', 'course:id,title', 'answerer:id,fullname', 'replies.user:id,fullname,role', 'replies.reactions']);

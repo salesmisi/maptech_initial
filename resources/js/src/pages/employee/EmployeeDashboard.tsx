@@ -177,15 +177,42 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       }
     };
 
-    let interval: any;
+    const handles: any = {};
     const runAsync = async () => {
       await loadDashboard();
       const initial = await loadNotifications();
       await loadQuizReminders();
       // initialize last unread count after initial load
       lastUnreadRef.current = (initial || []).filter((n: any) => !n.read).length;
-      // Poll for new notifications every 3s
-      interval = setInterval(async () => {
+      // Subscribe to realtime notifications channel (if Echo is available)
+      try {
+        const Echo = (window as any).Echo;
+        if (Echo && typeof Echo.private === 'function' && data?.user?.id) {
+          const notifChannel = Echo.private('notifications.' + data.user.id);
+          const createdHandler = (payload: any) => {
+            const n = payload?.notification || payload;
+            if (!n) return;
+            setNotifications(prev => [n, ...prev.filter(p => p.id !== n.id)]);
+            pushToast(n.title, n.message, 'info', 6000);
+          };
+          const countHandler = (payload: any) => {
+            const c = payload?.count ?? 0;
+            lastUnreadRef.current = c;
+          };
+          notifChannel.listen('NotificationCreated', createdHandler);
+          notifChannel.listen('NotificationCountUpdated', countHandler);
+
+          // store for cleanup
+          handles.notifChannel = notifChannel;
+        }
+      } catch (e) {
+        // ignore realtime subscription errors
+      }
+      // Poll for new notifications. If Echo (websockets) is available we'll poll infrequently;
+      // otherwise poll at a reduced rate to lower server load.
+      const Echo = (window as any).Echo;
+      const pollMs = (Echo && typeof Echo.private === 'function') ? 60_000 : 10_000;
+      handles.poll = setInterval(async () => {
         try {
           const res = await fetch(`${API_BASE}/employee/notifications/unread-count`, {
             credentials: 'include',
@@ -208,19 +235,34 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
         } catch (err) {
           // ignore polling errors
         }
-      }, 3000);
+      }, pollMs);
 
       // Reminders polling (every 15 minutes)
       const reminderInterval = setInterval(async () => {
         await loadQuizReminders();
       }, 15 * 60 * 1000);
-      // store on outer scope so cleanup can clear it too
-      (interval as any)._reminder = reminderInterval;
+      // store on handles so cleanup can clear it too
+      handles.reminder = reminderInterval;
     };
     runAsync();
     return () => {
-      clearInterval(interval);
-      if ((interval as any)._reminder) clearInterval((interval as any)._reminder);
+      // cleanup polling intervals
+      try {
+        if (handles.poll) clearInterval(handles.poll);
+        if (handles.reminder) clearInterval(handles.reminder);
+      } catch (e) {
+        // ignore
+      }
+      // cleanup realtime notif subscription if present
+      try {
+        const notifChannel = handles.notifChannel;
+        if (notifChannel && typeof notifChannel.stopListening === 'function') {
+          notifChannel.stopListening('NotificationCreated');
+          notifChannel.stopListening('NotificationCountUpdated');
+        }
+      } catch (e) {
+        // ignore
+      }
     };
   }, []);
 
@@ -237,7 +279,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   };
 
   const myCourses = dashboardData?.courses || [];
-  const userName = dashboardData?.user?.name || 'Employee';
+  const userName = (dashboardData?.user && (dashboardData.user.fullName || dashboardData.user.fullname || dashboardData.user.name)) || 'Employee';
   const totalCourses = dashboardData?.total_courses || 0;
 
   // Find the most-recently-active in-progress course for Resume Learning

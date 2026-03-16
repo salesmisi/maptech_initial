@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Models\Department;
 use App\Models\Subdepartment;
 use App\Models\AuditLog;
+use Illuminate\Support\Carbon;
 
 /*
 |--------------------------------------------------------------------------
@@ -189,7 +190,7 @@ Route::get('/test-auth', function () {
     $user = request()->user();
     return response()->json([
         'message' => 'API is working',
-        'timestamp' => now(),
+        'timestamp' => Carbon::now()->utc()->toIso8601String(),
         'user' => $user ? [
             'id' => $user->id,
             'name' => $user->fullname,
@@ -217,6 +218,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
     Route::post('/users/{id}/photo', [UserController::class, 'uploadPhoto']);
+    // Bulk delete users (accepts JSON { ids: [1,2,3] })
+    Route::post('/users/bulk-delete', [UserController::class, 'bulkDelete']);
 
     // Course Management (Admin can manage all courses)
     Route::get('/courses', [AdminCourseController::class, 'index']);
@@ -268,14 +271,134 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
     // Audit Logs
     Route::get('/audit-logs', function (Request $request) {
+        // Get all audit logs as before
         $query = AuditLog::with('user:id,fullname,email,role,department')
             ->orderByDesc('created_at');
+
+        // Optional filters
+        $roleFilter = null;
+        if ($request->filled('role')) {
+            $roleFilter = strtolower($request->input('role'));
+            if (!in_array($roleFilter, ['admin', 'instructor', 'employee'])) {
+                return response()->json(['message' => 'Invalid role filter'], 422);
+            }
+            // Filter audit logs by the user's role
+            $query->whereHas('user', function ($q) use ($roleFilter) {
+                $q->whereRaw('LOWER(role) = ?', [$roleFilter]);
+            });
+        }
 
         if ($request->has('user_id')) {
             $query->where('user_id', $request->user_id);
         }
 
-        return $query->paginate(50);
+        $logs = $query->get();
+
+        // Add latest open login for every user (if not already present)
+        // Respect the role filter when collecting user ids
+        $userQuery = \App\Models\User::query();
+        if ($roleFilter) {
+            $userQuery->whereRaw('LOWER(role) = ?', [$roleFilter]);
+        }
+        $userIds = $userQuery->pluck('id');
+        foreach ($userIds as $uid) {
+            $latestLogin = AuditLog::where('user_id', $uid)
+                ->where('action', 'login')
+                ->orderByDesc('created_at')
+                ->first();
+
+            $latestLogoutQuery = AuditLog::where('user_id', $uid)
+                ->where('action', 'logout');
+            if ($latestLogin && $latestLogin->created_at) {
+                $latestLogoutQuery->where('created_at', '>=', $latestLogin->created_at);
+            }
+            $latestLogout = $latestLogoutQuery->orderByDesc('created_at')->first();
+            if ($latestLogin && (!$latestLogout || $latestLogout->created_at < $latestLogin->created_at)) {
+                if (!$logs->contains('id', $latestLogin->id)) {
+                    $logs->push($latestLogin->load('user:id,fullname,email,role,department'));
+                }
+            }
+        }
+
+        // For each login event, attach the matching time_log (by user_id and closest time_in to created_at)
+        $logs = $logs->map(function ($log) {
+            if ($log->action === 'login') {
+                if ($log->created_at) {
+                    $start = $log->created_at->copy()->subMinutes(2);
+                    $end = $log->created_at->copy()->addMinutes(2);
+                    $timeLog = \App\Models\TimeLog::where('user_id', $log->user_id)
+                        ->whereBetween('time_in', [$start, $end])
+                        ->orderBy('time_in')
+                        ->first();
+                } else {
+                    $timeLog = null;
+                }
+                $log->time_log = $timeLog;
+            } else {
+                $log->time_log = null;
+            }
+            return $log;
+        });
+
+        // Sort logs by created_at desc
+        $logs = $logs->sortByDesc('created_at')->values();
+
+        // Normalize user payloads: ensure `user` exists and has `fullname` (handle camelCase `fullName` column in local DB)
+        $logs = $logs->map(function ($log) {
+            if (!$log->user && $log->user_id) {
+                $u = \App\Models\User::find($log->user_id);
+                if ($u) {
+                    $log->user = (object) [
+                        'id' => $u->id,
+                        'fullname' => $u->fullName ?? $u->fullname ?? $u->name ?? null,
+                        'email' => $u->email,
+                        'role' => $u->role,
+                        'department' => $u->department,
+                    ];
+                }
+            } else if ($log->user) {
+                // ensure fullname property exists even if returned as fullName
+                $user = $log->user;
+                $user->fullname = $user->fullname ?? ($user->fullName ?? ($user->name ?? null));
+                $log->user = $user;
+            }
+            return $log;
+        });
+
+        // Paginate manually
+        $perPage = 50;
+        $page = max(1, (int)$request->input('page', 1));
+        $total = $logs->count();
+        $paged = $logs->slice(($page - 1) * $perPage, $perPage)->values();
+
+        return response()->json([
+            'data' => $paged,
+            'current_page' => $page,
+            'last_page' => ceil($total / $perPage),
+            'total' => $total,
+            'per_page' => $perPage,
+        ]);
+    });
+    // Bulk delete audit logs by id
+    Route::post('/audit-logs/bulk-delete', function (Request $request) {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:audit_logs,id'
+        ]);
+        $ids = $request->input('ids', []);
+        $deleted = \App\Models\AuditLog::whereIn('id', $ids)->delete();
+        return response()->json(['deleted' => $deleted]);
+    });
+
+    // Bulk delete audit logs by user ids (delete all logs for selected users)
+    Route::post('/audit-logs/bulk-delete-by-users', function (Request $request) {
+        $request->validate([
+            'user_ids' => 'required|array|min:1',
+            'user_ids.*' => 'integer|exists:users,id'
+        ]);
+        $userIds = $request->input('user_ids', []);
+        $deleted = \App\Models\AuditLog::whereIn('user_id', $userIds)->delete();
+        return response()->json(['deleted' => $deleted]);
     });
 
     // Notification Management (Admin)
@@ -351,6 +474,46 @@ if (env('APP_ENV') === 'local') {
             'course_id' => $course->id,
             'student_id' => $s->id,
             'actor_id' => $u->id,
+        ]);
+    });
+
+    // Create a dev admin and two test users, return admin token and test user IDs
+    Route::post('/dev/create-admin-and-test-users', function () {
+        $admin = \App\Models\User::firstOrCreate([
+            'email' => 'dev-admin@example.com'
+        ], [
+            'fullname' => 'Dev Admin',
+            'password' => bcrypt('password'),
+            'role' => 'admin',
+            'department' => 'IT',
+            'status' => 'Active',
+        ]);
+
+        $u1 = \App\Models\User::firstOrCreate([
+            'email' => 'dev-user1@example.com'
+        ], [
+            'fullname' => 'Dev User 1',
+            'password' => bcrypt('password'),
+            'role' => 'employee',
+            'department' => 'IT',
+            'status' => 'Active',
+        ]);
+
+        $u2 = \App\Models\User::firstOrCreate([
+            'email' => 'dev-user2@example.com'
+        ], [
+            'fullname' => 'Dev User 2',
+            'password' => bcrypt('password'),
+            'role' => 'employee',
+            'department' => 'IT',
+            'status' => 'Active',
+        ]);
+
+        $token = $admin->createToken('dev-admin-token')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'test_user_ids' => [$u1->id, $u2->id],
         ]);
     });
 }
@@ -564,7 +727,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         $user = $request->user();
         return response()->json([
             'id' => $user->id,
-            'fullName' => $user->fullname,
+            // Prefer camelCase DB column `fullName` but fall back to `fullname` if present
+            'fullName' => $user->fullName ?? $user->fullname,
             'email' => $user->email,
             'role' => $user->role,
             'department' => $user->department,
@@ -588,11 +752,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         $validated = $request->validate($rules);
 
-        // Map fullName to fullname (actual DB column)
-        if (isset($validated['fullName'])) {
-            $validated['fullname'] = $validated['fullName'];
-            unset($validated['fullName']);
-        }
+        // Keep `fullName` as provided (some databases use camelCase column names).
+        // Also support legacy lowercase `fullname` where present by leaving both keys alone.
 
         // Strip email and password if a non-admin somehow submitted them
         if (!$user->isAdmin()) {
@@ -607,11 +768,27 @@ Route::middleware(['auth:sanctum'])->group(function () {
         $user->update($validated);
         $user->refresh();
 
+        // Record an audit log for profile updates (non-fatal if DB/table missing)
+        try {
+            $ts = \Illuminate\Support\Carbon::now()->utc();
+            $log = \App\Models\AuditLog::create([
+                'user_id' => $user->id,
+                'action' => 'profile_updated',
+                'ip_address' => $request->ip(),
+                'created_at' => $ts,
+            ]);
+            event(new \App\Events\AuditLogCreated($log));
+        } catch (\Exception $e) {
+            // Log and continue — do not break the profile update flow
+            \Illuminate\Support\Facades\Log::warning('Failed to create AuditLog for profile update', ['error' => $e->getMessage()]);
+        }
+
         return response()->json([
             'message' => 'Profile updated successfully.',
             'user' => [
                 'id' => $user->id,
-                'fullName' => $user->fullname,
+                // Prefer camelCase DB column `fullName` but fall back to `fullname` if present
+                'fullName' => $user->fullName ?? $user->fullname,
                 'email' => $user->email,
                 'role' => $user->role,
                 'department' => $user->department,
@@ -648,6 +825,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/me', [\App\Http\Controllers\TimeLogController::class, 'myLogs'])->middleware(['auth:sanctum', 'status']);
         // Admin/Instructor: Get logs for any user
         Route::get('/{userId}', [\App\Http\Controllers\TimeLogController::class, 'userLogs'])->middleware(['auth:sanctum', 'status']);
+        // Admin actions for individual logs (update / archive / delete)
+        Route::put('/admin/{logId}', [\App\Http\Controllers\TimeLogController::class, 'updateLog'])->middleware(['auth:sanctum', 'status']);
+        Route::post('/admin/{logId}/archive', [\App\Http\Controllers\TimeLogController::class, 'archive'])->middleware(['auth:sanctum', 'status']);
+        Route::delete('/admin/{logId}', [\App\Http\Controllers\TimeLogController::class, 'deleteLog'])->middleware(['auth:sanctum', 'status']);
+        // Admin: bulk delete time logs for multiple users
+        Route::post('/admin/bulk-delete', [\App\Http\Controllers\TimeLogController::class, 'bulkDelete'])->middleware(['auth:sanctum', 'status']);
     });
 });
 

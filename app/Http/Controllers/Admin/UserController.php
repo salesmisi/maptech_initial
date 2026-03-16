@@ -73,9 +73,11 @@ class UserController extends Controller
             ], 422);
         }
 
-$user = User::create([
-    'fullname' => $validated['fullName'],
-    'email' => $validated['email'],
+        // Create user and set both fullname variants to be safe across DB schemas.
+        $user = User::create([
+            'fullName' => $validated['fullName'],
+            'fullname' => $validated['fullName'],
+            'email' => $validated['email'],
             'password' => $validated['password'],
             'role' => $validated['role'],
             'department' => $validated['department'] ?? null,
@@ -206,6 +208,35 @@ $user = User::create([
             return response()->json([
                 'message' => 'Failed to delete user: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Bulk delete users by IDs passed as JSON { ids: [1,2,3] }
+     */
+    public function bulkDelete(Request $request)
+    {
+        $data = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:users,id'
+        ]);
+
+        $ids = $data['ids'];
+
+        try {
+            $usersToDelete = User::whereIn('id', $ids)->get();
+            foreach ($usersToDelete as $u) {
+                $u->tokens()->delete();
+                $u->delete();
+            }
+
+            return response()->json([
+                'message' => 'Users deleted successfully',
+                'deleted' => $ids
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to bulk delete users', ['ids' => $ids, 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Failed to delete users: ' . $e->getMessage()], 500);
         }
     }
 
@@ -378,16 +409,22 @@ $user = User::create([
         $avgQuizScore = (int) round(CourseEnrollment::whereNotNull('progress')->avg('progress') ?? 0);
 
         // Course completion trends — last 6 months (PostgreSQL)
-        $completionTrends = DB::table('course_enrollments')
-            ->selectRaw("TO_CHAR(completed_at, 'Mon') as name, TO_CHAR(completed_at, 'YYYY-MM') as month_key, COUNT(*) as rate")
-            ->where('status', 'Completed')
-            ->whereNotNull('completed_at')
-            ->where('completed_at', '>=', now()->subMonths(6))
-            ->groupByRaw("TO_CHAR(completed_at, 'YYYY-MM'), TO_CHAR(completed_at, 'Mon')")
-            ->orderByRaw("TO_CHAR(completed_at, 'YYYY-MM')")
-            ->get()
-            ->map(fn($row) => ['name' => $row->name, 'rate' => (int) $row->rate])
-            ->values();
+        try {
+            $completionTrends = DB::table('course_enrollments')
+                ->selectRaw("TO_CHAR(completed_at, 'Mon') as name, TO_CHAR(completed_at, 'YYYY-MM') as month_key, COUNT(*) as rate")
+                ->where('status', 'Completed')
+                ->whereNotNull('completed_at')
+                ->where('completed_at', '>=', now()->subMonths(6))
+                ->groupByRaw("TO_CHAR(completed_at, 'YYYY-MM'), TO_CHAR(completed_at, 'Mon')")
+                ->orderByRaw("TO_CHAR(completed_at, 'YYYY-MM')")
+                ->get()
+                ->map(fn($row) => ['name' => $row->name, 'rate' => (int) $row->rate])
+                ->values();
+        } catch (\Exception $e) {
+            // Likely running on SQLite or other DB without TO_CHAR support; fall back to empty trends
+            Log::warning('Completion trends query failed, falling back to empty set', ['error' => $e->getMessage()]);
+            $completionTrends = collect();
+        }
 
         // Department performance
         $departments = User::where('role', 'Employee')

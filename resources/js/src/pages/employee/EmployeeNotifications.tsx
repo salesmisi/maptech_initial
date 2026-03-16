@@ -381,8 +381,10 @@ export function EmployeeNotifications() {
                 <form onSubmit={handleSend} className="space-y-4">
                   {modalType === 'instructor' && (
                     <div>
-                      <label className="block text-sm font-medium text-slate-700">Course *</label>
+                      <label htmlFor="notify-course" className="block text-sm font-medium text-slate-700">Course *</label>
                       <select
+                        id="notify-course"
+                        name="course_id"
                         required
                         value={formData.course_id}
                         onChange={(e) => setFormData({ ...formData, course_id: e.target.value })}
@@ -397,8 +399,10 @@ export function EmployeeNotifications() {
                   )}
                   {modalType === 'admin' && (
                     <div>
-                      <label className="block text-sm font-medium text-slate-700">Type</label>
+                      <label htmlFor="notify-type" className="block text-sm font-medium text-slate-700">Type</label>
                       <select
+                        id="notify-type"
+                        name="type"
                         value={formData.type}
                         onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                         className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
@@ -410,8 +414,10 @@ export function EmployeeNotifications() {
                     </div>
                   )}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Subject *</label>
+                    <label htmlFor="notify-title" className="block text-sm font-medium text-slate-700">Subject *</label>
                     <input
+                      id="notify-title"
+                      name="title"
                       type="text"
                       required
                       value={formData.title}
@@ -421,8 +427,10 @@ export function EmployeeNotifications() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Message *</label>
+                    <label htmlFor="notify-message" className="block text-sm font-medium text-slate-700">Message *</label>
                     <textarea
+                      id="notify-message"
+                      name="message"
                       rows={4}
                       required
                       value={formData.message}

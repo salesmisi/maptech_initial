@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -21,7 +21,9 @@ interface AdminLayoutProps {
   onNavigate: (page: string) => void;
   onLogout: () => void;
   user: {
-    name: string;
+    name?: string;
+    fullName?: string;
+    fullname?: string;
     email: string;
     profile_picture?: string | null;
   };
@@ -34,6 +36,26 @@ export function AdminLayout({
   user
 }: AdminLayoutProps) {
   const [showPicPreview, setShowPicPreview] = useState(false);
+  const [displayName, setDisplayName] = useState<string | null>(user?.fullName ?? user?.fullname ?? user?.name ?? null);
+
+  // If user prop lacks a name, try fetching profile as a fallback (helps when time-in event updates profile separately)
+  useEffect(() => {
+    if (displayName) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/profile', { credentials: 'include', headers: { Accept: 'application/json' } });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (mounted && (data?.fullName || data?.fullname || data?.name)) {
+          setDisplayName(data.fullName ?? data.fullname ?? data.name);
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, [displayName]);
   const navItems = [
   {
     id: 'dashboard',
@@ -88,8 +110,8 @@ export function AdminLayout({
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar */}
-      <div className="hidden md:flex md:w-64 md:flex-col fixed inset-y-0 z-10 bg-slate-900 text-white">
+      {/* Sidebar (fixed on all viewports to avoid layout shift when zooming) */}
+      <div className="flex w-64 flex-col fixed inset-y-0 z-10 bg-slate-900 text-white">
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex flex-col items-center pt-8 pb-6 px-4 bg-slate-950">
             <img
@@ -135,11 +157,11 @@ export function AdminLayout({
                   />
                 ) : (
                   <div className="h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
-                    {user.name.charAt(0)}
+                    {(displayName?.charAt(0) ?? 'U').toUpperCase()}
                   </div>
                 )}
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-white">{user.name}</p>
+                  <p className="text-sm font-medium text-white">{displayName ?? 'Unknown'}</p>
                   <p className="text-xs font-medium text-slate-400">
                     Administrator
                   </p>
@@ -158,7 +180,7 @@ export function AdminLayout({
       </div>
 
       {/* Main content */}
-      <div className="flex flex-col w-full md:pl-64">
+      <div className="flex flex-col w-full pl-64">
         <div className="sticky top-0 z-10 flex-shrink-0 flex h-16 bg-white shadow-sm border-b border-slate-200">
           <button
             type="button"

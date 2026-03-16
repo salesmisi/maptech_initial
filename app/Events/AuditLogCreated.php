@@ -24,7 +24,12 @@ class AuditLogCreated implements ShouldBroadcastNow
     public function broadcastOn()
     {
         // Broadcast on a private channel scoped to the user
-        return new PrivateChannel('user.' . $this->auditLog->user_id);
+        // and also to an admin audit logs channel so admins/instructors
+        // can receive realtime updates for all users.
+        return [
+            new PrivateChannel('user.' . $this->auditLog->user_id),
+            new PrivateChannel('audit-logs.admin'),
+        ];
     }
 
     public function broadcastWith()

@@ -16,7 +16,9 @@ interface InstructorLayoutProps {
   onNavigate: (page: string) => void;
   onLogout: () => void;
   user: {
-    name: string;
+    name?: string;
+    fullName?: string;
+    fullname?: string;
     email: string;
     profile_picture?: string | null;
   };
@@ -29,6 +31,7 @@ export function InstructorLayout({
   user
 }: InstructorLayoutProps) {
   const [showPicPreview, setShowPicPreview] = useState(false);
+  const displayName = user?.fullName ?? user?.fullname ?? user?.name ?? 'Unknown';
   const navItems = [
   {
     id: 'dashboard',
@@ -111,11 +114,11 @@ export function InstructorLayout({
                   />
                 ) : (
                   <div className="inline-block h-9 w-9 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold">
-                    {user.name.charAt(0)}
+                    {(displayName?.charAt(0) ?? 'U').toUpperCase()}
                   </div>
                 )}
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-white">{user.name}</p>
+                  <p className="text-sm font-medium text-white">{displayName}</p>
                   <p className="text-xs font-medium text-slate-400">
                     Instructor
                   </p>

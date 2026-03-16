@@ -305,14 +305,14 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '150p
                 <>
                   {/* Manual row/col input */}
                   <div className="flex items-center gap-2 mb-2">
-                    <label className="text-xs text-slate-500 w-10">Rows</label>
-                    <input type="number" min={1} max={50} value={tableRows}
+                    <label htmlFor="table-rows" className="text-xs text-slate-500 w-10">Rows</label>
+                    <input id="table-rows" name="tableRows" type="number" min={1} max={50} value={tableRows}
                       onChange={e => setTableRows(Math.max(1, Number(e.target.value)))}
                       className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs text-center focus:ring-1 focus:ring-green-500 focus:border-green-500" />
                   </div>
                   <div className="flex items-center gap-2 mb-3">
-                    <label className="text-xs text-slate-500 w-10">Cols</label>
-                    <input type="number" min={1} max={20} value={tableCols}
+                    <label htmlFor="table-cols" className="text-xs text-slate-500 w-10">Cols</label>
+                    <input id="table-cols" name="tableCols" type="number" min={1} max={20} value={tableCols}
                       onChange={e => setTableCols(Math.max(1, Number(e.target.value)))}
                       className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs text-center focus:ring-1 focus:ring-green-500 focus:border-green-500" />
                   </div>

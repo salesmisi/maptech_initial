@@ -12,7 +12,15 @@ return [
     |
     */
 
-    'default' => env('BROADCAST_CONNECTION', 'log'),
+    // Choose sensible default: prefer the `pusher` connection only when both
+    // the app is configured to use it and a non-placeholder key exists.
+    // Otherwise fallback to `log` to avoid cURL errors when no websocket
+    // server or Pusher credentials are present in development.
+    'default' => (
+        env('BROADCAST_CONNECTION') === 'pusher'
+        && env('PUSHER_APP_KEY')
+        && env('PUSHER_APP_KEY') !== 'your-pusher-app-key'
+    ) ? 'pusher' : 'log',
 
     /*
     |--------------------------------------------------------------------------

@@ -101,8 +101,10 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp }: { scope?
 
       {/* Lesson Selector */}
       <div className="bg-white rounded-lg p-4 border border-slate-200">
-        <label className="block text-sm font-medium text-slate-700 mb-2">Select a Lesson</label>
+        <label htmlFor="select-lesson" className="block text-sm font-medium text-slate-700 mb-2">Select a Lesson</label>
         <select
+          id="select-lesson"
+          name="lessonId"
           value={lessonId ?? ''}
           onChange={(e) => setLessonId(e.target.value ? Number(e.target.value) : null)}
           className="w-full border border-slate-300 rounded-md py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500"

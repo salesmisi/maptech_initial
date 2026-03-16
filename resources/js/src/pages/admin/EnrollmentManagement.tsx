@@ -104,7 +104,7 @@ export function EnrollmentManagement() {
     try {
       const [coursesRes, usersRes, departmentsRes] = await Promise.all([
         fetch(`${API_BASE}/admin/courses`, { credentials: 'include', headers: { Accept: 'application/json' } }),
-        fetch(`${API_BASE}/admin/users`, { credentials: 'include', headers: { Accept: 'application/json' } }),
+        fetch(`${API_BASE}/admin/users?role=Employee`, { credentials: 'include', headers: { Accept: 'application/json' } }),
         fetch(`${API_BASE}/departments`, { credentials: 'include', headers: { Accept: 'application/json' } }),
       ]);
       if (coursesRes.ok) {
@@ -113,7 +113,7 @@ export function EnrollmentManagement() {
       }
       if (usersRes.ok) {
         const u = await usersRes.json();
-        setUsers(u.map((x: any) => ({ id: x.id, fullname: x.fullname, email: x.email, department: x.department })));
+        setUsers(u.map((x: any) => ({ id: x.id, fullname: x.fullname || x.fullName || x.name || `${x.first_name || ''} ${x.last_name || ''}`.trim(), email: x.email, department: x.department })));
       }
       if (departmentsRes && departmentsRes.ok) {
         const d = await departmentsRes.json();
@@ -134,6 +134,8 @@ export function EnrollmentManagement() {
       // Always query backend so newly created users are immediately searchable.
       const params = new URLSearchParams();
       params.set('q', q);
+      // restrict search to employees only
+      params.set('role', 'Employee');
       if (selectedDeptId) {
         const deptName = departments.find(d => d.id === Number(selectedDeptId))?.name;
         if (deptName) params.set('department', deptName);

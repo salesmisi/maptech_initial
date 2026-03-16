@@ -23,6 +23,14 @@ interface Course {
   title: string;
 }
 
+interface FormData {
+  title: string;
+  message: string;
+  course_id: string;
+  department_id: string | number;
+  type: string;
+}
+
 export function InstructorNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -32,12 +40,12 @@ export function InstructorNotifications() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [departments, setDepartments] = useState<{id:number;name:string}[]>([]);
 
-  // Form state for sending to employees
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     title: '',
     message: '',
     course_id: '',
-    type: 'announcement' as string,
+    department_id: '',
+    type: 'announcement',
   });
 
   const token = localStorage.getItem('token');
@@ -47,6 +55,37 @@ export function InstructorNotifications() {
     fetchUnreadCount();
     fetchCourses();
     fetchDepartments();
+
+    // Subscribe to realtime notifications if Echo is available
+    (async () => {
+      try {
+        const Echo = (window as any).Echo;
+        if (!Echo || typeof Echo.private !== 'function') return;
+        // Try to fetch current user id (token auth may work via Bearer)
+        const res = await fetch('/user', { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
+        if (!res.ok) return;
+        const me = await res.json();
+        if (!me?.id) return;
+        const channel = Echo.private('notifications.' + me.id);
+        const createdHandler = (payload: any) => {
+          const n = payload?.notification || payload;
+          if (!n) return;
+          setNotifications(prev => [n, ...prev.filter(p => p.id !== n.id)]);
+          setUnreadCount(c => c + 1);
+        };
+        const countHandler = (payload: any) => {
+          setUnreadCount(payload?.count ?? 0);
+        };
+        channel.listen('NotificationCreated', createdHandler);
+        channel.listen('NotificationCountUpdated', countHandler);
+
+        return () => {
+          try { channel.stopListening('NotificationCreated'); channel.stopListening('NotificationCountUpdated'); } catch (e) {}
+        };
+      } catch (e) {
+        // ignore
+      }
+    })();
   }, []);
 
   const fetchCourses = async () => {
@@ -159,7 +198,7 @@ export function InstructorNotifications() {
     e.preventDefault();
 
     // allow either department or course selection
-    if (!formData.course_id && !formData['department_id']) {
+    if (!formData.course_id && !formData.department_id) {
       alert('Please select a department or a course');
       return;
     }
@@ -172,7 +211,7 @@ export function InstructorNotifications() {
         type: formData.type,
       };
       if (formData.course_id) payload.course_id = formData.course_id;
-      if ((formData as any).department_id) payload.department_id = (formData as any).department_id;
+      if (formData.department_id) payload.department_id = formData.department_id;
 
       const res = await fetch('/api/instructor/notifications/notify-employees', {
         method: 'POST',
@@ -189,7 +228,7 @@ export function InstructorNotifications() {
       if (res.ok) {
         alert(`Notification sent to ${data.recipients_count} enrolled employees!`);
         setIsModalOpen(false);
-        setFormData({ title: '', message: '', course_id: '', type: 'announcement' });
+        setFormData({ title: '', message: '', course_id: '', department_id: '', type: 'announcement' });
       } else {
         alert(data.message || 'Failed to send notification');
       }
@@ -354,8 +393,10 @@ export function InstructorNotifications() {
                 </h3>
                 <form onSubmit={handleSendToEmployees} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Department *</label>
+                    <label htmlFor="notify-department" className="block text-sm font-medium text-slate-700">Department *</label>
                     <select
+                      id="notify-department"
+                      name="department_id"
                       value={(formData as any).department_id ?? ''}
                       onChange={(e) => setFormData({ ...formData, course_id: '', department_id: e.target.value ? Number(e.target.value) : '' })}
                       className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
@@ -370,6 +411,8 @@ export function InstructorNotifications() {
                     </p>
                     <div className="mt-3 text-xs text-slate-500">Or choose a specific course below:</div>
                     <select
+                      id="notify-course"
+                      name="course_id"
                       value={formData.course_id}
                       onChange={(e) => setFormData({ ...formData, course_id: e.target.value, department_id: '' })}
                       className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
@@ -381,8 +424,10 @@ export function InstructorNotifications() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Type</label>
+                    <label htmlFor="notify-type" className="block text-sm font-medium text-slate-700">Type</label>
                     <select
+                      id="notify-type"
+                      name="type"
                       value={formData.type}
                       onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                       className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
@@ -393,8 +438,10 @@ export function InstructorNotifications() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Title *</label>
+                    <label htmlFor="notify-title" className="block text-sm font-medium text-slate-700">Title *</label>
                     <input
+                      id="notify-title"
+                      name="title"
                       type="text"
                       required
                       value={formData.title}
@@ -404,8 +451,10 @@ export function InstructorNotifications() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Message *</label>
+                    <label htmlFor="notify-message" className="block text-sm font-medium text-slate-700">Message *</label>
                     <textarea
+                      id="notify-message"
+                      name="message"
                       rows={4}
                       required
                       value={formData.message}
