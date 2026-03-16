@@ -43,12 +43,33 @@ class LoginController extends Controller
 
         $request->session()->regenerate();
 
-        $log = AuditLog::create([
+        // Record a single consistent timestamp for audit + time log
+        $ts = now();
+        // Debug: Log user role
+        \Log::info('LOGIN: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
+        // Record audit log for Employees only
+        $log = null;
+        if ($user->isEmployee()) {
+            \Log::info('LOGIN: Creating AuditLog', ['user_id' => $user->id, 'action' => 'login']); 
+            $log = \App\Models\AuditLog::create([
             'user_id' => $user->id,
             'action' => 'login',
             'ip_address' => $request->ip(),
         ]);
+            // Broadcast the audit log so admins receive realtime updates
         event(new AuditLogCreated($log));
+        }
+
+        // Create a time log for Employees only
+        $timeLog = null;
+        if ($user->isEmployee()) {
+            \Log::info('LOGIN: Creating TimeLog', ['user_id' => $user->id, 'time_in' => $ts]);
+            $timeLog = TimeLog::create([
+                'user_id' => $user->id,
+                'time_in' => $ts,
+            ]);
+            event(new TimeLogUpdated($timeLog));
+        }
 
         return response()->json([
             'id' => $user->id,
@@ -58,6 +79,7 @@ class LoginController extends Controller
             'department' => $user->department,
             'status' => $user->status,
             'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
+            'time_log' => $timeLog,
         ]);
     }
 
@@ -94,12 +116,34 @@ class LoginController extends Controller
         $abilities = $this->getTokenAbilities($user);
         $token = $user->createToken('auth-token', $abilities)->plainTextToken;
 
-        $log = AuditLog::create([
+        // Record single timestamp for API login audit + time log
+        $ts = now();
+        // Debug: Log user role
+        \Log::info('API LOGIN: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
+        // Record audit log for Employees only
+        $log = null;
+        if ($user->isEmployee()) {
+            \Log::info('API LOGIN: Creating AuditLog', ['user_id' => $user->id, 'action' => 'login']);
+            $log = \App\Models\AuditLog::create([
             'user_id' => $user->id,
             'action' => 'login',
             'ip_address' => $request->ip(),
+                'created_at' => $ts,
         ]);
+            // Broadcast the audit log so admins receive realtime updates
         event(new AuditLogCreated($log));
+        }
+
+        // Create a time log for Employees only
+        $timeLog = null;
+        if ($user->isEmployee()) {
+            \Log::info('API LOGIN: Creating TimeLog', ['user_id' => $user->id, 'time_in' => $ts]);
+            $timeLog = TimeLog::create([
+                'user_id' => $user->id,
+                'time_in' => $ts,
+            ]);
+            event(new TimeLogUpdated($timeLog));
+        }
 
         return response()->json([
             'token' => $token,
@@ -111,7 +155,8 @@ class LoginController extends Controller
                 'role' => $user->role,
                 'department' => $user->department,
                 'status' => $user->status,
-            ]
+            ],
+            'time_log' => $timeLog,
         ]);
     }
 
@@ -123,12 +168,33 @@ class LoginController extends Controller
         $user = $request->user();
 
         if ($user) {
+            $ts = now();
+            // Debug: Log user role
+            \Log::info('LOGOUT: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
+            // Record logout audit for Employees only
+            $log = null;
+            if ($user->isEmployee()) {
+                \Log::info('LOGOUT: Creating AuditLog', ['user_id' => $user->id, 'action' => 'logout']);
             $log = AuditLog::create([
                 'user_id' => $user->id,
                 'action' => 'logout',
                 'ip_address' => $request->ip(),
+                    'created_at' => $ts,
             ]);
             event(new AuditLogCreated($log));
+            }
+
+            // If user is an employee, close ALL open time logs (punched-in without time_out)
+            if ($user->isEmployee()) {
+                \Log::info('LOGOUT: Closing open TimeLogs', ['user_id' => $user->id]);
+                $openLogs = TimeLog::where('user_id', $user->id)->whereNull('time_out')->get();
+                foreach ($openLogs as $open) {
+                    \Log::info('LOGOUT: Closing TimeLog', ['log_id' => $open->id, 'user_id' => $user->id]);
+                    $open->time_out = $ts;
+                    $open->save();
+                    event(new TimeLogUpdated($open));
+                }
+            }
         }
 
         // For API token logout
