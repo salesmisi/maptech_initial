@@ -17,7 +17,7 @@ interface LessonOption {
   course_title: string;
 }
 
-export default function LessonQnA({ scope = 'employee', lessonIdProp }: { scope?: 'employee'|'instructor'|'admin', lessonIdProp?: number }) {
+export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: { scope?: 'employee'|'instructor'|'admin', lessonIdProp?: number, userId?: number }) {
   const API_PREFIX = scope === 'admin' ? '/api/admin' : scope === 'instructor' ? '/api/instructor' : '/api/employee';
 
   const getCookie = (name: string) => {

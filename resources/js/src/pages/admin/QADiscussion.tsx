@@ -1,10 +1,10 @@
 import React from 'react';
 import LessonQnA from '../../components/LessonQnA';
 
-export function QADiscussion() {
+export function QADiscussion({ userId }: { userId?: number }) {
   return (
     <div className="space-y-6">
-      <LessonQnA scope="admin" />
+      <LessonQnA scope="admin" userId={userId} />
     </div>
   );
 }

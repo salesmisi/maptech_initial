@@ -59,7 +59,6 @@ export function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
-  const [selectedQuizId, setSelectedQuizId] = useState<number | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
 
   // =========================
@@ -78,7 +77,8 @@ export function App() {
 
         if (response.ok) {
           const data = await response.json();
-          const role = data.role?.toLowerCase();
+          const rawRole = (data.role ?? '').toLowerCase();
+          const role: User['role'] = rawRole === 'admin' || rawRole === 'instructor' || rawRole === 'employee' ? rawRole : 'employee';
           setUser({
             id: data.id,
             role,
@@ -125,10 +125,11 @@ export function App() {
   };
 
   // ✅ Function to get cookie value
-  const getCookie = (name: string) => {
+  const getCookie = (name: string): string | undefined => {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
     if (parts.length === 2) return parts.pop()?.split(';').shift();
+    return undefined;
   };
 
   // =========================
@@ -172,7 +173,6 @@ export function App() {
       }
     }
     if (typeof quizId !== 'undefined') {
-      setSelectedQuizId(quizId ?? null);
       if (user) {
         try { localStorage.setItem(`maptech_quizId_${user.role}`, String(quizId ?? '')); } catch (e) { /* ignore */ }
       }
@@ -217,7 +217,7 @@ export function App() {
         {currentPage === 'departments' && <DepartmentManagement />}
         {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
         {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
-        {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); setSelectedQuizId(quizId ?? null); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
+        {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
         {currentPage === 'enrollments' && <EnrollmentManagement />}
         {currentPage === 'reports' && <ReportsAnalytics />}
         {currentPage === 'notifications' && <NotificationManagement />}
@@ -242,7 +242,7 @@ export function App() {
       >
         {currentPage === 'dashboard' && <InstructorDashboard />}
         {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
-        {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); setSelectedQuizId(quizId ?? null); handleNavigate('quiz-management', courseId, quizId); }} />}
+        {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} />}
         {currentPage === 'quiz-management' && <QuizAssessmentManagement />}
         {currentPage === 'lessons' && <LessonVideoUpload />}
         {currentPage === 'quizzes' && <QuizAssessmentManagement />}

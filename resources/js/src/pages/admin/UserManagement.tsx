@@ -45,7 +45,7 @@ interface DeptWithSubs {
 
 const API_BASE = '/api';
 
-export function UserManagement() {
+export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmail?: string; onLogout?: () => Promise<void> | (() => void) }) {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
