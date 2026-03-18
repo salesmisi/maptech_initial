@@ -16,6 +16,7 @@ import {
   ChevronRight,
   HelpCircle,
   Lock,
+  Unlock,
   ChevronDown,
   ChevronUp,
   Pencil,
@@ -24,6 +25,8 @@ import {
   GripVertical,
 } from 'lucide-react';
 import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
+import UnlockModuleModal from '../../components/UnlockModuleModal';
+import ConfirmModal from '../../components/ConfirmModal';
 
 const API_BASE = '/api';
 
@@ -185,6 +188,33 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz }: 
   );
 }
 
+  // Unlock modal renderer (reused from instructor flows)
+  function UnlockModalRenderer({
+    course,
+    open,
+    userId,
+    onConfirm,
+    onCancel,
+  }: {
+    course: CourseData | null;
+    open: boolean;
+    userId: number | null;
+    onConfirm: (userId: number, moduleId: number) => void;
+    onCancel: () => void;
+  }) {
+    if (!course) return null;
+    return (
+      <UnlockModuleModal
+        open={open}
+        modules={course.modules.map(m => ({ id: m.id, title: m.title }))}
+        onConfirm={(moduleId) => {
+          if (userId) onConfirm(userId, Number(moduleId));
+        }}
+        onCancel={onCancel}
+      />
+    );
+  }
+
 interface CourseDetailProps {
   courseId: string;
   onBack: () => void;
@@ -251,6 +281,55 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
   // Drag-and-drop state
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+  // Unlock modal state for admin -> unlock module for a user
+  const [unlockModalOpen, setUnlockModalOpen] = useState(false);
+  const [unlockModalUserId, setUnlockModalUserId] = useState<number | null>(null);
+
+  // Generic confirm modal state
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmMessage, setConfirmMessage] = useState('');
+  const confirmActionRef = useRef<(() => Promise<void> | void) | null>(null);
+  const showConfirm = (message: string, action: () => Promise<void> | void) => {
+    confirmActionRef.current = action;
+    setConfirmMessage(message);
+    setConfirmOpen(true);
+  };
+  const handleConfirm = async () => {
+    setConfirmOpen(false);
+    const act = confirmActionRef.current;
+    confirmActionRef.current = null;
+    if (act) await act();
+  };
+  const handleCancelConfirm = () => { confirmActionRef.current = null; setConfirmOpen(false); };
+
+  const handleUnlockModuleForUser = async (userId: number) => {
+    if (!course || !course.modules || course.modules.length === 0) {
+      alert('No modules available for this course.');
+      return;
+    }
+    setUnlockModalUserId(userId);
+    setUnlockModalOpen(true);
+  };
+
+  const performUnlockModuleForUser = async (userId: number, moduleId: number) => {
+    try {
+      const xsrf = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/admin/courses/${courseId}/modules/${moduleId}/enrollments/${userId}/unlock`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': xsrf },
+      });
+      if (!res.ok) throw new Error('Failed to unlock module');
+      await loadCourse();
+      alert('Module unlocked for user');
+    } catch (e: any) {
+      alert(e.message || 'Failed to unlock module');
+    } finally {
+      setUnlockModalOpen(false);
+      setUnlockModalUserId(null);
+    }
+  };
 
   const loadCourse = async () => {
     try {
@@ -331,23 +410,24 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
     }
   };
 
-  const handleDeleteQuiz = async (quizId: number) => {
-    if (!confirm('Delete this quiz and all its questions?')) return;
-    setDeletingQuizId(quizId);
-    try {
-      const xsrf = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/admin/quizzes/${quizId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': xsrf },
-      });
-      if (!res.ok) throw new Error('Failed to delete quiz.');
-      await loadQuizzes();
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setDeletingQuizId(null);
-    }
+  const handleDeleteQuiz = (quizId: number) => {
+    showConfirm('Delete this quiz and all its questions?', async () => {
+      setDeletingQuizId(quizId);
+      try {
+        const xsrf = await getXsrfToken();
+        const res = await fetch(`${API_BASE}/admin/quizzes/${quizId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { Accept: 'application/json', 'X-XSRF-TOKEN': xsrf },
+        });
+        if (!res.ok) throw new Error('Failed to delete quiz.');
+        await loadQuizzes();
+      } catch (e: any) {
+        alert(e.message);
+      } finally {
+        setDeletingQuizId(null);
+      }
+    });
   };
 
   const handleAddModule = async (e: React.FormEvent) => {
@@ -386,23 +466,24 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
     }
   };
 
-  const handleDeleteModule = async (moduleId: number) => {
-    if (!confirm('Delete this module and all its lessons?')) return;
-    setDeletingModuleId(moduleId);
-    try {
-      const xsrf = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/admin/courses/${courseId}/modules/${moduleId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': xsrf },
-      });
-      if (!res.ok) throw new Error('Failed to delete module');
-      await loadCourse();
-    } catch (e: any) {
-      alert(e.message || 'Failed to delete module');
-    } finally {
-      setDeletingModuleId(null);
-    }
+  const handleDeleteModule = (moduleId: number) => {
+    showConfirm('Delete this module and all its lessons?', async () => {
+      setDeletingModuleId(moduleId);
+      try {
+        const xsrf = await getXsrfToken();
+        const res = await fetch(`${API_BASE}/admin/courses/${courseId}/modules/${moduleId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { Accept: 'application/json', 'X-XSRF-TOKEN': xsrf },
+        });
+        if (!res.ok) throw new Error('Failed to delete module');
+        await loadCourse();
+      } catch (e: any) {
+        alert(e.message || 'Failed to delete module');
+      } finally {
+        setDeletingModuleId(null);
+      }
+    });
   };
 
   const handleAddLesson = async (moduleId: number) => {
@@ -442,20 +523,21 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
     }
   };
 
-  const handleDeleteLesson = async (moduleId: number, lessonId: number) => {
-    if (!confirm('Delete this lesson?')) return;
-    try {
-      const xsrf = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/admin/modules/${moduleId}/lessons/${lessonId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': xsrf },
-      });
-      if (!res.ok) throw new Error('Failed to delete lesson');
-      await loadCourse();
-    } catch (e: any) {
-      alert(e.message || 'Failed to delete lesson');
-    }
+  const handleDeleteLesson = (moduleId: number, lessonId: number) => {
+    showConfirm('Delete this lesson?', async () => {
+      try {
+        const xsrf = await getXsrfToken();
+        const res = await fetch(`${API_BASE}/admin/modules/${moduleId}/lessons/${lessonId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { Accept: 'application/json', 'X-XSRF-TOKEN': xsrf },
+        });
+        if (!res.ok) throw new Error('Failed to delete lesson');
+        await loadCourse();
+      } catch (e: any) {
+        alert(e.message || 'Failed to delete lesson');
+      }
+    });
   };
 
   // ─── EDIT MODULE/LESSON HANDLERS ──────────────────────────────────
@@ -581,20 +663,21 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
     }
   };
 
-  const handleUnenroll = async (userId: number, name: string) => {
-    if (!confirm(`Remove ${name} from this course?`)) return;
-    try {
-      const xsrf = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/admin/courses/${courseId}/enrollments/${userId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': xsrf },
-      });
-      if (!res.ok) throw new Error('Failed to unenroll user');
-      await loadCourse();
-    } catch (e: any) {
-      alert(e.message || 'Failed to unenroll user');
-    }
+  const handleUnenroll = (userId: number, name: string) => {
+    showConfirm(`Remove ${name} from this course?`, async () => {
+      try {
+        const xsrf = await getXsrfToken();
+        const res = await fetch(`${API_BASE}/admin/courses/${courseId}/enrollments/${userId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { Accept: 'application/json', 'X-XSRF-TOKEN': xsrf },
+        });
+        if (!res.ok) throw new Error('Failed to unenroll user');
+        await loadCourse();
+      } catch (e: any) {
+        alert(e.message || 'Failed to unenroll user');
+      }
+    });
   };
 
   // ─── LOADING / ERROR ─────────────────────────────────────────────────────────
@@ -1237,13 +1320,22 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                           : '—'}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => handleUnenroll(user.id, user.fullname)}
-                          className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
-                          title="Remove from course"
-                        >
-                          <UserMinus className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center justify-end">
+                          <button
+                            onClick={() => handleUnlockModuleForUser(user.id)}
+                            className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded mr-2"
+                            title="Unlock module for user"
+                          >
+                            <Unlock className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleUnenroll(user.id, user.fullname)}
+                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
+                            title="Remove from course"
+                          >
+                            <UserMinus className="h-4 w-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1254,6 +1346,22 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
         </div>
       )}
 
+
+      {/* Unlock modal for admin actions */}
+      <UnlockModalRenderer
+        course={course}
+        open={unlockModalOpen}
+        userId={unlockModalUserId}
+        onConfirm={performUnlockModuleForUser}
+        onCancel={() => { setUnlockModalOpen(false); setUnlockModalUserId(null); }}
+      />
+
+      <ConfirmModal
+        open={confirmOpen}
+        message={confirmMessage}
+        onConfirm={handleConfirm}
+        onCancel={handleCancelConfirm}
+      />
 
     </div>
   );

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import { useToast } from '../../components/ToastProvider';
 import { createPortal } from 'react-dom';
 import {
@@ -91,6 +92,9 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     }
   };
 
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
+
   useEffect(() => { loadCourses(); }, []);
 
   // Refresh courses list when a module is added in the CourseDetail page
@@ -143,18 +147,19 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setModules((prev) => prev.filter((m) => m.id !== id));
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this course? This cannot be undone.')) return;
-    try {
-      const token = await getXsrfToken();
-      await fetch(`${API_BASE}/instructor/courses/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
-      });
-      setCourses((prev) => prev.filter((c) => c.id !== id));
-    } catch (e) {
-      console.error(e);
-    }
+    showConfirm('Delete this course? This cannot be undone.', async () => {
+      try {
+        const token = await getXsrfToken();
+        await fetch(`${API_BASE}/instructor/courses/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+        });
+        setCourses((prev) => prev.filter((c) => c.id !== id));
+      } catch (e) {
+        console.error(e);
+      }
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -208,7 +213,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   };
 
   const handleUnlockAll = async (courseId: string) => {
-    if (!confirm('Unlock all enrollments for this course?')) return;
+    showConfirm('Unlock all enrollments for this course?', async () => {
     try {
       const token = await getXsrfToken();
       // fetch course details to get enrolled users
@@ -242,6 +247,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       console.error(e);
       alert('Failed to unlock enrollments.');
     }
+    });
   };
 
   const filtered = courses.filter((c) => {
@@ -579,6 +585,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         </div>,
         document.body
       )}
+        {confirm.ConfirmModalRenderer()}
     </div>
   );
 }

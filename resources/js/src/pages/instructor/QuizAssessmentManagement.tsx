@@ -1,5 +1,6 @@
 // Quiz Management — grouped by Department → Subdepartment → Quizzes
 import { useState, useEffect } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import {
   ClipboardList,
   Search,
@@ -81,6 +82,8 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
   const [expandedSubdepts, setExpandedSubdepts] = useState<Set<string>>(new Set());
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
 
   const loadQuizzes = async () => {
     setLoading(true);
@@ -105,22 +108,23 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
   useEffect(() => { loadQuizzes(); }, []);
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this quiz and all its questions permanently?')) return;
-    setDeletingId(id);
-    try {
-      const token = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/instructor/quizzes/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
-      });
-      if (!res.ok) throw new Error('Delete failed.');
-      await loadQuizzes();
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setDeletingId(null);
-    }
+    showConfirm('Delete this quiz and all its questions permanently?', async () => {
+      setDeletingId(id);
+      try {
+        const token = await getXsrfToken();
+        const res = await fetch(`${API_BASE}/instructor/quizzes/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+        });
+        if (!res.ok) throw new Error('Delete failed.');
+        await loadQuizzes();
+      } catch (e: any) {
+        alert(e.message);
+      } finally {
+        setDeletingId(null);
+      }
+    });
   };
 
   const toggleDept = (dept: string) => {
@@ -323,6 +327,7 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
           })}
         </div>
       )}
+      {confirm.ConfirmModalRenderer()}
     </div>
   );
 }

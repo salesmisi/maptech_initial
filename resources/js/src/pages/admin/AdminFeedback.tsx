@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import FeedbackList from '../../components/FeedbackList';
+import useConfirm from '../../hooks/useConfirm';
 
 const API = '/api/admin/feedbacks';
 
@@ -7,20 +8,28 @@ export function AdminFeedback() {
   const [endpoint, setEndpoint] = useState(API + '?type=lesson');
   const [type, setType] = useState<'lesson' | 'quiz'>('lesson');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
 
   const bulkDelete = async () => {
-    if (!confirm('Delete selected feedbacks?')) return;
-    const ids = selectedIds;
-    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-    const xsrf = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)?.[2];
-    const res = await fetch(`${API}/admin/feedbacks/bulk-delete`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': xsrf ? decodeURIComponent(xsrf) : '' },
-      body: JSON.stringify({ ids, type }),
+    showConfirm('Delete selected feedbacks?', async () => {
+      try {
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const xsrf = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)?.[2];
+        const res = await fetch(`${API}/admin/feedbacks/bulk-delete`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': xsrf ? decodeURIComponent(xsrf) : '' },
+          body: JSON.stringify({ ids: selectedIds, type }),
+        });
+        if (res.ok) {
+          alert('Deleted');
+          window.location.reload();
+        }
+      } catch (e: any) {
+        alert(e.message || 'Failed to delete feedback');
+      }
     });
-    if (res.ok) alert('Deleted');
-    window.location.reload();
   };
 
   return (
@@ -42,6 +51,7 @@ export function AdminFeedback() {
       </div>
 
       <FeedbackList url={endpoint} />
+      {confirm.ConfirmModalRenderer()}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import { Star, Plus, Edit2, Trash2, X } from 'lucide-react';
 
 const API = '/api/employee';
@@ -24,6 +25,8 @@ interface LessonOption {
 }
 
 export function MyFeedback() {
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
   const getCookie = (name: string) => {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -231,22 +234,23 @@ export function MyFeedback() {
   };
 
   const handleDelete = async (fb: Feedback) => {
-    if (!window.confirm('Delete this feedback?')) return;
-    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-    if (fb.type === 'lesson') {
-      await fetch(`${API}/feedbacks/${fb.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: getHeaders(),
-      });
-    } else {
-      await fetch(`${API}/quiz-feedbacks/${fb.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: getHeaders(),
-      });
-    }
-    await loadFeedbacks();
+    showConfirm('Delete this feedback?', async () => {
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      if (fb.type === 'lesson') {
+        await fetch(`${API}/feedbacks/${fb.id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: getHeaders(),
+        });
+      } else {
+        await fetch(`${API}/quiz-feedbacks/${fb.id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: getHeaders(),
+        });
+      }
+      await loadFeedbacks();
+    });
   };
 
   if (loading) return <div className="p-6 text-slate-500">Loading...</div>;

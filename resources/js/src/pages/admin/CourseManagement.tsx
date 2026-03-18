@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -136,6 +137,8 @@ const getXsrfToken = async (): Promise<string> => {
 };
 
 export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, courseId?: string) => void }) {
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
   const [courses, setCourses] = useState<Course[]>(initialCourses);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -255,23 +258,24 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   });
   // Delete Handler
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this course?')) return;
-    try {
-      const xsrfToken = await getXsrfToken();
-      const response = await fetch(`${API_BASE}/admin/courses/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-XSRF-TOKEN': xsrfToken,
-        },
-      });
-      if (!response.ok) throw new Error('Failed to delete course');
-      setCourses(prev => prev.filter((c) => c.id !== id));
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete course');
-    }
+    showConfirm('Are you sure you want to delete this course?', async () => {
+      try {
+        const xsrfToken = await getXsrfToken();
+        const response = await fetch(`${API_BASE}/admin/courses/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': xsrfToken,
+          },
+        });
+        if (!response.ok) throw new Error('Failed to delete course');
+        setCourses(prev => prev.filter((c) => c.id !== id));
+      } catch (err: any) {
+        alert(err.message || 'Failed to delete course');
+      }
+    });
   };
   // Modal Handlers
   const handleOpenModal = (course?: Course) => {
@@ -405,6 +409,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
           </div>
         </div>
       </div>
+      {confirm.ConfirmModalRenderer()}
 
       {/* Course Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

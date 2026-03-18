@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import { Download, Award, Calendar, ExternalLink, BookOpen, Upload, Trash2, Image } from 'lucide-react';
 
 const API_BASE = '/api';
@@ -18,6 +19,8 @@ interface Certificate {
 }
 
 export function MyCertificates() {
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -55,6 +58,9 @@ export function MyCertificates() {
     loadCertificates();
   }, []);
 
+  // Render Confirm modal renderer
+
+
   const handleUploadLogo = (certId: number) => {
     setUploadingId(certId);
     fileInputRef.current?.click();
@@ -90,18 +96,19 @@ export function MyCertificates() {
   };
 
   const handleRemoveLogo = async (certId: number) => {
-    if (!window.confirm('Remove logo from this certificate?')) return;
-    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-    try {
-      await fetch(`${API_BASE}/employee/certificates/${certId}/logo`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: getHeaders(),
-      });
-      loadCertificates();
-    } catch {
-      alert('Failed to remove logo');
-    }
+    showConfirm('Remove logo from this certificate?', async () => {
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      try {
+        await fetch(`${API_BASE}/employee/certificates/${certId}/logo`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: getHeaders(),
+        });
+        loadCertificates();
+      } catch {
+        alert('Failed to remove logo');
+      }
+    });
   };
 
   const handleDownloadPdf = async (cert: Certificate) => {

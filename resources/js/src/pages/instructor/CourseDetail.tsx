@@ -25,6 +25,9 @@ import {
 } from 'lucide-react';
 import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
 import YouTubePlayer from '../../components/YouTubePlayer';
+import UnlockModuleModal from '../../components/UnlockModuleModal';
+import DepartmentSelectModal from '../../components/DepartmentSelectModal';
+import useConfirm from '../../hooks/useConfirm';
 
 const API_BASE = '/api';
 
@@ -151,8 +154,48 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz, ap
           Cancel
         </button>
       </div>
+      {/* Unlock modal */}
+      <UnlockModalRenderer
+        course={course}
+        open={unlockModalOpen}
+        userId={unlockModalUserId}
+        onConfirm={performUnlockModuleForUser}
+        onCancel={() => { setUnlockModalOpen(false); setUnlockModalUserId(null); }}
+      />
     </div>
   );
+}
+
+// Unlock modal rendered outside main markup
+function UnlockModalRenderer({
+  course,
+  open,
+  userId,
+  onConfirm,
+  onCancel,
+}: {
+  course: CourseData | null;
+  open: boolean;
+  userId: number | null;
+  onConfirm: (userId: number, moduleId: number) => void;
+  onCancel: () => void;
+}) {
+  if (!course) return null;
+  return (
+    <UnlockModuleModal
+      open={open}
+      modules={course.modules.map(m => ({ id: m.id, title: m.title }))}
+      onConfirm={(moduleId) => {
+        if (userId) onConfirm(userId, Number(moduleId));
+      }}
+      onCancel={onCancel}
+    />
+  );
+}
+
+// Render UnlockModuleModal at end of component tree
+export default function InstructorCourseDetailWrapper(props: Props) {
+  return <InstructorCourseDetail {...props} />;
 }
 
 interface CourseData {
@@ -238,6 +281,14 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   const [addingQuizForModule, setAddingQuizForModule] = useState<number | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
   const [deletingQuizId, setDeletingQuizId] = useState<number | null>(null);
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
+  const [unlockModalAction, setUnlockModalAction] = useState<'unlock' | 'lock'>('unlock');
+  const [unlockModalOpen, setUnlockModalOpen] = useState(false);
+  const [unlockModalUserId, setUnlockModalUserId] = useState<number | null>(null);
+  const [deptModalOpen, setDeptModalOpen] = useState(false);
+  const [deptModalModuleId, setDeptModalModuleId] = useState<number | null>(null);
+  const [deptModalAction, setDeptModalAction] = useState<'unlock' | 'lock'>('unlock');
 
   // Edit module state
   const [editingModuleId, setEditingModuleId] = useState<number | null>(null);
@@ -299,7 +350,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
 
   const handleLock = async (userId: number) => {
-    if (!confirm('Lock this student\'s access to the course?')) return;
+    showConfirm("Lock this student's access to the course?", async () => {
     try {
       const token = await getXsrfToken();
       const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/enrollments/${userId}/lock`, {
@@ -312,10 +363,11 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
     } catch (e: any) {
       alert(e.message || 'Failed to lock');
     }
+    });
   };
 
   const handleUnlock = async (userId: number) => {
-    if (!confirm('Unlock this student\'s access to the course?')) return;
+    showConfirm("Unlock this student's access to the course?", async () => {
     try {
       const token = await getXsrfToken();
       const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/enrollments/${userId}/unlock`, {
@@ -328,35 +380,42 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
     } catch (e: any) {
       alert(e.message || 'Failed to unlock');
     }
+    });
   };
 
   const handleUnlockModuleForUser = async (userId: number) => {
+    // open modal to choose module instead of using prompt
     if (!course || !course.modules || course.modules.length === 0) {
       alert('No modules available for this course.');
       return;
     }
+    setUnlockModalUserId(userId);
+    setUnlockModalOpen(true);
+  };
 
-    const list = course.modules.map((m: any, i: number) => `${i + 1}. ${m.title}`).join('\n');
-    const choice = prompt(`Select module to unlock for this user:\n${list}\nEnter number:`);
-    if (!choice) return;
-    const idx = parseInt(choice, 10) - 1;
-    if (Number.isNaN(idx) || idx < 0 || idx >= course.modules.length) {
-      alert('Invalid selection');
-      return;
-    }
-    const moduleId = course.modules[idx].id;
-    if (!confirm(`Unlock module "${course.modules[idx].title}" for this user?`)) return;
-
+  const performUnlockModuleForUser = async (userId: number, moduleId: number) => {
     try {
-      const token = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/modules/${moduleId}/enrollments/${userId}/unlock`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+      if (!course) throw new Error('Course not loaded');
+      const module = course.modules.find(m => m.id === moduleId);
+      if (!module) throw new Error('Module not found');
+      // close the selection modal and show a confirm modal
+      setUnlockModalOpen(false);
+      setUnlockModalUserId(null);
+      showConfirm(`Unlock module "${module.title}" for this user?`, async () => {
+        try {
+          const token = await getXsrfToken();
+          const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/modules/${moduleId}/enrollments/${userId}/unlock`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+          });
+          if (!res.ok) throw new Error('Failed to unlock module');
+          await loadCourse();
+          alert('Module unlocked for user');
+        } catch (e: any) {
+          alert(e.message || 'Failed to unlock module');
+        }
       });
-      if (!res.ok) throw new Error('Failed to unlock module');
-      await loadCourse();
-      alert('Module unlocked for user');
     } catch (e: any) {
       alert(e.message || 'Failed to unlock module');
     }
@@ -367,31 +426,77 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       alert('No modules available for this course.');
       return;
     }
+    setUnlockModalAction('lock');
+    setUnlockModalUserId(userId);
+    setUnlockModalOpen(true);
+  };
 
-    const list = course.modules.map((m: any, i: number) => `${i + 1}. ${m.title}`).join('\n');
-    const choice = prompt(`Select module to lock for this user:\n${list}\nEnter number:`);
-    if (!choice) return;
-    const idx = parseInt(choice, 10) - 1;
-    if (Number.isNaN(idx) || idx < 0 || idx >= course.modules.length) {
-      alert('Invalid selection');
-      return;
-    }
-    const moduleId = course.modules[idx].id;
-    if (!confirm(`Lock module "${course.modules[idx].title}" for this user?`)) return;
-
+  const performLockModuleForUser = async (userId: number, moduleId: number) => {
     try {
-      const token = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/modules/${moduleId}/enrollments/${userId}/lock`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+      if (!course) throw new Error('Course not loaded');
+      const module = course.modules.find(m => m.id === moduleId);
+      if (!module) throw new Error('Module not found');
+      setUnlockModalOpen(false);
+      setUnlockModalUserId(null);
+      showConfirm(`Lock module "${module.title}" for this user?`, async () => {
+        try {
+          const token = await getXsrfToken();
+          const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/modules/${moduleId}/enrollments/${userId}/lock`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+          });
+          if (!res.ok) throw new Error('Failed to lock module');
+          await loadCourse();
+          alert('Module locked for user');
+        } catch (e: any) {
+          alert(e.message || 'Failed to lock module');
+        }
       });
-      if (!res.ok) throw new Error('Failed to lock module');
-      await loadCourse();
-      alert('Module locked for user');
     } catch (e: any) {
       alert(e.message || 'Failed to lock module');
     }
+  };
+
+  const handleUnlockModuleForDepartment = async (moduleId: number) => {
+    if (!course) return;
+    setDeptModalModuleId(moduleId);
+    setDeptModalAction('unlock');
+    setDeptModalOpen(true);
+  };
+
+  const handleLockModuleForDepartment = async (moduleId: number) => {
+    if (!course) return;
+    setDeptModalModuleId(moduleId);
+    setDeptModalAction('lock');
+    setDeptModalOpen(true);
+  };
+
+  const performDeptAction = async (department: string) => {
+    if (!course || !deptModalModuleId) return;
+    const moduleId = deptModalModuleId;
+    const action = deptModalAction;
+    setDeptModalOpen(false);
+    showConfirm(`${action === 'unlock' ? 'Unlock' : 'Lock'} module for department "${department}"?`, async () => {
+      try {
+        const token = await getXsrfToken();
+        const url = `${API_BASE}/${apiPrefix}/courses/${courseId}/modules/${moduleId}/${action === 'unlock' ? 'unlock-department' : 'lock-department'}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token },
+          body: JSON.stringify({ department }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || 'Failed to perform department module action');
+        }
+        await loadCourse();
+        alert(`Module ${action === 'unlock' ? 'unlocked' : 'locked'} for department`);
+      } catch (e: any) {
+        alert(e.message || 'Failed to perform department action');
+      }
+    });
   };
 
   const loadQuizzes = async () => {
@@ -436,6 +541,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
     }
   }, [courseId]);
 
+  const deptOptions = Array.from(new Set(course?.enrolled_users.map(u => String(u.department).trim()).filter(d => d && d !== 'null')) || []);
+
   const handleAddModule = async () => {
     if (!moduleTitle.trim()) {
       setModuleError('Module title is required.');
@@ -479,7 +586,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   };
 
   const handleDeleteModule = async (moduleId: number) => {
-    if (!confirm('Delete this module and all its lessons?')) return;
+    showConfirm('Delete this module and all its lessons?', async () => {
     setDeletingModuleId(moduleId);
     try {
       const token = await getXsrfToken();
@@ -495,6 +602,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
     } finally {
       setDeletingModuleId(null);
     }
+    });
   };
 
   const handleAddLesson = async (moduleId: number) => {
@@ -535,7 +643,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   };
 
   const handleDeleteLesson = async (moduleId: number, lessonId: number) => {
-    if (!confirm('Delete this lesson?')) return;
+    showConfirm('Delete this lesson?', async () => {
     try {
       const token = await getXsrfToken();
       const res = await fetch(`${API_BASE}/${apiPrefix}/modules/${moduleId}/lessons/${lessonId}`, {
@@ -547,9 +655,11 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       await loadCourse();
     } catch (e: any) {
       alert(e.message);
+    } finally {
+      // noop
     }
+    });
   };
-
   // ─── EDIT MODULE ──────────────────────────────────────────────────────────
   const startEditModule = (mod: Module) => {
     setEditingModuleId(mod.id);
@@ -642,7 +752,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   };
 
   const handleDeleteQuiz = async (quizId: number) => {
-    if (!confirm('Delete this quiz and all its questions?')) return;
+    showConfirm('Delete this quiz and all its questions?', async () => {
     setDeletingQuizId(quizId);
     try {
       const token = await getXsrfToken();
@@ -658,6 +768,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
     } finally {
       setDeletingQuizId(null);
     }
+    });
   };
 
   // ─── ENROLLMENT HANDLERS ──────────────────────────────────────────────────
@@ -699,7 +810,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   };
 
   const handleUnenroll = async (userId: number, name: string) => {
-    if (!confirm(`Remove ${name} from this course?`)) return;
+    showConfirm(`Remove ${name} from this course?`, async () => {
     try {
       const xsrf = await getXsrfToken();
       const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/enrollments/${userId}`, {
@@ -712,6 +823,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
     } catch (e: any) {
       alert(e.message || 'Failed to unenroll user');
     }
+    });
   };
 
   if (loading) {
@@ -963,6 +1075,21 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                     )}
+
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleUnlockModuleForDepartment(mod.id); }}
+                      className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded flex-shrink-0"
+                      title="Unlock this module for a department"
+                    >
+                      <Unlock className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleLockModuleForDepartment(mod.id); }}
+                      className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded flex-shrink-0"
+                      title="Lock this module for a department"
+                    >
+                      <Lock className="h-3.5 w-3.5" />
+                    </button>
 
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDeleteModule(mod.id); }}

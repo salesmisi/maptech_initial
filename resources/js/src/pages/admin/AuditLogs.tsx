@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import useConfirm from '../../hooks/useConfirm';
+import usePrompt from '../../hooks/usePrompt';
 import { LogIn, LogOut, Search, ChevronLeft, ChevronRight, Filter, Users, GraduationCap, Shield, Clock, RefreshCw } from "lucide-react";
 
 interface AuditUser {
@@ -117,6 +119,10 @@ export function AuditLogs() {
       else setLoading(false);
     }
   }, [API, roleFilter]);
+
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
+  const { showPrompt, PromptModalRenderer } = usePrompt();
 
   const fetchLogs = (pageNum: number) => doFetch(pageNum, false);
 
@@ -426,14 +432,16 @@ export function AuditLogs() {
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <button
-                          onClick={async () => {
-                            const newIn = prompt('Enter new Time In (ISO or YYYY-MM-DD HH:MM):', tl.time_in || '');
-                            const newOut = prompt('Enter new Time Out (ISO or YYYY-MM-DD HH:MM):', tl.time_out || '');
-                            if (newIn === null && newOut === null) return;
-                            try {
-                              await updateTimeLog(tl.id, { time_in: newIn || null, time_out: newOut || null });
-                              alert('Updated');
-                            } catch (e) { alert('Update failed'); }
+                          onClick={() => {
+                            showPrompt('Enter new Time In (ISO or YYYY-MM-DD HH:MM):', tl.time_in || '', async (newIn) => {
+                              showPrompt('Enter new Time Out (ISO or YYYY-MM-DD HH:MM):', tl.time_out || '', async (newOut) => {
+                                if (newIn === null && newOut === null) return;
+                                try {
+                                  await updateTimeLog(tl.id, { time_in: newIn || null, time_out: newOut || null });
+                                  alert('Updated');
+                                } catch (e) { alert('Update failed'); }
+                              });
+                            });
                           }}
                           className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-50"
                         >
@@ -451,9 +459,10 @@ export function AuditLogs() {
                           {tl.archived ? 'Unarchive' : 'Archive'}
                         </button>
                         <button
-                          onClick={async () => {
-                            if (!confirm('Delete this time log?')) return;
-                            try { await deleteTimeLog(tl.id); alert('Deleted'); } catch (e) { alert('Delete failed'); }
+                          onClick={() => {
+                            showConfirm('Delete this time log?', async () => {
+                              try { await deleteTimeLog(tl.id); alert('Deleted'); } catch (e) { alert('Delete failed'); }
+                            });
                           }}
                           className="px-2 py-1 text-xs border rounded bg-red-50 text-red-700 hover:bg-red-100"
                         >
@@ -560,32 +569,33 @@ export function AuditLogs() {
           <div className="text-sm text-gray-700">{selectedLogIds.length} item(s) selected</div>
           <button
             onClick={async () => {
-              if (!confirm(`Delete ${selectedLogIds.length} selected log(s)?`)) return;
-              try {
-                setLoading(true);
-                await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-                const res = await fetch('/api/admin/audit-logs/bulk-delete', {
-                  method: 'POST',
-                  credentials: 'include',
-                  headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
-                  body: JSON.stringify({ ids: selectedLogIds }),
-                });
-                if (!res.ok) {
-                  const txt = await res.text().catch(() => '');
-                  throw new Error(txt || 'Bulk delete failed');
-                }
-                const data = await res.json().catch(() => null);
-                await fetchLogs(1);
-                setSelectedLogIds([]);
-                setSelectedUserIds([]);
-                alert(data && data.deleted !== undefined ? `Deleted ${data.deleted} rows` : 'Bulk delete completed');
-              } catch (e: any) {
-                if ((e?.message || '').toLowerCase().includes('forbidden') || (e?.message || '').toLowerCase().includes('unauthorized')) {
-                  alert('Bulk delete failed: not authorized');
-                } else {
-                  alert('Bulk delete failed');
-                }
-              } finally { setLoading(false); }
+              showConfirm(`Delete ${selectedLogIds.length} selected log(s)?`, async () => {
+                try {
+                  setLoading(true);
+                  await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+                  const res = await fetch('/api/admin/audit-logs/bulk-delete', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
+                    body: JSON.stringify({ ids: selectedLogIds }),
+                  });
+                  if (!res.ok) {
+                    const txt = await res.text().catch(() => '');
+                    throw new Error(txt || 'Bulk delete failed');
+                  }
+                  const data = await res.json().catch(() => null);
+                  await fetchLogs(1);
+                  setSelectedLogIds([]);
+                  setSelectedUserIds([]);
+                  alert(data && data.deleted !== undefined ? `Deleted ${data.deleted} rows` : 'Bulk delete completed');
+                } catch (e: any) {
+                  if ((e?.message || '').toLowerCase().includes('forbidden') || (e?.message || '').toLowerCase().includes('unauthorized')) {
+                    alert('Bulk delete failed: not authorized');
+                  } else {
+                    alert('Bulk delete failed');
+                  }
+                } finally { setLoading(false); }
+              });
             }}
             className="px-3 py-1 text-sm bg-red-50 text-red-700 border rounded hover:bg-red-100"
           >
@@ -601,23 +611,24 @@ export function AuditLogs() {
           <div className="text-sm text-gray-700">{selectedUserIds.length} user(s) selected</div>
           <button
             onClick={async () => {
-              if (!confirm(`Delete all audit logs for ${selectedUserIds.length} selected user(s)?`)) return;
-              try {
-                setLoading(true);
-                await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-                const res = await fetch('/api/admin/audit-logs/bulk-delete-by-users', {
-                  method: 'POST',
-                  credentials: 'include',
-                  headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
-                  body: JSON.stringify({ user_ids: selectedUserIds }),
-                });
-                if (!res.ok) throw new Error('Bulk delete by users failed');
-                const data = await res.json().catch(() => null);
-                await fetchLogs(1);
-                setSelectedUserIds([]);
-                setSelectedLogIds([]);
-                alert(data && data.deleted !== undefined ? `Deleted ${data.deleted} rows` : 'Bulk delete completed');
-              } catch (e) { alert('Bulk delete failed'); } finally { setLoading(false); }
+              showConfirm(`Delete all audit logs for ${selectedUserIds.length} selected user(s)?`, async () => {
+                try {
+                  setLoading(true);
+                  await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+                  const res = await fetch('/api/admin/audit-logs/bulk-delete-by-users', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
+                    body: JSON.stringify({ user_ids: selectedUserIds }),
+                  });
+                  if (!res.ok) throw new Error('Bulk delete by users failed');
+                  const data = await res.json().catch(() => null);
+                  await fetchLogs(1);
+                  setSelectedUserIds([]);
+                  setSelectedLogIds([]);
+                  alert(data && data.deleted !== undefined ? `Deleted ${data.deleted} rows` : 'Bulk delete completed');
+                } catch (e) { alert('Bulk delete failed'); } finally { setLoading(false); }
+              });
             }}
             className="px-3 py-1 text-sm bg-red-600 text-white border rounded hover:bg-red-700"
           >
@@ -855,20 +866,21 @@ export function AuditLogs() {
                               onClick={async () => {
                                 const id = sessionPrimaryId(latest);
                                 if (!id) return;
-                                if (!confirm('Delete this audit log?')) return;
-                                try {
-                                  setLoading(true);
-                                  await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-                                  const res = await fetch('/api/admin/audit-logs/bulk-delete', {
-                                    method: 'POST',
-                                    credentials: 'include',
-                                    headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
-                                    body: JSON.stringify({ ids: [id] }),
-                                  });
-                                  if (!res.ok) throw new Error('Delete failed');
-                                  await fetchLogs(1);
-                                  setSelectedLogIds((s) => s.filter((i) => i !== id));
-                                } catch (e) { alert('Delete failed'); } finally { setLoading(false); }
+                                    showConfirm('Delete this audit log?', async () => {
+                                      try {
+                                        setLoading(true);
+                                        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+                                        const res = await fetch('/api/admin/audit-logs/bulk-delete', {
+                                          method: 'POST',
+                                          credentials: 'include',
+                                          headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
+                                          body: JSON.stringify({ ids: [id] }),
+                                        });
+                                        if (!res.ok) throw new Error('Delete failed');
+                                        await fetchLogs(1);
+                                        setSelectedLogIds((s) => s.filter((i) => i !== id));
+                                      } catch (e) { alert('Delete failed'); } finally { setLoading(false); }
+                                    });
                               }}
                               className="px-2 py-1 text-xs border rounded text-red-700 bg-red-50 hover:bg-red-100"
                             >
@@ -931,20 +943,21 @@ export function AuditLogs() {
                                 onClick={async () => {
                                   const id = sessionPrimaryId(older);
                                   if (!id) return;
-                                  if (!confirm('Delete this audit log?')) return;
-                                  try {
-                                    setLoading(true);
-                                    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-                                    const res = await fetch('/api/admin/audit-logs/bulk-delete', {
-                                      method: 'POST',
-                                      credentials: 'include',
-                                      headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
-                                      body: JSON.stringify({ ids: [id] }),
-                                    });
-                                    if (!res.ok) throw new Error('Delete failed');
-                                    await fetchLogs(1);
-                                    setSelectedLogIds((s) => s.filter((i) => i !== id));
-                                  } catch (e) { alert('Delete failed'); } finally { setLoading(false); }
+                                  showConfirm('Delete this audit log?', async () => {
+                                    try {
+                                      setLoading(true);
+                                      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+                                      const res = await fetch('/api/admin/audit-logs/bulk-delete', {
+                                        method: 'POST',
+                                        credentials: 'include',
+                                        headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
+                                        body: JSON.stringify({ ids: [id] }),
+                                      });
+                                      if (!res.ok) throw new Error('Delete failed');
+                                      await fetchLogs(1);
+                                      setSelectedLogIds((s) => s.filter((i) => i !== id));
+                                    } catch (e) { alert('Delete failed'); } finally { setLoading(false); }
+                                  });
                                 }}
                                 className="px-2 py-1 text-xs border rounded text-red-700 bg-red-50 hover:bg-red-100"
                               >
@@ -986,6 +999,8 @@ export function AuditLogs() {
           </div>
         )}
       </div>
+      {confirm.ConfirmModalRenderer()}
+      <PromptModalRenderer />
     </div>
   );
 }

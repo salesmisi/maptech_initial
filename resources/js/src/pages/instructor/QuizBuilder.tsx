@@ -14,6 +14,7 @@ import {
   X,
   Check,
 } from 'lucide-react';
+import useConfirm from '../../hooks/useConfirm';
 
 const API_BASE = '/api';
 
@@ -108,6 +109,8 @@ function QuestionForm({
   onSave,
   onCancel,
 }: QuestionFormProps) {
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
   return (
     <div className="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
       <h3 className="text-sm font-semibold text-slate-700">
@@ -230,6 +233,7 @@ function QuestionForm({
           className="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50"
         >Cancel</button>
       </div>
+      {confirm.ConfirmModalRenderer()}
     </div>
   );
 }
@@ -243,6 +247,8 @@ interface Props {
 }
 
 export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor' }: Props) {
+  const confirm2 = useConfirm();
+  const { showConfirm: showConfirm2 } = confirm2;
   const [quiz, setQuiz] = useState<QuizData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -426,7 +432,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
   };
 
   const handleDeleteQuestion = async (questionId: number) => {
-    if (!confirm('Delete this question?')) return;
+    showConfirm('Delete this question?', async () => {
     setDeletingQuestionId(questionId);
     try {
       const token = await getXsrfToken();
@@ -442,6 +448,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
     } finally {
       setDeletingQuestionId(null);
     }
+    });
   };
 
   const sharedFormProps = {

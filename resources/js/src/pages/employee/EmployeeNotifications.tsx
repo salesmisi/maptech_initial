@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import { Bell, Send, Eye, Trash2, MessageCircle, AlertCircle, X, User } from 'lucide-react';
 
 interface Notification {
@@ -41,6 +42,8 @@ export function EmployeeNotifications() {
   });
 
   const token = localStorage.getItem('token');
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
 
   useEffect(() => {
     fetchNotifications();
@@ -129,19 +132,20 @@ export function EmployeeNotifications() {
   };
 
   const deleteNotification = async (id: number) => {
-    if (!confirm('Delete this notification?')) return;
-    try {
-      await fetch(`/api/employee/notifications/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
-      fetchNotifications();
-    } catch (err) {
-      console.error('Failed to delete notification:', err);
-    }
+    showConfirm('Delete this notification?', async () => {
+      try {
+        await fetch(`/api/employee/notifications/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+          },
+        });
+        fetchNotifications();
+      } catch (err) {
+        console.error('Failed to delete notification:', err);
+      }
+    });
   };
 
   const openModal = (type: 'instructor' | 'admin') => {

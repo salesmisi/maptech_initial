@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import {
   Search,
   UserPlus,
@@ -75,6 +76,9 @@ export function EnrollmentManagement() {
   const userSearchTimer = React.useRef<number | null>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollError, setEnrollError] = useState<string | null>(null);
+
+    const confirm = useConfirm();
+    const { showConfirm } = confirm;
 
   // Action menu
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
@@ -225,23 +229,24 @@ export function EnrollmentManagement() {
   };
 
   const handleUnenroll = async (enrollment: Enrollment) => {
-    if (!confirm(`Unenroll ${enrollment.employee_name} from ${enrollment.course_title}?`)) return;
-    setUnenrolling(enrollment.id);
-    setOpenMenuId(null);
-    try {
-      const token = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/admin/courses/${enrollment.course_id}/enrollments/${enrollment.user_id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
-      });
-      if (!res.ok) throw new Error('Failed to unenroll user.');
-      await loadEnrollments();
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setUnenrolling(null);
-    }
+    showConfirm(`Unenroll ${enrollment.employee_name} from ${enrollment.course_title}?`, async () => {
+      setUnenrolling(enrollment.id);
+      setOpenMenuId(null);
+      try {
+        const token = await getXsrfToken();
+        const res = await fetch(`${API_BASE}/admin/courses/${enrollment.course_id}/enrollments/${enrollment.user_id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+        });
+        if (!res.ok) throw new Error('Failed to unenroll user.');
+        await loadEnrollments();
+      } catch (e: any) {
+        alert(e.message);
+      } finally {
+        setUnenrolling(null);
+      }
+    });
   };
 
   const displayStatus = (status: string) => {
@@ -425,6 +430,7 @@ export function EnrollmentManagement() {
         </div>
       </div>
       )}
+      {confirm.ConfirmModalRenderer()}
 
       {/* Enrollment Modal */}
       {isModalOpen && (

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X } from 'lucide-react';
 
 interface Notification {
@@ -56,6 +57,8 @@ export function NotificationManagement() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
 
   const token = localStorage.getItem('token');
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
 
   // Helper to read cookie value
   const getCookie = (name: string) => {
@@ -141,19 +144,20 @@ export function NotificationManagement() {
   };
 
   const deleteNotification = async (id: number) => {
-    if (!confirm('Delete this notification?')) return;
-    try {
-      await fetch(`/api/admin/notifications/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
-      fetchNotifications();
-    } catch (err) {
-      console.error('Failed to delete notification:', err);
-    }
+    showConfirm('Delete this notification?', async () => {
+      try {
+        await fetch(`/api/admin/notifications/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+          },
+        });
+        fetchNotifications();
+      } catch (err) {
+        console.error('Failed to delete notification:', err);
+      }
+    });
   };
 
   const handleRoleToggle = (role: string) => {
@@ -611,6 +615,7 @@ export function NotificationManagement() {
           </div>
         </div>
       )}
+      {confirm.ConfirmModalRenderer()}
     </div>
   );
 }

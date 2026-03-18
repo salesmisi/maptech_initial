@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import {
   Plus,
   Video,
@@ -84,6 +85,8 @@ interface CourseOption {
 // ─── component ──────────────────────────────────────────────────────────
 
 export function LessonVideoUpload() {
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [modules, setModules] = useState<ModuleData[]>([]);
@@ -256,14 +259,15 @@ export function LessonVideoUpload() {
 
   // ── delete module ──
   const handleDeleteModule = async (moduleId: number) => {
-    if (!window.confirm('Delete this module and all its lessons?')) return;
-    try {
-      await apiFetch(`/modules/${moduleId}`, { method: 'DELETE' });
-      setModules((prev) => prev.filter((m) => m.id !== moduleId));
-      setSuccessMsg('Module deleted');
-    } catch (e: any) {
-      setError(e.message || 'Failed to delete module');
-    }
+    showConfirm('Delete this module and all its lessons?', async () => {
+      try {
+        await apiFetch(`/modules/${moduleId}`, { method: 'DELETE' });
+        setModules((prev) => prev.filter((m) => m.id !== moduleId));
+        setSuccessMsg('Module deleted');
+      } catch (e: any) {
+        setError(e.message || 'Failed to delete module');
+      }
+    });
   };
 
   // ── upload content ──
@@ -391,20 +395,21 @@ export function LessonVideoUpload() {
 
   // ── delete lesson ──
   const handleDeleteLesson = async (moduleId: number, lessonId: number) => {
-    if (!window.confirm('Delete this lesson?')) return;
-    try {
-      await apiFetch(`/lessons/${lessonId}`, { method: 'DELETE' });
-      setModules((prev) =>
-        prev.map((m) =>
-          m.id === moduleId
-            ? { ...m, lessons: m.lessons.filter((l) => l.id !== lessonId) }
-            : m
-        )
-      );
-      setSuccessMsg('Lesson deleted');
-    } catch (e: any) {
-      setError(e.message || 'Failed to delete lesson');
-    }
+    showConfirm('Delete this lesson?', async () => {
+      try {
+        await apiFetch(`/lessons/${lessonId}`, { method: 'DELETE' });
+        setModules((prev) =>
+          prev.map((m) =>
+            m.id === moduleId
+              ? { ...m, lessons: m.lessons.filter((l) => l.id !== lessonId) }
+              : m
+          )
+        );
+        setSuccessMsg('Lesson deleted');
+      } catch (e: any) {
+        setError(e.message || 'Failed to delete lesson');
+      }
+    });
   };
 
   const resetUploadForm = () => {
@@ -464,6 +469,7 @@ export function LessonVideoUpload() {
             Upload Content
           </button>
         </div>
+      {confirm.ConfirmModalRenderer()}
       </div>
 
       {/* Success / Error toasts */}

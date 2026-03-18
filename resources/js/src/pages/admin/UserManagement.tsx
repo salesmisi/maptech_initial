@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import {
   Search,
   Plus,
@@ -46,6 +47,8 @@ interface DeptWithSubs {
 const API_BASE = '/api';
 
 export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmail?: string; onLogout?: () => Promise<void> | (() => void) }) {
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -150,31 +153,29 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
 
   // Delete handler
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) {
-      return;
-    }
+    showConfirm('Are you sure you want to delete this user?', async () => {
+      try {
+        const xsrfToken = await getXsrfToken();
+        const response = await fetch(`${API_BASE}/admin/users/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': xsrfToken,
+          },
+        });
 
-    try {
-      const xsrfToken = await getXsrfToken();
-      const response = await fetch(`${API_BASE}/admin/users/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-XSRF-TOKEN': xsrfToken,
-        },
-      });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || 'Failed to delete user');
+        }
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to delete user');
+        setUsers(users.filter((user) => user.id !== id));
+      } catch (err: any) {
+        alert(err.message || 'Failed to delete user');
       }
-
-      setUsers(users.filter((user) => user.id !== id));
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete user');
-    }
+    });
   };
 
   // Toggle selection for a single user
@@ -198,33 +199,33 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
   // Bulk delete selected users
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} user(s)?`)) return;
+    showConfirm(`Are you sure you want to delete ${selectedIds.length} user(s)?`, async () => {
+      try {
+        const xsrfToken = await getXsrfToken();
+        const response = await fetch(`${API_BASE}/admin/users/bulk-delete`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': xsrfToken,
+          },
+          body: JSON.stringify({ ids: selectedIds }),
+        });
 
-    try {
-      const xsrfToken = await getXsrfToken();
-      const response = await fetch(`${API_BASE}/admin/users/bulk-delete`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-XSRF-TOKEN': xsrfToken,
-        },
-        body: JSON.stringify({ ids: selectedIds }),
-      });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || 'Failed to delete users');
+        }
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to delete users');
+        // Remove deleted users from state and clear selection
+        setUsers(prev => prev.filter(u => !selectedIds.includes(u.id)));
+        setSelectedIds([]);
+      } catch (err: any) {
+        alert(err.message || 'Failed to delete users');
       }
-
-      // Remove deleted users from state and clear selection
-      setUsers(prev => prev.filter(u => !selectedIds.includes(u.id)));
-      setSelectedIds([]);
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete users');
-    }
+    });
   };
 
   // Modal handlers
@@ -358,6 +359,12 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
       setSubmitting(false);
     }
   };
+  return (
+    <>
+      {/* existing render markup below... */}
+      {confirm.ConfirmModalRenderer()}
+    </>
+  );
 
   if (loading) {
     return (

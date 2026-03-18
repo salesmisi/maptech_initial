@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -84,6 +85,8 @@ interface UserOption {
 }
 
 export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, courseId?: string) => void }) {
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -405,32 +408,30 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   };
 
   const handleDeleteCourse = async (course: Course) => {
-    if (!window.confirm(`Are you sure you want to delete "${course.title}"? This action cannot be undone.`)) {
-      return;
-    }
+    showConfirm(`Are you sure you want to delete "${course.title}"? This action cannot be undone.`, async () => {
+      try {
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const csrfToken = getXsrfToken();
 
-    try {
-      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-      const csrfToken = getXsrfToken();
+        const response = await fetch(`/api/admin/courses/${course.id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'X-XSRF-TOKEN': csrfToken,
+          },
+        });
 
-      const response = await fetch(`/api/admin/courses/${course.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'X-XSRF-TOKEN': csrfToken,
-        },
-      });
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.message || 'Failed to delete course');
+        }
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.message || 'Failed to delete course');
+        await loadCourses();
+      } catch (err: any) {
+        alert(err.message);
       }
-
-      await loadCourses();
-    } catch (err: any) {
-      alert(err.message);
-    }
+    });
   };
 
   // ── Helper: get XSRF token from cookie ──
@@ -521,22 +522,23 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
   // ── Delete Module ──
   const handleDeleteModule = async (moduleId: number) => {
-    if (!window.confirm('Delete this module and all its lessons?')) return;
-    try {
-      const csrf = await getCsrf();
-      const res = await fetch(`/api/modules/${moduleId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
-      });
-      if (!res.ok) throw new Error('Failed to delete module');
-      if (selectedCourse) {
-        await loadModules(selectedCourse.id);
-        await loadCourses();
+    showConfirm('Delete this module and all its lessons?', async () => {
+      try {
+        const csrf = await getCsrf();
+        const res = await fetch(`/api/modules/${moduleId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
+        });
+        if (!res.ok) throw new Error('Failed to delete module');
+        if (selectedCourse) {
+          await loadModules(selectedCourse.id);
+          await loadCourses();
+        }
+      } catch (err: any) {
+        alert(err.message);
       }
-    } catch (err: any) {
-      alert(err.message);
-    }
+    });
   };
 
   // ── Upload Lesson (Video/Document/Text) to Module ──
@@ -619,19 +621,20 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
   // ── Delete Lesson ──
   const handleDeleteLesson = async (lessonId: number) => {
-    if (!window.confirm('Delete this lesson?')) return;
-    try {
-      const csrf = await getCsrf();
-      const res = await fetch(`/api/lessons/${lessonId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
-      });
-      if (!res.ok) throw new Error('Failed to delete lesson');
-      if (selectedCourse) await loadModules(selectedCourse.id);
-    } catch (err: any) {
-      alert(err.message);
-    }
+    showConfirm('Delete this lesson?', async () => {
+      try {
+        const csrf = await getCsrf();
+        const res = await fetch(`/api/lessons/${lessonId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
+        });
+        if (!res.ok) throw new Error('Failed to delete lesson');
+        if (selectedCourse) await loadModules(selectedCourse.id);
+      } catch (err: any) {
+        alert(err.message);
+      }
+    });
   };
 
   // ── Save Quiz (Pre-Assessment) to Module ──
@@ -727,20 +730,21 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   // ── Unenroll Student ──
   const handleUnenrollStudent = async (userId: number) => {
     if (!selectedCourse) return;
-    if (!window.confirm('Remove this student from the course?')) return;
-    try {
-      const csrf = await getCsrf();
-      const res = await fetch(`/api/admin/courses/${selectedCourse.id}/students/${userId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
-      });
-      if (!res.ok) throw new Error('Failed to unenroll student');
-      await loadEnrolledStudents(selectedCourse.id);
-      await loadCourses();
-    } catch (err: any) {
-      alert(err.message);
-    }
+    showConfirm('Remove this student from the course?', async () => {
+      try {
+        const csrf = await getCsrf();
+        const res = await fetch(`/api/admin/courses/${selectedCourse.id}/students/${userId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
+        });
+        if (!res.ok) throw new Error('Failed to unenroll student');
+        await loadEnrolledStudents(selectedCourse.id);
+        await loadCourses();
+      } catch (err: any) {
+        alert(err.message);
+      }
+    });
   };
 
   // ── Open Manage Content Modal ──
@@ -2099,6 +2103,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           </div>
         </div>
       )}
+      {confirm.ConfirmModalRenderer()}
     </div>
   );
 }

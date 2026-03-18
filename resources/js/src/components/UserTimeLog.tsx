@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import useConfirm from '../hooks/useConfirm';
 import { RefreshCw, Clock, LogOut } from "lucide-react";
 
 interface TimeLogEntry {
@@ -138,6 +139,8 @@ export function UserTimeLog() {
   };
 
   const sessions = groupIntoSessions(logs);
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
 
   // Realtime: subscribe to user's private channel for new time-log entries
   useEffect(() => {
@@ -351,35 +354,36 @@ export function UserTimeLog() {
                         {tlId ? (
                           <button
                             onClick={async () => {
-                              if (!confirm('Delete this time log?')) return;
-                              try {
-                                // ensure csrf cookie
-                                await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-                                const xsrf = (() => {
-                                  const value = `; ${document.cookie}`;
-                                  const parts = value.split(`; XSRF-TOKEN=`);
-                                  if (parts.length === 2) return decodeURIComponent(parts.pop()!.split(';').shift() || '');
-                                  return '';
-                                })();
-                                const res = await fetch(`/api/time-logs/admin/${tlId}`, {
-                                  method: 'DELETE',
-                                  credentials: 'include',
-                                  headers: { 'X-XSRF-TOKEN': xsrf },
-                                });
-                                if (!res.ok) {
-                                  const txt = await res.text().catch(() => '');
-                                  throw new Error(txt || 'Delete failed');
+                              showConfirm('Delete this time log?', async () => {
+                                try {
+                                  // ensure csrf cookie
+                                  await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+                                  const xsrf = (() => {
+                                    const value = `; ${document.cookie}`;
+                                    const parts = value.split(`; XSRF-TOKEN=`);
+                                    if (parts.length === 2) return decodeURIComponent(parts.pop()!.split(';').shift() || '');
+                                    return '';
+                                  })();
+                                  const res = await fetch(`/api/time-logs/admin/${tlId}`, {
+                                    method: 'DELETE',
+                                    credentials: 'include',
+                                    headers: { 'X-XSRF-TOKEN': xsrf },
+                                  });
+                                  if (!res.ok) {
+                                    const txt = await res.text().catch(() => '');
+                                    throw new Error(txt || 'Delete failed');
+                                  }
+                                  // remove from UI
+                                  setLogs((prev) => prev.filter((l) => l.id !== tlId));
+                                  alert('Deleted');
+                                } catch (e: any) {
+                                  if (e?.message?.toLowerCase().includes('unauthorized') || e?.message?.toLowerCase().includes('forbidden')) {
+                                    alert('Delete failed: not authorized');
+                                  } else {
+                                    alert('Delete failed');
+                                  }
                                 }
-                                // remove from UI
-                                setLogs((prev) => prev.filter((l) => l.id !== tlId));
-                                alert('Deleted');
-                              } catch (e: any) {
-                                if (e?.message?.toLowerCase().includes('unauthorized') || e?.message?.toLowerCase().includes('forbidden')) {
-                                  alert('Delete failed: not authorized');
-                                } else {
-                                  alert('Delete failed');
-                                }
-                              }
+                              });
                             }}
                             className="px-2 py-1 text-xs border rounded bg-red-50 text-red-700 hover:bg-red-100"
                           >
@@ -395,6 +399,8 @@ export function UserTimeLog() {
           </tbody>
         </table>
       </div>
+      {confirm.ConfirmModalRenderer()}
     </div>
   );
 }
+
