@@ -9,10 +9,18 @@ return new class extends Migration {
     {
         Schema::table('audit_logs', function (Blueprint $table) {
             if (!Schema::hasColumn('audit_logs', 'created_at')) {
-                $table->timestamp('created_at')->nullable()->after('ip_address');
+                if (Schema::getConnection()->getDriverName() === 'pgsql') {
+                    $table->timestampTz('created_at')->nullable()->after('ip_address');
+                } else {
+                    $table->timestamp('created_at')->nullable()->after('ip_address');
+                }
             }
             if (!Schema::hasColumn('audit_logs', 'updated_at')) {
-                $table->timestamp('updated_at')->nullable()->after('created_at');
+                if (Schema::getConnection()->getDriverName() === 'pgsql') {
+                    $table->timestampTz('updated_at')->nullable()->after('created_at');
+                } else {
+                    $table->timestamp('updated_at')->nullable()->after('created_at');
+                }
             }
         });
     }

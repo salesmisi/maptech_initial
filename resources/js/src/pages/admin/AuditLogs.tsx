@@ -137,18 +137,41 @@ export function AuditLogs() {
   // Group logs into sessions (pair login with logout)
   const groupIntoSessions = (entries: AuditEntry[]): Session[] => {
     const byUser: Record<number, Session[]> = {};
+    const alignTimezone = (iso: string | null, referenceIso: string | null) => {
+      if (!iso) return null;
+      try {
+        // extract timezone suffix from reference (e.g. "+08:00" or "Z")
+        if (!referenceIso) return iso;
+        const tzMatch = referenceIso.match(/([+-]\d{2}:\d{2}|Z)$/);
+        const tz = tzMatch ? tzMatch[1] : null;
+        // if iso already contains a timezone and it's not Z/UTC, return as-is
+        if (iso.match(/[zZ]|[+-]\d{2}:\d{2}$/) && tz) {
+          // if iso has +00:00 or Z but reference has different tz, replace +00:00/Z with reference tz
+          if (iso.match(/([+-]00:00|Z)$/) && !iso.endsWith(tz)) {
+            return iso.replace(/([zZ]|[+-]\d{2}:\d{2})$/, tz);
+          }
+          return iso;
+        }
+        // otherwise append reference tz
+        return iso + (tz || '');
+      } catch (e) {
+        return iso;
+      }
+    };
     const sorted = [...entries].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     for (const e of sorted) {
       const uid = e.user_id;
       if (!byUser[uid]) byUser[uid] = [];
       if (e.action === "login") {
+        const prefIn = (e as any).time_log?.time_in ?? e.created_at;
+        const prefOut = (e as any).time_log?.time_out ?? null;
         byUser[uid].push({
           id: `session-login-${e.id}`,
           user: e.user,
           user_id: uid,
-          // prefer attached time_log time_in if backend supplied it
-          time_in: (e as any).time_log?.time_in ?? e.created_at,
-          time_out: (e as any).time_log?.time_out ?? null,
+          // prefer attached time_log time_in if backend supplied it; align timezone to audit created_at
+          time_in: alignTimezone(prefIn, e.created_at),
+          time_out: prefOut ? alignTimezone(prefOut, e.created_at) : null,
           ip_address: e.ip_address,
           login_id: e.id,
           logout_id: null,
@@ -158,15 +181,15 @@ export function AuditLogs() {
         const last = userSessions[userSessions.length - 1];
         if (last && last.time_out === null) {
           // prefer attached time_log time_out when available
-          last.time_out = (e as any).time_log?.time_out ?? e.created_at;
+          last.time_out = (e as any).time_log?.time_out ? alignTimezone((e as any).time_log?.time_out, e.created_at) : e.created_at;
           last.logout_id = e.id;
         } else {
           userSessions.push({
             id: `session-logout-${e.id}`,
             user: e.user,
             user_id: uid,
-            time_in: (e as any).time_log?.time_in ?? null,
-            time_out: (e as any).time_log?.time_out ?? e.created_at,
+            time_in: (e as any).time_log?.time_in ? alignTimezone((e as any).time_log?.time_in, e.created_at) : null,
+            time_out: (e as any).time_log?.time_out ? alignTimezone((e as any).time_log?.time_out, e.created_at) : e.created_at,
             ip_address: e.ip_address,
             login_id: null,
             logout_id: e.id,

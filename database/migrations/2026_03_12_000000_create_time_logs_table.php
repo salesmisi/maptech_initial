@@ -11,10 +11,16 @@ return new class extends Migration
         Schema::create('time_logs', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
-            $table->timestamp('time_in')->nullable();
-            $table->timestamp('time_out')->nullable();
+            // Use timestamptz on Postgres for timezone-aware timestamps
+            $table->timestampTz('time_in')->nullable();
+            $table->timestampTz('time_out')->nullable();
             $table->string('note')->nullable();
-            $table->timestamps();
+            // timestampsTz creates created_at and updated_at as timestamptz
+            if (Schema::getConnection()->getDriverName() === 'pgsql') {
+                $table->timestampsTz();
+            } else {
+                $table->timestamps();
+            }
 
             $table->index('user_id');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
