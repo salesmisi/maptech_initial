@@ -320,23 +320,38 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             }
         }
 
-        // For each login event, attach the matching time_log (by user_id and closest time_in to created_at)
+        // For each audit entry, attempt to attach the matching time_log
+        // (for login -> match by nearby time_in; for logout -> match by nearby time_out).
         $logs = $logs->map(function ($log) {
-            if ($log->action === 'login') {
-                if ($log->created_at) {
-                    $start = $log->created_at->copy()->subMinutes(2);
-                    $end = $log->created_at->copy()->addMinutes(2);
+            $timeLog = null;
+            if ($log->created_at) {
+                $start = $log->created_at->copy()->subMinutes(2);
+                $end = $log->created_at->copy()->addMinutes(2);
+                if ($log->action === 'login') {
                     $timeLog = \App\Models\TimeLog::where('user_id', $log->user_id)
                         ->whereBetween('time_in', [$start, $end])
                         ->orderBy('time_in')
                         ->first();
-                } else {
-                    $timeLog = null;
+                    if ($timeLog) {
+                        $log->time_in = $timeLog->time_in;
+                        $log->time_out = $timeLog->time_out;
+                    } else {
+                        $log->time_in = $log->created_at;
+                    }
+                } elseif ($log->action === 'logout') {
+                    $timeLog = \App\Models\TimeLog::where('user_id', $log->user_id)
+                        ->whereBetween('time_out', [$start, $end])
+                        ->orderBy('time_out')
+                        ->first();
+                    if ($timeLog) {
+                        $log->time_in = $timeLog->time_in;
+                        $log->time_out = $timeLog->time_out;
+                    } else {
+                        $log->time_out = $log->created_at;
+                    }
                 }
-                $log->time_log = $timeLog;
-            } else {
-                $log->time_log = null;
             }
+            $log->time_log = $timeLog;
             return $log;
         });
 

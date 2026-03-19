@@ -79,9 +79,7 @@ export function AuditLogs() {
 
   const [logs, setLogs] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
-  const [now, setNow] = useState(new Date());
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -89,10 +87,9 @@ export function AuditLogs() {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("All");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const doFetch = useCallback(async (pageNum: number, silent = false) => {
+  const doFetch = useCallback(async (pageNum: number, _silent = false) => {
     try {
-      if (silent) setRefreshing(true);
-      else setLoading(true);
+      setLoading(true);
       let url = `${API}/audit-logs?page=${pageNum}&per_page=100`;
       if (roleFilter !== "All") {
         url += `&role=${encodeURIComponent(roleFilter.toLowerCase())}`;
@@ -111,12 +108,10 @@ export function AuditLogs() {
       setPage(data.current_page);
       setLastPage(data.last_page);
       setTotal(data.total);
-      setLastRefreshed(new Date());
     } catch {
       /* ignore */
     } finally {
-      if (silent) setRefreshing(false);
-      else setLoading(false);
+      setLoading(false);
     }
   }, [API, roleFilter]);
 
@@ -126,6 +121,11 @@ export function AuditLogs() {
 
   const fetchLogs = (pageNum: number) => doFetch(pageNum, false);
 
+  const showToast = (msg: string, ms = 3500) => {
+    setToastMessage(msg);
+    window.setTimeout(() => setToastMessage(null), ms);
+  };
+
   // Initial load + start 30-second auto-poll
   useEffect(() => {
     doFetch(1, false);
@@ -133,11 +133,7 @@ export function AuditLogs() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [doFetch]);
 
-  // Tick every second to drive the live elapsed timer
-  useEffect(() => {
-    const tick = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(tick);
-  }, []);
+  // (live tick disabled in this build)
   // Group logs into sessions (pair login with logout)
   const groupIntoSessions = (entries: AuditEntry[]): Session[] => {
     const byUser: Record<number, Session[]> = {};
@@ -150,8 +146,9 @@ export function AuditLogs() {
           id: `session-login-${e.id}`,
           user: e.user,
           user_id: uid,
-          time_in: e.created_at,
-          time_out: null,
+          // prefer attached time_log time_in if backend supplied it
+          time_in: (e as any).time_log?.time_in ?? e.created_at,
+          time_out: (e as any).time_log?.time_out ?? null,
           ip_address: e.ip_address,
           login_id: e.id,
           logout_id: null,
@@ -160,15 +157,16 @@ export function AuditLogs() {
         const userSessions = byUser[uid];
         const last = userSessions[userSessions.length - 1];
         if (last && last.time_out === null) {
-          last.time_out = e.created_at;
+          // prefer attached time_log time_out when available
+          last.time_out = (e as any).time_log?.time_out ?? e.created_at;
           last.logout_id = e.id;
         } else {
           userSessions.push({
             id: `session-logout-${e.id}`,
             user: e.user,
             user_id: uid,
-            time_in: null,
-            time_out: e.created_at,
+            time_in: (e as any).time_log?.time_in ?? null,
+            time_out: (e as any).time_log?.time_out ?? e.created_at,
             ip_address: e.ip_address,
             login_id: null,
             logout_id: e.id,
@@ -248,7 +246,7 @@ export function AuditLogs() {
     const Echo = (window as any).Echo;
     if (!Echo || typeof Echo.private !== 'function') return;
     const channel = Echo.private('time-logs.admin');
-    const handler = (payload: any) => {
+    const handler = () => {
       // Refresh audit logs when a time-log is updated
       fetchLogs(1);
     };
@@ -263,7 +261,7 @@ export function AuditLogs() {
     const Echo = (window as any).Echo;
     if (!Echo || typeof Echo.private !== 'function') return;
     const channel = Echo.private('audit-logs.admin');
-    const handler = (payload: any) => {
+    const handler = () => {
       // Refresh audit logs when a new audit log is created
       fetchLogs(1);
     };
@@ -278,6 +276,8 @@ export function AuditLogs() {
   const [modalUser, setModalUser] = useState<AuditUser | null>(null);
   const [modalTimeLogs, setModalTimeLogs] = useState<any[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
+  const [modalRefreshing, setModalRefreshing] = useState(false);
+  const [modalLastRefreshed, setModalLastRefreshed] = useState<Date | null>(null);
   const [selectedLogIds, setSelectedLogIds] = useState<number[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
 
@@ -302,6 +302,7 @@ export function AuditLogs() {
       if (!res.ok) throw new Error('Failed to load user time logs');
       const data = await res.json();
       setModalTimeLogs(Array.isArray(data) ? data : []);
+      setModalLastRefreshed(new Date());
     } catch (e) {
       setModalTimeLogs([]);
     } finally {
@@ -370,6 +371,17 @@ export function AuditLogs() {
     setModalTimeLogs([]);
   };
 
+  const refreshModal = async () => {
+    if (!modalUser) return;
+    try {
+      setModalRefreshing(true);
+      await fetchUserTimeLogs(modalUser.id);
+      setModalLastRefreshed(new Date());
+    } finally {
+      setModalRefreshing(false);
+    }
+  };
+
 
   const roleFilterButtons: { value: RoleFilter; label: string; icon: React.ReactNode; color: string }[] = [
     { value: "All", label: "All Roles", icon: <Filter className="w-4 h-4" />, color: "bg-gray-100 text-gray-700 hover:bg-gray-200" },
@@ -380,6 +392,15 @@ export function AuditLogs() {
 
   return (
     <div className="p-6">
+      {/* Toast notification (simple) */}
+      {toastMessage && (
+        <div className="fixed top-6 right-6 z-50">
+          <div className="bg-white border rounded-lg shadow px-4 py-2 text-sm text-gray-800 flex items-center gap-3">
+            <div>{toastMessage}</div>
+            <button onClick={() => setToastMessage(null)} className="text-gray-400 hover:text-gray-600">×</button>
+          </div>
+        </div>
+      )}
       {/* Sorting Controls */}
       <div className="mb-4 flex gap-2 items-center">
         <span className="text-sm text-gray-600">Sort by:</span>
@@ -395,6 +416,7 @@ export function AuditLogs() {
           {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
         </button>
       </div>
+        <div className="text-xs text-gray-500 mb-2">All times are shown in your local timezone.</div>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-semibold">Audit Logs</h1>
@@ -411,8 +433,23 @@ export function AuditLogs() {
           <div className="absolute inset-0 bg-black opacity-40" onClick={closeManageModal}></div>
           <div className="bg-white rounded-lg shadow-lg w-11/12 max-w-2xl z-50 p-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">Manage Time Logs for {modalUser?.fullname}</h3>
-              <button onClick={closeManageModal} className="text-gray-500">Close</button>
+              <div>
+                <h3 className="text-lg font-medium">Manage Time Logs for {modalUser?.fullname}</h3>
+                {modalLastRefreshed && (
+                  <div className="text-xs text-gray-500">Updated {modalLastRefreshed.toLocaleTimeString()}</div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={refreshModal}
+                  disabled={modalRefreshing}
+                  className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-50 flex items-center"
+                >
+                  <RefreshCw className="w-4 h-4 mr-1" />
+                  {modalRefreshing ? 'Refreshing...' : 'Refresh'}
+                </button>
+                <button onClick={closeManageModal} className="text-gray-500">Close</button>
+              </div>
             </div>
             <div>
               {modalLoading ? (
@@ -587,12 +624,12 @@ export function AuditLogs() {
                   await fetchLogs(1);
                   setSelectedLogIds([]);
                   setSelectedUserIds([]);
-                  alert(data && data.deleted !== undefined ? `Deleted ${data.deleted} rows` : 'Bulk delete completed');
+                  showToast(data && data.deleted !== undefined ? `Deleted ${data.deleted} rows` : 'Bulk delete completed');
                 } catch (e: any) {
                   if ((e?.message || '').toLowerCase().includes('forbidden') || (e?.message || '').toLowerCase().includes('unauthorized')) {
-                    alert('Bulk delete failed: not authorized');
+                    showToast('Bulk delete failed: not authorized');
                   } else {
-                    alert('Bulk delete failed');
+                    showToast('Bulk delete failed');
                   }
                 } finally { setLoading(false); }
               });
@@ -626,7 +663,7 @@ export function AuditLogs() {
                   await fetchLogs(1);
                   setSelectedUserIds([]);
                   setSelectedLogIds([]);
-                  alert(data && data.deleted !== undefined ? `Deleted ${data.deleted} rows` : 'Bulk delete completed');
+                  showToast(data && data.deleted !== undefined ? `Deleted ${data.deleted} rows` : 'Bulk delete completed');
                 } catch (e) { alert('Bulk delete failed'); } finally { setLoading(false); }
               });
             }}
@@ -803,12 +840,12 @@ export function AuditLogs() {
                         <td style={{width: '120px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-600">{latest.user?.department || "—"}</td>
                         <td style={{width: '120px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-500 font-mono">{latest.ip_address || "—"}</td>
                         <td style={{width: '140px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
-                          {formatDateTime(latest.time_in ?? latest.created_at ?? latest.time_log?.time_in) ? (
+                          {formatDateTime(latest.time_in) ? (
                             <div className="flex flex-col">
-                              <span className="text-xs text-gray-500">{formatDateTime(latest.time_in ?? latest.created_at ?? latest.time_log?.time_in)?.date}</span>
+                              <span className="text-xs text-gray-500">{formatDateTime(latest.time_in)?.date}</span>
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-green-600">{formatDateTime(latest.time_in ?? latest.created_at ?? latest.time_log?.time_in)?.time}</span>
-                                <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(latest.time_in ?? latest.created_at ?? latest.time_log?.time_in)?.period}</span>
+                                <span className="text-sm font-medium text-green-600">{formatDateTime(latest.time_in)?.time}</span>
+                                <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(latest.time_in)?.period}</span>
                               </div>
                             </div>
                           ) : (
@@ -816,12 +853,12 @@ export function AuditLogs() {
                           )}
                         </td>
                         <td style={{width: '140px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
-                          {(latest.time_in ?? latest.time_log?.time_in) ? (
+                          {latest.time_in ? (
                             <div className="flex flex-col">
-                              <span className="text-xs text-gray-500">{formatDateTime(latest.time_in ?? latest.time_log?.time_in)?.date}</span>
+                              <span className="text-xs text-gray-500">{formatDateTime(latest.time_in)?.date}</span>
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-green-700">{formatDateTime(latest.time_in ?? latest.time_log?.time_in)?.time}</span>
-                                <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(latest.time_in ?? latest.time_log?.time_in)?.period}</span>
+                                <span className="text-sm font-medium text-green-700">{formatDateTime(latest.time_in)?.time}</span>
+                                <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(latest.time_in)?.period}</span>
                               </div>
                             </div>
                           ) : (
@@ -829,12 +866,12 @@ export function AuditLogs() {
                           )}
                         </td>
                         <td style={{width: '140px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
-                          {(latest.time_out ?? latest.time_log?.time_out) ? (
+                          {latest.time_out ? (
                             <div className="flex flex-col">
-                              <span className="text-xs text-gray-500">{formatDateTime(latest.time_out ?? latest.time_log?.time_out)?.date}</span>
+                              <span className="text-xs text-gray-500">{formatDateTime(latest.time_out)?.date}</span>
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-red-600">{formatDateTime(latest.time_out ?? latest.time_log?.time_out)?.time}</span>
-                                <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(latest.time_out ?? latest.time_log?.time_out)?.period}</span>
+                                <span className="text-sm font-medium text-red-600">{formatDateTime(latest.time_out)?.time}</span>
+                                <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(latest.time_out)?.period}</span>
                               </div>
                             </div>
                           ) : (
@@ -842,7 +879,7 @@ export function AuditLogs() {
                           )}
                         </td>
                         <td style={{width: '100px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
-                          {((latest.time_out ?? latest.time_log?.time_out) == null) ? (
+                          {latest.time_out == null ? (
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>
                           ) : (
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">Inactive</span>
@@ -850,8 +887,8 @@ export function AuditLogs() {
                         </td>
                         <td style={{width: '100px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-blue-700 font-semibold">
                           {(() => {
-                            const timeIn = latest.time_in ?? latest.time_log?.time_in;
-                            const timeOut = latest.time_out ?? latest.time_log?.time_out;
+                            const timeIn = latest.time_in;
+                            const timeOut = latest.time_out;
                             if (!timeIn || !timeOut) return '—';
                             const diff = Math.abs(new Date(timeOut).getTime() - new Date(timeIn).getTime());
                             const hours = Math.floor(diff / 3600000);

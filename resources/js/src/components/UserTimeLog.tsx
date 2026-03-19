@@ -266,6 +266,7 @@ export function UserTimeLog() {
 
   return (
     <div className="bg-white rounded-lg shadow border p-4 mb-6">
+      <div className="text-xs text-gray-500 mb-2">All times are shown in your local timezone.</div>
       <div className="flex justify-between items-center mb-2">
         <div className="flex items-center gap-2">
           <Clock className="w-5 h-5 text-green-600" />
