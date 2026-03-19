@@ -602,6 +602,8 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     // Bulk per-module lock/unlock for a given department
     Route::post('/courses/{courseId}/modules/{moduleId}/unlock-department', [InstructorCourseController::class, 'unlockModuleForDepartment']);
     Route::post('/courses/{courseId}/modules/{moduleId}/lock-department', [InstructorCourseController::class, 'lockModuleForDepartment']);
+    // Bulk: unlock all modules in a course for a given department
+    Route::post('/courses/{courseId}/unlock-department-all', [InstructorCourseController::class, 'unlockAllModulesForDepartment']);
 
     // Users list (for enrollment dropdown)
     Route::get('/users', [InstructorCourseController::class, 'listUsers']);

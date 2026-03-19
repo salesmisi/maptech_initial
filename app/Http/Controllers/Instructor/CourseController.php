@@ -749,6 +749,10 @@ $module = $course->modules()->create($data);
      */
     public function unlockEnrollment(Request $request, string $courseId, int $userId)
     {
+        $request->validate([
+            'duration_minutes' => 'nullable|integer|min:1',
+            'expires_at' => 'nullable|date',
+        ]);
         $user = $request->user();
         $course = Course::findOrFail($courseId);
 
@@ -769,14 +773,26 @@ $module = $course->modules()->create($data);
             return response()->json(['message' => 'Enrollment not found'], 404);
         }
 
-        $enrollment->update(['locked' => false]);
-            // Broadcast to the user so their UI can refresh in realtime
-            try {
-                event(new EnrollmentUnlocked($enrollment->user_id, $course->id));
-            } catch (\Throwable $e) {
-                // Don't fail the API if broadcasting isn't configured
-                Log::warning('Failed to broadcast EnrollmentUnlocked: ' . $e->getMessage());
-            }
+        // compute unlocked_until if provided
+        $until = null;
+        if ($request->filled('duration_minutes')) {
+            $until = now()->addMinutes((int) $request->input('duration_minutes'));
+        } elseif ($request->filled('expires_at')) {
+            $until = \Carbon\Carbon::parse($request->input('expires_at'))->setTimezone('UTC');
+        }
+
+        $data = ['locked' => false];
+        if ($until) $data['unlocked_until'] = $until;
+
+        $enrollment->update($data);
+
+        // Broadcast to the user so their UI can refresh in realtime
+        try {
+            event(new EnrollmentUnlocked($enrollment->user_id, $course->id));
+        } catch (\Throwable $e) {
+            // Don't fail the API if broadcasting isn't configured
+            Log::warning('Failed to broadcast EnrollmentUnlocked: ' . $e->getMessage());
+        }
 
         return response()->json(['message' => 'Enrollment unlocked']);
     }
@@ -786,6 +802,10 @@ $module = $course->modules()->create($data);
      */
     public function unlockModule(Request $request, string $courseId, string $moduleId, int $userId)
     {
+        $request->validate([
+            'duration_minutes' => 'nullable|integer|min:1',
+            'expires_at' => 'nullable|date',
+        ]);
         $user = $request->user();
         $course = Course::findOrFail($courseId);
 
@@ -804,9 +824,19 @@ $module = $course->modules()->create($data);
         if (!$module) return response()->json(['message' => 'Module not found'], 404);
 
         // Upsert pivot
+        $until = null;
+        if ($request->filled('duration_minutes')) {
+            $until = now()->addMinutes((int) $request->input('duration_minutes'));
+        } elseif ($request->filled('expires_at')) {
+            $until = \Carbon\Carbon::parse($request->input('expires_at'))->setTimezone('UTC');
+        }
+
+        $payload = ['unlocked' => true, 'unlocked_at' => now(), 'updated_at' => now(), 'created_at' => now()];
+        if ($until) $payload['unlocked_until'] = $until;
+
         DB::table('module_user')->updateOrInsert(
             ['module_id' => $module->id, 'user_id' => $userId],
-            ['unlocked' => true, 'unlocked_at' => now(), 'updated_at' => now(), 'created_at' => now()]
+            $payload
         );
 
         try {
@@ -842,7 +872,7 @@ $module = $course->modules()->create($data);
 
         DB::table('module_user')->updateOrInsert(
             ['module_id' => $module->id, 'user_id' => $userId],
-            ['unlocked' => false, 'unlocked_at' => null, 'updated_at' => now(), 'created_at' => now()]
+            ['unlocked' => false, 'unlocked_at' => null, 'unlocked_until' => null, 'updated_at' => now(), 'created_at' => now()]
         );
 
         return response()->json(['message' => 'Module locked for user']);
@@ -853,6 +883,11 @@ $module = $course->modules()->create($data);
      */
     public function unlockModuleForDepartment(Request $request, string $courseId, string $moduleId)
     {
+        $request->validate([
+            'department' => 'required|string',
+            'duration_minutes' => 'nullable|integer|min:1',
+            'expires_at' => 'nullable|date',
+        ]);
         $user = $request->user();
         $course = Course::findOrFail($courseId);
 
@@ -877,10 +912,20 @@ $module = $course->modules()->create($data);
             $q->where('department', $validated['department']);
         })->pluck('user_id')->toArray();
 
+        $until = null;
+        if ($request->filled('duration_minutes')) {
+            $until = now()->addMinutes((int) $request->input('duration_minutes'));
+        } elseif ($request->filled('expires_at')) {
+            $until = \Carbon\Carbon::parse($request->input('expires_at'))->setTimezone('UTC');
+        }
+
+        $payload = ['unlocked' => true, 'unlocked_at' => now(), 'updated_at' => now(), 'created_at' => now()];
+        if ($until) $payload['unlocked_until'] = $until;
+
         foreach ($userIds as $uid) {
             DB::table('module_user')->updateOrInsert(
                 ['module_id' => $module->id, 'user_id' => $uid],
-                ['unlocked' => true, 'unlocked_at' => now(), 'updated_at' => now(), 'created_at' => now()]
+                $payload
             );
             try { event(new ModuleUnlocked($uid, $course->id, $module->id)); } catch (\Throwable $e) { Log::warning('ModuleUnlocked broadcast failed: ' . $e->getMessage()); }
         }
@@ -919,11 +964,78 @@ $module = $course->modules()->create($data);
         foreach ($userIds as $uid) {
             DB::table('module_user')->updateOrInsert(
                 ['module_id' => $module->id, 'user_id' => $uid],
-                ['unlocked' => false, 'unlocked_at' => null, 'updated_at' => now(), 'created_at' => now()]
+                ['unlocked' => false, 'unlocked_at' => null, 'unlocked_until' => null, 'updated_at' => now(), 'created_at' => now()]
             );
         }
 
         return response()->json(['message' => 'Module locked for department', 'department' => $validated['department'], 'count' => count($userIds)]);
+    }
+
+    /**
+     * Unlock ALL modules for a given department in this course.
+     * Accepts optional `duration_minutes` or `expires_at` to set `unlocked_until`.
+     */
+    public function unlockAllModulesForDepartment(Request $request, string $courseId)
+    {
+        $request->validate([
+            'department' => 'required|string',
+            'duration_minutes' => 'nullable|integer|min:1',
+            'expires_at' => 'nullable|date',
+        ]);
+
+        $user = $request->user();
+        $course = Course::findOrFail($courseId);
+
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
+        $assignedDept = $user->department;
+
+        $allowed = ($course->instructor_id === $user->id)
+            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || ($assignedDept && $course->department === $assignedDept);
+
+        if (!$allowed) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $validated = $request->only('department', 'duration_minutes', 'expires_at');
+
+        $moduleIds = $course->modules()->pluck('id')->toArray();
+
+        if (empty($moduleIds)) {
+            return response()->json(['message' => 'No modules to unlock'], 400);
+        }
+
+        // find enrolled users in that department for this course
+        $userIds = $course->enrollments()->whereHas('user', function ($q) use ($validated) {
+            $q->where('department', $validated['department']);
+        })->pluck('user_id')->toArray();
+
+        if (empty($userIds)) {
+            return response()->json(['message' => 'No enrolled users found for department', 'department' => $validated['department']], 200);
+        }
+
+        $until = null;
+        if ($request->filled('duration_minutes')) {
+            $until = now()->addMinutes((int) $request->input('duration_minutes'));
+        } elseif ($request->filled('expires_at')) {
+            $until = \Carbon\Carbon::parse($request->input('expires_at'))->setTimezone('UTC');
+        }
+
+        $payload = ['unlocked' => true, 'unlocked_at' => now(), 'updated_at' => now(), 'created_at' => now()];
+        if ($until) $payload['unlocked_until'] = $until;
+
+        // Upsert for each module-user pair
+        foreach ($moduleIds as $mid) {
+            foreach ($userIds as $uid) {
+                DB::table('module_user')->updateOrInsert(
+                    ['module_id' => $mid, 'user_id' => $uid],
+                    $payload
+                );
+                try { event(new ModuleUnlocked($uid, $course->id, $mid)); } catch (\Throwable $e) { Log::warning('ModuleUnlocked broadcast failed: ' . $e->getMessage()); }
+            }
+        }
+
+        return response()->json(['message' => 'All modules unlocked for department', 'department' => $validated['department'], 'modules' => count($moduleIds), 'users' => count($userIds)]);
     }
 
     /**

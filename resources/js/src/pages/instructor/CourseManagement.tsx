@@ -41,6 +41,8 @@ interface Course {
   start_date?: string | null;
   deadline?: string | null;
   modules: Array<{ id?: number; title: string; content_path?: string }>;
+  // set by instructor action in UI to reflect immediate availability
+  availableByInstructor?: boolean;
 }
 
 interface Props {
@@ -75,6 +77,13 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const { pushToast } = useToast();
+  // Course unlock modal state
+  const [courseUnlockModalOpen, setCourseUnlockModalOpen] = useState(false);
+  const [courseUnlockTargetId, setCourseUnlockTargetId] = useState<string | null>(null);
+  const [unlockDurationMinutes, setUnlockDurationMinutes] = useState<number>(1440);
+  const [unlockPermanent, setUnlockPermanent] = useState<boolean>(false);
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
 
   const loadCourses = async () => {
     try {
@@ -90,6 +99,14 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const openCourseUnlockModal = (courseId: string) => {
+    setCourseUnlockTargetId(courseId);
+    setUnlockDurationMinutes(1440);
+    setUnlockPermanent(false);
+    setUnlockError(null);
+    setCourseUnlockModalOpen(true);
   };
 
   const confirm = useConfirm();
@@ -212,9 +229,11 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     }
   };
 
-  const handleUnlockAll = async (courseId: string) => {
-    showConfirm('Unlock all enrollments for this course?', async () => {
+  const handleUnlockCourse = async (courseId: string, durationMinutes?: number | null) => {
+    showConfirm('Unlock this course for enrolled users?', async () => {
     try {
+      setUnlockError(null);
+      setUnlocking(true);
       const token = await getXsrfToken();
       // fetch course details to get enrolled users
       const res = await fetch(`${API_BASE}/instructor/courses/${courseId}`, {
@@ -225,13 +244,43 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       const course = await res.json();
       const users = course.enrolledUsers || [];
 
+      // Unlock modules per department for enrolled users (handles mixed departments)
+      try {
+        const depts = Array.from(new Set((users.map((u: any) => u.department || null).filter(Boolean))));
+        // if no per-user departments, fallback to course.department
+        if (depts.length === 0 && course.department) depts.push(course.department);
+        for (const dept of depts) {
+          try {
+            const deptOpts: any = {
+              method: 'POST',
+              credentials: 'include',
+              headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ department: dept }),
+            };
+            if (durationMinutes && !isNaN(durationMinutes)) {
+              deptOpts.body = JSON.stringify({ department: dept, duration_minutes: Number(durationMinutes) });
+            }
+            await fetch(`${API_BASE}/instructor/courses/${courseId}/unlock-department-all`, deptOpts);
+          } catch (err) {
+            console.warn('unlock-department-all failed for', dept, err);
+          }
+        }
+      } catch (err) {
+        console.warn('unlock-department-all grouping failed', err);
+      }
+
       for (const u of users) {
         try {
-          const r = await fetch(`${API_BASE}/instructor/courses/${courseId}/enrollments/${u.id}/unlock`, {
+          const opts: any = {
             method: 'POST',
             credentials: 'include',
             headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
-          });
+          };
+          if (durationMinutes && !isNaN(durationMinutes)) {
+            opts.headers['Content-Type'] = 'application/json';
+            opts.body = JSON.stringify({ duration_minutes: Number(durationMinutes) });
+          }
+          const r = await fetch(`${API_BASE}/instructor/courses/${courseId}/enrollments/${u.id}/unlock`, opts);
           if (!r.ok) {
             const text = await r.text();
             console.error(`Unlock failed for ${u.id}: ${r.status} ${text}`);
@@ -241,11 +290,22 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         }
       }
 
-      alert('All enrollments unlocked (where possible).');
+      // optimistically mark course as available in the UI so the card updates immediately
+      setCourses(prev => prev.map(c => (String(c.id) === String(courseId) ? { ...c, availableByInstructor: true } : c)));
+      // notify other open tabs/pages in the same browser to refresh the course
+      try { window.dispatchEvent(new CustomEvent('course:unlocked', { detail: { courseId } })); } catch (e) { /* ignore */ }
+      alert('Course unlocked for enrolled users (where possible).');
+      setCourseUnlockModalOpen(false);
+      setCourseUnlockTargetId(null);
+      setUnlockDurationMinutes(1440);
+      setUnlockPermanent(false);
       await loadCourses();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert('Failed to unlock enrollments.');
+      setUnlockError(e.message || 'Failed to unlock course enrollments.');
+      alert(unlockError || 'Failed to unlock course enrollments.');
+    } finally {
+      setUnlocking(false);
     }
     });
   };
@@ -382,10 +442,10 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                           Manage Enrollments
                         </button>
                         <button
-                          onClick={() => handleUnlockAll(String(course.id))}
+                          onClick={() => openCourseUnlockModal(String(course.id))}
                           className="text-sm px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
                         >
-                          Unlock All
+                          Unlock
                         </button>
                       </div>
                     )}
@@ -585,6 +645,49 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         </div>,
         document.body
       )}
+        {courseUnlockModalOpen && createPortal(
+          <div
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50"
+            onClick={(e) => { if (e.target === e.currentTarget) { setCourseUnlockModalOpen(false); setCourseUnlockTargetId(null); } }}
+          >
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold mb-3">Unlock Course</h3>
+              <p className="text-sm text-slate-600 mb-3">Set a temporary unlock duration (minutes) or make it permanent.</p>
+              {unlockError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded px-3 py-2 mb-3">{unlockError}</div>}
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Duration (minutes)</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={unlockDurationMinutes}
+                  onChange={(e) => setUnlockDurationMinutes(Number(e.target.value))}
+                  disabled={unlockPermanent}
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 text-sm"
+                />
+                <p className="text-xs text-slate-400 mt-1">Leave as 1440 for 24 hours.</p>
+              </div>
+              <div className="flex items-center gap-2 mb-4">
+                <input id="perm" type="checkbox" checked={unlockPermanent} onChange={(e) => setUnlockPermanent(e.target.checked)} className="h-4 w-4" />
+                <label htmlFor="perm" className="text-sm text-slate-700">Permanent unlock</label>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button onClick={() => { setCourseUnlockModalOpen(false); setCourseUnlockTargetId(null); }} className="px-4 py-2 border rounded text-sm">Cancel</button>
+                <button
+                  onClick={() => {
+                    if (!courseUnlockTargetId) return;
+                    const dur = unlockPermanent ? null : unlockDurationMinutes;
+                    handleUnlockCourse(courseUnlockTargetId, dur ?? null);
+                  }}
+                  disabled={unlocking}
+                  className="px-4 py-2 bg-green-600 text-white rounded text-sm"
+                >
+                  {unlocking ? 'Unlocking...' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
         {confirm.ConfirmModalRenderer()}
     </div>
   );

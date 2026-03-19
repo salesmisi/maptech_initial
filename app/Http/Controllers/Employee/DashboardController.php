@@ -287,6 +287,10 @@ class DashboardController extends Controller
             ->where('user_id', $user->id)
             ->whereIn('module_id', $moduleIds)
             ->where('unlocked', true)
+            ->where(function ($q) {
+                $q->whereNull('unlocked_until')
+                  ->orWhere('unlocked_until', '>', now());
+            })
             ->pluck('module_id')
             ->map(fn($id) => (string)$id)
             ->toArray();
@@ -298,7 +302,9 @@ class DashboardController extends Controller
             ->where('course_id', $id)
             ->first();
         if ($enrollmentRecord && ($enrollmentRecord->locked ?? false)) {
-            if (empty($manualUnlockedModuleIds)) {
+            $enrollmentUnlockedUntil = $enrollmentRecord->unlocked_until ?? null;
+            $enrollmentCurrentlyUnlocked = $enrollmentUnlockedUntil && \Carbon\Carbon::parse($enrollmentUnlockedUntil)->isFuture();
+            if (empty($manualUnlockedModuleIds) && !$enrollmentCurrentlyUnlocked) {
                 return response()->json(['message' => 'This course has been locked by the instructor.'], 403);
             }
             // otherwise, continue and show the course with only the unlocked modules available

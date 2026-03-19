@@ -106,7 +106,7 @@ class Module extends Model
     public function users()
     {
         return $this->belongsToMany(User::class, 'module_user')
-            ->withPivot('unlocked', 'unlocked_at')
+            ->withPivot('unlocked', 'unlocked_at', 'unlocked_until')
             ->withTimestamps();
     }
 }

@@ -137,7 +137,7 @@ class User extends Authenticatable
     public function modules()
     {
         return $this->belongsToMany(Module::class, 'module_user')
-            ->withPivot('unlocked', 'unlocked_at')
+            ->withPivot('unlocked', 'unlocked_at', 'unlocked_until')
             ->withTimestamps();
     }
 

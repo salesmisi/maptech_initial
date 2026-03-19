@@ -112,6 +112,19 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
       .finally(() => setLoading(false));
   }, []);
 
+  // Listen for same-window course unlock events and refresh lists
+  useEffect(() => {
+    const handler = (e: any) => {
+      const cid = e?.detail?.courseId ?? e?.detail?.course_id;
+      if (!cid) return;
+      // refresh lists when any course is unlocked
+      loadMyCourses().catch(console.error);
+      loadAllCourses().catch(console.error);
+    };
+    window.addEventListener('course:unlocked', handler as EventListener);
+    return () => window.removeEventListener('course:unlocked', handler as EventListener);
+  }, []);
+
   // --- Browse mode: all dept courses filtered by globalSearch ---
   const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, '');
   const browseResults = allCourses.filter((c) =>

@@ -200,6 +200,17 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     };
   }, [userId, courseId]);
 
+  // Listen for same-window unlock events dispatched by instructor pages
+  useEffect(() => {
+    const handler = (e: any) => {
+      const cid = e?.detail?.courseId ?? e?.detail?.course_id;
+      if (!cid) return;
+      if (String(cid) === String(courseId)) loadCourse();
+    };
+    window.addEventListener('course:unlocked', handler as EventListener);
+    return () => window.removeEventListener('course:unlocked', handler as EventListener);
+  }, [courseId]);
+
   // Reset quiz state when module changes
   useEffect(() => {
     setQuizState(null);
