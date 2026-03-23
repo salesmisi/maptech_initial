@@ -15,6 +15,7 @@ import {
   Settings,
   ClipboardList
 } from 'lucide-react';
+import { NotificationBell } from '../NotificationBell';
 interface AdminLayoutProps {
   children: React.ReactNode;
   currentPage: string;
@@ -210,10 +211,7 @@ export function AdminLayout({
               </form>
             </div>
             <div className="ml-4 flex items-center md:ml-6">
-              <button className="bg-white p-1 rounded-full text-slate-400 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                <span className="sr-only">View notifications</span>
-                <Bell className="h-6 w-6" />
-              </button>
+              <NotificationBell role="Admin" onOpenAll={() => onNavigate('notifications')} />
             </div>
           </div>
         </div>

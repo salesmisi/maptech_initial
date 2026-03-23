@@ -294,7 +294,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       setCourses(prev => prev.map(c => (String(c.id) === String(courseId) ? { ...c, availableByInstructor: true } : c)));
       // notify other open tabs/pages in the same browser to refresh the course
       try { window.dispatchEvent(new CustomEvent('course:unlocked', { detail: { courseId } })); } catch (e) { /* ignore */ }
-      alert('Course unlocked for enrolled users (where possible).');
+      pushToast('Course unlocked', 'Course unlocked for enrolled users (where possible).', 'success', 6000);
       setCourseUnlockModalOpen(false);
       setCourseUnlockTargetId(null);
       setUnlockDurationMinutes(1440);
@@ -302,8 +302,9 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       await loadCourses();
     } catch (e: any) {
       console.error(e);
-      setUnlockError(e.message || 'Failed to unlock course enrollments.');
-      alert(unlockError || 'Failed to unlock course enrollments.');
+      const msg = e?.message || 'Failed to unlock course enrollments.';
+      setUnlockError(msg);
+      pushToast('Unlock failed', msg, 'error', 7000);
     } finally {
       setUnlocking(false);
     }

@@ -10,6 +10,7 @@ import {
   Bell,
   Settings } from
 'lucide-react';
+import { NotificationBell } from '../NotificationBell';
 interface InstructorLayoutProps {
   children: React.ReactNode;
   currentPage: string;
@@ -159,12 +160,7 @@ export function InstructorLayout({
               </div>
             </div>
             <div className="ml-4 flex items-center md:ml-6">
-              <button
-                onClick={() => onNavigate('notifications')}
-                className="bg-white p-1 rounded-full text-slate-400 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                <span className="sr-only">View notifications</span>
-                <Bell className="h-6 w-6" />
-              </button>
+              <NotificationBell role="Instructor" onOpenAll={() => onNavigate('notifications')} />
             </div>
           </div>
         </div>
