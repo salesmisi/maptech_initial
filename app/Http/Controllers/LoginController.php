@@ -48,7 +48,7 @@ class LoginController extends Controller
         $request->session()->regenerate();
 
         // Record a single consistent UTC timestamp for audit + time log
-        $ts = Carbon::now()->utc();
+        $ts = Carbon::now();
         // Debug: Log user role
         Log::info('LOGIN: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
         // Record audit log for Employees and Admins
@@ -70,22 +70,24 @@ class LoginController extends Controller
             }
         }
 
-        // For login, only create a new time log if the user doesn't already have an open one.
-        // We avoid closing open logs on login so that Time-out is recorded only on explicit logout/punch-out.
+        // For login, always start a fresh TimeLog tied to this login time.
+        // Close any previously open logs so that each login/logout pair is a distinct session.
         $timeLog = null;
         if ($shouldTrack) {
-            $open = TimeLog::where('user_id', $user->id)->whereNull('time_out')->latest('time_in')->first();
-            if ($open) {
-                Log::info('LOGIN: Found existing open TimeLog, reusing', ['log_id' => $open->id, 'user_id' => $user->id]);
-                $timeLog = $open;
-            } else {
-                Log::info('LOGIN: Creating TimeLog', ['user_id' => $user->id, 'time_in' => $ts]);
-                $timeLog = TimeLog::create([
-                    'user_id' => $user->id,
-                    'time_in' => $ts,
-                ]);
-                event(new TimeLogUpdated($timeLog->fresh()));
+            $openLogs = TimeLog::where('user_id', $user->id)->whereNull('time_out')->get();
+            foreach ($openLogs as $open) {
+                Log::info('LOGIN: Closing stale open TimeLog before creating new one', ['log_id' => $open->id, 'user_id' => $user->id]);
+                $open->time_out = $ts;
+                $open->save();
+                event(new TimeLogUpdated($open->fresh()));
             }
+
+            Log::info('LOGIN: Creating new TimeLog for this login', ['user_id' => $user->id, 'time_in' => $ts]);
+            $timeLog = TimeLog::create([
+                'user_id' => $user->id,
+                'time_in' => $ts,
+            ]);
+            event(new TimeLogUpdated($timeLog->fresh()));
         }
 
         return response()->json([
@@ -136,7 +138,7 @@ class LoginController extends Controller
         $token = $user->createToken('auth-token', $abilities)->plainTextToken;
 
         // Record single timestamp for API login audit + time log
-            $ts = Carbon::now()->utc();
+            $ts = Carbon::now();
         // Debug: Log user role
         Log::info('API LOGIN: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
         // Record audit log for Employees and Admins
@@ -158,21 +160,23 @@ class LoginController extends Controller
             }
         }
 
-        // For API login, only create a new time log if none is open. Do not auto-close on login.
+        // For API login, mirror session login behavior: close any open logs and create a new one.
         $timeLog = null;
         if ($shouldTrack) {
-            $open = TimeLog::where('user_id', $user->id)->whereNull('time_out')->latest('time_in')->first();
-            if ($open) {
-                Log::info('API LOGIN: Found existing open TimeLog, reusing', ['log_id' => $open->id, 'user_id' => $user->id]);
-                $timeLog = $open;
-            } else {
-                Log::info('API LOGIN: Creating TimeLog', ['user_id' => $user->id, 'time_in' => $ts]);
-                $timeLog = TimeLog::create([
-                    'user_id' => $user->id,
-                    'time_in' => $ts,
-                ]);
-                event(new TimeLogUpdated($timeLog));
+            $openLogs = TimeLog::where('user_id', $user->id)->whereNull('time_out')->get();
+            foreach ($openLogs as $open) {
+                Log::info('API LOGIN: Closing stale open TimeLog before creating new one', ['log_id' => $open->id, 'user_id' => $user->id]);
+                $open->time_out = $ts;
+                $open->save();
+                event(new TimeLogUpdated($open->fresh()));
             }
+
+            Log::info('API LOGIN: Creating new TimeLog for this login', ['user_id' => $user->id, 'time_in' => $ts]);
+            $timeLog = TimeLog::create([
+                'user_id' => $user->id,
+                'time_in' => $ts,
+            ]);
+            event(new TimeLogUpdated($timeLog->fresh()));
         }
 
         return response()->json([
@@ -200,7 +204,7 @@ class LoginController extends Controller
         $user = $request->user();
 
         if ($user) {
-            $ts = Carbon::now()->utc();
+            $ts = Carbon::now();
             // Debug: Log user role
             Log::info('LOGOUT: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
             // Record logout audit for Employees and Admins

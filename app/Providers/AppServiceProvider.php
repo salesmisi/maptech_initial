@@ -56,7 +56,7 @@ class AppServiceProvider extends ServiceProvider
                 if (! empty($audit->created_at)) {
                     $ts = Carbon::parse($audit->created_at)->utc();
                 } else {
-                    $ts = Carbon::now()->utc();
+                    $ts = Carbon::now();
                 }
 
                 // On login: create a TimeLog only if there is no open one

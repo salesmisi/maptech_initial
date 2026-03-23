@@ -54,7 +54,7 @@ class TimeLogController extends Controller
             'note' => 'nullable|string|max:255',
         ]);
 
-        $ts = Carbon::now()->utc();
+        $ts = Carbon::now();
         $timeLog = TimeLog::create([
             'user_id' => $user->id,
             'time_in' => $ts,
@@ -95,7 +95,7 @@ class TimeLogController extends Controller
             'note' => 'nullable|string|max:255',
         ]);
 
-        $open->time_out = Carbon::now()->utc();
+        $open->time_out = Carbon::now();
         if (isset($validated['note'])) {
             $open->note = $validated['note'];
         }

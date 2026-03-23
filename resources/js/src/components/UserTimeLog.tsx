@@ -142,6 +142,57 @@ export function UserTimeLog() {
   const confirm = useConfirm();
   const { showConfirm } = confirm;
 
+  // Compute total worked seconds for today and this week based on sessions
+  const computeTotals = (sessions: Session[]) => {
+    const nowLocal = new Date();
+    const todayStart = new Date(nowLocal);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+
+    const weekStart = new Date(todayStart);
+    const day = weekStart.getDay(); // 0=Sun,1=Mon,...
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    weekStart.setDate(weekStart.getDate() + diffToMonday);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+
+    const overlapSeconds = (start: Date, end: Date, rangeStart: Date, rangeEnd: Date) => {
+      const s = Math.max(start.getTime(), rangeStart.getTime());
+      const e = Math.min(end.getTime(), rangeEnd.getTime());
+      if (e <= s) return 0;
+      return Math.floor((e - s) / 1000);
+    };
+
+    let todaySeconds = 0;
+    let weekSeconds = 0;
+
+    sessions.forEach((s) => {
+      if (!s.time_in) return;
+      const start = new Date(s.time_in);
+      if (isNaN(start.getTime())) return;
+      let end = s.time_out ? new Date(s.time_out) : nowLocal;
+      if (isNaN(end.getTime()) || end < start) end = start;
+
+      todaySeconds += overlapSeconds(start, end, todayStart, todayEnd);
+      weekSeconds += overlapSeconds(start, end, weekStart, weekEnd);
+    });
+
+    return { todaySeconds, weekSeconds };
+  };
+
+  const formatTotalDuration = (seconds: number) => {
+    const sec = Math.max(0, Math.floor(seconds));
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    if (m > 0) return `${m}m`;
+    return `${sec}s`;
+  };
+
+  const { todaySeconds, weekSeconds } = computeTotals(sessions);
+
   // Realtime: subscribe to user's private channel for new time-log entries
   useEffect(() => {
     if (!userId) return;
@@ -286,6 +337,16 @@ export function UserTimeLog() {
           </span>
         )}
       </div>
+      <div className="flex flex-wrap items-center gap-3 mb-3 text-xs">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+          <span className="font-semibold">Today:</span>
+          <span>{formatTotalDuration(todaySeconds)}</span>
+        </span>
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-100">
+          <span className="font-semibold">This week:</span>
+          <span>{formatTotalDuration(weekSeconds)}</span>
+        </span>
+      </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
@@ -316,6 +377,7 @@ export function UserTimeLog() {
                     <td className="px-4 py-2">
                       {timeIn ? (
                         <div>
+                          <span className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Time In</span>
                           <span className="block text-xs text-gray-500">{timeIn.date}</span>
                           <div className="flex items-baseline gap-2">
                             <span className="text-green-700 font-semibold">{timeIn.time}</span>
@@ -327,6 +389,7 @@ export function UserTimeLog() {
                     <td className="px-4 py-2">
                       {timeOut ? (
                         <div title={`Logged out at ${timeOut.fullDateTime}`}>
+                          <span className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Time Out</span>
                           <span className="block text-xs text-gray-500">{timeOut.date}</span>
                           <div className="flex items-baseline gap-2">
                             <span className="text-red-600 font-semibold">{timeOut.time}</span>
