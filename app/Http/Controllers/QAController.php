@@ -220,6 +220,25 @@ class QAController extends Controller
     }
 
     /**
+     * Admin: permanently delete a question and its replies.
+     */
+    public function adminDestroy(int $id)
+    {
+        $question = Question::with('replies:id,question_id')->findOrFail($id);
+
+        // Collect reply IDs and delete associated reactions, then replies.
+        $replyIds = $question->replies->pluck('id');
+        if ($replyIds->isNotEmpty()) {
+            QuestionReplyReaction::whereIn('reply_id', $replyIds)->delete();
+            QuestionReply::whereIn('id', $replyIds)->delete();
+        }
+
+        $question->delete();
+
+        return response()->json(['message' => 'Question deleted']);
+    }
+
+    /**
      * Post a reply to a question (works for any authenticated user).
      */
     public function storeReply(Request $request, int $id)

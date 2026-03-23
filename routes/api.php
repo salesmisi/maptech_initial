@@ -291,6 +291,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     // Q&A (Admin)
     Route::get('/lessons', [\App\Http\Controllers\QAController::class, 'adminLessons']);
     Route::get('/questions', [\App\Http\Controllers\QAController::class, 'adminIndex']);
+    Route::delete('/questions/{id}', [\App\Http\Controllers\QAController::class, 'adminDestroy']);
     Route::post('/questions/{id}/answer', [\App\Http\Controllers\QAController::class, 'adminAnswer']);
     Route::delete('/questions/{id}/answer', [\App\Http\Controllers\QAController::class, 'adminDeleteAnswer']);
     Route::post('/questions/{id}/replies', [\App\Http\Controllers\QAController::class, 'storeReply']);
@@ -800,8 +801,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         $validated = $request->validate($rules);
 
-        // Keep `fullName` as provided (some databases use camelCase column names).
-        // Also support legacy lowercase `fullname` where present by leaving both keys alone.
+        // Map camelCase `fullName` coming from the frontend into the
+        // actual lowercase `fullname` column used by this database.
+        if (isset($validated['fullName'])) {
+            $validated['fullname'] = $validated['fullName'];
+            unset($validated['fullName']);
+        }
 
         // Strip email and password if a non-admin somehow submitted them
         if (!$user->isAdmin()) {

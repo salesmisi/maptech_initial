@@ -73,9 +73,9 @@ class UserController extends Controller
             ], 422);
         }
 
-        // Create user and set both fullname variants to be safe across DB schemas.
+        // Create user; store into lowercase `fullname` column used by this schema.
+        // The API still exposes `fullName` as a JSON field for frontend compatibility.
         $user = User::create([
-            'fullName' => $validated['fullName'],
             'fullname' => $validated['fullName'],
             'email' => $validated['email'],
             'password' => $validated['password'],

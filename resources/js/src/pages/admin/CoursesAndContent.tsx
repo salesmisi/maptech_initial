@@ -133,6 +133,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   const [uploadStatus, setUploadStatus] = useState<'Published' | 'Draft'>('Draft');
   // Preview state
   const [previewLesson, setPreviewLesson] = useState<any>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   // Quiz state
   const [quizQuestions, setQuizQuestions] = useState<{id: number; question: string; options: string[]; answer: number}[]>([]);
   // Send Quiz state
@@ -228,6 +229,23 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       .then(res => res.json())
       .then(data => setInstructors(Array.isArray(data) ? data.map((u: any) => ({ id: u.id, fullname: u.fullname, email: u.email, department: u.department, profile_picture: u.profile_picture ? `/storage/${u.profile_picture}` : null })) : []))
       .catch(err => console.error('Failed to load instructors:', err));
+  }, []);
+
+  // Fetch current profile to determine role (used for preview actions)
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const res = await fetch('/api/profile', { credentials: 'include', headers: { Accept: 'application/json' } });
+        if (res.ok) {
+          const d = await res.json();
+          setCurrentUserRole((d.role || '').toLowerCase());
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchProfile();
   }, []);
 
   const loadCourses = async () => {
@@ -637,6 +655,25 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     });
   };
 
+  // Delete lesson from preview modal (admin/instructor)
+  const handleDeletePreviewLesson = async (lessonId: number) => {
+    showConfirm('Delete this lesson?', async () => {
+      try {
+        const csrf = await getCsrf();
+        const res = await fetch(`/api/lessons/${lessonId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
+        });
+        if (!res.ok) throw new Error('Failed to delete lesson');
+        setPreviewLesson(null);
+        if (selectedCourse) await loadModules(selectedCourse.id);
+      } catch (err: any) {
+        alert(err.message);
+      }
+    });
+  };
+
   // ── Save Quiz (Pre-Assessment) to Module ──
   const handleSaveQuiz = async () => {
     if (!selectedModuleId) {
@@ -936,17 +973,6 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCourses.map((course) => (
           <div key={course.id} className="relative bg-white rounded-lg shadow hover:shadow-md transition-shadow">
-            <div className="absolute top-3 left-3 bg-white/90 rounded-md p-1 z-10">
-              <input
-                type="checkbox"
-                checked={selectedCourseIds.includes(course.id)}
-                onChange={() => {
-                  setSelectedCourseIds(prev => prev.includes(course.id) ? prev.filter(id => id !== course.id) : [...prev, course.id]);
-                }}
-                aria-label={`Select course ${course.title}`}
-                className="w-4 h-4"
-              />
-            </div>
             {/* Course Icon */}
             <div className="h-32 bg-gradient-to-br from-green-400 to-green-600 rounded-t-lg flex items-center justify-center">
               <div className="w-16 h-16 bg-white rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 shadow-md">
@@ -2048,9 +2074,20 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     )}
                   </div>
                 </div>
-                <button onClick={() => setPreviewLesson(null)} className="text-gray-400 hover:text-gray-600">
-                  <XMarkIcon className="h-5 w-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {(currentUserRole === 'admin' || currentUserRole === 'instructor') && (
+                    <button
+                      onClick={() => handleDeletePreviewLesson(previewLesson.id)}
+                      className="text-red-600 hover:text-red-800 text-sm px-2 py-1 rounded border border-red-100 bg-red-50"
+                      title="Delete Lesson"
+                    >
+                      Delete
+                    </button>
+                  )}
+                  <button onClick={() => setPreviewLesson(null)} className="text-gray-400 hover:text-gray-600">
+                    <XMarkIcon className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
               <div className="p-6 overflow-y-auto flex-1">
                 {previewLesson.type === 'Video' && previewLesson.content_url && (

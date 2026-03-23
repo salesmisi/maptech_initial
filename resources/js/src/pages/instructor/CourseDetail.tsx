@@ -154,14 +154,6 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz, ap
           Cancel
         </button>
       </div>
-      {/* Unlock modal */}
-      <UnlockModalRenderer
-        course={course}
-        open={unlockModalOpen}
-        userId={unlockModalUserId}
-        onConfirm={performUnlockModuleForUser}
-        onCancel={() => { setUnlockModalOpen(false); setUnlockModalUserId(null); }}
-      />
     </div>
   );
 }
