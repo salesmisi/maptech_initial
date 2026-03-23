@@ -1567,6 +1567,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
         </div>
       )}
 
+      {confirm.ConfirmModalRenderer()}
+
     </div>
   );
 }

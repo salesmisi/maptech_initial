@@ -12,8 +12,8 @@ export default function ConfirmModal({ open, message, onConfirm, onCancel }: {
       <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-5">
         <p className="text-sm text-slate-700">{message}</p>
         <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onCancel} className="px-3 py-1.5 border rounded text-sm">Cancel</button>
-          <button onClick={onConfirm} className="px-3 py-1.5 bg-red-600 text-white rounded text-sm">Confirm</button>
+          <button onClick={onCancel} className="px-3 py-1.5 border rounded text-sm">No</button>
+          <button onClick={onConfirm} className="px-3 py-1.5 bg-red-600 text-white rounded text-sm">Yes</button>
         </div>
       </div>
     </div>
