@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import useConfirm from '../hooks/useConfirm';
 
 interface Question {
   id: number;
@@ -42,6 +43,9 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
   const [loading, setLoading] = useState(true);
   const [newQuestion, setNewQuestion] = useState('');
   const [replyText, setReplyText] = useState<Record<number,string>>({});
+
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
 
   // Load lessons for selection based on scope
   useEffect(() => {
@@ -93,6 +97,24 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
     if (res.ok) { setReplyText((s)=>({ ...s, [questionId]: '' })); loadQuestions(); } else { const err = await res.json().catch(()=>({})); alert(err.message || 'Failed'); }
   };
 
+  const deleteQuestion = async (questionId: number) => {
+    if (scope !== 'admin') return;
+    showConfirm('Are you sure you want to delete this question and all of its replies?', async () => {
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      const res = await fetch(`/api/admin/questions/${questionId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: getHeaders(),
+      });
+      if (res.ok) {
+        await loadQuestions();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || 'Failed to delete question');
+      }
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -141,6 +163,15 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
                       <div className="mt-2 text-slate-800">{q.question}</div>
                       <div className="text-xs text-slate-400 mt-2">{new Date(q.created_at).toLocaleString()}</div>
                     </div>
+                    {scope === 'admin' && (
+                      <button
+                        type="button"
+                        onClick={() => deleteQuestion(q.id)}
+                        className="ml-4 text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
 
                   {/* Replies */}
@@ -167,6 +198,7 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
           )}
         </div>
       )}
+      {confirm.ConfirmModalRenderer()}
     </div>
   );
 }
