@@ -48,6 +48,31 @@ class CourseController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
+        // Determine which courses currently have any manually-unlocked modules
+        // (per-user or per-department unlocks) so the UI can distinguish
+        // between fully locked past-deadline courses and those that have
+        // been reopened by the instructor.
+        $courseIds = $courses->pluck('id');
+        if ($courseIds->isNotEmpty()) {
+            $manualUnlockedCourseIds = \DB::table('module_user')
+                ->join('modules', 'module_user.module_id', '=', 'modules.id')
+                ->whereIn('modules.course_id', $courseIds)
+                ->where('module_user.unlocked', true)
+                ->where(function ($q) {
+                    $q->whereNull('module_user.unlocked_until')
+                      ->orWhere('module_user.unlocked_until', '>', now());
+                })
+                ->pluck('modules.course_id')
+                ->map(fn ($id) => (string) $id)
+                ->toArray();
+
+            $manualUnlockedLookup = array_flip($manualUnlockedCourseIds);
+
+            foreach ($courses as $course) {
+                $course->setAttribute('has_manual_unlock', isset($manualUnlockedLookup[$course->id]));
+            }
+        }
+
         try {
             Log::info('Instructor::index returning courses', [
                 'user_id' => $user->id,

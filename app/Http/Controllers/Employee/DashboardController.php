@@ -31,6 +31,34 @@ class DashboardController extends Controller
     }
 
     /**
+     * Return a map of course_id => true for courses where at least one
+     * module is currently manually unlocked for the given user.
+     */
+    private function getManuallyUnlockedCourseIdsForUser(int $userId, $courseIds): array
+    {
+        $courseIds = collect($courseIds)->filter()->unique()->values();
+        if ($courseIds->isEmpty()) {
+            return [];
+        }
+
+        $rows = DB::table('module_user')
+            ->join('modules', 'module_user.module_id', '=', 'modules.id')
+            ->where('module_user.user_id', $userId)
+            ->whereIn('modules.course_id', $courseIds)
+            ->where('module_user.unlocked', true)
+            ->where(function ($q) {
+                $q->whereNull('module_user.unlocked_until')
+                  ->orWhere('module_user.unlocked_until', '>', now());
+            })
+            ->pluck('modules.course_id')
+            ->map(fn($id) => (string) $id)
+            ->toArray();
+
+        // flip to use as a quick lookup set
+        return array_flip($rows);
+    }
+
+    /**
      * Build a course query scoped to the employee's department/subdepartment.
      * Shows courses whose subdepartment belongs to the same department,
      * plus department-wide courses (subdepartment_id IS NULL, department name matches).
@@ -97,19 +125,33 @@ class DashboardController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
+        $manuallyUnlockedCourseIds = $this->getManuallyUnlockedCourseIdsForUser(
+            $user->id,
+            $courses->pluck('id')
+        );
+
         // Attach enrollment progress to each course
         $enrollments = CourseEnrollment::where('user_id', $user->id)
             ->whereIn('course_id', $courses->pluck('id'))
             ->get()
             ->keyBy('course_id');
 
-        $coursesWithProgress = $courses->map(function (Course $course) use ($enrollments) {
+        $coursesWithProgress = $courses->map(function (Course $course) use ($enrollments, $manuallyUnlockedCourseIds) {
             $enrollment = $enrollments->get($course->id);
+            $locked     = (bool) ($enrollment->locked ?? false);
+
+            // If at least one module is manually unlocked for this user
+            // on this course, treat it as unlocked on the dashboard.
+            if ($locked && isset($manuallyUnlockedCourseIds[$course->id])) {
+                $locked = false;
+            }
+
             return array_merge($course->toArray(), [
                 'progress'       => $enrollment?->progress ?? 0,
                 'enroll_status'  => $enrollment?->status ?? null,
                 'last_activity'  => $enrollment?->updated_at?->toISOString() ?? null,
-                'locked'         => $enrollment?->locked ?? false,
+                'locked'         => $locked,
+                'has_manual_unlock' => isset($manuallyUnlockedCourseIds[$course->id]),
             ]);
         });
 
@@ -142,14 +184,25 @@ class DashboardController extends Controller
             ->orderBy('title')
             ->get();
 
+        $manuallyUnlockedCourseIds = $this->getManuallyUnlockedCourseIdsForUser(
+            $user->id,
+            $courses->pluck('id')
+        );
+
         // Index enrollments by course_id for O(1) lookup
         $enrollments = Enrollment::where('user_id', $user->id)
             ->whereIn('course_id', $courses->pluck('id'))
             ->get()
             ->keyBy('course_id');
 
-        $result = $courses->map(function (Course $course) use ($enrollments) {
+        $result = $courses->map(function (Course $course) use ($enrollments, $manuallyUnlockedCourseIds) {
             $enrollment = $enrollments->get($course->id);
+            $locked     = (bool) ($enrollment->locked ?? false);
+
+            if ($locked && isset($manuallyUnlockedCourseIds[$course->id])) {
+                $locked = false;
+            }
+
             return [
                 'id'            => $course->id,
                 'title'         => $course->title,
@@ -162,7 +215,8 @@ class DashboardController extends Controller
                 'is_enrolled'   => (bool) $enrollment,
                 'my_progress'   => $enrollment?->progress ?? 0,
                 'my_status'     => $enrollment ? $this->resolveStatus($enrollment, $course) : null,
-                'locked'        => $enrollment?->locked ?? false,
+                'locked'        => $locked,
+                'has_manual_unlock' => isset($manuallyUnlockedCourseIds[$course->id]),
             ];
         });
 
@@ -184,6 +238,9 @@ class DashboardController extends Controller
             ->get()
             ->filter(fn ($e) => $e->course !== null);
 
+        $courseIds = $enrollments->pluck('course_id');
+        $manuallyUnlockedCourseIds = $this->getManuallyUnlockedCourseIdsForUser($user->id, $courseIds);
+
         // Recalculate progress for all enrollments from quiz attempts
         /** @var \App\Models\Enrollment $enrollment */
         foreach ($enrollments as $enrollment) {
@@ -191,8 +248,17 @@ class DashboardController extends Controller
             $enrollment->refresh();
         }
 
-        $result = $enrollments->map(function (Enrollment $enrollment) {
+        $result = $enrollments->map(function (Enrollment $enrollment) use ($manuallyUnlockedCourseIds) {
             $course = $enrollment->course;
+            $locked = (bool) ($enrollment->locked ?? false);
+
+            // If instructor has manually unlocked any module in this course
+            // for this employee (including department-wide unlocks), treat
+            // the course as unlocked in the "My Courses" list so it can be opened.
+            if ($locked && isset($manuallyUnlockedCourseIds[$course->id])) {
+                $locked = false;
+            }
+
             return [
                 'id'           => $course->id,
                 'title'        => $course->title,
@@ -204,7 +270,8 @@ class DashboardController extends Controller
                 'progress'     => $enrollment->progress,
                 'status'       => $this->resolveStatus($enrollment, $course),
                 'enrolled_at'  => $enrollment->enrolled_at,
-                'locked'       => $enrollment->locked ?? false,
+                'locked'       => $locked,
+                'has_manual_unlock' => isset($manuallyUnlockedCourseIds[$course->id]),
             ];
         })->values();
 

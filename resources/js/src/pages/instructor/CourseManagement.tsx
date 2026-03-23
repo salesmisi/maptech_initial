@@ -369,7 +369,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((course) => {
             const notStarted = course.start_date && new Date(course.start_date) > new Date();
-            const ended = course.deadline && new Date(course.deadline) <= new Date();
+            const hasManualUnlock = (course as any).has_manual_unlock ?? false;
+            const ended = course.deadline && new Date(course.deadline) <= new Date() && !hasManualUnlock;
             return (
             <div key={course.id} className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col ${notStarted ? 'bg-gray-200 border-gray-300' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
               <div className={`h-32 ${notStarted ? 'bg-gray-400' : DEPT_COLORS[course.department] || 'bg-slate-500'} relative flex items-center justify-center`}>

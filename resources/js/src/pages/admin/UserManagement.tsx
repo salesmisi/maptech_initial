@@ -359,12 +359,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
       setSubmitting(false);
     }
   };
-  return (
-    <>
-      {/* existing render markup below... */}
-      {confirm.ConfirmModalRenderer()}
-    </>
-  );
+  // continue to main render below; confirm modal will be rendered inside the main JSX
 
   if (loading) {
     return (
@@ -811,6 +806,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
           </div>
         </div>
       )}
+      {confirm.ConfirmModalRenderer()}
     </div>
   );
 }

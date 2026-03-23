@@ -289,6 +289,11 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   const [deptModalOpen, setDeptModalOpen] = useState(false);
   const [deptModalModuleId, setDeptModalModuleId] = useState<number | null>(null);
   const [deptModalAction, setDeptModalAction] = useState<'unlock' | 'lock'>('unlock');
+  // Simple "unlock for all enrolled users" modal state
+  const [moduleUnlockAllOpen, setModuleUnlockAllOpen] = useState(false);
+  const [moduleUnlockAllModuleId, setModuleUnlockAllModuleId] = useState<number | null>(null);
+  const [moduleUnlockDuration, setModuleUnlockDuration] = useState<number>(1440);
+  const [moduleUnlockPermanent, setModuleUnlockPermanent] = useState(false);
 
   // Edit module state
   const [editingModuleId, setEditingModuleId] = useState<number | null>(null);
@@ -420,6 +425,44 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       alert(e.message || 'Failed to unlock module');
     }
   };
+
+    const handleUnlockModuleForAll = (moduleId: number) => {
+      setModuleUnlockAllModuleId(moduleId);
+      setModuleUnlockDuration(1440);
+      setModuleUnlockPermanent(false);
+      setModuleUnlockAllOpen(true);
+    };
+
+    const performUnlockModuleForAll = async () => {
+      if (!course || moduleUnlockAllModuleId === null) return;
+      const mod = course.modules.find(m => m.id === moduleUnlockAllModuleId);
+      setModuleUnlockAllOpen(false);
+      showConfirm(`Unlock module "${mod?.title || moduleUnlockAllModuleId}" for all enrolled students?`, async () => {
+        try {
+          const token = await getXsrfToken();
+          const users = course.enrolled_users || [];
+          for (const u of users) {
+            const body: any = {};
+            if (!moduleUnlockPermanent) body.duration_minutes = moduleUnlockDuration;
+            const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/modules/${moduleUnlockAllModuleId}/enrollments/${u.id}/unlock`, {
+              method: 'POST',
+              credentials: 'include',
+              headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token },
+              body: JSON.stringify(body),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              console.warn('unlock failed for user', u.id, err);
+            }
+          }
+          await loadCourse();
+          window.dispatchEvent(new CustomEvent('course:unlocked', { detail: { courseId } }));
+          alert('Module unlocked for enrolled students');
+        } catch (e: any) {
+          alert(e.message || 'Failed to unlock module for all');
+        }
+      });
+    };
 
   const handleLockModuleForUser = async (userId: number) => {
     if (!course || !course.modules || course.modules.length === 0) {
@@ -1075,6 +1118,14 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                     )}
+
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleUnlockModuleForAll(mod.id); }}
+                      className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded flex-shrink-0"
+                      title="Unlock this module for all enrolled students"
+                    >
+                      <Users className="h-3.5 w-3.5" />
+                    </button>
 
                     <button
                       onClick={(e) => { e.stopPropagation(); handleUnlockModuleForDepartment(mod.id); }}
