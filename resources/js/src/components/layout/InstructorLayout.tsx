@@ -8,7 +8,9 @@ import {
   Search,
   Menu,
   Bell,
-  Settings } from
+  Settings,
+  Moon,
+  Sun } from
 'lucide-react';
 import { NotificationBell } from '../NotificationBell';
 interface InstructorLayoutProps {
@@ -16,6 +18,8 @@ interface InstructorLayoutProps {
   currentPage: string;
   onNavigate: (page: string) => void;
   onLogout: () => void;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
   user: {
     name?: string;
     fullName?: string;
@@ -29,6 +33,8 @@ export function InstructorLayout({
   currentPage,
   onNavigate,
   onLogout,
+  theme,
+  onToggleTheme,
   user
 }: InstructorLayoutProps) {
   const [showPicPreview, setShowPicPreview] = useState(false);
@@ -160,6 +166,13 @@ export function InstructorLayout({
               </div>
             </div>
             <div className="ml-4 flex items-center md:ml-6">
+              <button
+                onClick={onToggleTheme}
+                className="mr-3 inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </button>
               <NotificationBell role="Instructor" onOpenAll={() => onNavigate('notifications')} />
             </div>
           </div>

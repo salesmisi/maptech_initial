@@ -305,6 +305,16 @@ export function UserTimeLog() {
     }
   };
 
+  const formatYmd = (iso: string | null) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const formatElapsed = (isoStart: string): string => {
     const diff = Math.max(0, Math.floor((now.getTime() - new Date(isoStart).getTime()) / 1000));
     const h = Math.floor(diff / 3600);
@@ -351,6 +361,7 @@ export function UserTimeLog() {
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>
+              <th className="px-4 py-2 text-left">Date</th>
               <th className="px-4 py-2 text-left">Time In</th>
               <th className="px-4 py-2 text-left">Time Out</th>
               <th className="px-4 py-2 text-left">Status</th>
@@ -359,13 +370,15 @@ export function UserTimeLog() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
             {loading ? (
-              <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">Loading...</td></tr>
+              <tr><td colSpan={userRole === 'Admin' ? 5 : 4} className="px-4 py-6 text-center text-gray-400">Loading...</td></tr>
             ) : sessions.length === 0 ? (
-              <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">No time logs found.</td></tr>
+              <tr><td colSpan={userRole === 'Admin' ? 5 : 4} className="px-4 py-6 text-center text-gray-400">No time logs found.</td></tr>
             ) : (
               sessions.map((session) => {
                 const timeIn = formatDateTime(session.time_in);
                 const timeOut = formatDateTime(session.time_out);
+                const displayDate = formatYmd(session.time_in || session.time_out);
+                const displayDateFull = timeIn?.fullDateTime || timeOut?.fullDateTime || '';
                 const extractId = (sid: string) => {
                   const parts = sid.split('-');
                   const n = parts[parts.length - 1];
@@ -374,6 +387,9 @@ export function UserTimeLog() {
                 const tlId = extractId(session.id);
                 return (
                   <tr key={session.id}>
+                    <td className="px-4 py-2">
+                      <span className="text-sm text-gray-700" title={displayDateFull}>{displayDate}</span>
+                    </td>
                     <td className="px-4 py-2">
                       {timeIn ? (
                         <div>

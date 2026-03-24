@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Moon, Sun } from 'lucide-react';
 import { LoginPage } from './pages/LoginPage';
 import { QADiscussion as InstructorQADiscussion } from './pages/instructor/QADiscussion';
 import { QADiscussion as AdminQADiscussion } from './pages/admin/QADiscussion';
@@ -55,6 +56,12 @@ interface User {
 }
 
 export function App() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') return 'light';
+    const saved = localStorage.getItem('maptech_theme');
+    if (saved === 'light' || saved === 'dark') return saved;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
   const [user, setUser] = useState<User | null>(null);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(true);
@@ -64,6 +71,28 @@ export function App() {
   // =========================
   // CHECK AUTH ON MOUNT
   // =========================
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('maptech_theme', theme);
+  }, [theme]);
+
+  const renderThemeToggle = () => (
+    <button
+      type="button"
+      aria-label="Toggle dark mode"
+      onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+      className="fixed bottom-5 right-5 z-[100] inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-lg transition hover:bg-slate-100"
+    >
+      {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+    </button>
+  );
+
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -184,22 +213,35 @@ export function App() {
   // =========================
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-slate-600">Loading...</div>
-      </div>
+      <>
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="text-slate-600">Loading...</div>
+        </div>
+        {renderThemeToggle()}
+      </>
     );
   }
 
   // Unauthenticated debug route for YouTube player preview
   if (typeof window !== 'undefined' && window.location.pathname === '/yt-debug') {
-    return <YTDebug />;
+    return (
+      <>
+        <YTDebug />
+        {renderThemeToggle()}
+      </>
+    );
   }
 
   // =========================
   // NOT AUTHENTICATED
   // =========================
   if (!user) {
-    return <LoginPage onLogin={handleLogin} />;
+    return (
+      <>
+        <LoginPage onLogin={handleLogin} />
+        {renderThemeToggle()}
+      </>
+    );
   }
 
   // =========================
@@ -207,25 +249,29 @@ export function App() {
   // =========================
   if (user.role === 'admin') {
     return (
-      <AdminLayout
-        currentPage={currentPage}
-        onNavigate={handleNavigate}
-        onLogout={handleLogout}
-        user={user}
-      >
-        {currentPage === 'dashboard' && <AdminDashboard onNavigate={handleNavigate} />}
-        {currentPage === 'departments' && <DepartmentManagement />}
-        {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
-        {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
-        {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
-        {currentPage === 'enrollments' && <EnrollmentManagement />}
-        {currentPage === 'reports' && <ReportsAnalytics />}
-        {currentPage === 'notifications' && <NotificationManagement />}
-        {currentPage === 'qa' && <AdminQADiscussion userId={user.id} />}
-        {currentPage === 'audit-logs' && <AuditLogs />}
-        {currentPage === 'feedbacks' && <AdminFeedback />}
-        {currentPage === 'settings' && <ProfileSettings />}
-      </AdminLayout>
+      <>
+        <AdminLayout
+          currentPage={currentPage}
+          onNavigate={handleNavigate}
+          onLogout={handleLogout}
+          user={user}
+          theme={theme}
+          onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+        >
+          {currentPage === 'dashboard' && <AdminDashboard onNavigate={handleNavigate} />}
+          {currentPage === 'departments' && <DepartmentManagement />}
+          {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
+          {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
+          {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
+          {currentPage === 'enrollments' && <EnrollmentManagement />}
+          {currentPage === 'reports' && <ReportsAnalytics />}
+          {currentPage === 'notifications' && <NotificationManagement />}
+          {currentPage === 'qa' && <AdminQADiscussion userId={user.id} />}
+          {currentPage === 'audit-logs' && <AuditLogs />}
+          {currentPage === 'feedbacks' && <AdminFeedback />}
+          {currentPage === 'settings' && <ProfileSettings />}
+        </AdminLayout>
+      </>
     );
   }
 
@@ -234,24 +280,28 @@ export function App() {
   // =========================
   if (user.role === 'instructor') {
     return (
-      <InstructorLayout
-        currentPage={currentPage}
-        onNavigate={handleNavigate}
-        onLogout={handleLogout}
-        user={user}
-      >
-        {currentPage === 'dashboard' && <InstructorDashboard />}
-        {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
-        {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} />}
-        {currentPage === 'quiz-management' && <QuizAssessmentManagement />}
-        {currentPage === 'lessons' && <LessonVideoUpload />}
-        {currentPage === 'quizzes' && <QuizAssessmentManagement />}
-        {currentPage === 'evaluation' && <QuizEvaluation />}
-        {currentPage === 'qa-discussion' && <InstructorQADiscussion userId={user.id} />}
-        {currentPage === 'notifications' && <InstructorNotifications />}
-        {currentPage === 'feedbacks' && <InstructorFeedback />}
-        {currentPage === 'settings' && <ProfileSettings />}
-      </InstructorLayout>
+      <>
+        <InstructorLayout
+          currentPage={currentPage}
+          onNavigate={handleNavigate}
+          onLogout={handleLogout}
+          user={user}
+          theme={theme}
+          onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+        >
+          {currentPage === 'dashboard' && <InstructorDashboard />}
+          {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
+          {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} />}
+          {currentPage === 'quiz-management' && <QuizAssessmentManagement />}
+          {currentPage === 'lessons' && <LessonVideoUpload />}
+          {currentPage === 'quizzes' && <QuizAssessmentManagement />}
+          {currentPage === 'evaluation' && <QuizEvaluation />}
+          {currentPage === 'qa-discussion' && <InstructorQADiscussion userId={user.id} />}
+          {currentPage === 'notifications' && <InstructorNotifications />}
+          {currentPage === 'feedbacks' && <InstructorFeedback />}
+          {currentPage === 'settings' && <ProfileSettings />}
+        </InstructorLayout>
+      </>
     );
   }
 
@@ -260,42 +310,51 @@ export function App() {
   // =========================
   if (user.role === 'employee') {
     return (
-      <EmployeeLayout
-        currentPage={currentPage}
-        onNavigate={handleNavigate}
-        onLogout={handleLogout}
-        user={user}
-        globalSearch={globalSearch}
-        onGlobalSearch={(term) => { setGlobalSearch(term); setCurrentPage('my-courses'); }}
-      >
-        {currentPage === 'dashboard' && <EmployeeDashboard onNavigate={handleNavigate} />}
-        {currentPage === 'my-courses' && (
-          <MyCourses onNavigate={handleNavigate} globalSearch={globalSearch} />
-        )}
-        {currentPage === 'course-enroll' && (
-          <CourseEnrollDetail
-            courseId={selectedCourseId || ''}
-            onNavigate={handleNavigate}
-            onBack={() => handleNavigate('my-courses')}
-          />
-        )}
-        {currentPage === 'course-viewer' && (
-          <CourseViewer
-            courseId={selectedCourseId || undefined}
-            onBack={() => handleNavigate('my-courses')}
-          />
-        )}
-        {currentPage === 'progress' && <MyProgress />}
-        {currentPage === 'certificates' && <MyCertificates />}
-        {currentPage === 'qa' && <QAModule userId={user.id} />}
-        {currentPage === 'feedback' && <MyFeedback />}
-        {currentPage === 'notifications' && <EmployeeNotifications />}
-        {currentPage === 'settings' && <ProfileSettings />}
-      </EmployeeLayout>
+      <>
+        <EmployeeLayout
+          currentPage={currentPage}
+          onNavigate={handleNavigate}
+          onLogout={handleLogout}
+          user={user}
+          theme={theme}
+          onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+          globalSearch={globalSearch}
+          onGlobalSearch={(term) => { setGlobalSearch(term); setCurrentPage('my-courses'); }}
+        >
+          {currentPage === 'dashboard' && <EmployeeDashboard onNavigate={handleNavigate} />}
+          {currentPage === 'my-courses' && (
+            <MyCourses onNavigate={handleNavigate} globalSearch={globalSearch} />
+          )}
+          {currentPage === 'course-enroll' && (
+            <CourseEnrollDetail
+              courseId={selectedCourseId || ''}
+              onNavigate={handleNavigate}
+              onBack={() => handleNavigate('my-courses')}
+            />
+          )}
+          {currentPage === 'course-viewer' && (
+            <CourseViewer
+              courseId={selectedCourseId || undefined}
+              onBack={() => handleNavigate('my-courses')}
+            />
+          )}
+          {currentPage === 'progress' && <MyProgress />}
+          {currentPage === 'certificates' && <MyCertificates />}
+          {currentPage === 'qa' && <QAModule userId={user.id} />}
+          {currentPage === 'feedback' && <MyFeedback />}
+          {currentPage === 'notifications' && <EmployeeNotifications />}
+          {currentPage === 'settings' && <ProfileSettings />}
+        </EmployeeLayout>
+      </>
     );
   }
 
-  return <LoginPage onLogin={handleLogin} />;
+  return (
+    <>
+      <LoginPage onLogin={handleLogin} />
+      {renderThemeToggle()}
+    </>
+  );
 }
 
 export default App;

@@ -264,6 +264,16 @@ export function AuditLogs() {
     };
   };
 
+  const formatYmd = (iso: string | null) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   // Realtime: subscribe to admin time-log updates so the admin list refreshes
   useEffect(() => {
     const Echo = (window as any).Echo;
@@ -735,6 +745,9 @@ export function AuditLogs() {
                 <th style={{width: '120px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   IP Address
                 </th>
+                <th style={{width: '150px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                  Date
+                </th>
                 <th style={{width: '140px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   <div className="flex items-center gap-1 text-green-600">
                     <LogIn className="w-3 h-3" />
@@ -768,7 +781,7 @@ export function AuditLogs() {
             {loading ? (
               <tbody className="bg-white divide-y divide-gray-200">
                 <tr>
-                  <td colSpan={11} className="px-6 py-8 text-center text-gray-400">
+                  <td colSpan={12} className="px-6 py-8 text-center text-gray-400">
                     Loading...
                   </td>
                 </tr>
@@ -776,7 +789,7 @@ export function AuditLogs() {
             ) : userGroups.length === 0 ? (
               <tbody className="bg-white divide-y divide-gray-200">
                 <tr>
-                  <td colSpan={11} className="px-6 py-8 text-center text-gray-400">
+                  <td colSpan={12} className="px-6 py-8 text-center text-gray-400">
                     No audit logs found.
                   </td>
                 </tr>
@@ -862,6 +875,9 @@ export function AuditLogs() {
                         </td>
                         <td style={{width: '120px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-600">{latest.user?.department || "—"}</td>
                         <td style={{width: '120px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-500 font-mono">{latest.ip_address || "—"}</td>
+                        <td style={{width: '150px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-600">
+                          {formatYmd(latest.time_in || latest.time_out)}
+                        </td>
                         <td style={{width: '140px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
                           {formatDateTime(latest.time_in) ? (
                             <div className="flex flex-col">
@@ -975,6 +991,7 @@ export function AuditLogs() {
                           <td className="px-6 py-2 whitespace-nowrap overflow-hidden" style={{width: '90px'}}><span className="text-xs text-gray-500">{older.user?.role || '—'}</span></td>
                           <td style={{width: '120px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-gray-600">{older.user?.department || '—'}</td>
                           <td style={{width: '120px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-gray-500 font-mono">{older.ip_address || '—'}</td>
+                          <td style={{width: '150px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-gray-600">{formatYmd(older.time_in || older.time_out)}</td>
                           <td style={{width: '140px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden">
                             {formatDateTime(older.time_in) ? (
                               <div>
