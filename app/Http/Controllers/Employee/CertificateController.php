@@ -17,12 +17,24 @@ class CertificateController extends Controller
         $user = $request->user();
 
         $certificates = Certificate::where('user_id', $user->id)
-            ->with('course:id,title,department,subdepartment_id,logo_path')
+            ->with([
+                'course:id,title,department,subdepartment_id,logo_path,instructor_id',
+                'course.instructor:id,fullname,signature_path',
+            ])
             ->orderByDesc('completed_at')
             ->get()
             ->map(function (Certificate $cert) use ($user) {
-                // Use course logo if available, otherwise fall back to certificate's own logo
-                $logoPath = $cert->course?->logo_path ?? $cert->logo_path;
+                // Use certificate-specific logo first, then fall back to course logo.
+                $logoPath = $cert->logo_path ?? $cert->course?->logo_path;
+                $signaturePath = $cert->course?->instructor?->signature_path;
+                $signatureUrl = null;
+
+                if (!empty($signaturePath)) {
+                    $signatureUrl = preg_match('#^https?://#i', $signaturePath)
+                        ? $signaturePath
+                        : asset('storage/' . ltrim($signaturePath, '/'));
+                }
+
                 return [
                     'id'               => $cert->id,
                     'course_id'        => $cert->course_id,
@@ -34,6 +46,8 @@ class CertificateController extends Controller
                     'score'            => $cert->score,
                     'user_name'        => $user->fullname,
                     'logo_url'         => $logoPath ? asset('storage/' . $logoPath) : null,
+                    'instructor_name'  => $cert->course?->instructor?->fullname ?? 'Instructor',
+                    'instructor_signature_url' => $signatureUrl,
                     'has_course_logo'  => (bool) $cert->course?->logo_path,
                 ];
             });

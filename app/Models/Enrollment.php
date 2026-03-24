@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\Course;
+use App\Models\ProductLogo;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
 
@@ -129,6 +130,40 @@ class Enrollment extends Model
             'certificate_code' => $code,
             'completed_at'     => $now,
             'score'            => round($avgScore, 2),
+            'logo_path'        => static::resolveLogoPath($course, $quizzes),
         ]);
+    }
+
+    /**
+     * Resolve the certificate logo from product logo mappings.
+     * Falls back to the course logo when no module/lesson mapping exists.
+     */
+    private static function resolveLogoPath(Course $course, $quizzes): ?string
+    {
+        $moduleIds = $quizzes->pluck('module_id')->filter()->unique()->values()->all();
+
+        foreach ($moduleIds as $moduleId) {
+            $moduleLogo = ProductLogo::where('module_id', $moduleId)
+                ->orderByDesc('id')
+                ->first();
+
+            if ($moduleLogo?->file_path) {
+                return $moduleLogo->file_path;
+            }
+        }
+
+        if (!empty($moduleIds)) {
+            $lessonLogo = ProductLogo::whereIn('lesson_id', function ($query) use ($moduleIds) {
+                $query->select('id')
+                    ->from('lessons')
+                    ->whereIn('module_id', $moduleIds);
+            })->orderByDesc('id')->first();
+
+            if ($lessonLogo?->file_path) {
+                return $lessonLogo->file_path;
+            }
+        }
+
+        return $course->logo_path;
     }
 }

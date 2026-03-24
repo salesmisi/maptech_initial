@@ -783,6 +783,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             'department' => $user->department,
             'status' => $user->status,
             'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
+            'signature_path' => $user->signature_path ? asset('storage/' . $user->signature_path) : null,
         ]);
     });
 
@@ -846,6 +847,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
                 'role' => $user->role,
                 'department' => $user->department,
                 'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
+                'signature_path' => $user->signature_path ? asset('storage/' . $user->signature_path) : null,
             ],
         ]);
     });
@@ -868,6 +870,34 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return response()->json([
             'message' => 'Profile picture updated successfully.',
             'profile_picture' => asset('storage/' . $path),
+        ]);
+    });
+
+    Route::post('/profile/signature', function (Request $request) {
+        $user = $request->user();
+        if (!$user || !$user->isInstructor()) {
+            return response()->json(['message' => 'Only instructors can upload a certificate signature.'], 403);
+        }
+
+        $request->validate([
+            // Optional dimension cap keeps signatures usable on certificate layout.
+            'signature' => 'required|image|mimes:jpeg,jpg,png|max:2048|dimensions:max_width=3000,max_height=1200',
+        ]);
+
+        // Replace any previous signature file.
+        if ($user->signature_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($user->signature_path)) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($user->signature_path);
+        }
+
+        $ext = strtolower($request->file('signature')->getClientOriginalExtension());
+        $filename = (string) \Illuminate\Support\Str::uuid() . '.' . $ext;
+        $path = $request->file('signature')->storeAs('signatures', $filename, 'public');
+
+        $user->update(['signature_path' => $path]);
+
+        return response()->json([
+            'message' => 'Signature uploaded successfully.',
+            'signature_path' => asset('storage/' . $path),
         ]);
     });
 

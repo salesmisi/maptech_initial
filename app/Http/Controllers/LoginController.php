@@ -100,6 +100,7 @@ class LoginController extends Controller
             'department' => $user->department,
             'status' => $user->status,
             'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
+            'signature_path' => $user->signature_path ? asset('storage/' . $user->signature_path) : null,
             'time_log' => $timeLog,
         ]);
     }
@@ -191,6 +192,8 @@ class LoginController extends Controller
                 'role' => $user->role,
                 'department' => $user->department,
                 'status' => $user->status,
+                'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
+                'signature_path' => $user->signature_path ? asset('storage/' . $user->signature_path) : null,
             ],
             'time_log' => $timeLog,
         ]);
@@ -272,6 +275,7 @@ class LoginController extends Controller
             'department' => $user->department,
             'status' => $user->status,
             'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
+            'signature_path' => $user->signature_path ? asset('storage/' . $user->signature_path) : null,
         ]);
     }
 

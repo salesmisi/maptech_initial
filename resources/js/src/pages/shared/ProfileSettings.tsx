@@ -11,6 +11,7 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
+  PenTool,
 } from 'lucide-react';
 
 const API_BASE = '/api';
@@ -23,6 +24,7 @@ interface ProfileData {
   department: string | null;
   status: string;
   profile_picture: string | null;
+  signature_path: string | null;
 }
 
 function getXsrfToken(): string {
@@ -40,6 +42,7 @@ export function ProfileSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingPic, setUploadingPic] = useState(false);
+  const [uploadingSignature, setUploadingSignature] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [fullName, setFullName] = useState('');
@@ -49,8 +52,10 @@ export function ProfileSettings() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showPicPreview, setShowPicPreview] = useState(false);
+  const [showSignaturePreview, setShowSignaturePreview] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const signatureInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadProfile();
@@ -164,6 +169,57 @@ export function ProfileSettings() {
     }
   };
 
+  const handleSignatureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowed = ['image/png', 'image/jpeg', 'image/jpg'];
+    if (!allowed.includes(file.type)) {
+      setMessage({ type: 'error', text: 'Signature must be a PNG or JPG image.' });
+      if (signatureInputRef.current) signatureInputRef.current.value = '';
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setMessage({ type: 'error', text: 'Signature file is too large. Maximum size is 2MB.' });
+      if (signatureInputRef.current) signatureInputRef.current.value = '';
+      return;
+    }
+
+    setUploadingSignature(true);
+    setMessage(null);
+
+    try {
+      await getCsrf();
+      const formData = new FormData();
+      formData.append('signature', file);
+
+      const res = await fetch(`${API_BASE}/profile/signature`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'X-XSRF-TOKEN': getXsrfToken(),
+        },
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        const errors = data.errors ? Object.values(data.errors).flat().join(' ') : data.message;
+        setMessage({ type: 'error', text: errors || 'Failed to upload signature.' });
+      } else {
+        setMessage({ type: 'success', text: 'Signature uploaded. It will now be used automatically in certificates.' });
+        setProfile((prev) => prev ? { ...prev, signature_path: data.signature_path } : prev);
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Failed to upload signature.' });
+    } finally {
+      setUploadingSignature(false);
+      if (signatureInputRef.current) signatureInputRef.current.value = '';
+    }
+  };
+
   const roleColor = (role: string) => {
     switch (role?.toLowerCase()) {
       case 'admin': return 'bg-red-100 text-red-800';
@@ -260,6 +316,68 @@ export function ProfileSettings() {
           </div>
         </div>
       </div>
+
+      {/* Instructor Signature Section */}
+      {profile.role.toLowerCase() === 'instructor' && (
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Certificate Signature</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+            <div className="w-full sm:w-72">
+              <div
+                className="h-24 rounded-md border border-slate-200 bg-slate-50 flex items-center justify-center cursor-pointer overflow-hidden"
+                onClick={() => profile.signature_path && setShowSignaturePreview(true)}
+              >
+                {profile.signature_path ? (
+                  <img
+                    src={profile.signature_path}
+                    alt="Signature"
+                    className="max-h-20 max-w-full object-contain"
+                  />
+                ) : (
+                  <div className="text-xs text-slate-500 text-center px-3">
+                    No signature uploaded yet
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1">
+              <p className="text-sm text-slate-700">
+                Upload your signature once and it will be used automatically for all generated certificates.
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                PNG/JPG only, max 2MB. Uploading again replaces the previous signature.
+              </p>
+
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => signatureInputRef.current?.click()}
+                  disabled={uploadingSignature}
+                  className="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                >
+                  <PenTool className="h-4 w-4 mr-2" />
+                  {profile.signature_path ? 'Replace Signature' : 'Upload Signature'}
+                </button>
+                <input
+                  ref={signatureInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg"
+                  onChange={handleSignatureUpload}
+                  className="hidden"
+                />
+              </div>
+
+              {uploadingSignature && (
+                <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-600"></div>
+                  Uploading signature...
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Account Information */}
       <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
@@ -419,6 +537,25 @@ export function ProfileSettings() {
             />
             <button
               onClick={() => setShowPicPreview(false)}
+              className="absolute -top-3 -right-3 h-8 w-8 rounded-full bg-white text-slate-700 flex items-center justify-center shadow-md hover:bg-slate-100 text-lg font-bold"
+            >
+              &times;
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Signature Preview Modal */}
+      {showSignaturePreview && profile.signature_path && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setShowSignaturePreview(false)}>
+          <div className="relative bg-white rounded-lg p-4" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={profile.signature_path}
+              alt="Signature preview"
+              className="max-w-[90vw] max-h-[70vh] rounded object-contain"
+            />
+            <button
+              onClick={() => setShowSignaturePreview(false)}
               className="absolute -top-3 -right-3 h-8 w-8 rounded-full bg-white text-slate-700 flex items-center justify-center shadow-md hover:bg-slate-100 text-lg font-bold"
             >
               &times;

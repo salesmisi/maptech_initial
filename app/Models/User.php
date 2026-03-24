@@ -38,6 +38,7 @@ class User extends Authenticatable
         'subdepartment_id',
         'status',
         'profile_picture',
+        'signature_path',
     ];
 
     /**
