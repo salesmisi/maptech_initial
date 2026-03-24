@@ -171,7 +171,7 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
       <button
         type="button"
         onClick={toggleOpen}
-        className="relative bg-white p-1 rounded-full text-slate-400 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+        className="relative bg-white dark:bg-slate-800 p-1 rounded-full text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
       >
         <span className="sr-only">View notifications</span>
         <Bell className="h-6 w-6" />

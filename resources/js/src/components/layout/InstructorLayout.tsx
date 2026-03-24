@@ -38,6 +38,7 @@ export function InstructorLayout({
   user
 }: InstructorLayoutProps) {
   const [showPicPreview, setShowPicPreview] = useState(false);
+  const isDark = theme === 'dark';
   const displayName = user?.fullName ?? user?.fullname ?? user?.name ?? 'Unknown';
   const navItems = [
   {
@@ -72,7 +73,7 @@ export function InstructorLayout({
   }];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className={`app-theme-scope min-h-screen flex ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
       <div className="hidden md:flex md:w-64 md:flex-col fixed inset-y-0 z-10 bg-slate-900 text-white">
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex flex-col items-center pt-8 pb-6 px-4 bg-slate-950">
@@ -144,22 +145,22 @@ export function InstructorLayout({
       </div>
 
       <div className="flex flex-col w-full md:pl-64">
-        <div className="sticky top-0 z-10 flex-shrink-0 flex h-16 bg-white shadow-sm border-b border-slate-200">
+        <div className={`sticky top-0 z-10 flex-shrink-0 flex h-16 items-center border-b ${isDark ? 'bg-slate-900/75 backdrop-blur-md border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
           <button
             type="button"
-            className="px-4 border-r border-slate-200 text-slate-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500 md:hidden">
+            className={`px-4 border-r focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500 md:hidden ${isDark ? 'border-slate-800 text-slate-300' : 'border-slate-200 text-slate-500'}`}>
 
             <span className="sr-only">Open sidebar</span>
             <Menu className="h-6 w-6" />
           </button>
-          <div className="flex-1 px-4 flex justify-between">
-            <div className="flex-1 flex">
-              <div className="relative w-full text-slate-400 focus-within:text-slate-600">
-                <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
+          <div className="flex-1 px-4 flex items-center justify-between gap-4">
+            <div className="flex-1 flex items-center">
+              <div className={`relative w-full max-w-4xl h-10 text-slate-400 ${isDark ? 'focus-within:text-slate-300' : 'focus-within:text-slate-600'}`}>
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                   <Search className="h-5 w-5" />
                 </div>
                 <input
-                  className="block w-full h-full pl-8 pr-3 py-2 border-transparent text-slate-900 placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-0 focus:border-transparent sm:text-sm"
+                  className={`block w-full h-10 rounded-xl pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500/40 sm:text-sm ${isDark ? 'bg-slate-800/80 border border-slate-700 text-slate-100 placeholder-slate-400' : 'bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-500'}`}
                   placeholder="Search courses, quizzes..."
                   type="search" />
 
@@ -168,7 +169,7 @@ export function InstructorLayout({
             <div className="ml-4 flex items-center md:ml-6">
               <button
                 onClick={onToggleTheme}
-                className="mr-3 inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                className={`mr-3 inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-semibold ${isDark ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'}`}
                 title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               >
                 {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -177,7 +178,7 @@ export function InstructorLayout({
             </div>
           </div>
         </div>
-        <main className="flex-1 overflow-y-auto bg-slate-50 p-6">
+        <main className={`flex-1 overflow-y-auto p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50'}`}>
           {children}
         </main>
       </div>
