@@ -238,7 +238,7 @@ export function App() {
   if (!user) {
     return (
       <>
-        <LoginPage onLogin={handleLogin} />
+        <LoginPage onLogin={handleLogin} theme={theme} />
         {renderThemeToggle()}
       </>
     );
