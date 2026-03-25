@@ -386,6 +386,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   // Enrollment state
   const [allUsers, setAllUsers] = useState<AllUser[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [enrollSearch, setEnrollSearch] = useState('');
   const [enrolling, setEnrolling] = useState(false);
   const [enrollError, setEnrollError] = useState<string | null>(null);
   const [enrollSuccess, setEnrollSuccess] = useState<string | null>(null);
@@ -636,7 +637,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
   const loadAllUsers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/${apiPrefix}/users`, {
+      const query = courseId ? `?course_id=${encodeURIComponent(courseId)}` : '';
+      const res = await fetch(`${API_BASE}/${apiPrefix}/users${query}`, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
@@ -655,6 +657,12 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       loadAllUsers();
     }
   }, [courseId]);
+
+  useEffect(() => {
+    if (courseId && activeTab === 'students') {
+      loadAllUsers();
+    }
+  }, [courseId, activeTab]);
 
   const deptOptions = Array.from(new Set(course?.enrolled_users.map(u => String(u.department).trim()).filter(d => d && d !== 'null')) || []);
 
@@ -1036,8 +1044,35 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
   // ─── ENROLLMENT HANDLERS ──────────────────────────────────────────────────
   const enrolledIds = new Set(course?.enrolled_users.map(u => u.id) ?? []);
+
+  const normalizeDepartmentKey = (value?: string | null) => {
+    const raw = String(value || '').toLowerCase();
+    const compact = raw
+      .replace(/department/g, '')
+      .replace(/dept/g, '')
+      .replace(/[^a-z0-9]/g, '');
+
+    if (['it', 'informationtechnology', 'informationtech'].includes(compact)) return 'it';
+    if (['hr', 'humanresources'].includes(compact)) return 'humanresources';
+    if (['salesandmarketing', 'marketingandsales'].includes(compact)) return 'salesandmarketing';
+    return compact;
+  };
+
+  const courseDepartmentKey = normalizeDepartmentKey(course?.department);
   // Only show employees from the same department as the course (exclude already-enrolled)
-  const availableUsers = allUsers.filter(u => !enrolledIds.has(u.id) && String(u.department) === String(course?.department));
+  const availableUsers = allUsers.filter(u => {
+    if (enrolledIds.has(u.id)) return false;
+    if (!courseDepartmentKey) return true;
+    return normalizeDepartmentKey(u.department) === courseDepartmentKey;
+  });
+
+  const normalizedEnrollSearch = enrollSearch.trim().toLowerCase();
+  const filteredAvailableUsers = availableUsers.filter(u => {
+    if (!normalizedEnrollSearch) return true;
+    const name = (u.fullname || '').toLowerCase();
+    const email = (u.email || '').toLowerCase();
+    return name.includes(normalizedEnrollSearch) || email.includes(normalizedEnrollSearch);
+  });
 
   const handleEnroll = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1734,22 +1769,34 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                 {enrollSuccess}
               </div>
             )}
-            <form onSubmit={handleEnroll} className="flex gap-3">
-              <select
-                value={selectedUserId}
-                onChange={e => setSelectedUserId(e.target.value)}
-                className="flex-1 border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              >
-                <option value="">— Select an employee to enroll —</option>
-                {availableUsers.length === 0 && (
-                  <option disabled>All active employees are already enrolled</option>
-                )}
-                {availableUsers.map(u => (
-                  <option key={u.id} value={u.id}>
-                    {u.fullname} ({u.email}) · {u.department || 'No Dept'}
-                  </option>
-                ))}
-              </select>
+            <form onSubmit={handleEnroll} className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 space-y-2">
+                <input
+                  type="text"
+                  value={enrollSearch}
+                  onChange={e => setEnrollSearch(e.target.value)}
+                  className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  placeholder={course.department ? `Search ${course.department} employees by name or email` : 'Search employees by name or email'}
+                />
+                <select
+                  value={selectedUserId}
+                  onChange={e => setSelectedUserId(e.target.value)}
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  {filteredAvailableUsers.length === 0 && (
+                    <option disabled>
+                      {availableUsers.length === 0
+                        ? 'All active employees are already enrolled'
+                        : 'No employees match your search'}
+                    </option>
+                  )}
+                  {filteredAvailableUsers.map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.fullname} ({u.email}) · {u.department || 'No Dept'}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
                 type="submit"
                 disabled={!selectedUserId || enrolling}
