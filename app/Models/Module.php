@@ -24,6 +24,7 @@ class Module extends Model
         'title',
         'description',
         'content_path',
+        'logo_path',
         'course_id',
         'order',
     ];

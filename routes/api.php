@@ -209,6 +209,7 @@ Route::get('/me/audit-logs', function (Request $request) {
 
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\CourseController as AdminCourseController;
+use App\Http\Controllers\Admin\ProductLogoManagerController;
 use App\Http\Controllers\Admin\BusinessDetailsController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\QuizController as AdminQuizController;
@@ -276,6 +277,12 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::put('/courses/{courseId}/modules/{moduleId}', [AdminCourseController::class, 'updateModule']);
     Route::delete('/courses/{courseId}/modules/{moduleId}', [AdminCourseController::class, 'deleteModule']);
     Route::post('/courses/{courseId}/modules/reorder', [AdminCourseController::class, 'reorderModules']);
+
+    // Product Logo Manager (one active logo per module)
+    Route::get('/product-logos/modules', [ProductLogoManagerController::class, 'index']);
+    Route::post('/product-logos/modules/{module}/logo', [ProductLogoManagerController::class, 'upload']);
+    Route::patch('/product-logos/modules/{module}/logo', [ProductLogoManagerController::class, 'updateName']);
+    Route::delete('/product-logos/modules/{module}/logo', [ProductLogoManagerController::class, 'destroy']);
 
     // Lesson Management
     Route::post('/modules/{moduleId}/lessons', [AdminCourseController::class, 'addLesson']);

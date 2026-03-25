@@ -18,6 +18,7 @@ import { NotificationManagement } from './pages/admin/NotificationManagement';
 import { AuditLogs } from './pages/admin/AuditLogs';
 import { AdminFeedback } from './pages/admin/AdminFeedback';
 import { BusinessDetails } from './pages/admin/BusinessDetails';
+import { ProductLogoManager } from './pages/admin/ProductLogoManager';
 
 // Instructor Pages
 import { InstructorDashboard } from './pages/instructor/InstructorDashboard';
@@ -68,6 +69,34 @@ export function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
+
+  const getRouteStateFromUrl = () => {
+    if (typeof window === 'undefined') {
+      return { page: null as string | null, courseId: null as string | null };
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    return {
+      page: params.get('page'),
+      courseId: params.get('courseId'),
+    };
+  };
+
+  const updateUrlRouteState = (page: string, courseId?: string) => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    params.set('page', page);
+
+    if (courseId) {
+      params.set('courseId', courseId);
+    } else {
+      params.delete('courseId');
+    }
+
+    const nextUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.pushState({}, '', nextUrl);
+  };
 
   // =========================
   // CHECK AUTH ON MOUNT
@@ -122,10 +151,20 @@ export function App() {
           try { localStorage.setItem('maptech_user_name', (data.fullName ?? data.fullname ?? data.name) || ''); } catch (e) { /* ignore */ }
 
           // Restore saved page for this role
+          const routeState = getRouteStateFromUrl();
           const savedPage = localStorage.getItem(`maptech_page_${role}`);
           const savedCourseId = localStorage.getItem(`maptech_courseId_${role}`);
-          if (savedPage) setCurrentPage(savedPage);
-          if (savedCourseId) setSelectedCourseId(savedCourseId);
+          if (routeState.page) {
+            setCurrentPage(routeState.page);
+          } else if (savedPage) {
+            setCurrentPage(savedPage);
+          }
+
+          if (routeState.courseId) {
+            setSelectedCourseId(routeState.courseId);
+          } else if (savedCourseId) {
+            setSelectedCourseId(savedCourseId);
+          }
         }
       } catch (error) {
         console.error('Auth check failed:', error);
@@ -135,6 +174,19 @@ export function App() {
     };
 
     checkAuth();
+  }, []);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const routeState = getRouteStateFromUrl();
+      if (routeState.page) {
+        setCurrentPage(routeState.page);
+      }
+      setSelectedCourseId(routeState.courseId);
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
   // =========================
@@ -202,6 +254,15 @@ export function App() {
         localStorage.setItem(`maptech_courseId_${user.role}`, courseId);
       }
     }
+    if (!courseId) {
+      setSelectedCourseId(null);
+      if (user) {
+        localStorage.removeItem(`maptech_courseId_${user.role}`);
+      }
+    }
+
+    updateUrlRouteState(page, courseId);
+
     if (typeof quizId !== 'undefined') {
       if (user) {
         try { localStorage.setItem(`maptech_quizId_${user.role}`, String(quizId ?? '')); } catch (e) { /* ignore */ }
@@ -271,6 +332,7 @@ export function App() {
           {currentPage === 'audit-logs' && <AuditLogs />}
           {currentPage === 'business-details' && <BusinessDetails />}
           {currentPage === 'feedbacks' && <AdminFeedback />}
+          {currentPage === 'product-logos' && <ProductLogoManager />}
           {currentPage === 'settings' && <ProfileSettings />}
         </AdminLayout>
       </>
