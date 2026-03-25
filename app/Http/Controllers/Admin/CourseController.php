@@ -12,6 +12,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Exception;
 use App\Models\Notification;
 
@@ -388,6 +389,7 @@ class CourseController extends Controller
                     'enrolled_at' => $user->pivot->enrolled_at,
                     'progress'    => $user->pivot->progress,
                     'enrollment_status' => $user->pivot->status,
+                    'locked'      => $user->pivot->locked ?? false,
                 ];
             });
 
@@ -609,5 +611,109 @@ class CourseController extends Controller
         }
 
         return response()->json(['message' => 'Modules reordered']);
+    }
+
+    /**
+     * Lock a specific enrollment.
+     */
+    public function lockEnrollment(Request $request, string $courseId, int $userId)
+    {
+        $course = Course::findOrFail($courseId);
+
+        /** @var \App\Models\Enrollment|null $enrollment */
+        $enrollment = $course->enrollments()->where('user_id', $userId)->first();
+        if (!$enrollment) {
+            return response()->json(['message' => 'Enrollment not found'], 404);
+        }
+
+        $enrollment->update(['locked' => true]);
+
+        return response()->json(['message' => 'Enrollment locked']);
+    }
+
+    /**
+     * Unlock an enrollment.
+     */
+    public function unlockEnrollment(Request $request, string $courseId, int $userId)
+    {
+        $request->validate([
+            'duration_minutes' => 'nullable|integer|min:1',
+            'expires_at' => 'nullable|date',
+        ]);
+
+        $course = Course::findOrFail($courseId);
+
+        /** @var \App\Models\Enrollment|null $enrollment */
+        $enrollment = $course->enrollments()->where('user_id', $userId)->first();
+        if (!$enrollment) {
+            return response()->json(['message' => 'Enrollment not found'], 404);
+        }
+
+        // compute unlocked_until if provided
+        $until = null;
+        if ($request->filled('duration_minutes')) {
+            $until = now()->addMinutes((int) $request->input('duration_minutes'));
+        } elseif ($request->filled('expires_at')) {
+            $until = \Carbon\Carbon::parse($request->input('expires_at'))->setTimezone('UTC');
+        }
+
+        $data = ['locked' => false];
+        if ($until) $data['unlocked_until'] = $until;
+
+        $enrollment->update($data);
+
+        return response()->json(['message' => 'Enrollment unlocked']);
+    }
+
+    /**
+     * Lock a specific module for a given user.
+     */
+    public function lockModule(Request $request, string $courseId, string $moduleId, int $userId)
+    {
+        $course = Course::findOrFail($courseId);
+
+        $module = Module::where('course_id', $course->id)->where('id', $moduleId)->first();
+        if (!$module) return response()->json(['message' => 'Module not found'], 404);
+
+        DB::table('module_user')->updateOrInsert(
+            ['module_id' => $module->id, 'user_id' => $userId],
+            ['unlocked' => false, 'unlocked_at' => null, 'unlocked_until' => null, 'updated_at' => now(), 'created_at' => now()]
+        );
+
+        return response()->json(['message' => 'Module locked for user']);
+    }
+
+    /**
+     * Unlock a specific module for a given user.
+     */
+    public function unlockModule(Request $request, string $courseId, string $moduleId, int $userId)
+    {
+        $request->validate([
+            'duration_minutes' => 'nullable|integer|min:1',
+            'expires_at' => 'nullable|date',
+        ]);
+
+        $course = Course::findOrFail($courseId);
+
+        $module = Module::where('course_id', $course->id)->where('id', $moduleId)->first();
+        if (!$module) return response()->json(['message' => 'Module not found'], 404);
+
+        // Upsert pivot
+        $until = null;
+        if ($request->filled('duration_minutes')) {
+            $until = now()->addMinutes((int) $request->input('duration_minutes'));
+        } elseif ($request->filled('expires_at')) {
+            $until = \Carbon\Carbon::parse($request->input('expires_at'))->setTimezone('UTC');
+        }
+
+        $payload = ['unlocked' => true, 'unlocked_at' => now(), 'updated_at' => now(), 'created_at' => now()];
+        if ($until) $payload['unlocked_until'] = $until;
+
+        DB::table('module_user')->updateOrInsert(
+            ['module_id' => $module->id, 'user_id' => $userId],
+            $payload
+        );
+
+        return response()->json(['message' => 'Module unlocked for user']);
     }
 }

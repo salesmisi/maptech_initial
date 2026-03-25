@@ -417,18 +417,18 @@ export function AuditLogs() {
 
 
   const roleFilterButtons: { value: RoleFilter; label: string; icon: React.ReactNode; color: string }[] = [
-    { value: "All", label: "All Roles", icon: <Filter className="w-4 h-4" />, color: "bg-gray-100 text-gray-700 hover:bg-gray-200" },
-    { value: "Admin", label: "Admin", icon: <Shield className="w-4 h-4" />, color: "bg-purple-100 text-purple-700 hover:bg-purple-200" },
-    { value: "Instructor", label: "Instructor", icon: <GraduationCap className="w-4 h-4" />, color: "bg-blue-100 text-blue-700 hover:bg-blue-200" },
-    { value: "Employee", label: "Employee", icon: <Users className="w-4 h-4" />, color: "bg-green-100 text-green-700 hover:bg-green-200" },
+    { value: "All", label: "All Roles", icon: <Filter className="w-4 h-4" />, color: "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" },
+    { value: "Admin", label: "Admin", icon: <Shield className="w-4 h-4" />, color: "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/45" },
+    { value: "Instructor", label: "Instructor", icon: <GraduationCap className="w-4 h-4" />, color: "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/45" },
+    { value: "Employee", label: "Employee", icon: <Users className="w-4 h-4" />, color: "bg-green-100 text-green-700 hover:bg-green-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/45" },
   ];
 
   return (
-    <div className="p-6">
+    <div className="p-6 text-slate-900 dark:text-slate-100">
       {/* Toast notification (simple) */}
       {toastMessage && (
         <div className="fixed top-6 right-6 z-50">
-          <div className="bg-white border rounded-lg shadow px-4 py-2 text-sm text-gray-800 flex items-center gap-3">
+          <div className="bg-white border border-slate-200 rounded-lg shadow px-4 py-2 text-sm text-gray-800 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 flex items-center gap-3">
             <div>{toastMessage}</div>
             <button onClick={() => setToastMessage(null)} className="text-gray-400 hover:text-gray-600">×</button>
           </div>
@@ -436,28 +436,28 @@ export function AuditLogs() {
       )}
       {/* Sorting Controls */}
       <div className="mb-4 flex gap-2 items-center">
-        <span className="text-sm text-gray-600">Sort by:</span>
-        <select value={sortField} onChange={e => setSortField(e.target.value as any)} className="px-2 py-1 border rounded text-sm">
+        <span className="text-sm text-gray-600 dark:text-slate-300">Sort by:</span>
+        <select value={sortField} onChange={e => setSortField(e.target.value as any)} className="px-2 py-1 border rounded text-sm bg-white text-slate-800 border-slate-300 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700">
           <option value="time_in">Time In</option>
           <option value="time_out">Time Out</option>
           <option value="name">Name</option>
         </select>
         <button
-          className="px-2 py-1 border rounded text-sm"
+          className="px-2 py-1 border rounded text-sm border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
         >
           {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
         </button>
       </div>
-        <div className="text-xs text-gray-500 mb-2">All times are shown in your local timezone.</div>
+        <div className="text-xs text-gray-500 dark:text-slate-400 mb-2">All times are shown in your local timezone.</div>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-semibold">Audit Logs</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
             Shows login/logout activity and user time logs for all users (Admins, Instructors, Employees). Use the role filters to narrow results.
           </p>
         </div>
-        <span className="text-sm text-gray-500">{total} total entries</span>
+        <span className="text-sm text-gray-500 dark:text-slate-400">{total} total entries</span>
       </div>
 
       {/* Manage Time Logs Modal */}
@@ -550,33 +550,33 @@ export function AuditLogs() {
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 dark:bg-purple-900/20 dark:border-purple-800/40">
           <div className="flex items-center gap-2 text-purple-700 mb-1">
             <Shield className="w-4 h-4" />
             <span className="text-xs font-medium">Admin Sessions</span>
           </div>
-          <p className="text-2xl font-bold text-purple-800">{stats.admin}</p>
+          <p className="text-2xl font-bold text-purple-800 dark:text-purple-300">{stats.admin}</p>
         </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 dark:bg-blue-900/20 dark:border-blue-800/40">
           <div className="flex items-center gap-2 text-blue-700 mb-1">
             <GraduationCap className="w-4 h-4" />
             <span className="text-xs font-medium">Instructor Sessions</span>
           </div>
-          <p className="text-2xl font-bold text-blue-800">{stats.instructor}</p>
+          <p className="text-2xl font-bold text-blue-800 dark:text-blue-300">{stats.instructor}</p>
         </div>
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 dark:bg-emerald-900/20 dark:border-emerald-800/40">
           <div className="flex items-center gap-2 text-green-700 mb-1">
             <Users className="w-4 h-4" />
             <span className="text-xs font-medium">Employee Sessions</span>
           </div>
-          <p className="text-2xl font-bold text-green-800">{stats.employee}</p>
+          <p className="text-2xl font-bold text-green-800 dark:text-emerald-300">{stats.employee}</p>
         </div>
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 dark:bg-slate-800/70 dark:border-slate-700">
           <div className="flex items-center gap-2 text-gray-700 mb-1">
             <Clock className="w-4 h-4" />
             <span className="text-xs font-medium">Total Sessions</span>
           </div>
-          <p className="text-2xl font-bold text-gray-800">{stats.totalSessions}</p>
+          <p className="text-2xl font-bold text-gray-800 dark:text-slate-200">{stats.totalSessions}</p>
         </div>
       </div>
 
@@ -584,13 +584,13 @@ export function AuditLogs() {
       <div className="flex flex-wrap items-center gap-4 mb-4">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500" />
           <input
             type="text"
             placeholder="Search by name or email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border rounded-md text-sm focus:ring-green-500 focus:border-green-500"
+            className="w-full pl-10 pr-4 py-2 border border-slate-300 bg-white text-slate-900 rounded-md text-sm focus:ring-green-500 focus:border-green-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
           />
         </div>
 
@@ -603,7 +603,7 @@ export function AuditLogs() {
               className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
                 roleFilter === btn.value
                   ? btn.color + " ring-2 ring-offset-1 ring-gray-400"
-                  : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                  : "bg-gray-50 text-gray-600 hover:bg-gray-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
               }`}
             >
               {btn.icon}
@@ -615,28 +615,28 @@ export function AuditLogs() {
 
       {/* Active Filters Summary */}
       {(roleFilter !== "All" || search) && (
-        <div className="mb-4 flex items-center gap-2 text-sm text-gray-600">
+        <div className="mb-4 flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
           <span>Showing:</span>
           {roleFilter !== "All" && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded-full text-xs">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-slate-800 rounded-full text-xs">
               {roleFilter}
               <button onClick={() => setRoleFilter("All")} className="ml-1 text-gray-400 hover:text-gray-600">×</button>
             </span>
           )}
           {search && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded-full text-xs">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-slate-800 rounded-full text-xs">
               "{search}"
               <button onClick={() => setSearch("")} className="ml-1 text-gray-400 hover:text-gray-600">×</button>
             </span>
           )}
-          <span className="text-gray-400">({filteredSessions.length} sessions)</span>
+          <span className="text-gray-400 dark:text-slate-500">({filteredSessions.length} sessions)</span>
         </div>
       )}
 
       {/* Bulk actions (visible when users selected) */}
       {selectedLogIds.length > 0 && (
         <div className="mb-4 flex items-center gap-3">
-          <div className="text-sm text-gray-700">{selectedLogIds.length} item(s) selected</div>
+          <div className="text-sm text-gray-700 dark:text-slate-300">{selectedLogIds.length} item(s) selected</div>
           <button
             onClick={async () => {
               showConfirm(`Delete ${selectedLogIds.length} selected log(s)?`, async () => {
@@ -667,18 +667,18 @@ export function AuditLogs() {
                 } finally { setLoading(false); }
               });
             }}
-            className="px-3 py-1 text-sm bg-red-50 text-red-700 border rounded hover:bg-red-100"
+            className="px-3 py-1 text-sm bg-red-50 text-red-700 border border-red-200 rounded hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800/40 dark:hover:bg-red-900/35"
           >
             Delete Logs
           </button>
-          <button onClick={() => { setSelectedLogIds([]); setSelectedUserIds([]); }} className="px-2 py-1 text-sm border rounded">Clear</button>
+          <button onClick={() => { setSelectedLogIds([]); setSelectedUserIds([]); }} className="px-2 py-1 text-sm border border-slate-300 rounded bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">Clear</button>
         </div>
       )}
 
       {/* Bulk actions (visible when users selected) */}
       {selectedUserIds.length > 0 && (
         <div className="mb-4 flex items-center gap-3">
-          <div className="text-sm text-gray-700">{selectedUserIds.length} user(s) selected</div>
+          <div className="text-sm text-gray-700 dark:text-slate-300">{selectedUserIds.length} user(s) selected</div>
           <button
             onClick={async () => {
               showConfirm(`Delete all audit logs for ${selectedUserIds.length} selected user(s)?`, async () => {
@@ -704,15 +704,15 @@ export function AuditLogs() {
           >
             Delete All Logs For Selected Users
           </button>
-          <button onClick={() => setSelectedUserIds([])} className="px-2 py-1 text-sm border rounded">Clear</button>
+          <button onClick={() => setSelectedUserIds([])} className="px-2 py-1 text-sm border border-slate-300 rounded bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">Clear</button>
         </div>
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden border border-slate-200 dark:border-slate-700">
         <div className="overflow-x-auto">
           <table style={{minWidth: '1400px'}} className="min-w-full divide-y divide-gray-200 table-fixed w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-slate-800/80">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <input
@@ -779,17 +779,17 @@ export function AuditLogs() {
               </tr>
             </thead>
             {loading ? (
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
                 <tr>
-                  <td colSpan={12} className="px-6 py-8 text-center text-gray-400">
+                  <td colSpan={12} className="px-6 py-8 text-center text-gray-400 dark:text-slate-500">
                     Loading...
                   </td>
                 </tr>
               </tbody>
             ) : userGroups.length === 0 ? (
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
                 <tr>
-                  <td colSpan={12} className="px-6 py-8 text-center text-gray-400">
+                  <td colSpan={12} className="px-6 py-8 text-center text-gray-400 dark:text-slate-500">
                     No audit logs found.
                   </td>
                 </tr>
@@ -798,8 +798,8 @@ export function AuditLogs() {
               userGroups.map((group) => {
                 const latest = group[0];
                 return (
-                  <tbody key={`group-${latest.user_id}`} className="bg-white divide-y divide-gray-200">
-                    <tr className="hover:bg-gray-50 bg-gray-50">
+                  <tbody key={`group-${latest.user_id}`} className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
+                    <tr className="bg-gray-50 hover:bg-gray-100 dark:bg-slate-800/60 dark:hover:bg-slate-800">
                       <td className="px-6 py-4 whitespace-nowrap">
                           <input
                             type="checkbox"
@@ -968,7 +968,7 @@ export function AuditLogs() {
 
                       {/* Older sessions for this user */}
                       {group.slice(1).map((older) => (
-                        <tr key={older.id} className="hover:bg-gray-50">
+                        <tr key={older.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/70">
                           <td className="px-6 py-2 whitespace-nowrap">
                             <input
                               type="checkbox"
@@ -1053,8 +1053,8 @@ export function AuditLogs() {
 
         {/* Pagination */}
         {lastPage > 1 && (
-          <div className="px-6 py-3 bg-gray-50 border-t flex items-center justify-between">
-            <p className="text-sm text-gray-500">
+          <div className="px-6 py-3 bg-gray-50 dark:bg-slate-800/70 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-slate-400">
               Page {page} of {lastPage}
             </p>
             <div className="flex gap-2">

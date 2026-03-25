@@ -32,6 +32,7 @@ interface EmployeeLayoutProps {
   };
   globalSearch?: string;
   onGlobalSearch?: (term: string) => void;
+  onGlobalSearchSubmit?: (term: string) => void | Promise<void>;
 }
 export function EmployeeLayout({
   children,
@@ -43,6 +44,7 @@ export function EmployeeLayout({
   user,
   globalSearch = '',
   onGlobalSearch,
+  onGlobalSearchSubmit,
 }: EmployeeLayoutProps) {
   const [showPicPreview, setShowPicPreview] = useState(false);
   const isDark = theme === 'dark';
@@ -215,7 +217,13 @@ export function EmployeeLayout({
           </button>
           <div className="flex-1 px-4 flex items-center justify-between gap-4">
             <div className="flex-1 flex items-center">
-              <form className="w-full flex md:ml-0" onSubmit={(e) => e.preventDefault()}>
+              <form
+                className="w-full flex md:ml-0"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  onGlobalSearchSubmit?.(globalSearch);
+                }}
+              >
                 <label htmlFor="search-field" className="sr-only">
                   Search
                 </label>
@@ -238,10 +246,26 @@ export function EmployeeLayout({
             <div className="ml-4 flex items-center md:ml-6">
               <button
                 onClick={onToggleTheme}
-                className={`mr-3 inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-semibold ${isDark ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'}`}
+                aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                className="mr-2 inline-flex items-center"
                 title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               >
-                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                <span className="inline-flex items-center gap-2 rounded-full border border-slate-300/60 bg-white/90 px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition-colors dark:border-slate-600/70 dark:bg-slate-900/85 dark:text-slate-100">
+                  <span className="relative inline-flex h-6 w-11 items-center rounded-full bg-gradient-to-r from-amber-300 via-orange-300 to-yellow-200 p-0.5 dark:from-slate-700 dark:via-slate-600 dark:to-slate-500">
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow ring-1 ring-black/5 transition-all duration-300 dark:bg-slate-900 dark:ring-white/10 ${
+                        theme === 'dark' ? 'left-[22px]' : 'left-0.5'
+                      }`}
+                    >
+                      {theme === 'dark' ? (
+                        <Moon className="m-0.5 h-4 w-4 text-cyan-300" />
+                      ) : (
+                        <Sun className="m-0.5 h-4 w-4 text-amber-500" />
+                      )}
+                    </span>
+                  </span>
+                  <span className="tracking-wide">{theme === 'dark' ? 'Dark' : 'Light'}</span>
+                </span>
               </button>
               <NotificationBell role="Employee" onOpenAll={() => onNavigate('notifications')} />
             </div>

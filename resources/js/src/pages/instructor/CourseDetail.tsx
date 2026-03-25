@@ -211,6 +211,7 @@ interface EnrolledUser {
   enrolled_at: string;
   progress: number;
   enrollment_status: string;
+  locked: boolean;
 }
 
 interface AllUser {
@@ -386,6 +387,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       alert('No modules available for this course.');
       return;
     }
+    setUnlockModalAction('unlock');
     setUnlockModalUserId(userId);
     setUnlockModalOpen(true);
   };
@@ -1566,6 +1568,23 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
           </div>
         </div>
       )}
+
+      <UnlockModalRenderer
+        course={course}
+        open={unlockModalOpen}
+        userId={unlockModalUserId}
+        onConfirm={(userId, moduleId) => {
+          if (unlockModalAction === 'unlock') {
+            performUnlockModuleForUser(userId, moduleId);
+            return;
+          }
+          performLockModuleForUser(userId, moduleId);
+        }}
+        onCancel={() => {
+          setUnlockModalOpen(false);
+          setUnlockModalUserId(null);
+        }}
+      />
 
       {confirm.ConfirmModalRenderer()}
 

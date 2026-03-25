@@ -271,6 +271,12 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::get('/courses/{id}/enrollments', [AdminCourseController::class, 'enrollments']);
     Route::post('/courses/{id}/enrollments', [AdminCourseController::class, 'enroll']);
     Route::delete('/courses/{courseId}/enrollments/{userId}', [AdminCourseController::class, 'unenroll']);
+    Route::post('/courses/{courseId}/enrollments/{userId}/lock', [AdminCourseController::class, 'lockEnrollment']);
+    Route::post('/courses/{courseId}/enrollments/{userId}/unlock', [AdminCourseController::class, 'unlockEnrollment']);
+
+    // Per-module lock/unlock for a specific user (admin)
+    Route::post('/courses/{courseId}/modules/{moduleId}/enrollments/{userId}/lock', [AdminCourseController::class, 'lockModule']);
+    Route::post('/courses/{courseId}/modules/{moduleId}/enrollments/{userId}/unlock', [AdminCourseController::class, 'unlockModule']);
 
     // Course Module Management
     Route::post('/courses/{id}/modules', [AdminCourseController::class, 'addModule']);
