@@ -13,6 +13,7 @@ import {
   Sun } from
 'lucide-react';
 import { NotificationBell } from '../NotificationBell';
+import { useBusinessDetails } from '../../hooks/useBusinessDetails';
 interface InstructorLayoutProps {
   children: React.ReactNode;
   currentPage: string;
@@ -39,6 +40,7 @@ export function InstructorLayout({
 }: InstructorLayoutProps) {
   const [showPicPreview, setShowPicPreview] = useState(false);
   const isDark = theme === 'dark';
+  const businessDetails = useBusinessDetails();
   const displayName = user?.fullName ?? user?.fullname ?? user?.name ?? 'Unknown';
   const navItems = [
   {
@@ -79,13 +81,12 @@ export function InstructorLayout({
           <div className="flex flex-col items-center pt-8 pb-6 px-4 bg-slate-950">
             <img
               className="h-16 w-auto mb-3 brightness-110 contrast-110"
-              src="/assets/Maptech-Official-Logo.png"
+              src={businessDetails.logo_url}
               alt="Maptech"
             />
 
             <p className="text-center text-sm font-medium text-slate-300 leading-tight">
-              Maptech Information Solutions<br />
-              Inc.
+              {businessDetails.company_name}
             </p>
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">

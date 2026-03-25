@@ -18,6 +18,7 @@ import {
   Sun
 } from 'lucide-react';
 import { NotificationBell } from '../NotificationBell';
+import { useBusinessDetails } from '../../hooks/useBusinessDetails';
 interface AdminLayoutProps {
   children: React.ReactNode;
   currentPage: string;
@@ -45,6 +46,7 @@ export function AdminLayout({
   const [showPicPreview, setShowPicPreview] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(user?.fullName ?? user?.fullname ?? user?.name ?? null);
   const isDark = theme === 'dark';
+  const businessDetails = useBusinessDetails();
 
   // If user prop lacks a name, try fetching profile as a fallback (helps when time-in event updates profile separately)
   useEffect(() => {
@@ -114,6 +116,11 @@ export function AdminLayout({
     id: 'settings',
     label: 'Settings',
     icon: Settings
+  },
+  {
+    id: 'business-details',
+    label: 'Business Details',
+    icon: Building2
   }];
 
   return (
@@ -124,13 +131,12 @@ export function AdminLayout({
           <div className="flex flex-col items-center pt-8 pb-6 px-4 bg-slate-950">
             <img
               className="h-16 w-auto mb-3 brightness-110 contrast-110"
-              src="/assets/Maptech-Official-Logo.png"
+              src={businessDetails.logo_url}
               alt="Maptech"
             />
 
             <p className={`text-center text-sm font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-slate-300'}`}>
-              Maptech Information Solutions<br />
-              Inc.
+              {businessDetails.company_name}
             </p>
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">

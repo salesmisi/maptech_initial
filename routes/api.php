@@ -209,6 +209,7 @@ Route::get('/me/audit-logs', function (Request $request) {
 
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\CourseController as AdminCourseController;
+use App\Http\Controllers\Admin\BusinessDetailsController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\QuizController as AdminQuizController;
 use App\Http\Controllers\AnalyticsController;
@@ -228,11 +229,17 @@ Route::get('/test-auth', function () {
     ]);
 });
 
+// Public business branding details for app sidebars
+Route::get('/business-details', [BusinessDetailsController::class, 'show']);
+
 Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->group(function () {
 
     // Dashboard
     Route::get('/dashboard', [UserController::class, 'dashboard']);
     Route::get('/activity', [UserController::class, 'activity']);
+
+    // Business Details
+    Route::post('/business-details', [BusinessDetailsController::class, 'update']);
 
     // Reports & Analytics
     Route::get('/reports', [UserController::class, 'reports']);
