@@ -32,6 +32,25 @@ const getXsrfToken = async (): Promise<string> => {
   return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
 };
 
+const LESSON_INFO_BLOCK_RE = /<div\s+data-lesson-info="1">[\s\S]*?<\/div>/i;
+const LESSON_GLOSSARY_BLOCK_RE = /<div\s+data-lesson-glossary="1"\s+data-json="([^"]*)"\s*><\/div>/i;
+
+const stripLessonMetaBlocks = (content: string) =>
+  (content || '').replace(LESSON_INFO_BLOCK_RE, '').replace(LESSON_GLOSSARY_BLOCK_RE, '').trim();
+
+const extractLessonGlossary = (content: string): Record<string, string> => {
+  const match = (content || '').match(LESSON_GLOSSARY_BLOCK_RE);
+  if (!match?.[1]) return {};
+
+  try {
+    const parsed = JSON.parse(decodeURIComponent(match[1]));
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed as Record<string, string>;
+  } catch {
+    return {};
+  }
+};
+
 interface QuizAttemptSummary {
   score: number;
   percentage: number;
@@ -87,6 +106,15 @@ interface QuizResult {
   pass_percentage: number;
 }
 
+interface QuizAttemptRecord {
+  id: number;
+  score: number;
+  total_questions: number;
+  percentage: number;
+  passed: boolean;
+  created_at: string;
+}
+
 interface CourseData {
   id: string;
   title: string;
@@ -123,6 +151,9 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [quizSubmitting, setQuizSubmitting] = useState(false);
   const [showResultRevealed, setShowResultRevealed] = useState(false);
+  const [quizAttempts, setQuizAttempts] = useState<QuizAttemptRecord[]>([]);
+  const [selectedSentence, setSelectedSentence] = useState('');
+  const [selectedSentenceDefinition, setSelectedSentenceDefinition] = useState('');
 
   const loadCourse = async () => {
     try {
@@ -218,7 +249,87 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     setQuizResult(null);
     setShowResultRevealed(false);
     setShowQuiz(false);
+    setQuizAttempts([]);
   }, [currentModule?.id]);
+
+  useEffect(() => {
+    const loadAttempts = async () => {
+      if (!currentModule?.quiz?.id) {
+        setQuizAttempts([]);
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/employee/quizzes/${currentModule.quiz.id}/attempts`, {
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setQuizAttempts(Array.isArray(data) ? data : []);
+      } catch {
+        setQuizAttempts([]);
+      }
+    };
+
+    loadAttempts();
+  }, [currentModule?.quiz?.id]);
+
+  useEffect(() => {
+    setSelectedSentence('');
+    setSelectedSentenceDefinition('');
+  }, [currentLesson?.id]);
+
+  const getSentenceFromClick = (event: React.MouseEvent<HTMLDivElement>): string => {
+    const selected = window.getSelection()?.toString().trim();
+    if (selected) {
+      return selected.replace(/\s+/g, ' ').trim();
+    }
+
+    const anyDoc = document as any;
+    let textNode: Text | null = null;
+    let offset = 0;
+
+    if (typeof anyDoc.caretPositionFromPoint === 'function') {
+      const pos = anyDoc.caretPositionFromPoint(event.clientX, event.clientY);
+      textNode = pos?.offsetNode ?? null;
+      offset = pos?.offset ?? 0;
+    } else if (typeof anyDoc.caretRangeFromPoint === 'function') {
+      const range = anyDoc.caretRangeFromPoint(event.clientX, event.clientY);
+      textNode = range?.startContainer ?? null;
+      offset = range?.startOffset ?? 0;
+    }
+
+    if (!textNode || textNode.nodeType !== Node.TEXT_NODE || !textNode.textContent) {
+      return '';
+    }
+
+    const text = textNode.textContent;
+    let idx = Math.min(Math.max(offset, 0), text.length - 1);
+    if (/\s/.test(text[idx] || '') && idx > 0) idx -= 1;
+    if (!text[idx]) return '';
+
+    let start = idx;
+    let end = idx;
+    while (start > 0 && !/[.!?\n]/.test(text[start - 1])) start--;
+    while (end < text.length && !/[.!?\n]/.test(text[end])) end++;
+    if (end < text.length && /[.!?]/.test(text[end])) end++;
+
+    return text
+      .slice(start, end)
+      .replace(/\s+/g, ' ')
+      .replace(/^[\s\-*]+/, '')
+      .trim();
+  };
+
+  const handleSentenceClick = (event: React.MouseEvent<HTMLDivElement>, lesson: LessonData) => {
+    const sentence = getSentenceFromClick(event);
+    if (!sentence) return;
+
+    const glossary = extractLessonGlossary(lesson.text_content || '');
+    setSelectedSentence(sentence);
+    setSelectedSentenceDefinition(glossary[sentence] || 'No saved information for this sentence yet.');
+  };
 
   const selectModule = (mod: ModuleData) => {
     if (!mod.is_unlocked) return;
@@ -287,6 +398,19 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
       });
       setQuizState('submitted');
       if (data.passed) await loadCourse();
+
+      try {
+        const attemptsRes = await fetch(`${API_BASE}/employee/quizzes/${currentModule.quiz.id}/attempts`, {
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+        });
+        if (attemptsRes.ok) {
+          const attemptsData = await attemptsRes.json();
+          setQuizAttempts(Array.isArray(attemptsData) ? attemptsData : []);
+        }
+      } catch {
+        // keep existing UI state if attempt refresh fails
+      }
     } catch (e: any) {
       alert(e.message);
     } finally {
@@ -337,6 +461,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
 
     // Text-only lesson (no file attached)
     if (hasText && !hasFile) {
+      const renderedText = sanitizeHtml(stripLessonMetaBlocks(currentLesson.text_content || ''));
       return (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="px-6 py-5">
@@ -347,9 +472,17 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
                 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-2.5 [&_h3]:mb-1
                 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2
                 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2
-                [&_li]:my-1 [&_p]:my-2"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentLesson.text_content!) }}
+                [&_li]:my-1 [&_p]:my-2 cursor-text"
+              title="Click a sentence to read its information"
+              onClick={(e) => handleSentenceClick(e, currentLesson)}
+              dangerouslySetInnerHTML={{ __html: renderedText }}
             />
+            {selectedSentence && (
+              <div className="mt-4 rounded-md border border-blue-200 bg-blue-50 p-3 space-y-2">
+                <p className="text-xs text-blue-800"><strong>Sentence:</strong> {selectedSentence}</p>
+                <p className="text-sm text-blue-900">{selectedSentenceDefinition}</p>
+              </div>
+            )}
           </div>
         </div>
       );
@@ -367,9 +500,17 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
               [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-2.5 [&_h3]:mb-1
               [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2
               [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2
-              [&_li]:my-1 [&_p]:my-2"
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentLesson.text_content!) }}
+              [&_li]:my-1 [&_p]:my-2 cursor-text"
+            title="Click a sentence to read its information"
+            onClick={(e) => handleSentenceClick(e, currentLesson)}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(stripLessonMetaBlocks(currentLesson.text_content || '')) }}
           />
+          {selectedSentence && (
+            <div className="mt-4 rounded-md border border-blue-200 bg-blue-50 p-3 space-y-2">
+              <p className="text-xs text-blue-800"><strong>Sentence:</strong> {selectedSentence}</p>
+              <p className="text-sm text-blue-900">{selectedSentenceDefinition}</p>
+            </div>
+          )}
         </div>
       </div>
     ) : null;
@@ -625,6 +766,23 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
             </button>
           )}
         </div>
+
+        {quizAttempts.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-indigo-200">
+            <p className="text-xs font-semibold text-indigo-700 mb-2">Your Recent Attempts</p>
+            <div className="space-y-1.5">
+              {quizAttempts.slice(0, 5).map((attempt) => (
+                <div key={attempt.id} className="flex items-center justify-between text-xs bg-white border border-slate-200 rounded-md px-2.5 py-2">
+                  <span className="text-slate-600">{new Date(attempt.created_at).toLocaleString()}</span>
+                  <span className="font-medium text-slate-800">{attempt.score}/{attempt.total_questions} ({Number(attempt.percentage).toFixed(1)}%)</span>
+                  <span className={`font-semibold ${attempt.passed ? 'text-green-700' : 'text-red-700'}`}>
+                    {attempt.passed ? 'Passed' : 'Failed'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   };

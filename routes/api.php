@@ -623,6 +623,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
 
     // Quiz Management
     Route::get('/quizzes', [InstructorQuizController::class, 'index']);
+    Route::get('/quiz-attempts', [InstructorQuizController::class, 'attempts']);
     Route::get('/courses/{courseId}/quizzes', [InstructorQuizController::class, 'forCourse']);
     Route::post('/courses/{courseId}/quizzes', [InstructorQuizController::class, 'store']);
     Route::get('/modules/{moduleId}/quizzes', [InstructorQuizController::class, 'forModule']);
