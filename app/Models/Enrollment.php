@@ -138,6 +138,23 @@ class Enrollment extends Model
     }
 
     /**
+     * Public helper for resolving certificate logo path for an existing user+course.
+     * Used by one-time backfill commands to keep logic aligned with certificate generation.
+     */
+    public static function resolveCertificateLogoPathForUserCourse(int $userId, string $courseId): ?string
+    {
+        $course = Course::find($courseId);
+        if (!$course) {
+            return null;
+        }
+
+        $moduleIds = Module::where('course_id', $courseId)->pluck('id');
+        $quizzes = Quiz::whereIn('module_id', $moduleIds)->get();
+
+        return static::resolveLogoPath($userId, $course, $quizzes);
+    }
+
+    /**
      * Resolve the certificate logo from product logo mappings.
      * Falls back to the course logo when no module/lesson mapping exists.
      */
