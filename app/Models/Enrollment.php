@@ -5,6 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\Course;
+use App\Models\Lesson;
+use App\Models\LessonEvent;
+use App\Models\Module;
 use App\Models\ProductLogo;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
@@ -130,7 +133,7 @@ class Enrollment extends Model
             'certificate_code' => $code,
             'completed_at'     => $now,
             'score'            => round($avgScore, 2),
-            'logo_path'        => static::resolveLogoPath($course, $quizzes),
+            'logo_path'        => static::resolveLogoPath($userId, $course, $quizzes),
         ]);
     }
 
@@ -138,10 +141,84 @@ class Enrollment extends Model
      * Resolve the certificate logo from product logo mappings.
      * Falls back to the course logo when no module/lesson mapping exists.
      */
-    private static function resolveLogoPath(Course $course, $quizzes): ?string
+    private static function resolveLogoPath(int $userId, Course $course, $quizzes): ?string
     {
         $moduleIds = $quizzes->pluck('module_id')->filter()->unique()->values()->all();
+        $quizIds = $quizzes->pluck('id')->filter()->unique()->values()->all();
 
+        // Most specific match: employee's latest passed module in this course.
+        $latestPassed = QuizAttempt::where('user_id', $userId)
+            ->where('passed', true)
+            ->whereIn('quiz_id', $quizIds)
+            ->with('quiz:id,module_id')
+            ->orderByDesc('created_at')
+            ->first();
+
+        $completedModuleId = $latestPassed?->quiz?->module_id;
+        if (!empty($completedModuleId)) {
+            $completedModuleLogo = Module::where('id', $completedModuleId)
+                ->whereNotNull('logo_path')
+                ->value('logo_path');
+
+            if (!empty($completedModuleLogo)) {
+                return $completedModuleLogo;
+            }
+        }
+
+        // Lesson completion fallback: use the latest completion-like lesson event for this course.
+        $lessonIdsInCourse = Lesson::whereIn('module_id', function ($query) use ($course) {
+            $query->select('id')->from('modules')->where('course_id', $course->id);
+        })->pluck('id')->all();
+
+        if (!empty($lessonIdsInCourse)) {
+            $latestLessonEvent = LessonEvent::where('user_id', $userId)
+                ->whereIn('lesson_id', $lessonIdsInCourse)
+                ->whereIn('event_type', ['lesson_completed', 'lesson_complete', 'completed', 'yt_end'])
+                ->orderByDesc('created_at')
+                ->first();
+
+            if (!empty($latestLessonEvent?->lesson_id)) {
+                $lessonLogo = ProductLogo::where('lesson_id', $latestLessonEvent->lesson_id)
+                    ->orderByDesc('id')
+                    ->value('file_path');
+
+                if (!empty($lessonLogo)) {
+                    return $lessonLogo;
+                }
+
+                $lessonModuleLogo = Module::where('id', function ($query) use ($latestLessonEvent) {
+                    $query->select('module_id')->from('lessons')->where('id', $latestLessonEvent->lesson_id)->limit(1);
+                })->whereNotNull('logo_path')->value('logo_path');
+
+                if (!empty($lessonModuleLogo)) {
+                    return $lessonModuleLogo;
+                }
+            }
+        }
+
+        // Primary source: direct logo assignment on modules table.
+        if (!empty($moduleIds)) {
+            $module = Module::whereIn('id', $moduleIds)
+                ->whereNotNull('logo_path')
+                ->orderBy('id')
+                ->first();
+
+            if (!empty($module?->logo_path)) {
+                return $module->logo_path;
+            }
+        }
+
+        // If no quiz-linked modules are available, try any module in the course.
+        $courseModuleLogo = Module::where('course_id', $course->id)
+            ->whereNotNull('logo_path')
+            ->orderBy('id')
+            ->value('logo_path');
+
+        if (!empty($courseModuleLogo)) {
+            return $courseModuleLogo;
+        }
+
+        // Compatibility fallback for existing product_logos mappings.
         foreach ($moduleIds as $moduleId) {
             $moduleLogo = ProductLogo::where('module_id', $moduleId)
                 ->orderByDesc('id')

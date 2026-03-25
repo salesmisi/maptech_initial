@@ -14,6 +14,7 @@ import {
   MessageCircle,
   Settings,
   ClipboardList,
+  ImagePlus,
   Moon,
   Sun
 } from 'lucide-react';
@@ -108,6 +109,11 @@ export function AdminLayout({
     id: 'audit-logs',
     label: 'Audit Logs',
     icon: ClipboardList
+  },
+  {
+    id: 'product-logos',
+    label: 'Product Logo Manager',
+    icon: ImagePlus
   },
   {
     id: 'settings',
