@@ -372,12 +372,23 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
             const notStarted = course.start_date && new Date(course.start_date) > new Date();
             const hasManualUnlock = (course as any).has_manual_unlock ?? false;
             const ended = course.deadline && new Date(course.deadline) <= new Date() && !hasManualUnlock;
+            const modulesCount = course.modules?.length ?? 0;
+            const hasAnyModule = modulesCount > 0;
+            const showNotAvailable = !notStarted && !ended && course.status === 'Active' && !hasAnyModule;
             return (
             <div key={course.id} className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col ${notStarted ? 'bg-gray-200 border-gray-300' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
               <div className={`h-32 ${notStarted ? 'bg-gray-400' : DEPT_COLORS[course.department] || 'bg-slate-500'} relative flex items-center justify-center`}>
                 <BookOpen className="h-10 w-10 text-white opacity-60" />
-                <span className={`absolute top-3 left-3 text-xs font-semibold px-2 py-0.5 rounded-full ${notStarted ? 'bg-gray-100 text-gray-600' : ended ? 'bg-red-100 text-red-800' : STATUS_COLORS[course.status] || 'bg-slate-100 text-slate-600'}`}>
-                  {notStarted ? 'Not Started' : ended ? 'Locked' : course.status}
+                <span className={`absolute top-3 left-3 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  notStarted
+                    ? 'bg-gray-100 text-gray-600'
+                    : ended
+                      ? 'bg-red-100 text-red-800'
+                      : showNotAvailable
+                        ? 'bg-gray-100 text-gray-700'
+                        : STATUS_COLORS[course.status] || 'bg-slate-100 text-slate-600'
+                }`}>
+                  {notStarted ? 'Not Started' : ended ? 'Locked' : showNotAvailable ? 'Not available' : course.status}
                 </span>
                 <div className="absolute top-3 right-3 flex gap-1">
                   <button
