@@ -268,7 +268,7 @@ export function EnrollmentManagement() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold text-slate-900">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
           Enrollment Management
         </h1>
         <button
@@ -280,14 +280,14 @@ export function EnrollmentManagement() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-4">
+      <div className="bg-white dark:bg-slate-900/80 p-4 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-slate-400" />
           </div>
           <input
             type="text"
-            className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+            className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md leading-5 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
             placeholder="Search employee or course..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)} />
@@ -298,7 +298,7 @@ export function EnrollmentManagement() {
               <Filter className="h-4 w-4 text-slate-400" />
             </div>
             <select
-              className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+              className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md leading-5 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="All">All Status</option>
@@ -321,24 +321,24 @@ export function EnrollmentManagement() {
           <button onClick={loadEnrollments} className="ml-auto text-sm underline">Retry</button>
         </div>
       ) : (
-      <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900/80 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-slate-50">
+          <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+            <thead className="bg-slate-50 dark:bg-slate-800/80">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   Employee
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   Course
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   Enrolled Date
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   Progress
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="relative px-6 py-3">
@@ -346,7 +346,7 @@ export function EnrollmentManagement() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-slate-200">
+            <tbody className="bg-white dark:bg-slate-900/30 divide-y divide-slate-200 dark:divide-slate-700">
               {filteredEnrollments.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">
@@ -358,38 +358,38 @@ export function EnrollmentManagement() {
                 return (
                 <tr
                   key={enrollment.id}
-                  className="hover:bg-slate-50 transition-colors">
+                  className="hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-slate-900">
+                    <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
                       {enrollment.employee_name}
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
                       {enrollment.department}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
                     {enrollment.course_title}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
                     {enrollment.enrolled_at}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="w-full bg-slate-200 rounded-full h-2.5 max-w-[100px]">
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 max-w-[100px]">
                       <div
                         className="bg-green-600 h-2.5 rounded-full"
                         style={{ width: `${enrollment.progress}%` }}>
                       </div>
                     </div>
-                    <span className="text-xs text-slate-500 mt-1">
+                    <span className="text-xs text-slate-500 dark:text-slate-300 mt-1">
                       {enrollment.progress}%
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        status === 'Completed' ? 'bg-green-100 text-green-800' :
-                        status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-slate-100 text-slate-800'
+                        status === 'Completed' ? 'bg-green-100 text-green-800 dark:bg-emerald-500/20 dark:text-emerald-300' :
+                        status === 'In Progress' ? 'bg-yellow-100 text-yellow-800 dark:bg-amber-500/20 dark:text-amber-300' :
+                        'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200'
                       }`}>
                       {status === 'Completed' && <CheckCircle className="h-3 w-3 mr-1" />}
                       {status === 'In Progress' && <Clock className="h-3 w-3 mr-1" />}
@@ -403,16 +403,16 @@ export function EnrollmentManagement() {
                     ) : (
                       <div className="relative inline-block">
                         <button
-                          className="text-slate-400 hover:text-slate-600"
+                          className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-100"
                           onClick={() => setOpenMenuId(openMenuId === enrollment.id ? null : enrollment.id)}
                         >
                           <MoreVertical className="h-5 w-5" />
                         </button>
                         {openMenuId === enrollment.id && (
-                          <div className="absolute right-0 mt-1 w-36 bg-white rounded-md shadow-lg border border-slate-200 z-10">
+                          <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-slate-200 dark:border-slate-700 z-10">
                             <button
                               onClick={() => handleUnenroll(enrollment)}
-                              className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md"
+                              className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-md"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                               Unenroll

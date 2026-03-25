@@ -17,6 +17,7 @@ import { ReportsAnalytics } from './pages/admin/ReportsAnalytics';
 import { NotificationManagement } from './pages/admin/NotificationManagement';
 import { AuditLogs } from './pages/admin/AuditLogs';
 import { AdminFeedback } from './pages/admin/AdminFeedback';
+import { BusinessDetails } from './pages/admin/BusinessDetails';
 import { ProductLogoManager } from './pages/admin/ProductLogoManager';
 
 // Instructor Pages
@@ -299,7 +300,7 @@ export function App() {
   if (!user) {
     return (
       <>
-        <LoginPage onLogin={handleLogin} />
+        <LoginPage onLogin={handleLogin} theme={theme} />
         {renderThemeToggle()}
       </>
     );
@@ -329,6 +330,7 @@ export function App() {
           {currentPage === 'notifications' && <NotificationManagement />}
           {currentPage === 'qa' && <AdminQADiscussion userId={user.id} />}
           {currentPage === 'audit-logs' && <AuditLogs />}
+          {currentPage === 'business-details' && <BusinessDetails />}
           {currentPage === 'feedbacks' && <AdminFeedback />}
           {currentPage === 'product-logos' && <ProductLogoManager />}
           {currentPage === 'settings' && <ProfileSettings />}

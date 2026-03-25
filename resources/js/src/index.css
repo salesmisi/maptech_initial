@@ -6,3 +6,82 @@
 @import 'tailwindcss/utilities';
 
 /* END TAILWIND IMPORTS — ALL OTHER CSS MUST GO BELOW THIS LINE */
+
+/*
+	Theme compatibility layer:
+	Many pages still use light-first utility classes.
+	These scoped overrides ensure dark mode remains readable across all pages
+	rendered inside app layouts without changing every component at once.
+*/
+.dark .app-theme-scope .bg-white {
+	background-color: rgb(15 23 42 / 0.92) !important;
+}
+
+.dark .app-theme-scope .bg-slate-50,
+.dark .app-theme-scope .bg-gray-50 {
+	background-color: rgb(30 41 59 / 0.7) !important;
+}
+
+.dark .app-theme-scope .text-slate-900,
+.dark .app-theme-scope .text-gray-900,
+.dark .app-theme-scope .text-black {
+	color: rgb(241 245 249) !important;
+}
+
+.dark .app-theme-scope .text-slate-700,
+.dark .app-theme-scope .text-slate-600,
+.dark .app-theme-scope .text-slate-500,
+.dark .app-theme-scope .text-gray-700,
+.dark .app-theme-scope .text-gray-600,
+.dark .app-theme-scope .text-gray-500 {
+	color: rgb(148 163 184) !important;
+}
+
+.dark .app-theme-scope .border-slate-200,
+.dark .app-theme-scope .border-slate-300,
+.dark .app-theme-scope .border-gray-200,
+.dark .app-theme-scope .border-gray-300 {
+	border-color: rgb(51 65 85) !important;
+}
+
+.dark .app-theme-scope .divide-slate-200 > :not([hidden]) ~ :not([hidden]),
+.dark .app-theme-scope .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+	border-color: rgb(51 65 85) !important;
+}
+
+.dark .app-theme-scope .hover\:bg-slate-50:hover,
+.dark .app-theme-scope .hover\:bg-gray-50:hover {
+	background-color: rgb(30 41 59 / 0.8) !important;
+}
+
+.dark .app-theme-scope .bg-red-50 {
+	background-color: rgb(127 29 29 / 0.35) !important;
+}
+
+.dark .app-theme-scope .bg-green-50 {
+	background-color: rgb(20 83 45 / 0.35) !important;
+}
+
+/* Light-mode accent contrast guard for tiny icons/labels */
+:root:not(.dark) .app-theme-scope .text-emerald-300 {
+	color: rgb(6 95 70);
+}
+
+:root:not(.dark) .app-theme-scope .text-sky-300,
+:root:not(.dark) .app-theme-scope .text-sky-400 {
+	color: rgb(3 105 161);
+}
+
+:root:not(.dark) .app-theme-scope .text-amber-200,
+:root:not(.dark) .app-theme-scope .text-amber-300 {
+	color: rgb(146 64 14);
+}
+
+:root:not(.dark) .app-theme-scope .text-rose-300,
+:root:not(.dark) .app-theme-scope .text-rose-400 {
+	color: rgb(190 24 93);
+}
+
+:root:not(.dark) .app-theme-scope .text-fuchsia-300 {
+	color: rgb(162 28 175);
+}

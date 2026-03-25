@@ -495,22 +495,22 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
         {/* Sidebar Widgets */}
         <div className="space-y-6">
           {/* Deadlines */}
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-            <h3 className="text-lg font-bold text-slate-900 mb-4">
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 dark:bg-slate-900/80 dark:border-slate-700">
+            <h3 className="text-lg font-bold text-slate-900 mb-4 dark:text-slate-100">
               Upcoming Deadlines
             </h3>
             <div className="space-y-4">
               {upcomingDeadlines.map((item) =>
               <div
                 key={item.id}
-                className="flex items-start p-3 bg-red-50 rounded-md border border-red-100">
+                className="flex items-start p-3 bg-red-50 rounded-md border border-red-100 dark:bg-red-950/25 dark:border-red-900/40">
 
-                  <Clock className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                  <Clock className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0 dark:text-red-400" />
                   <div className="ml-3">
-                    <p className="text-sm font-medium text-slate-900">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-300">
                       {item.title}
                     </p>
-                    <p className="text-xs text-red-600 mt-1">
+                    <p className="text-xs text-red-600 mt-1 dark:text-red-400">
                       {item.date} • {item.type}
                     </p>
                   </div>

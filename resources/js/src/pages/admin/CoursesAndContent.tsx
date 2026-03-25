@@ -836,9 +836,9 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
   const getStatusBadge = (status: string) => {
     const badges = {
-      Active: 'bg-green-100 text-green-800',
-      Draft: 'bg-yellow-100 text-yellow-800',
-      Inactive: 'bg-gray-100 text-gray-800'
+      Active: 'bg-green-100 text-green-800 dark:bg-emerald-500/20 dark:text-emerald-300',
+      Draft: 'bg-yellow-100 text-yellow-800 dark:bg-amber-500/20 dark:text-amber-300',
+      Inactive: 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-200'
     };
     return badges[status as keyof typeof badges] || badges.Draft;
   };
@@ -942,23 +942,23 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Course Management</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Course Management</h1>
       </div>
 
       {/* Search and Filter */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="flex-1 relative">
-          <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-3 text-gray-400" />
+          <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-3 text-gray-400 dark:text-slate-400" />
           <input
             type="text"
             placeholder="Search courses..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-400"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <select
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         >
@@ -972,24 +972,24 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       {/* Courses Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCourses.map((course) => (
-          <div key={course.id} className="relative bg-white rounded-lg shadow hover:shadow-md transition-shadow">
+          <div key={course.id} className="relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)]">
             {/* Course Icon */}
-            <div className="h-32 bg-gradient-to-br from-green-400 to-green-600 rounded-t-lg flex items-center justify-center">
-              <div className="w-16 h-16 bg-white rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 shadow-md">
+            <div className="h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-teal-500 rounded-t-xl flex items-center justify-center">
+              <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md">
                 {course.instructor_profile_picture ? (
                   <img src={course.instructor_profile_picture} alt={course.instructor} className="w-full h-full object-cover" />
                 ) : course.instructor !== 'Unassigned' ? (
-                  <span className="text-2xl font-bold text-green-600">
+                  <span className="text-2xl font-bold text-green-700 dark:text-emerald-300">
                     {course.instructor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                   </span>
                 ) : (
-                  <AcademicCapIcon className="h-8 w-8 text-green-600" />
+                  <AcademicCapIcon className="h-8 w-8 text-green-700 dark:text-emerald-300" />
                 )}
               </div>
             </div>
 
             {/* Course Content */}
-            <div className="p-6">
+            <div className="p-5">
               {/* Status Badge */}
               <div className="flex justify-between items-start mb-3">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getStatusBadge(course.status)}`}>
@@ -998,21 +998,21 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 <div className="flex space-x-1">
                   <button
                     onClick={() => onNavigate?.('course-detail', String(course.id))}
-                    className="p-1 text-gray-400 hover:text-blue-600"
+                    className="p-1.5 rounded-md text-gray-600 hover:text-blue-700 hover:bg-blue-50 dark:text-slate-300 dark:hover:text-sky-300 dark:hover:bg-slate-800"
                     title="Manage Content"
                   >
                     <EyeIcon className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleEditCourse(course)}
-                    className="p-1 text-gray-400 hover:text-yellow-600"
+                    className="p-1.5 rounded-md text-gray-600 hover:text-amber-700 hover:bg-amber-50 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800"
                     title="Edit"
                   >
                     <PencilIcon className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteCourse(course)}
-                    className="p-1 text-gray-400 hover:text-red-600"
+                    className="p-1.5 rounded-md text-gray-600 hover:text-rose-700 hover:bg-rose-50 dark:text-slate-300 dark:hover:text-rose-300 dark:hover:bg-slate-800"
                     title="Delete"
                   >
                     <TrashIcon className="h-4 w-4" />
@@ -1021,10 +1021,10 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               </div>
 
               {/* Course Title */}
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">{course.title}</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2 leading-tight">{course.title}</h3>
 
               {/* Stats */}
-              <div className="flex items-center text-sm text-gray-600 mb-4 space-x-4">
+              <div className="flex items-center text-sm text-gray-600 dark:text-slate-300 mb-4 space-x-4">
                 <div className="flex items-center">
                   <UsersIcon className="h-4 w-4 mr-1" />
                   {course.enrolled_count} Enrolled
@@ -1041,19 +1041,19 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <img
                     src={course.instructor_profile_picture}
                     alt={course.instructor}
-                    className="w-8 h-8 rounded-full object-cover border border-gray-200 flex-shrink-0"
+                    className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-slate-600 flex-shrink-0"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-green-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs font-semibold text-green-700">
+                  <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-emerald-500/20 border border-gray-200 dark:border-slate-600 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-semibold text-green-700 dark:text-emerald-300">
                       {course.instructor !== 'Unassigned'
                         ? course.instructor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
                         : '?'}
                     </span>
                   </div>
                 )}
-                <div className="text-sm text-gray-600">
-                  <div className="font-medium">{course.department}</div>
+                <div className="text-sm text-gray-600 dark:text-slate-300">
+                  <div className="font-medium text-gray-700 dark:text-slate-200">{course.department}</div>
                   <div>{course.instructor}</div>
                 </div>
               </div>
@@ -1061,7 +1061,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               {/* Manage Content Button */}
               <button
                 onClick={() => onNavigate?.('course-detail', String(course.id))}
-                className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors"
+                className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
               >
                 Manage Content →
               </button>
@@ -1073,9 +1073,9 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       {/* Empty State */}
       {filteredCourses.length === 0 && (
         <div className="text-center py-12">
-          <AcademicCapIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No courses found</h3>
-          <p className="text-gray-600 mb-4">
+          <AcademicCapIcon className="h-12 w-12 text-gray-400 dark:text-slate-500 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-slate-100 mb-2">No courses found</h3>
+          <p className="text-gray-600 dark:text-slate-300 mb-4">
             {searchTerm || statusFilter !== 'all'
               ? 'Try adjusting your search or filter criteria'
               : 'Get started by creating your first course'

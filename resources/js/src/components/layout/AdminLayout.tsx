@@ -19,6 +19,7 @@ import {
   Sun
 } from 'lucide-react';
 import { NotificationBell } from '../NotificationBell';
+import { useBusinessDetails } from '../../hooks/useBusinessDetails';
 interface AdminLayoutProps {
   children: React.ReactNode;
   currentPage: string;
@@ -45,6 +46,8 @@ export function AdminLayout({
 }: AdminLayoutProps) {
   const [showPicPreview, setShowPicPreview] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(user?.fullName ?? user?.fullname ?? user?.name ?? null);
+  const isDark = theme === 'dark';
+  const businessDetails = useBusinessDetails();
 
   // If user prop lacks a name, try fetching profile as a fallback (helps when time-in event updates profile separately)
   useEffect(() => {
@@ -119,23 +122,27 @@ export function AdminLayout({
     id: 'settings',
     label: 'Settings',
     icon: Settings
+  },
+  {
+    id: 'business-details',
+    label: 'Business Details',
+    icon: Building2
   }];
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex">
+    <div className={`app-theme-scope min-h-screen flex ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 dark:bg-slate-900 text-slate-900'}`}>
       {/* Sidebar (fixed on all viewports to avoid layout shift when zooming) */}
-      <div className="flex w-64 flex-col fixed inset-y-0 z-10 bg-slate-900 text-white">
+      <div className={`flex w-64 flex-col fixed inset-y-0 z-10 border-r ${isDark ? 'border-slate-800/80 bg-slate-950/95 text-white' : 'border-slate-200 bg-slate-900 text-white'}`}>
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex flex-col items-center pt-8 pb-6 px-4 bg-slate-950">
             <img
               className="h-16 w-auto mb-3 brightness-110 contrast-110"
-              src="/assets/Maptech-Official-Logo.png"
+              src={businessDetails.logo_url}
               alt="Maptech"
             />
 
-            <p className="text-center text-sm font-medium text-slate-300 leading-tight">
-              Maptech Information Solutions<br />
-              Inc.
+            <p className={`text-center text-sm font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-slate-300'}`}>
+              {businessDetails.company_name}
             </p>
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
@@ -147,10 +154,10 @@ export function AdminLayout({
                   <button
                     key={item.id}
                     onClick={() => onNavigate(item.id)}
-                    className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md w-full transition-colors ${isActive ? 'bg-green-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                    className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg w-full transition-colors ${isActive ? 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}>
 
                     <Icon
-                      className={`mr-3 flex-shrink-0 h-5 w-5 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'}`} />
+                      className={`mr-3 flex-shrink-0 h-5 w-5 ${isActive ? 'text-emerald-300' : 'text-slate-400 group-hover:text-slate-200'}`} />
 
                     {item.label}
                   </button>);
@@ -158,7 +165,7 @@ export function AdminLayout({
               })}
             </nav>
           </div>
-          <div className="flex-shrink-0 flex border-t border-slate-800 p-4">
+          <div className={`flex-shrink-0 flex border-t p-4 ${isDark ? 'border-slate-800/80' : 'border-slate-800'}`}>
             <div className="flex-shrink-0 w-full group block">
               <div className="flex items-center">
                 {user.profile_picture ? (
@@ -174,7 +181,7 @@ export function AdminLayout({
                   </div>
                 )}
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-white">{displayName ?? 'Unknown'}</p>
+                  <p className={`text-sm font-medium ${isDark ? 'text-slate-100' : 'text-white'}`}>{displayName ?? 'Unknown'}</p>
                   <p className="text-xs font-medium text-slate-400">
                     Administrator
                   </p>
@@ -194,27 +201,27 @@ export function AdminLayout({
 
       {/* Main content */}
       <div className="flex flex-col w-full pl-64">
-        <div className="sticky top-0 z-10 flex-shrink-0 flex h-16 bg-white dark:bg-slate-900 shadow-sm border-b border-slate-200 dark:border-slate-800">
+        <div className={`sticky top-0 z-10 flex-shrink-0 flex h-16 items-center border-b ${isDark ? 'bg-slate-900/75 backdrop-blur-md border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
           <button
             type="button"
-            className="px-4 border-r border-slate-200 text-slate-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500 md:hidden">
+            className={`px-4 border-r focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 md:hidden ${isDark ? 'border-slate-800 text-slate-300' : 'border-slate-200 text-slate-500'}`}>
 
             <span className="sr-only">Open sidebar</span>
             <Menu className="h-6 w-6" />
           </button>
-          <div className="flex-1 px-4 flex justify-between">
-            <div className="flex-1 flex">
-              <form className="w-full flex md:ml-0" action="#" method="GET">
+          <div className="flex-1 px-4 flex items-center justify-between gap-4">
+            <div className="flex-1 flex items-center">
+              <form className="w-full max-w-4xl md:ml-0" action="#" method="GET">
                 <label htmlFor="search-field" className="sr-only">
                   Search
                 </label>
-                <div className="relative w-full text-slate-400 focus-within:text-slate-600">
-                  <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
+                <div className={`relative w-full h-10 text-slate-400 ${isDark ? 'focus-within:text-slate-300' : 'focus-within:text-slate-600'}`}>
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                     <Search className="h-5 w-5" />
                   </div>
                   <input
                     id="search-field"
-                    className="block w-full h-full pl-8 pr-3 py-2 border-transparent text-slate-900 placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-0 focus:border-transparent sm:text-sm"
+                    className={`block w-full h-10 rounded-xl pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500/40 sm:text-sm ${isDark ? 'bg-slate-800/80 border border-slate-700 text-slate-100 placeholder-slate-400' : 'bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-500'}`}
                     placeholder="Search courses, users, or reports..."
                     type="search"
                     name="search" />
@@ -225,7 +232,7 @@ export function AdminLayout({
             <div className="ml-4 flex items-center md:ml-6">
               <button
                 onClick={onToggleTheme}
-                className="mr-3 inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                className={`mr-3 inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-semibold ${isDark ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'}`}
                 title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               >
                 {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -235,7 +242,7 @@ export function AdminLayout({
           </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900 p-6">
+        <main className={`flex-1 overflow-y-auto p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50 dark:bg-slate-900'}`}>
           {children}
         </main>
       </div>

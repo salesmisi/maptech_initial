@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Lock, ArrowRight } from 'lucide-react';
+import { BusinessFooter } from '../components/business/BusinessFooter';
 
 interface LoginPageProps {
   onLogin: (
@@ -9,13 +10,15 @@ interface LoginPageProps {
     department?: string,
     profile_picture?: string | null
   ) => void;
+  theme: 'light' | 'dark';
 }
 
-export function LoginPage({ onLogin }: LoginPageProps) {
+export function LoginPage({ onLogin, theme }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
 
   // ✅ Function to get cookie value
   const getCookie = (name: string) => {
@@ -134,9 +137,29 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     }
   };
 
+  const isDark = theme === 'dark';
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+    <div className="relative min-h-screen overflow-hidden flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <video
+        className="absolute inset-0 h-full w-full object-cover"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        poster="/assets/pasted-image.jpg"
+        onCanPlay={() => setVideoReady(true)}
+      >
+        <source src="/assets/loginvid.mp4" type="video/mp4" />
+      </video>
+
+      <div
+        className={`absolute inset-0 bg-slate-950/65 transition-opacity duration-500 ${videoReady ? 'opacity-100' : 'opacity-90'}`}
+        aria-hidden="true"
+      />
+
+      <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
           <img
             className="h-20 w-auto"
@@ -144,20 +167,20 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             alt="Maptech LearnHub"
           />
         </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900">
+        <h2 className={`mt-6 text-center text-3xl font-extrabold ${isDark ? 'text-white' : 'text-slate-50'}`}>
           Sign in to LearnHub
         </h2>
-        <p className="mt-2 text-center text-sm text-slate-600">
+        <p className={`mt-2 text-center text-sm ${isDark ? 'text-slate-200' : 'text-slate-100'}`}>
           Maptech Information Solutions Inc.
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border-t-4 border-green-500">
+      <div className="relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className={`backdrop-blur-sm py-8 px-4 shadow sm:rounded-lg sm:px-10 border-t-4 border-green-500 ${isDark ? 'bg-slate-950/75' : 'bg-white/90'}`}>
           <form className="space-y-6" onSubmit={handleSubmit}>
 
             <div>
-              <label htmlFor="login-email" className="block text-sm font-medium text-slate-700">
+              <label htmlFor="login-email" className={`block text-sm font-medium ${isDark ? 'text-slate-100' : 'text-slate-700'}`}>
                 Email address
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
@@ -172,14 +195,14 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500"
+                  className={`block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
                   placeholder="name@maptech.com"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="login-password" className="block text-sm font-medium text-slate-700">
+              <label htmlFor="login-password" className={`block text-sm font-medium ${isDark ? 'text-slate-100' : 'text-slate-700'}`}>
                 Password
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
@@ -194,7 +217,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500"
+                  className={`block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
                   placeholder="••••••••"
                 />
               </div>
@@ -222,6 +245,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           </form>
         </div>
       </div>
+
+      <BusinessFooter isDark={isDark} />
     </div>
   );
 }
