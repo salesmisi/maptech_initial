@@ -10,6 +10,20 @@ use Illuminate\Support\Facades\Storage;
 
 class BusinessDetailsController extends Controller
 {
+    private function normalizeWebsite(?string $website): ?string
+    {
+        $value = trim((string) $website);
+        if ($value === '') {
+            return null;
+        }
+
+        if (! preg_match('/^https?:\/\//i', $value)) {
+            $value = 'https://' . $value;
+        }
+
+        return $value;
+    }
+
     private function normalizeLogoUrl(?string $path): string
     {
         if (! $path) {
@@ -42,6 +56,13 @@ class BusinessDetailsController extends Controller
             'company_name' => $details->company_name,
             'logo_url' => $this->normalizeLogoUrl($details->logo_path),
             'logo_path' => $details->logo_path,
+            'email' => $details->email,
+            'phone' => $details->phone,
+            'mobile_phone' => $details->mobile_phone,
+            'country' => $details->country,
+            'address' => $details->address,
+            'website' => $details->website,
+            'vat_reg_tin' => $details->vat_reg_tin,
         ]);
     }
 
@@ -49,9 +70,26 @@ class BusinessDetailsController extends Controller
     {
         $validated = $request->validate([
             'company_name' => 'required|string|max:255',
+            'email' => 'nullable|email|max:255',
+            'phone' => 'nullable|string|max:20',
+            'mobile_phone' => 'nullable|string|max:20',
+            'country' => 'nullable|string|max:100',
+            'address' => 'nullable|string|max:500',
+            'website' => 'nullable|string|max:255',
+            'vat_reg_tin' => 'nullable|string|max:100',
             'logo' => 'nullable|image|mimes:png,jpg,jpeg,svg,webp|max:2048',
             'remove_logo' => 'nullable|boolean',
         ]);
+
+        $website = $this->normalizeWebsite($validated['website'] ?? null);
+        if ($website !== null && ! filter_var($website, FILTER_VALIDATE_URL)) {
+            return response()->json([
+                'message' => 'Validation failed.',
+                'errors' => [
+                    'website' => ['Please enter a valid website URL.'],
+                ],
+            ], 422);
+        }
 
         $details = $this->currentOrDefault();
 
@@ -73,6 +111,13 @@ class BusinessDetailsController extends Controller
 
         $details->update([
             'company_name' => $validated['company_name'],
+            'email' => $validated['email'] ?? null,
+            'phone' => $validated['phone'] ?? null,
+            'mobile_phone' => $validated['mobile_phone'] ?? null,
+            'country' => $validated['country'] ?? null,
+            'address' => $validated['address'] ?? null,
+            'website' => $website,
+            'vat_reg_tin' => $validated['vat_reg_tin'] ?? null,
             'logo_path' => $newLogoPath,
         ]);
 
@@ -81,6 +126,13 @@ class BusinessDetailsController extends Controller
             'company_name' => $details->company_name,
             'logo_url' => $this->normalizeLogoUrl($details->logo_path),
             'logo_path' => $details->logo_path,
+            'email' => $details->email,
+            'phone' => $details->phone,
+            'mobile_phone' => $details->mobile_phone,
+            'country' => $details->country,
+            'address' => $details->address,
+            'website' => $details->website,
+            'vat_reg_tin' => $details->vat_reg_tin,
         ]);
     }
 }

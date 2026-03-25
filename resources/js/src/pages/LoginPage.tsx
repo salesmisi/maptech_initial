@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Lock, ArrowRight } from 'lucide-react';
+import { BusinessFooter } from '../components/business/BusinessFooter';
 
 interface LoginPageProps {
   onLogin: (
@@ -244,6 +245,8 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
           </form>
         </div>
       </div>
+
+      <BusinessFooter isDark={isDark} />
     </div>
   );
 }
