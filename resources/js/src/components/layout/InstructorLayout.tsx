@@ -72,7 +72,7 @@ export function InstructorLayout({
   }];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex">
       <div className="hidden md:flex md:w-64 md:flex-col fixed inset-y-0 z-10 bg-slate-900 text-white">
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex flex-col items-center pt-8 pb-6 px-4 bg-slate-950">
@@ -144,7 +144,7 @@ export function InstructorLayout({
       </div>
 
       <div className="flex flex-col w-full md:pl-64">
-        <div className="sticky top-0 z-10 flex-shrink-0 flex h-16 bg-white shadow-sm border-b border-slate-200">
+        <div className="sticky top-0 z-10 flex-shrink-0 flex h-16 bg-white dark:bg-slate-900 shadow-sm border-b border-slate-200 dark:border-slate-800">
           <button
             type="button"
             className="px-4 border-r border-slate-200 text-slate-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500 md:hidden">
@@ -177,7 +177,7 @@ export function InstructorLayout({
             </div>
           </div>
         </div>
-        <main className="flex-1 overflow-y-auto bg-slate-50 p-6">
+        <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900 p-6">
           {children}
         </main>
       </div>

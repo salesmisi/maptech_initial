@@ -373,19 +373,19 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold text-slate-900">Course Management</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Course Management</h1>
         {/* Create Course removed on admin UI */}
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-4">
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-slate-400" />
+            <Search className="h-5 w-5 text-slate-400 dark:text-slate-500" />
           </div>
           <input
             type="text"
-            className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+            className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
             placeholder="Search courses..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)} />
@@ -394,10 +394,10 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
         <div className="sm:w-48">
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Filter className="h-4 w-4 text-slate-400" />
+              <Filter className="h-4 w-4 text-slate-400 dark:text-slate-500" />
             </div>
             <select
-              className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+              className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}>
 
@@ -419,7 +419,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
           return (
         <div
           key={course.id}
-          className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow ${notStarted ? 'bg-gray-200 border-gray-300' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
+          className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow dark:bg-slate-800 dark:border-slate-600 ${notStarted ? 'bg-gray-200 border-gray-300' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
 
             <div
             className={`h-32 ${notStarted ? 'bg-gray-400' : course.thumbnail} flex items-center justify-center`}>
@@ -462,14 +462,14 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   </button>
                 </div>
               </div>
-              <h3 className="mt-2 text-lg font-semibold text-slate-900">
+              <h3 className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-50">
                 {course.title}
               </h3>
-              <p className="mt-1 text-sm text-slate-500 line-clamp-2">
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-200 line-clamp-2">
                 {course.description}
               </p>
 
-              <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
+              <div className="mt-4 flex items-center justify-between text-sm text-slate-500 dark:text-slate-200">
                 <div className="flex items-center">
                   <Users className="h-4 w-4 mr-1" />
                   {course.enrolledCount} Enrolled
@@ -481,7 +481,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
               </div>
 
               {notStarted && course.start_date && (
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="mt-2 text-xs text-gray-500 dark:text-slate-300">
                   Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               )}
@@ -507,10 +507,10 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                     </div>
                   )}
                   <div>
-                    <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    <span className="text-xs font-medium text-slate-500 dark:text-slate-200 uppercase tracking-wide">
                       {course.department}
                     </span>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="text-xs text-slate-400 dark:text-slate-300 mt-0.5">
                       {course.instructor}
                     </p>
                   </div>

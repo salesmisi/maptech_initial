@@ -876,11 +876,11 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
         {/* Continue with regular interface */}
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Course Management</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Course Management</h1>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="bg-white rounded-lg shadow hover:shadow-md transition-shadow">
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-md transition-shadow border border-gray-200 dark:border-slate-700">
               <div className="h-32 bg-gradient-to-br from-green-400 to-green-600 rounded-t-lg flex items-center justify-center">
                 <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center">
                   <AcademicCapIcon className="h-8 w-8 text-green-600" />
@@ -892,8 +892,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     Active
                   </span>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Fundamentals of Networking</h3>
-                <div className="flex items-center text-sm text-gray-600 mb-4 space-x-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2">Fundamentals of Networking</h3>
+                <div className="flex items-center text-sm text-gray-600 dark:text-slate-300 mb-4 space-x-4">
                   <div className="flex items-center">
                     <UsersIcon className="h-4 w-4 mr-1" />
                     0 Enrolled
@@ -903,7 +903,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     2 Modules
                   </div>
                 </div>
-                <div className="text-sm text-gray-600 mb-4">
+                <div className="text-sm text-gray-600 dark:text-slate-300 mb-4">
                   <div className="font-medium">IT</div>
                   <div>Instructor: Admin</div>
                 </div>

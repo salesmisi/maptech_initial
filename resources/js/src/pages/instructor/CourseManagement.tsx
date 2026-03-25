@@ -322,7 +322,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold text-slate-900">Courses &amp; Content</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Courses &amp; Content</h1>
         <button
           onClick={openCreate}
           className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
@@ -335,19 +335,19 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
           <input
             type="text"
             placeholder="Search courses..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-md text-sm focus:ring-green-500 focus:border-green-500"
+            className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-green-500 focus:border-green-500"
           />
         </div>
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500"
+          className="border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-green-500 focus:border-green-500"
         >
           <option value="All">All Status</option>
           <option value="Active">Active</option>
@@ -363,8 +363,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16">
-          <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
-          <p className="mt-2 text-sm text-slate-500">No courses found.</p>
+          <BookOpen className="mx-auto h-12 w-12 text-slate-400 dark:text-slate-500" />
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-300">No courses found.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -376,7 +376,16 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
             const hasAnyModule = modulesCount > 0;
             const showNotAvailable = !notStarted && !ended && course.status === 'Active' && !hasAnyModule;
             return (
-            <div key={course.id} className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col ${notStarted ? 'bg-gray-200 border-gray-300' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
+            <div
+              key={course.id}
+              className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col dark:bg-slate-800 dark:border-slate-600 ${
+                notStarted
+                  ? 'bg-gray-200 border-gray-300'
+                  : ended
+                    ? 'bg-white border-red-200'
+                    : 'bg-white border-slate-200'
+              }`}
+            >
               <div className={`h-32 ${notStarted ? 'bg-gray-400' : DEPT_COLORS[course.department] || 'bg-slate-500'} relative flex items-center justify-center`}>
                 <BookOpen className="h-10 w-10 text-white opacity-60" />
                 <span className={`absolute top-3 left-3 text-xs font-semibold px-2 py-0.5 rounded-full ${
@@ -407,10 +416,10 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
               </div>
 
               <div className="p-5 flex-1 flex flex-col">
-                <h3 className="text-base font-bold text-slate-900 line-clamp-1 mb-1">{course.title}</h3>
-                <p className="text-sm text-slate-500 line-clamp-2 mb-3">{course.description}</p>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-50 line-clamp-1 mb-1">{course.title}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-200 line-clamp-2 mb-3">{course.description}</p>
 
-                <div className="flex items-center justify-between text-sm text-slate-500 mb-4">
+                <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-200 mb-4">
                   <div className="flex items-center gap-1">
                     <FileText className="h-4 w-4" />
                     {course.modules?.length ?? 0} Modules
@@ -421,7 +430,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   </div>
                 </div>
                 <div className="mb-4">
-                  <span className="text-xs font-medium text-slate-400">{course.department}</span>
+                  <span className="text-xs font-medium text-slate-400 dark:text-slate-200">{course.department}</span>
                 </div>
 
                 {course.deadline && !ended && (
@@ -430,7 +439,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   </p>
                 )}
                 {notStarted && course.start_date && (
-                  <p className="text-xs text-gray-500 mb-3">
+                  <p className="text-xs text-gray-500 dark:text-slate-300 mb-3">
                     Course has not started yet — Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 )}
@@ -442,7 +451,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   <div className="flex items-center justify-between">
                     <button
                       onClick={() => onNavigate?.('course-detail', String(course.id))}
-                      className="text-sm font-medium text-green-600 hover:text-green-700"
+                      className="text-sm font-medium text-green-600 dark:text-green-300 hover:text-green-700 dark:hover:text-green-200"
                     >
                       Manage Content &rarr;
                     </button>
@@ -450,7 +459,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => onNavigate?.('course-detail', String(course.id))}
-                          className="text-sm px-3 py-1 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-50"
+                          className="text-sm px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                         >
                           Manage Enrollments
                         </button>

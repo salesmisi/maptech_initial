@@ -306,11 +306,11 @@ export function NotificationManagement() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
             Notification System
           </h1>
           {unreadCount > 0 && (
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">
               You have {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
             </p>
           )}
@@ -336,14 +336,14 @@ export function NotificationManagement() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200">
+      <div className="border-b border-slate-200 dark:border-slate-700">
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setActiveTab('received')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'received'
                 ? 'border-green-500 text-green-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
             }`}
           >
             Received ({notifications.length})
@@ -353,7 +353,7 @@ export function NotificationManagement() {
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'sent'
                 ? 'border-green-500 text-green-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
             }`}
           >
             Sent History ({sentHistory.length})

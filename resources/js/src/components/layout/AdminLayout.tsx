@@ -122,7 +122,7 @@ export function AdminLayout({
   }];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex">
       {/* Sidebar (fixed on all viewports to avoid layout shift when zooming) */}
       <div className="flex w-64 flex-col fixed inset-y-0 z-10 bg-slate-900 text-white">
         <div className="flex-1 flex flex-col min-h-0">
@@ -194,7 +194,7 @@ export function AdminLayout({
 
       {/* Main content */}
       <div className="flex flex-col w-full pl-64">
-        <div className="sticky top-0 z-10 flex-shrink-0 flex h-16 bg-white shadow-sm border-b border-slate-200">
+        <div className="sticky top-0 z-10 flex-shrink-0 flex h-16 bg-white dark:bg-slate-900 shadow-sm border-b border-slate-200 dark:border-slate-800">
           <button
             type="button"
             className="px-4 border-r border-slate-200 text-slate-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500 md:hidden">
@@ -235,7 +235,7 @@ export function AdminLayout({
           </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto bg-slate-50 p-6">
+        <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900 p-6">
           {children}
         </main>
       </div>
