@@ -433,4 +433,44 @@ class NotificationController extends Controller
             'recipients_count' => count($notifications),
         ]);
     }
+
+    /**
+     * Admin: Get sent announcements history (announcements sent by current admin).
+     */
+    public function getSentAnnouncements(Request $request)
+    {
+        $admin = Auth::user();
+
+        // Query announcements sent by this admin, grouped by sent date
+        // Group by title, message, and date to avoid duplicate entries for the same announcement
+        $sentAnnouncements = Notification::where('type', 'announcement')
+            ->whereJsonContains('data->from_user_id', $admin->id)
+            ->select(['id', 'title', 'message', 'created_at', 'data'])
+            ->orderByDesc('created_at')
+            ->get()
+            ->groupBy(function ($notification) {
+                // Group by title, message, and date (day) to treat same announcement sent on same day as one entry
+                return $notification->title . '|' . $notification->message . '|' . $notification->created_at->toDateString();
+            })
+            ->map(function ($group) {
+                // Get first item from group (to extract title, message, created_at)
+                $first = $group->first();
+                
+                return [
+                    'id' => $first->id,
+                    'title' => $first->title,
+                    'message' => $first->message,
+                    'target' => 'Multiple Users', // Can be enhanced to show actual target (roles, departments, etc.)
+                    'date' => $first->created_at->toIso8601String(),
+                    'status' => 'Sent',
+                    'recipients_count' => $group->count(),
+                ];
+            })
+            ->values() // Reset keys to create a proper array
+            ->take(100); // Limit to 100 most recent announcements
+
+        return response()->json([
+            'sent_announcements' => $sentAnnouncements,
+        ]);
+    }
 }

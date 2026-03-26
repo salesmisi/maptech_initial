@@ -846,17 +846,17 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   if (loading) {
     return (
       <div className="p-6">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-          <h3 className="text-blue-800 font-medium">Loading Courses...</h3>
-          <p className="text-blue-600 mt-1">Please wait while we fetch your course data.</p>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 dark:bg-slate-800/80 dark:border-slate-700">
+          <h3 className="text-blue-800 font-medium dark:text-slate-100">Loading Courses...</h3>
+          <p className="text-blue-600 mt-1 dark:text-slate-300">Please wait while we fetch your course data.</p>
         </div>
         <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded mb-4"></div>
+          <div className="h-8 bg-gray-200 dark:bg-slate-700 rounded mb-4"></div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3].map(i => (
-              <div key={i} className="bg-white rounded-lg shadow p-6">
-                <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+              <div key={i} className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 border border-transparent dark:border-slate-800">
+                <div className="h-4 bg-gray-200 dark:bg-slate-700 rounded mb-2"></div>
+                <div className="h-4 bg-gray-200 dark:bg-slate-700 rounded w-3/4"></div>
               </div>
             ))}
           </div>
@@ -1126,8 +1126,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     }}
                     className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
                       activePanel === tab.key
-                        ? 'bg-white shadow text-gray-900'
-                        : 'text-gray-600 hover:text-gray-900'
+                        ? 'bg-white shadow text-gray-900 dark:bg-slate-800 dark:text-slate-100'
+                        : 'text-gray-600 hover:text-gray-900 dark:text-slate-300 dark:hover:text-slate-100'
                     }`}
                   >
                     <tab.icon className={`h-4 w-4 ${activePanel === tab.key ? tab.color : ''}`} />
@@ -1149,7 +1149,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                       value={newModuleTitle}
                       onChange={e => setNewModuleTitle(e.target.value)}
                       placeholder="New module title..."
-                      className="flex-1 border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="flex-1 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 rounded-md py-2 px-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       onKeyDown={e => { if (e.key === 'Enter') handleAddModule(); }}
                     />
                     <button
@@ -1162,56 +1162,56 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   </div>
 
                   {loadingModules ? (
-                    <div className="text-center py-8 text-gray-500">Loading modules...</div>
+                    <div className="text-center py-8 text-gray-500 dark:text-slate-300">Loading modules...</div>
                   ) : courseModules.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">No modules yet. Add one above.</div>
+                    <div className="text-center py-8 text-gray-500 dark:text-slate-300">No modules yet. Add one above.</div>
                   ) : (
                     <div className="space-y-3">
                       {courseModules.map((mod) => (
-                        <div key={mod.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                        <div key={mod.id} className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden bg-white dark:bg-slate-900">
                           {/* Module Header */}
-                          <div className="flex items-center justify-between p-4 bg-gray-50 cursor-pointer"
+                          <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
                             onClick={() => setCourseModules(prev => prev.map(m => m.id === mod.id ? { ...m, isOpen: !m.isOpen } : m))}
                           >
                             <div className="flex items-center gap-2">
                               {mod.isOpen
-                                ? <ChevronDownIcon className="h-5 w-5 text-gray-500" />
-                                : <ChevronRightIcon className="h-5 w-5 text-gray-500" />
+                                ? <ChevronDownIcon className="h-5 w-5 text-gray-500 dark:text-slate-300" />
+                                : <ChevronRightIcon className="h-5 w-5 text-gray-500 dark:text-slate-300" />
                               }
                               {editingModuleId === mod.id ? (
                                 <div className="flex gap-2" onClick={e => e.stopPropagation()}>
                                   <input
                                     value={editModuleTitle}
                                     onChange={e => setEditModuleTitle(e.target.value)}
-                                    className="border border-gray-300 rounded px-2 py-1 text-sm"
+                                    className="border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 rounded px-2 py-1 text-sm"
                                     onKeyDown={e => { if (e.key === 'Enter') handleUpdateModule(mod.id); }}
                                   />
                                   <button onClick={() => handleUpdateModule(mod.id)} className="text-green-600 text-sm font-medium">Save</button>
-                                  <button onClick={() => setEditingModuleId(null)} className="text-gray-500 text-sm">Cancel</button>
+                                  <button onClick={() => setEditingModuleId(null)} className="text-gray-500 dark:text-slate-300 text-sm">Cancel</button>
                                 </div>
                               ) : (
-                                <span className="font-medium text-gray-900">{mod.title}</span>
+                                <span className="font-medium text-gray-900 dark:text-slate-100">{mod.title}</span>
                               )}
                             </div>
                             <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                              <span className="text-xs text-gray-500">{mod.lessons?.length || 0} lessons</span>
+                              <span className="text-xs text-gray-500 dark:text-slate-300">{mod.lessons?.length || 0} lessons</span>
                               <button
                                 onClick={() => { setSelectedModuleId(mod.id); setActivePanel('upload'); }}
-                                className="p-1 text-gray-400 hover:text-purple-600"
+                                className="p-1 text-gray-400 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-300"
                                 title="Upload Content to this module"
                               >
                                 <PlusIcon className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => { setEditingModuleId(mod.id); setEditModuleTitle(mod.title); }}
-                                className="p-1 text-gray-400 hover:text-yellow-600"
+                                className="p-1 text-gray-400 dark:text-slate-400 hover:text-yellow-600 dark:hover:text-amber-300"
                                 title="Rename"
                               >
                                 <PencilIcon className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => handleDeleteModule(mod.id)}
-                                className="p-1 text-gray-400 hover:text-red-600"
+                                className="p-1 text-gray-400 dark:text-slate-400 hover:text-red-600 dark:hover:text-rose-300"
                                 title="Delete Module"
                               >
                                 <TrashIcon className="h-4 w-4" />
@@ -1220,44 +1220,44 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                           </div>
                           {/* Module Lessons */}
                           {mod.isOpen && (
-                            <div className="p-4 space-y-2">
+                            <div className="p-4 space-y-2 bg-white dark:bg-slate-900">
                               {mod.pre_assessment && mod.pre_assessment.length > 0 && (
-                                <div className="flex items-center gap-2 p-2 bg-green-50 rounded text-sm text-green-700">
+                                <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-emerald-900/25 rounded text-sm text-green-700 dark:text-emerald-300">
                                   <AcademicCapIcon className="h-4 w-4" />
                                   Quiz: {mod.pre_assessment.length} question{mod.pre_assessment.length !== 1 ? 's' : ''}
                                 </div>
                               )}
                               {mod.lessons && mod.lessons.length > 0 ? (
                                 mod.lessons.map((lesson: any) => (
-                                  <div key={lesson.id} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setPreviewLesson(lesson)}>
+                                  <div key={lesson.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-700 rounded cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors" onClick={() => setPreviewLesson(lesson)}>
                                     <div className="flex items-center gap-2">
                                       {lesson.type === 'Video' ? (
                                         <VideoCameraIcon className="h-4 w-4 text-purple-500" />
                                       ) : lesson.type === 'Document' ? (
                                         <DocumentPlusIcon className="h-4 w-4 text-blue-500" />
                                       ) : (
-                                        <DocumentPlusIcon className="h-4 w-4 text-gray-500" />
+                                        <DocumentPlusIcon className="h-4 w-4 text-gray-500 dark:text-slate-300" />
                                       )}
-                                      <span className="text-sm text-gray-800">{lesson.title}</span>
+                                      <span className="text-sm text-gray-800 dark:text-slate-100">{lesson.title}</span>
                                       <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                                         lesson.status === 'Published' || lesson.status === 'published'
-                                          ? 'bg-green-100 text-green-700'
-                                          : 'bg-yellow-100 text-yellow-700'
+                                          ? 'bg-green-100 text-green-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                          : 'bg-yellow-100 text-yellow-700 dark:bg-amber-900/30 dark:text-amber-300'
                                       }`}>{lesson.status || 'Draft'}</span>
-                                      {lesson.duration && <span className="text-xs text-gray-400">• {lesson.duration}</span>}
-                                      {lesson.file_size && <span className="text-xs text-gray-400">• {lesson.file_size}</span>}
+                                      {lesson.duration && <span className="text-xs text-gray-400 dark:text-slate-300">• {lesson.duration}</span>}
+                                      {lesson.file_size && <span className="text-xs text-gray-400 dark:text-slate-300">• {lesson.file_size}</span>}
                                     </div>
                                     <div className="flex items-center gap-2">
                                       <button
                                         onClick={(e) => { e.stopPropagation(); setPreviewLesson(lesson); }}
-                                        className="p-1 text-gray-400 hover:text-blue-600"
+                                        className="p-1 text-gray-400 dark:text-slate-400 hover:text-blue-600 dark:hover:text-sky-300"
                                         title="Preview"
                                       >
                                         <EyeIcon className="h-4 w-4" />
                                       </button>
                                       <button
                                         onClick={(e) => { e.stopPropagation(); handleDeleteLesson(lesson.id); }}
-                                        className="p-1 text-gray-400 hover:text-red-600"
+                                        className="p-1 text-gray-400 dark:text-slate-400 hover:text-red-600 dark:hover:text-rose-300"
                                         title="Delete Lesson"
                                       >
                                         <TrashIcon className="h-4 w-4" />

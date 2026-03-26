@@ -162,8 +162,23 @@ export function AdminDashboard({ onNavigate }: Props) {
   const completionStatus = reportData?.completion_status ?? [];
   const monthlyTrends = reportData?.monthly_trends ?? [];
   const popularCourses = reportData?.popular_courses ?? [];
+  const cleanedPopularCourses = popularCourses.map((course) => ({
+    ...course,
+    name: (course.name ?? '')
+      .replace(/(ΓÇª|Γçª|â€¦|…|Ã¢â‚¬Â¦|çª|Çª)/g, ' ')
+      .replace(/[\u0000-\u001F\u007F\u0080-\u009F\u2028\u2029\uFFFD]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  }));
   const recentActivity = stats?.recent_activity ?? [];
   const currentRangeLabel = RANGE_OPTIONS.find((o) => o.months === analyticsRange)?.label ?? 'Last 6 Months';
+  const popularCourseLabelWidth = Math.min(
+    520,
+    Math.max(
+      240,
+      cleanedPopularCourses.reduce((max, course) => Math.max(max, (course.name ?? '').length), 0) * 10
+    )
+  );
 
   return (
     <>
@@ -356,21 +371,21 @@ export function AdminDashboard({ onNavigate }: Props) {
         ) : (
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={popularCourses} layout="vertical">
+              <BarChart data={cleanedPopularCourses} layout="vertical" margin={{ top: 8, right: 12, bottom: 8, left: 12 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
                 <XAxis type="number" axisLine={false} tickLine={false} />
                 <YAxis
                   dataKey="name"
                   type="category"
-                  width={160}
+                  width={popularCourseLabelWidth}
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 12 }}
-                  tickFormatter={(v: string) => v.length > 22 ? v.slice(0, 22) + '…' : v}
+                  interval={0}
+                  tick={{ fontSize: 13 }}
                 />
                 <Tooltip formatter={(value) => [value, 'Enrolled Students']} />
                 <Bar dataKey="students" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={28}>
-                  {popularCourses.map((_, i) => (
+                  {cleanedPopularCourses.map((_, i) => (
                     <Cell key={i} fill={i === 0 ? '#16a34a' : i === 1 ? '#22c55e' : '#4ade80'} />
                   ))}
                 </Bar>
@@ -383,40 +398,40 @@ export function AdminDashboard({ onNavigate }: Props) {
       {/* Bottom Section: Activity & Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Activity */}
-        <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-slate-100 overflow-hidden">
-          <div className="p-6 border-b border-slate-100">
-            <h3 className="text-lg font-semibold text-slate-900">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+          <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
               Recent Activity
             </h3>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
+            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+              <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                     User
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                     Action
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                     Target
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                     Time
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-slate-200">
+              <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
                 {loading ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-sm text-slate-400">
+                    <td colSpan={4} className="px-6 py-8 text-center text-sm text-slate-400 dark:text-slate-300">
                       Loading…
                     </td>
                   </tr>
                 ) : recentActivity.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-sm text-slate-400">
+                    <td colSpan={4} className="px-6 py-8 text-center text-sm text-slate-400 dark:text-slate-300">
                       No activity yet
                     </td>
                   </tr>
@@ -424,17 +439,17 @@ export function AdminDashboard({ onNavigate }: Props) {
                   recentActivity.map((activity) =>
                     <tr
                       key={activity.id}
-                      className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
                         {activity.user}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
                         {activity.action}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
                         {activity.target}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">
                         {activity.time}
                       </td>
                     </tr>
@@ -443,32 +458,32 @@ export function AdminDashboard({ onNavigate }: Props) {
               </tbody>
             </table>
           </div>
-          <div className="p-4 border-t border-slate-100 text-center">
+          <div className="p-4 border-t border-slate-100 dark:border-slate-700 text-center">
             <button
               onClick={openAllActivity}
-              className="text-sm text-green-600 font-medium hover:text-green-700">
+              className="text-sm text-green-600 dark:text-emerald-300 font-medium hover:text-green-700 dark:hover:text-emerald-200">
               View All Activity
             </button>
           </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">
             Quick Actions
           </h3>
           <div className="space-y-3">
             <button
               onClick={() => onNavigate?.('courses')}
-              className="w-full flex items-center p-3 text-left rounded-lg border border-slate-200 hover:border-green-500 hover:bg-green-50 transition-all group">
-              <div className="p-2 bg-green-100 rounded-md group-hover:bg-green-200">
-                <BookOpen className="h-5 w-5 text-green-700" />
+              className="w-full flex items-center p-3 text-left rounded-lg border border-slate-200 dark:border-slate-700 hover:border-green-500 dark:hover:border-emerald-500 hover:bg-green-50 dark:hover:bg-emerald-900/25 transition-all group">
+              <div className="p-2 bg-green-100 dark:bg-emerald-900/40 rounded-md group-hover:bg-green-200 dark:group-hover:bg-emerald-900/70 transition-colors">
+                <BookOpen className="h-5 w-5 text-green-700 dark:text-emerald-300" />
               </div>
               <div className="ml-3">
-                <p className="text-sm font-medium text-slate-900">
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                   Create New Course
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-300">
                   Add a new training module
                 </p>
               </div>
@@ -476,29 +491,29 @@ export function AdminDashboard({ onNavigate }: Props) {
 
             <button
               onClick={() => onNavigate?.('users')}
-              className="w-full flex items-center p-3 text-left rounded-lg border border-slate-200 hover:border-blue-500 hover:bg-blue-50 transition-all group">
-              <div className="p-2 bg-blue-100 rounded-md group-hover:bg-blue-200">
-                <UserPlus className="h-5 w-5 text-blue-700" />
+              className="w-full flex items-center p-3 text-left rounded-lg border border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/25 transition-all group">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/40 rounded-md group-hover:bg-blue-200 dark:group-hover:bg-blue-900/70 transition-colors">
+                <UserPlus className="h-5 w-5 text-blue-700 dark:text-blue-300" />
               </div>
               <div className="ml-3">
-                <p className="text-sm font-medium text-slate-900">
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                   Add Employee
                 </p>
-                <p className="text-xs text-slate-500">Register a new user</p>
+                <p className="text-xs text-slate-500 dark:text-slate-300">Register a new user</p>
               </div>
             </button>
 
             <button
               onClick={() => onNavigate?.('notifications')}
-              className="w-full flex items-center p-3 text-left rounded-lg border border-slate-200 hover:border-purple-500 hover:bg-purple-50 transition-all group">
-              <div className="p-2 bg-purple-100 rounded-md group-hover:bg-purple-200">
-                <Bell className="h-5 w-5 text-purple-700" />
+              className="w-full flex items-center p-3 text-left rounded-lg border border-slate-200 dark:border-slate-700 hover:border-purple-500 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/25 transition-all group">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/40 rounded-md group-hover:bg-purple-200 dark:group-hover:bg-purple-900/70 transition-colors">
+                <Bell className="h-5 w-5 text-purple-700 dark:text-purple-300" />
               </div>
               <div className="ml-3">
-                <p className="text-sm font-medium text-slate-900">
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                   Send Notification
                 </p>
-                <p className="text-xs text-slate-500">Alert all employees</p>
+                <p className="text-xs text-slate-500 dark:text-slate-300">Alert all employees</p>
               </div>
             </button>
           </div>
@@ -509,51 +524,51 @@ export function AdminDashboard({ onNavigate }: Props) {
       {/* View All Activity Modal */}
       {showActivityModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl mx-4 flex flex-col max-h-[80vh]">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h2 className="text-lg font-semibold text-slate-900">All Activity</h2>
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-3xl mx-4 flex flex-col max-h-[80vh] border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">All Activity</h2>
               <button
                 onClick={() => setShowActivityModal(false)}
-                className="p-1 rounded-md hover:bg-slate-100 text-slate-500">
+                className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-300 transition-colors">
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="overflow-y-auto flex-1">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50 sticky top-0">
+              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">User</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Target</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Time</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">User</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Action</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Target</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Time</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-slate-200">
+                <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
                   {activityLoading ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-400">Loading…</td>
+                      <td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-400 dark:text-slate-300">Loading…</td>
                     </tr>
                   ) : allActivity.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-400">No activity found</td>
+                      <td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-400 dark:text-slate-300">No activity found</td>
                     </tr>
                   ) : (
                     allActivity.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{item.user}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{item.action}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{item.target}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{item.time}</td>
+                      <tr key={item.id} className="hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">{item.user}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">{item.action}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">{item.target}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">{item.time}</td>
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
             </div>
-            <div className="px-6 py-3 border-t border-slate-100 text-right">
+            <div className="px-6 py-3 border-t border-slate-100 dark:border-slate-700 text-right">
               <button
                 onClick={() => setShowActivityModal(false)}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200">
+                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
                 Close
               </button>
             </div>

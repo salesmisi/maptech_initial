@@ -958,7 +958,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
       {/* Modules Panel */}
       {activeTab === 'modules' && (
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <BookOpen className="h-5 w-5 text-slate-600" />
@@ -1049,17 +1049,17 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                 >
                   {/* Module header */}
                   <div
-                    className="px-6 py-4 flex items-center gap-3 hover:bg-slate-50 cursor-pointer"
+                    className="px-6 py-4 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors"
                     onClick={() => setExpandedModules(prev => {
                       const next = new Set(prev);
                       next.has(mod.id) ? next.delete(mod.id) : next.add(mod.id);
                       return next;
                     })}
                   >
-                    <div className="flex-shrink-0 cursor-grab text-slate-300 hover:text-slate-500" onMouseDown={e => e.stopPropagation()}>
+                    <div className="flex-shrink-0 cursor-grab text-slate-300 dark:text-slate-500 hover:text-slate-500 dark:hover:text-slate-300" onMouseDown={e => e.stopPropagation()}>
                       <GripVertical className="h-4 w-4" />
                     </div>
-                    <span className="flex-shrink-0 h-7 w-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold">
+                    <span className="flex-shrink-0 h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 flex items-center justify-center text-xs font-bold">
                       {idx + 1}
                     </span>
                     <div className="flex-1 min-w-0">
@@ -1083,8 +1083,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                         </div>
                       ) : (
                         <>
-                          <p className="text-sm font-medium text-slate-900 truncate">{mod.title}</p>
-                          <p className="text-xs text-slate-400 mt-0.5">
+                          <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{mod.title}</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-300 mt-0.5">
                             {mod.lessons?.length || 0} lesson{(mod.lessons?.length || 0) !== 1 ? 's' : ''}
                             {quiz ? ` · Quiz: ${quiz.pass_percentage}% to pass` : ''}
                           </p>
@@ -1101,12 +1101,12 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                       </span>
                     ) : null}
 
-                    {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400 flex-shrink-0" /> : <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />}
+                    {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400 dark:text-slate-300 flex-shrink-0" /> : <ChevronDown className="h-4 w-4 text-slate-400 dark:text-slate-300 flex-shrink-0" />}
 
                     {!isEditingMod && (
                       <button
                         onClick={(e) => { e.stopPropagation(); startEditModule(mod); }}
-                        className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded flex-shrink-0"
+                        className="p-1.5 text-slate-400 dark:text-slate-300 hover:text-green-600 dark:hover:text-emerald-300 hover:bg-green-50 dark:hover:bg-emerald-900/30 rounded flex-shrink-0"
                         title="Edit module"
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -1115,7 +1115,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
                     <button
                       onClick={(e) => { e.stopPropagation(); handleUnlockModuleForAll(mod.id); }}
-                      className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded flex-shrink-0"
+                      className="p-1 text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 rounded flex-shrink-0"
                       title="Unlock this module for all enrolled students"
                     >
                       <Users className="h-3.5 w-3.5" />
@@ -1123,14 +1123,14 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
                     <button
                       onClick={(e) => { e.stopPropagation(); handleUnlockModuleForDepartment(mod.id); }}
-                      className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded flex-shrink-0"
+                      className="p-1 text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 rounded flex-shrink-0"
                       title="Unlock this module for a department"
                     >
                       <Unlock className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); handleLockModuleForDepartment(mod.id); }}
-                      className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded flex-shrink-0"
+                      className="p-1 text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 rounded flex-shrink-0"
                       title="Lock this module for a department"
                     >
                       <Lock className="h-3.5 w-3.5" />
@@ -1139,7 +1139,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDeleteModule(mod.id); }}
                       disabled={deletingModuleId === mod.id}
-                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-40 flex-shrink-0"
+                      className="p-1.5 text-red-400 dark:text-rose-300 hover:text-red-600 dark:hover:text-rose-200 hover:bg-red-50 dark:hover:bg-rose-900/25 rounded disabled:opacity-40 flex-shrink-0"
                     >
                       {deletingModuleId === mod.id
                         ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -1149,7 +1149,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
                   {/* Expanded body: Lessons + Quiz */}
                   {isExpanded && (
-                    <div className="border-t border-slate-100">
+                    <div className="border-t border-slate-100 dark:border-slate-700">
                       {/* Lessons list */}
                       <div className="px-6 py-3">
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Lessons</p>
@@ -1160,7 +1160,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                             {mod.lessons.map((lesson, li) => {
                               const isEditingThisLesson = editingLessonId === lesson.id;
                               return (
-                                <div key={lesson.id} className="rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
+                                <div key={lesson.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/35 overflow-hidden">
                                   {isEditingThisLesson ? (
                                     /* ── EDIT LESSON FORM ── */
                                     <div className="p-3 space-y-2 bg-amber-50 border-amber-200">
@@ -1204,20 +1204,20 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                   ) : (
                                     /* ── DISPLAY LESSON ── */
                                     <>
-                                      <div className="flex items-center gap-3 py-2 px-3 hover:bg-slate-100">
-                                        <span className="text-xs text-slate-400 font-medium w-5">{li + 1}.</span>
+                                      <div className="flex items-center gap-3 py-2 px-3 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                                        <span className="text-xs text-slate-400 dark:text-slate-300 font-medium w-5">{li + 1}.</span>
                                         {fileTypeIcon(lesson.file_type)}
-                                        <span className="flex-1 text-sm font-medium text-slate-700 truncate">{lesson.title}</span>
+                                        <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-100 truncate">{lesson.title}</span>
                                         {lesson.content_url && (
                                           <a href={lesson.content_url} target="_blank" rel="noreferrer"
                                             className="text-xs text-green-600 hover:underline flex-shrink-0">View file</a>
                                         )}
                                         <button onClick={() => startEditLesson(lesson)}
-                                          className="p-1 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded flex-shrink-0" title="Edit lesson">
+                                          className="p-1 text-slate-400 dark:text-slate-300 hover:text-green-600 dark:hover:text-emerald-300 hover:bg-green-50 dark:hover:bg-emerald-900/30 rounded flex-shrink-0" title="Edit lesson">
                                           <Pencil className="h-3.5 w-3.5" />
                                         </button>
                                         <button onClick={() => handleDeleteLesson(mod.id, lesson.id)}
-                                          className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded flex-shrink-0" title="Delete lesson">
+                                          className="p-1 text-red-400 dark:text-rose-300 hover:text-red-600 dark:hover:text-rose-200 hover:bg-red-50 dark:hover:bg-rose-900/25 rounded flex-shrink-0" title="Delete lesson">
                                           <Trash2 className="h-3.5 w-3.5" />
                                         </button>
                                       </div>

@@ -360,7 +360,18 @@ class UserController extends Controller
             ->orderByRaw('COUNT(enrollments.id) DESC')
             ->limit(10)
             ->get()
-            ->map(fn($r) => ['name' => $r->name, 'students' => (int) $r->students])
+            ->map(function ($r) {
+                $name = (string) ($r->name ?? '');
+                // Remove mojibake ellipsis variants and replacement/control chars, then normalize whitespace.
+                $name = preg_replace('/(ΓÇª|Γçª|â€¦|…|Ã¢â‚¬Â¦|çª|Çª)/u', ' ', $name) ?? $name;
+                $name = preg_replace('/[\x{2028}\x{2029}\x{FFFD}\x00-\x1F\x7F\x80-\x9F]/u', ' ', $name) ?? $name;
+                $name = preg_replace('/\s+/u', ' ', $name) ?? $name;
+
+                return [
+                    'name' => trim($name),
+                    'students' => (int) $r->students,
+                ];
+            })
             ->values();
 
         return response()->json([
