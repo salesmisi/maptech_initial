@@ -153,6 +153,9 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     return matchesSearch && matchesDept;
   });
 
+  const selectionCheckboxClass =
+    'h-4 w-4 rounded-md border border-slate-300 accent-emerald-500 cursor-pointer transition focus:ring-2 focus:ring-emerald-500/60 focus:ring-offset-0 dark:border-slate-600 dark:bg-slate-800';
+
   // Delete handler
   const handleDelete = async (id: number) => {
     showConfirm('Are you sure you want to delete this user?', async () => {
@@ -456,7 +459,8 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                     type="checkbox"
                     onChange={toggleSelectAll}
                     checked={filteredUsers.length > 0 && filteredUsers.every(u => selectedIds.includes(u.id))}
-                    className="h-4 w-4 text-emerald-500 border-slate-300 rounded bg-white dark:border-slate-600 dark:bg-slate-800"
+                    className={selectionCheckboxClass}
+                    aria-label="Select all users"
                   />
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
@@ -491,7 +495,8 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                         type="checkbox"
                         checked={selectedIds.includes(user.id)}
                         onChange={() => toggleSelect(user.id)}
-                        className="h-4 w-4 text-emerald-500 border-slate-300 rounded bg-white dark:border-slate-600 dark:bg-slate-800"
+                        className={selectionCheckboxClass}
+                        aria-label={`Select ${user.fullname}`}
                       />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

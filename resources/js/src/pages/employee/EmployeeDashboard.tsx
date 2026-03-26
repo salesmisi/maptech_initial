@@ -11,6 +11,7 @@ import {
   FileQuestion,
 } from 'lucide-react';
 import { UserTimeLog } from '../../components/UserTimeLog';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 
