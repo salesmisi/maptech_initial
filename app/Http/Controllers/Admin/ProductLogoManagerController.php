@@ -17,10 +17,16 @@ class ProductLogoManagerController extends Controller
     public function index(Request $request)
     {
         $query = trim((string) $request->query('q', ''));
+        $hasModuleLogoPath = Schema::hasColumn('modules', 'logo_path');
+
+        $selectColumns = ['id', 'title', 'course_id', 'updated_at'];
+        if ($hasModuleLogoPath) {
+            $selectColumns[] = 'logo_path';
+        }
 
         $modules = Module::query()
             ->with('course:id,title')
-            ->select('id', 'title', 'course_id', 'logo_path', 'updated_at')
+            ->select($selectColumns)
             ->when($query !== '', function ($q) use ($query) {
                 $q->where(function ($sub) use ($query) {
                     $sub->where('title', 'like', "%{$query}%")
@@ -41,7 +47,7 @@ class ProductLogoManagerController extends Controller
                 ->keyBy('module_id');
         }
 
-        return response()->json($modules->map(function (Module $module) use ($logoByModule) {
+        return response()->json($modules->map(function (Module $module) use ($logoByModule, $hasModuleLogoPath) {
             $exists = false;
             $logoUrl = null;
             $logoName = null;
@@ -49,15 +55,18 @@ class ProductLogoManagerController extends Controller
             /** @var ProductLogo|null $legacyLogo */
             $legacyLogo = $logoByModule->get($module->id);
 
-            if (!empty($module->logo_path)) {
-                $exists = Storage::disk('public')->exists($module->logo_path);
+            $moduleLogoPath = $hasModuleLogoPath ? ($module->logo_path ?? null) : null;
+            $effectivePath = $moduleLogoPath ?: ($legacyLogo?->file_path ?? null);
+
+            if (!empty($effectivePath)) {
+                $exists = Storage::disk('public')->exists($effectivePath);
                 if ($exists) {
-                    $logoUrl = asset('storage/' . ltrim($module->logo_path, '/'));
+                    $logoUrl = asset('storage/' . ltrim($effectivePath, '/'));
                 }
 
                 $logoName = $legacyLogo?->name;
                 if (empty($logoName)) {
-                    $logoName = pathinfo($module->logo_path, PATHINFO_FILENAME);
+                    $logoName = pathinfo($effectivePath, PATHINFO_FILENAME);
                 }
             }
 
@@ -66,10 +75,10 @@ class ProductLogoManagerController extends Controller
                 'title' => $module->title,
                 'course_id' => $module->course_id,
                 'course_title' => $module->course?->title,
-                'logo_path' => $module->logo_path,
+                'logo_path' => $effectivePath,
                 'logo_name' => $logoName,
                 'logo_url' => $logoUrl,
-                'broken_logo' => !empty($module->logo_path) && !$exists,
+                'broken_logo' => !empty($effectivePath) && !$exists,
                 'updated_at' => optional($module->updated_at)?->toISOString(),
             ];
         }));
@@ -80,18 +89,29 @@ class ProductLogoManagerController extends Controller
      */
     public function upload(Request $request, Module $module)
     {
+        $hasModuleLogoPath = Schema::hasColumn('modules', 'logo_path');
+
         $validated = $request->validate([
             'logo' => 'required|file|image|mimes:png,jpg,jpeg|max:2048',
             'logo_name' => 'nullable|string|max:255',
         ]);
 
-        if (!empty($module->logo_path)) {
-            Storage::disk('public')->delete($module->logo_path);
+        $currentPath = null;
+        if ($hasModuleLogoPath) {
+            $currentPath = $module->logo_path;
+        } elseif (Schema::hasTable('product_logos')) {
+            $currentPath = ProductLogo::where('module_id', $module->id)->orderByDesc('id')->value('file_path');
+        }
+
+        if (!empty($currentPath)) {
+            Storage::disk('public')->delete($currentPath);
         }
 
         $path = $validated['logo']->store('product_logos', 'public');
-        $module->logo_path = $path;
-        $module->save();
+        if ($hasModuleLogoPath) {
+            $module->logo_path = $path;
+            $module->save();
+        }
 
         // Keep compatibility with existing product_logos table if it is present in the database.
         if (Schema::hasTable('product_logos')) {
@@ -126,11 +146,17 @@ class ProductLogoManagerController extends Controller
      */
     public function updateName(Request $request, Module $module)
     {
+        $hasModuleLogoPath = Schema::hasColumn('modules', 'logo_path');
+
         $validated = $request->validate([
             'logo_name' => 'required|string|max:255',
         ]);
 
-        if (empty($module->logo_path)) {
+        $path = $hasModuleLogoPath
+            ? ($module->logo_path ?? null)
+            : (Schema::hasTable('product_logos') ? ProductLogo::where('module_id', $module->id)->orderByDesc('id')->value('file_path') : null);
+
+        if (empty($path)) {
             return response()->json([
                 'message' => 'No uploaded logo found for this module. Upload a logo first.',
             ], 422);
@@ -145,7 +171,7 @@ class ProductLogoManagerController extends Controller
         ProductLogo::where('module_id', $module->id)->delete();
         ProductLogo::create([
             'name' => trim($validated['logo_name']),
-            'file_path' => $module->logo_path,
+            'file_path' => $path,
             'module_id' => $module->id,
             'lesson_id' => null,
         ]);
@@ -162,8 +188,16 @@ class ProductLogoManagerController extends Controller
      */
     public function destroy(Module $module)
     {
-        if (!empty($module->logo_path)) {
-            Storage::disk('public')->delete($module->logo_path);
+        $hasModuleLogoPath = Schema::hasColumn('modules', 'logo_path');
+        $currentPath = $hasModuleLogoPath
+            ? ($module->logo_path ?? null)
+            : (Schema::hasTable('product_logos') ? ProductLogo::where('module_id', $module->id)->orderByDesc('id')->value('file_path') : null);
+
+        if (!empty($currentPath)) {
+            Storage::disk('public')->delete($currentPath);
+        }
+
+        if ($hasModuleLogoPath && !empty($module->logo_path)) {
             $module->logo_path = null;
             $module->save();
         }
