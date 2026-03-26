@@ -389,8 +389,8 @@ export function NotificationManagement() {
                   key={notification.id}
                   onClick={() => setSelectedNotification(notification)}
                   className={`p-4 cursor-pointer transition-colors ${
-                    !notification.read_at 
-                      ? 'bg-emerald-50 dark:bg-emerald-950 border-l-4 border-emerald-500' 
+                    !notification.read_at
+                      ? 'bg-emerald-50 dark:bg-emerald-950 border-l-4 border-emerald-500'
                       : 'bg-white dark:bg-slate-900 border-l-4 border-transparent'
                   } hover:bg-slate-100 dark:hover:bg-slate-800`}
                 >
@@ -637,8 +637,8 @@ export function NotificationManagement() {
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
             <div className="inline-block align-bottom bg-white dark:bg-slate-800 rounded-lg text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
               <div className="absolute top-4 right-4">
-                <button 
-                  onClick={() => setSelectedNotification(null)} 
+                <button
+                  onClick={() => setSelectedNotification(null)}
                   className="text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                 >
                   <X className="h-6 w-6" />

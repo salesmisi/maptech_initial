@@ -455,7 +455,7 @@ class NotificationController extends Controller
             ->map(function ($group) {
                 // Get first item from group (to extract title, message, created_at)
                 $first = $group->first();
-                
+
                 return [
                     'id' => $first->id,
                     'title' => $first->title,
