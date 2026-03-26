@@ -70,6 +70,108 @@ export function App() {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
 
+  const matches = (value: string | null | undefined, query: string) =>
+    (value ?? '').toLowerCase().includes(query);
+
+  const findPageByKeywords = (query: string, pages: Array<{ page: string; keywords: string[] }>) => {
+    const hit = pages.find((item) => item.keywords.some((keyword) => query.includes(keyword)));
+    return hit?.page ?? null;
+  };
+
+  const handleGlobalSearchSubmit = async (term: string) => {
+    const query = term.trim().toLowerCase();
+    setGlobalSearch(term);
+    if (!query || !user) return;
+
+    if (user.role === 'employee') {
+      handleNavigate('my-courses');
+      return;
+    }
+
+    if (user.role === 'admin') {
+      const page = findPageByKeywords(query, [
+        { page: 'dashboard', keywords: ['dashboard', 'home'] },
+        { page: 'courses', keywords: ['course', 'courses', 'module', 'lesson', 'quiz'] },
+        { page: 'users', keywords: ['user', 'users', 'employee', 'instructor', 'admin'] },
+        { page: 'departments', keywords: ['department', 'departments', 'team'] },
+        { page: 'enrollments', keywords: ['enrollment', 'enroll', 'student', 'students'] },
+        { page: 'reports', keywords: ['report', 'reports', 'analytics', 'trend', 'completion'] },
+        { page: 'notifications', keywords: ['notification', 'notifications', 'alert'] },
+        { page: 'audit-logs', keywords: ['audit', 'log', 'logs'] },
+        { page: 'business-details', keywords: ['business', 'company', 'details', 'vat'] },
+        { page: 'product-logos', keywords: ['logo', 'logos', 'branding', 'brand'] },
+        { page: 'qa', keywords: ['q&a', 'qa', 'question', 'questions'] },
+        { page: 'settings', keywords: ['setting', 'settings', 'profile'] },
+      ]);
+      if (page) {
+        handleNavigate(page);
+        return;
+      }
+
+      try {
+        const [coursesRes, usersRes] = await Promise.all([
+          fetch('/api/admin/courses', { credentials: 'include', headers: { Accept: 'application/json' } }),
+          fetch('/api/admin/users', { credentials: 'include', headers: { Accept: 'application/json' } }),
+        ]);
+
+        if (coursesRes.ok) {
+          const courses: any[] = await coursesRes.json();
+          if (courses.some((c) => matches(c?.title, query) || matches(c?.description, query))) {
+            handleNavigate('courses');
+            return;
+          }
+        }
+
+        if (usersRes.ok) {
+          const users: any[] = await usersRes.json();
+          if (users.some((u) => matches(u?.fullname, query) || matches(u?.email, query))) {
+            handleNavigate('users');
+            return;
+          }
+        }
+      } catch {
+        // Ignore search fetch errors and fall back to dashboard.
+      }
+
+      handleNavigate('dashboard');
+      return;
+    }
+
+    if (user.role === 'instructor') {
+      const page = findPageByKeywords(query, [
+        { page: 'dashboard', keywords: ['dashboard', 'home'] },
+        { page: 'courses', keywords: ['course', 'courses', 'module', 'lesson', 'content'] },
+        { page: 'quiz-management', keywords: ['quiz', 'assessment', 'question'] },
+        { page: 'notifications', keywords: ['notification', 'notifications', 'alert'] },
+        { page: 'qa-discussion', keywords: ['q&a', 'qa', 'discussion'] },
+        { page: 'feedbacks', keywords: ['feedback', 'review'] },
+        { page: 'settings', keywords: ['setting', 'settings', 'profile'] },
+      ]);
+      if (page) {
+        handleNavigate(page);
+        return;
+      }
+
+      try {
+        const coursesRes = await fetch('/api/instructor/courses', {
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+        });
+        if (coursesRes.ok) {
+          const courses: any[] = await coursesRes.json();
+          if (courses.some((c) => matches(c?.title, query) || matches(c?.description, query))) {
+            handleNavigate('courses');
+            return;
+          }
+        }
+      } catch {
+        // Ignore search fetch errors and fall back to dashboard.
+      }
+
+      handleNavigate('dashboard');
+    }
+  };
+
   const getRouteStateFromUrl = () => {
     if (typeof window === 'undefined') {
       return { page: null as string | null, courseId: null as string | null };
@@ -116,10 +218,25 @@ export function App() {
       type="button"
       aria-label="Toggle dark mode"
       onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
-      className="fixed bottom-5 right-5 z-[100] inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-lg transition hover:bg-slate-100"
+      className="fixed bottom-5 right-5 z-[100] group"
     >
-      {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-      {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+      <span className="sr-only">Toggle dark mode</span>
+      <span className="inline-flex items-center gap-3 rounded-full border border-slate-300/70 bg-white/90 px-3 py-2 text-xs font-semibold text-slate-700 shadow-xl backdrop-blur-md transition-all duration-300 group-hover:shadow-2xl dark:border-slate-600/70 dark:bg-slate-900/85 dark:text-slate-100">
+        <span className="relative inline-flex h-8 w-[62px] items-center rounded-full bg-gradient-to-r from-amber-300 via-orange-300 to-yellow-200 p-1 transition-colors duration-300 dark:from-slate-700 dark:via-slate-600 dark:to-slate-500">
+          <span
+            className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-md ring-1 ring-black/5 transition-all duration-300 dark:bg-slate-900 dark:ring-white/10 ${
+              theme === 'dark' ? 'left-[33px]' : 'left-1'
+            }`}
+          >
+            {theme === 'dark' ? (
+              <Moon className="m-1 h-4 w-4 text-cyan-300" />
+            ) : (
+              <Sun className="m-1 h-4 w-4 text-amber-500" />
+            )}
+          </span>
+        </span>
+        <span className="tracking-wide">{theme === 'dark' ? 'Dark' : 'Light'}</span>
+      </span>
     </button>
   );
 
@@ -319,6 +436,9 @@ export function App() {
           user={user}
           theme={theme}
           onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+          globalSearch={globalSearch}
+          onGlobalSearch={setGlobalSearch}
+          onGlobalSearchSubmit={handleGlobalSearchSubmit}
         >
           {currentPage === 'dashboard' && <AdminDashboard onNavigate={handleNavigate} />}
           {currentPage === 'departments' && <DepartmentManagement />}
@@ -352,6 +472,9 @@ export function App() {
           user={user}
           theme={theme}
           onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+          globalSearch={globalSearch}
+          onGlobalSearch={setGlobalSearch}
+          onGlobalSearchSubmit={handleGlobalSearchSubmit}
         >
           {currentPage === 'dashboard' && <InstructorDashboard />}
           {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
@@ -383,7 +506,8 @@ export function App() {
           theme={theme}
           onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
           globalSearch={globalSearch}
-          onGlobalSearch={(term) => { setGlobalSearch(term); setCurrentPage('my-courses'); }}
+          onGlobalSearch={setGlobalSearch}
+          onGlobalSearchSubmit={handleGlobalSearchSubmit}
         >
           {currentPage === 'dashboard' && <EmployeeDashboard onNavigate={handleNavigate} />}
           {currentPage === 'my-courses' && (

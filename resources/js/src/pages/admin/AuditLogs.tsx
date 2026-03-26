@@ -38,6 +38,8 @@ interface Session {
   id: string;
   user: AuditUser | null;
   user_id: number;
+  audit_login_at: string | null;
+  audit_logout_at: string | null;
   time_in: string | null;
   time_out: string | null;
   ip_address: string | null;
@@ -137,27 +139,6 @@ export function AuditLogs() {
   // Group logs into sessions (pair login with logout)
   const groupIntoSessions = (entries: AuditEntry[]): Session[] => {
     const byUser: Record<number, Session[]> = {};
-    const alignTimezone = (iso: string | null, referenceIso: string | null) => {
-      if (!iso) return null;
-      try {
-        // extract timezone suffix from reference (e.g. "+08:00" or "Z")
-        if (!referenceIso) return iso;
-        const tzMatch = referenceIso.match(/([+-]\d{2}:\d{2}|Z)$/);
-        const tz = tzMatch ? tzMatch[1] : null;
-        // if iso already contains a timezone and it's not Z/UTC, return as-is
-        if (iso.match(/[zZ]|[+-]\d{2}:\d{2}$/) && tz) {
-          // if iso has +00:00 or Z but reference has different tz, replace +00:00/Z with reference tz
-          if (iso.match(/([+-]00:00|Z)$/) && !iso.endsWith(tz)) {
-            return iso.replace(/([zZ]|[+-]\d{2}:\d{2})$/, tz);
-          }
-          return iso;
-        }
-        // otherwise append reference tz
-        return iso + (tz || '');
-      } catch (e) {
-        return iso;
-      }
-    };
     const sorted = [...entries].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     for (const e of sorted) {
       const uid = e.user_id;
@@ -169,9 +150,11 @@ export function AuditLogs() {
           id: `session-login-${e.id}`,
           user: e.user,
           user_id: uid,
-          // prefer attached time_log time_in if backend supplied it; align timezone to audit created_at
-          time_in: alignTimezone(prefIn, e.created_at),
-          time_out: prefOut ? alignTimezone(prefOut, e.created_at) : null,
+          audit_login_at: e.created_at,
+          audit_logout_at: null,
+          // prefer attached time_log time_in if backend supplied it
+          time_in: prefIn,
+          time_out: prefOut,
           ip_address: e.ip_address,
           login_id: e.id,
           logout_id: null,
@@ -181,15 +164,18 @@ export function AuditLogs() {
         const last = userSessions[userSessions.length - 1];
         if (last && last.time_out === null) {
           // prefer attached time_log time_out when available
-          last.time_out = (e as any).time_log?.time_out ? alignTimezone((e as any).time_log?.time_out, e.created_at) : e.created_at;
+          last.time_out = (e as any).time_log?.time_out ?? e.created_at;
+          last.audit_logout_at = e.created_at;
           last.logout_id = e.id;
         } else {
           userSessions.push({
             id: `session-logout-${e.id}`,
             user: e.user,
             user_id: uid,
-            time_in: (e as any).time_log?.time_in ? alignTimezone((e as any).time_log?.time_in, e.created_at) : null,
-            time_out: (e as any).time_log?.time_out ? alignTimezone((e as any).time_log?.time_out, e.created_at) : e.created_at,
+            audit_login_at: null,
+            audit_logout_at: e.created_at,
+            time_in: (e as any).time_log?.time_in ?? null,
+            time_out: (e as any).time_log?.time_out ?? e.created_at,
             ip_address: e.ip_address,
             login_id: null,
             logout_id: e.id,
@@ -272,6 +258,22 @@ export function AuditLogs() {
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const resolvedTimeIn = (s: Session) => {
+    if (s.time_in && s.audit_login_at) {
+      const drift = Math.abs(new Date(s.time_in).getTime() - new Date(s.audit_login_at).getTime());
+      return drift > 5 * 60 * 1000 ? s.audit_login_at : s.time_in;
+    }
+    return s.time_in ?? s.audit_login_at ?? null;
+  };
+
+  const resolvedTimeOut = (s: Session) => {
+    if (s.time_out && s.audit_logout_at) {
+      const drift = Math.abs(new Date(s.time_out).getTime() - new Date(s.audit_logout_at).getTime());
+      return drift > 5 * 60 * 1000 ? s.audit_logout_at : s.time_out;
+    }
+    return s.time_out ?? s.audit_logout_at ?? null;
   };
 
   // Realtime: subscribe to admin time-log updates so the admin list refreshes
@@ -417,18 +419,18 @@ export function AuditLogs() {
 
 
   const roleFilterButtons: { value: RoleFilter; label: string; icon: React.ReactNode; color: string }[] = [
-    { value: "All", label: "All Roles", icon: <Filter className="w-4 h-4" />, color: "bg-gray-100 text-gray-700 hover:bg-gray-200" },
-    { value: "Admin", label: "Admin", icon: <Shield className="w-4 h-4" />, color: "bg-purple-100 text-purple-700 hover:bg-purple-200" },
-    { value: "Instructor", label: "Instructor", icon: <GraduationCap className="w-4 h-4" />, color: "bg-blue-100 text-blue-700 hover:bg-blue-200" },
-    { value: "Employee", label: "Employee", icon: <Users className="w-4 h-4" />, color: "bg-green-100 text-green-700 hover:bg-green-200" },
+    { value: "All", label: "All Roles", icon: <Filter className="w-4 h-4" />, color: "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" },
+    { value: "Admin", label: "Admin", icon: <Shield className="w-4 h-4" />, color: "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/45" },
+    { value: "Instructor", label: "Instructor", icon: <GraduationCap className="w-4 h-4" />, color: "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/45" },
+    { value: "Employee", label: "Employee", icon: <Users className="w-4 h-4" />, color: "bg-green-100 text-green-700 hover:bg-green-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/45" },
   ];
 
   return (
-    <div className="p-6">
+    <div className="p-6 text-slate-900 dark:text-slate-100">
       {/* Toast notification (simple) */}
       {toastMessage && (
         <div className="fixed top-6 right-6 z-50">
-          <div className="bg-white border rounded-lg shadow px-4 py-2 text-sm text-gray-800 flex items-center gap-3">
+          <div className="bg-white border border-slate-200 rounded-lg shadow px-4 py-2 text-sm text-gray-800 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 flex items-center gap-3">
             <div>{toastMessage}</div>
             <button onClick={() => setToastMessage(null)} className="text-gray-400 hover:text-gray-600">×</button>
           </div>
@@ -436,28 +438,28 @@ export function AuditLogs() {
       )}
       {/* Sorting Controls */}
       <div className="mb-4 flex gap-2 items-center">
-        <span className="text-sm text-gray-600">Sort by:</span>
-        <select value={sortField} onChange={e => setSortField(e.target.value as any)} className="px-2 py-1 border rounded text-sm">
+        <span className="text-sm text-gray-600 dark:text-slate-300">Sort by:</span>
+        <select value={sortField} onChange={e => setSortField(e.target.value as any)} className="px-2 py-1 border rounded text-sm bg-white text-slate-800 border-slate-300 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700">
           <option value="time_in">Time In</option>
           <option value="time_out">Time Out</option>
           <option value="name">Name</option>
         </select>
         <button
-          className="px-2 py-1 border rounded text-sm"
+          className="px-2 py-1 border rounded text-sm border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
         >
           {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
         </button>
       </div>
-        <div className="text-xs text-gray-500 mb-2">All times are shown in your local timezone.</div>
+        <div className="text-xs text-gray-500 dark:text-slate-400 mb-2">All times are shown in your local timezone.</div>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-semibold">Audit Logs</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
             Shows login/logout activity and user time logs for all users (Admins, Instructors, Employees). Use the role filters to narrow results.
           </p>
         </div>
-        <span className="text-sm text-gray-500">{total} total entries</span>
+        <span className="text-sm text-gray-500 dark:text-slate-400">{total} total entries</span>
       </div>
 
       {/* Manage Time Logs Modal */}
@@ -534,7 +536,7 @@ export function AuditLogs() {
                               try { await deleteTimeLog(tl.id); alert('Deleted'); } catch (e) { alert('Delete failed'); }
                             });
                           }}
-                          className="px-2 py-1 text-xs border rounded bg-red-50 text-red-700 hover:bg-red-100"
+                          className="px-2 py-1 text-xs border rounded border-rose-300 bg-rose-100 text-rose-800 hover:bg-rose-200 dark:border-rose-700 dark:bg-rose-900/35 dark:text-rose-300 dark:hover:bg-rose-900/55"
                         >
                           Delete
                         </button>
@@ -550,33 +552,33 @@ export function AuditLogs() {
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 dark:bg-purple-900/20 dark:border-purple-800/40">
           <div className="flex items-center gap-2 text-purple-700 mb-1">
             <Shield className="w-4 h-4" />
             <span className="text-xs font-medium">Admin Sessions</span>
           </div>
-          <p className="text-2xl font-bold text-purple-800">{stats.admin}</p>
+          <p className="text-2xl font-bold text-purple-800 dark:text-purple-300">{stats.admin}</p>
         </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 dark:bg-blue-900/20 dark:border-blue-800/40">
           <div className="flex items-center gap-2 text-blue-700 mb-1">
             <GraduationCap className="w-4 h-4" />
             <span className="text-xs font-medium">Instructor Sessions</span>
           </div>
-          <p className="text-2xl font-bold text-blue-800">{stats.instructor}</p>
+          <p className="text-2xl font-bold text-blue-800 dark:text-blue-300">{stats.instructor}</p>
         </div>
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 dark:bg-emerald-900/20 dark:border-emerald-800/40">
           <div className="flex items-center gap-2 text-green-700 mb-1">
             <Users className="w-4 h-4" />
             <span className="text-xs font-medium">Employee Sessions</span>
           </div>
-          <p className="text-2xl font-bold text-green-800">{stats.employee}</p>
+          <p className="text-2xl font-bold text-green-800 dark:text-emerald-300">{stats.employee}</p>
         </div>
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 dark:bg-slate-800/70 dark:border-slate-700">
           <div className="flex items-center gap-2 text-gray-700 mb-1">
             <Clock className="w-4 h-4" />
             <span className="text-xs font-medium">Total Sessions</span>
           </div>
-          <p className="text-2xl font-bold text-gray-800">{stats.totalSessions}</p>
+          <p className="text-2xl font-bold text-gray-800 dark:text-slate-200">{stats.totalSessions}</p>
         </div>
       </div>
 
@@ -584,13 +586,13 @@ export function AuditLogs() {
       <div className="flex flex-wrap items-center gap-4 mb-4">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500" />
           <input
             type="text"
             placeholder="Search by name or email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border rounded-md text-sm focus:ring-green-500 focus:border-green-500"
+            className="w-full pl-10 pr-4 py-2 border border-slate-300 bg-white text-slate-900 rounded-md text-sm focus:ring-green-500 focus:border-green-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
           />
         </div>
 
@@ -603,7 +605,7 @@ export function AuditLogs() {
               className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
                 roleFilter === btn.value
                   ? btn.color + " ring-2 ring-offset-1 ring-gray-400"
-                  : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                  : "bg-gray-50 text-gray-600 hover:bg-gray-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
               }`}
             >
               {btn.icon}
@@ -615,28 +617,28 @@ export function AuditLogs() {
 
       {/* Active Filters Summary */}
       {(roleFilter !== "All" || search) && (
-        <div className="mb-4 flex items-center gap-2 text-sm text-gray-600">
+        <div className="mb-4 flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
           <span>Showing:</span>
           {roleFilter !== "All" && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded-full text-xs">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-slate-800 rounded-full text-xs">
               {roleFilter}
               <button onClick={() => setRoleFilter("All")} className="ml-1 text-gray-400 hover:text-gray-600">×</button>
             </span>
           )}
           {search && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded-full text-xs">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-slate-800 rounded-full text-xs">
               "{search}"
               <button onClick={() => setSearch("")} className="ml-1 text-gray-400 hover:text-gray-600">×</button>
             </span>
           )}
-          <span className="text-gray-400">({filteredSessions.length} sessions)</span>
+          <span className="text-gray-400 dark:text-slate-500">({filteredSessions.length} sessions)</span>
         </div>
       )}
 
       {/* Bulk actions (visible when users selected) */}
       {selectedLogIds.length > 0 && (
         <div className="mb-4 flex items-center gap-3">
-          <div className="text-sm text-gray-700">{selectedLogIds.length} item(s) selected</div>
+          <div className="text-sm text-gray-700 dark:text-slate-300">{selectedLogIds.length} item(s) selected</div>
           <button
             onClick={async () => {
               showConfirm(`Delete ${selectedLogIds.length} selected log(s)?`, async () => {
@@ -667,18 +669,18 @@ export function AuditLogs() {
                 } finally { setLoading(false); }
               });
             }}
-            className="px-3 py-1 text-sm bg-red-50 text-red-700 border rounded hover:bg-red-100"
+            className="px-3 py-1 text-sm bg-red-50 text-red-700 border border-red-200 rounded hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800/40 dark:hover:bg-red-900/35"
           >
             Delete Logs
           </button>
-          <button onClick={() => { setSelectedLogIds([]); setSelectedUserIds([]); }} className="px-2 py-1 text-sm border rounded">Clear</button>
+          <button onClick={() => { setSelectedLogIds([]); setSelectedUserIds([]); }} className="px-2 py-1 text-sm border border-slate-300 rounded bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">Clear</button>
         </div>
       )}
 
       {/* Bulk actions (visible when users selected) */}
       {selectedUserIds.length > 0 && (
         <div className="mb-4 flex items-center gap-3">
-          <div className="text-sm text-gray-700">{selectedUserIds.length} user(s) selected</div>
+          <div className="text-sm text-gray-700 dark:text-slate-300">{selectedUserIds.length} user(s) selected</div>
           <button
             onClick={async () => {
               showConfirm(`Delete all audit logs for ${selectedUserIds.length} selected user(s)?`, async () => {
@@ -704,15 +706,15 @@ export function AuditLogs() {
           >
             Delete All Logs For Selected Users
           </button>
-          <button onClick={() => setSelectedUserIds([])} className="px-2 py-1 text-sm border rounded">Clear</button>
+          <button onClick={() => setSelectedUserIds([])} className="px-2 py-1 text-sm border border-slate-300 rounded bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">Clear</button>
         </div>
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden border border-slate-200 dark:border-slate-700">
         <div className="overflow-x-auto">
           <table style={{minWidth: '1400px'}} className="min-w-full divide-y divide-gray-200 table-fixed w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-slate-800/80">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <input
@@ -779,17 +781,17 @@ export function AuditLogs() {
               </tr>
             </thead>
             {loading ? (
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
                 <tr>
-                  <td colSpan={12} className="px-6 py-8 text-center text-gray-400">
+                  <td colSpan={12} className="px-6 py-8 text-center text-gray-400 dark:text-slate-500">
                     Loading...
                   </td>
                 </tr>
               </tbody>
             ) : userGroups.length === 0 ? (
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
                 <tr>
-                  <td colSpan={12} className="px-6 py-8 text-center text-gray-400">
+                  <td colSpan={12} className="px-6 py-8 text-center text-gray-400 dark:text-slate-500">
                     No audit logs found.
                   </td>
                 </tr>
@@ -798,8 +800,8 @@ export function AuditLogs() {
               userGroups.map((group) => {
                 const latest = group[0];
                 return (
-                  <tbody key={`group-${latest.user_id}`} className="bg-white divide-y divide-gray-200">
-                    <tr className="hover:bg-gray-50 bg-gray-50">
+                  <tbody key={`group-${latest.user_id}`} className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
+                    <tr className="bg-gray-50 hover:bg-gray-100 dark:bg-slate-800/60 dark:hover:bg-slate-800">
                       <td className="px-6 py-4 whitespace-nowrap">
                           <input
                             type="checkbox"
@@ -821,27 +823,7 @@ export function AuditLogs() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap overflow-hidden" style={{width: '220px'}}>
                           <div className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={selectedUserIds.includes(latest.user_id)}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                const uid = latest.user_id;
-                                if (!uid) return;
-                                const groupIds = group
-                                  .map((s) => sessionPrimaryId(s))
-                                  .filter((id): id is number => !!id);
-                                if (e.target.checked) {
-                                  setSelectedUserIds((u) => Array.from(new Set([...u, uid])));
-                                  setSelectedLogIds((s) => Array.from(new Set([...s, ...groupIds])));
-                                } else {
-                                  setSelectedUserIds((u) => u.filter((x) => x !== uid));
-                                  setSelectedLogIds((s) => s.filter((x) => !groupIds.includes(x)));
-                                }
-                              }}
-                              className="h-4 w-4 text-green-600 border-slate-300 rounded"
-                            />
-                              <div className="flex items-center min-w-0">
+                            <div className="flex items-center min-w-0">
                               <div
                                 className={`h-8 w-8 rounded-full flex items-center justify-center font-semibold text-sm ${
                                   latest.user?.role?.toLowerCase() === "admin"
@@ -876,15 +858,15 @@ export function AuditLogs() {
                         <td style={{width: '120px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-600">{latest.user?.department || "—"}</td>
                         <td style={{width: '120px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-500 font-mono">{latest.ip_address || "—"}</td>
                         <td style={{width: '150px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-600">
-                          {formatYmd(latest.time_in || latest.time_out)}
+                          {formatYmd(resolvedTimeIn(latest) || resolvedTimeOut(latest))}
                         </td>
                         <td style={{width: '140px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
-                          {formatDateTime(latest.time_in) ? (
+                          {formatDateTime(latest.audit_login_at) ? (
                             <div className="flex flex-col">
-                              <span className="text-xs text-gray-500">{formatDateTime(latest.time_in)?.date}</span>
+                              <span className="text-xs text-gray-500">{formatDateTime(latest.audit_login_at)?.date}</span>
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-green-600">{formatDateTime(latest.time_in)?.time}</span>
-                                <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(latest.time_in)?.period}</span>
+                                <span className="inline-block w-12 text-right tabular-nums text-sm font-medium text-green-600">{formatDateTime(latest.audit_login_at)?.time}</span>
+                                <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(latest.audit_login_at)?.period}</span>
                               </div>
                             </div>
                           ) : (
@@ -892,12 +874,12 @@ export function AuditLogs() {
                           )}
                         </td>
                         <td style={{width: '140px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
-                          {latest.time_in ? (
+                          {resolvedTimeIn(latest) ? (
                             <div className="flex flex-col">
-                              <span className="text-xs text-gray-500">{formatDateTime(latest.time_in)?.date}</span>
+                              <span className="text-xs text-gray-500">{formatDateTime(resolvedTimeIn(latest))?.date}</span>
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-green-700">{formatDateTime(latest.time_in)?.time}</span>
-                                <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(latest.time_in)?.period}</span>
+                                <span className="inline-block w-12 text-right tabular-nums text-sm font-medium text-green-700">{formatDateTime(resolvedTimeIn(latest))?.time}</span>
+                                <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(resolvedTimeIn(latest))?.period}</span>
                               </div>
                             </div>
                           ) : (
@@ -905,12 +887,12 @@ export function AuditLogs() {
                           )}
                         </td>
                         <td style={{width: '140px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
-                          {latest.time_out ? (
+                          {resolvedTimeOut(latest) ? (
                             <div className="flex flex-col">
-                              <span className="text-xs text-gray-500">{formatDateTime(latest.time_out)?.date}</span>
+                              <span className="text-xs text-gray-500">{formatDateTime(resolvedTimeOut(latest))?.date}</span>
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-red-600">{formatDateTime(latest.time_out)?.time}</span>
-                                <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(latest.time_out)?.period}</span>
+                                <span className="inline-block w-12 text-right tabular-nums text-sm font-medium text-red-600">{formatDateTime(resolvedTimeOut(latest))?.time}</span>
+                                <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(resolvedTimeOut(latest))?.period}</span>
                               </div>
                             </div>
                           ) : (
@@ -918,16 +900,16 @@ export function AuditLogs() {
                           )}
                         </td>
                         <td style={{width: '100px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
-                          {latest.time_out == null ? (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>
+                          {resolvedTimeOut(latest) == null ? (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-900/35 dark:text-emerald-300 dark:border-emerald-700/60">Active</span>
                           ) : (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">Inactive</span>
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-800 border border-slate-300 dark:bg-slate-800/80 dark:text-slate-200 dark:border-slate-600">Inactive</span>
                           )}
                         </td>
                         <td style={{width: '100px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-blue-700 font-semibold">
                           {(() => {
-                            const timeIn = latest.time_in;
-                            const timeOut = latest.time_out;
+                            const timeIn = resolvedTimeIn(latest);
+                            const timeOut = resolvedTimeOut(latest);
                             if (!timeIn || !timeOut) return '—';
                             const diff = Math.abs(new Date(timeOut).getTime() - new Date(timeIn).getTime());
                             const hours = Math.floor(diff / 3600000);
@@ -935,9 +917,14 @@ export function AuditLogs() {
                             return `${hours}h ${mins}m`;
                           })()}
                         </td>
-                        <td style={{width: '120px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-right">
+                        <td style={{width: '170px'}} className="px-6 py-4 whitespace-nowrap text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <button onClick={() => openManageModal(latest.user)} className="px-2 py-1 text-xs border rounded text-gray-700 hover:bg-gray-50">Manage</button>
+                            <button
+                              onClick={() => openManageModal(latest.user)}
+                              className="px-2 py-1 text-xs border rounded border-cyan-300 bg-cyan-50 text-cyan-800 hover:bg-cyan-100 dark:border-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 dark:hover:bg-cyan-900/50"
+                            >
+                              Manage
+                            </button>
                             <button
                               onClick={async () => {
                                 const id = sessionPrimaryId(latest);
@@ -958,7 +945,7 @@ export function AuditLogs() {
                                       } catch (e) { alert('Delete failed'); } finally { setLoading(false); }
                                     });
                               }}
-                              className="px-2 py-1 text-xs border rounded text-red-700 bg-red-50 hover:bg-red-100"
+                              className="px-2 py-1 text-xs border rounded border-rose-300 bg-rose-100 text-rose-800 hover:bg-rose-200 dark:border-rose-700 dark:bg-rose-900/35 dark:text-rose-300 dark:hover:bg-rose-900/55"
                             >
                               Delete
                             </button>
@@ -968,7 +955,7 @@ export function AuditLogs() {
 
                       {/* Older sessions for this user */}
                       {group.slice(1).map((older) => (
-                        <tr key={older.id} className="hover:bg-gray-50">
+                        <tr key={older.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/70">
                           <td className="px-6 py-2 whitespace-nowrap">
                             <input
                               type="checkbox"
@@ -991,30 +978,59 @@ export function AuditLogs() {
                           <td className="px-6 py-2 whitespace-nowrap overflow-hidden" style={{width: '90px'}}><span className="text-xs text-gray-500">{older.user?.role || '—'}</span></td>
                           <td style={{width: '120px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-gray-600">{older.user?.department || '—'}</td>
                           <td style={{width: '120px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-gray-500 font-mono">{older.ip_address || '—'}</td>
-                          <td style={{width: '150px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-gray-600">{formatYmd(older.time_in || older.time_out)}</td>
+                          <td style={{width: '150px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-gray-600">{formatYmd(resolvedTimeIn(older) || resolvedTimeOut(older))}</td>
                           <td style={{width: '140px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden">
-                            {formatDateTime(older.time_in) ? (
+                            {formatDateTime(older.audit_login_at) ? (
                               <div>
-                                <span className="text-xs text-gray-500">{formatDateTime(older.time_in)?.date}</span>
+                                <span className="text-xs text-gray-500">{formatDateTime(older.audit_login_at)?.date}</span>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm text-gray-700">{formatDateTime(older.time_in)?.time}</span>
-                                  <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(older.time_in)?.period}</span>
+                                  <span className="inline-block w-12 text-right tabular-nums text-sm text-gray-700">{formatDateTime(older.audit_login_at)?.time}</span>
+                                  <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(older.audit_login_at)?.period}</span>
                                 </div>
                               </div>
                             ) : <span className="text-sm text-gray-400">—</span>}
                           </td>
-                          <td className="px-6 py-2 whitespace-nowrap">
-                            {formatDateTime(older.time_out) ? (
+                          <td style={{width: '140px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden">
+                            {resolvedTimeIn(older) ? (
                               <div>
-                                <span className="text-xs text-gray-500">{formatDateTime(older.time_out)?.date}</span>
+                                <span className="text-xs text-gray-500">{formatDateTime(resolvedTimeIn(older))?.date}</span>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm text-gray-600">{formatDateTime(older.time_out)?.time}</span>
-                                  <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(older.time_out)?.period}</span>
+                                  <span className="inline-block w-12 text-right tabular-nums text-sm text-gray-700">{formatDateTime(resolvedTimeIn(older))?.time}</span>
+                                  <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(resolvedTimeIn(older))?.period}</span>
                                 </div>
                               </div>
                             ) : <span className="text-sm text-gray-400">—</span>}
                           </td>
-                          <td className="px-6 py-2 whitespace-nowrap text-right">
+                          <td style={{width: '140px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden">
+                            {formatDateTime(resolvedTimeOut(older)) ? (
+                              <div>
+                                <span className="text-xs text-gray-500">{formatDateTime(resolvedTimeOut(older))?.date}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-block w-12 text-right tabular-nums text-sm text-gray-600">{formatDateTime(resolvedTimeOut(older))?.time}</span>
+                                  <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(resolvedTimeOut(older))?.period}</span>
+                                </div>
+                              </div>
+                            ) : <span className="text-sm text-gray-400">—</span>}
+                          </td>
+                          <td style={{width: '100px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden">
+                            {resolvedTimeOut(older) == null ? (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-900/35 dark:text-emerald-300 dark:border-emerald-700/60">Active</span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-800 border border-slate-300 dark:bg-slate-800/80 dark:text-slate-200 dark:border-slate-600">Inactive</span>
+                            )}
+                          </td>
+                          <td style={{width: '100px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-blue-700 font-semibold">
+                            {(() => {
+                              const timeIn = resolvedTimeIn(older);
+                              const timeOut = resolvedTimeOut(older);
+                              if (!timeIn || !timeOut) return '—';
+                              const diff = Math.abs(new Date(timeOut).getTime() - new Date(timeIn).getTime());
+                              const hours = Math.floor(diff / 3600000);
+                              const mins = Math.floor((diff % 3600000) / 60000);
+                              return `${hours}h ${mins}m`;
+                            })()}
+                          </td>
+                          <td style={{width: '170px'}} className="px-6 py-2 whitespace-nowrap text-right">
                             <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={async () => {
@@ -1036,7 +1052,7 @@ export function AuditLogs() {
                                     } catch (e) { alert('Delete failed'); } finally { setLoading(false); }
                                   });
                                 }}
-                                className="px-2 py-1 text-xs border rounded text-red-700 bg-red-50 hover:bg-red-100"
+                                className="px-2 py-1 text-xs border rounded border-rose-300 bg-rose-100 text-rose-800 hover:bg-rose-200 dark:border-rose-700 dark:bg-rose-900/35 dark:text-rose-300 dark:hover:bg-rose-900/55"
                               >
                                 Delete
                               </button>
@@ -1053,8 +1069,8 @@ export function AuditLogs() {
 
         {/* Pagination */}
         {lastPage > 1 && (
-          <div className="px-6 py-3 bg-gray-50 border-t flex items-center justify-between">
-            <p className="text-sm text-gray-500">
+          <div className="px-6 py-3 bg-gray-50 dark:bg-slate-800/70 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-slate-400">
               Page {page} of {lastPage}
             </p>
             <div className="flex gap-2">

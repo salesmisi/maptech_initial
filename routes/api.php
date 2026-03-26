@@ -165,15 +165,21 @@ Route::get('/me/audit-logs', function (Request $request) {
             $start = $log->created_at->copy()->subMinutes(2);
             $end = $log->created_at->copy()->addMinutes(2);
             if ($log->action === 'login') {
-                $timeLog = \App\Models\TimeLog::where('user_id', $log->user_id)
+                    $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
                     ->whereBetween('time_in', [$start, $end])
-                    ->orderBy('time_in')
-                    ->first();
+                        ->get();
+                    $timeLog = $candidates->sortBy(function ($tl) use ($log) {
+                        if (!$tl->time_in || !$log->created_at) return PHP_INT_MAX;
+                        return abs(Carbon::parse($tl->time_in)->diffInSeconds($log->created_at, false));
+                    })->first();
             } elseif ($log->action === 'logout') {
-                $timeLog = \App\Models\TimeLog::where('user_id', $log->user_id)
+                    $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
                     ->whereBetween('time_out', [$start, $end])
-                    ->orderBy('time_out')
-                    ->first();
+                        ->get();
+                    $timeLog = $candidates->sortBy(function ($tl) use ($log) {
+                        if (!$tl->time_out || !$log->created_at) return PHP_INT_MAX;
+                        return abs(Carbon::parse($tl->time_out)->diffInSeconds($log->created_at, false));
+                    })->first();
             }
         }
         $log->time_log = $timeLog;
@@ -272,6 +278,12 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::get('/modules/{moduleId}/enrollment-lists', [AdminCourseController::class, 'moduleEnrollmentLists']);
     Route::post('/courses/{id}/enrollments', [AdminCourseController::class, 'enroll']);
     Route::delete('/courses/{courseId}/enrollments/{userId}', [AdminCourseController::class, 'unenroll']);
+    Route::post('/courses/{courseId}/enrollments/{userId}/lock', [AdminCourseController::class, 'lockEnrollment']);
+    Route::post('/courses/{courseId}/enrollments/{userId}/unlock', [AdminCourseController::class, 'unlockEnrollment']);
+
+    // Per-module lock/unlock for a specific user (admin)
+    Route::post('/courses/{courseId}/modules/{moduleId}/enrollments/{userId}/lock', [AdminCourseController::class, 'lockModule']);
+    Route::post('/courses/{courseId}/modules/{moduleId}/enrollments/{userId}/unlock', [AdminCourseController::class, 'unlockModule']);
 
     // Course Module Management
     Route::post('/courses/{id}/modules', [AdminCourseController::class, 'addModule']);
@@ -359,7 +371,9 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             $latestLogout = $latestLogoutQuery->orderByDesc('created_at')->first();
             if ($latestLogin && (!$latestLogout || $latestLogout->created_at < $latestLogin->created_at)) {
                 if (!$logs->contains('id', $latestLogin->id)) {
-                    $logs->push($latestLogin->load('user:id,fullname,email,role,department'));
+                    $logs = $logs->concat([
+                        $latestLogin->load('user:id,fullname,email,role,department')
+                    ]);
                 }
             }
         }
@@ -372,10 +386,13 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 $start = $log->created_at->copy()->subMinutes(2);
                 $end = $log->created_at->copy()->addMinutes(2);
                 if ($log->action === 'login') {
-                    $timeLog = \App\Models\TimeLog::where('user_id', $log->user_id)
+                    $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
                         ->whereBetween('time_in', [$start, $end])
-                        ->orderBy('time_in')
-                        ->first();
+                        ->get();
+                    $timeLog = $candidates->sortBy(function ($tl) use ($log) {
+                        if (!$tl->time_in || !$log->created_at) return PHP_INT_MAX;
+                        return abs(Carbon::parse($tl->time_in)->diffInSeconds($log->created_at, false));
+                    })->first();
                     if ($timeLog) {
                         $log->time_in = $timeLog->time_in;
                         $log->time_out = $timeLog->time_out;
@@ -383,10 +400,13 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                         $log->time_in = $log->created_at;
                     }
                 } elseif ($log->action === 'logout') {
-                    $timeLog = \App\Models\TimeLog::where('user_id', $log->user_id)
+                    $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
                         ->whereBetween('time_out', [$start, $end])
-                        ->orderBy('time_out')
-                        ->first();
+                        ->get();
+                    $timeLog = $candidates->sortBy(function ($tl) use ($log) {
+                        if (!$tl->time_out || !$log->created_at) return PHP_INT_MAX;
+                        return abs(Carbon::parse($tl->time_out)->diffInSeconds($log->created_at, false));
+                    })->first();
                     if ($timeLog) {
                         $log->time_in = $timeLog->time_in;
                         $log->time_out = $timeLog->time_out;
@@ -422,6 +442,29 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 $log->user = $user;
             }
             return $log;
+        });
+
+        // Normalize output timestamps to ISO8601 UTC to keep frontend time rendering consistent.
+        $logs = $logs->map(function ($log) {
+            return [
+                'id' => $log->id,
+                'user_id' => $log->user_id,
+                'action' => $log->action,
+                'ip_address' => $log->ip_address,
+                'created_at' => optional($log->created_at)->setTimezone('UTC')->toIso8601String(),
+                'user' => $log->user ? [
+                    'id' => $log->user->id,
+                    'fullname' => $log->user->fullname ?? ($log->user->fullName ?? ($log->user->name ?? null)),
+                    'email' => $log->user->email,
+                    'role' => $log->user->role,
+                    'department' => $log->user->department,
+                ] : null,
+                'time_log' => $log->time_log ? [
+                    'id' => $log->time_log->id,
+                    'time_in' => $log->time_log->time_in ? Carbon::parse($log->time_log->time_in)->setTimezone('UTC')->toIso8601String() : null,
+                    'time_out' => $log->time_log->time_out ? Carbon::parse($log->time_log->time_out)->setTimezone('UTC')->toIso8601String() : null,
+                ] : null,
+            ];
         });
 
         // Paginate manually

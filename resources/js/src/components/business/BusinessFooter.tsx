@@ -1,4 +1,5 @@
-import { Mail, Phone, Smartphone, MapPin, Globe } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Mail, Phone, Smartphone, MapPin, Globe, ChevronDown } from 'lucide-react';
 import { useBusinessDetails } from '../../hooks/useBusinessDetails';
 
 interface BusinessFooterProps {
@@ -7,6 +8,24 @@ interface BusinessFooterProps {
 
 export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
   const businessDetails = useBusinessDetails();
+  const [isOpen, setIsOpen] = useState(false);
+  const [contentHeight, setContentHeight] = useState(0);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!contentRef.current) return;
+
+    const updateHeight = () => {
+      setContentHeight(contentRef.current?.scrollHeight ?? 0);
+    };
+
+    updateHeight();
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(contentRef.current);
+
+    return () => observer.disconnect();
+  }, [businessDetails]);
 
   return (
     <div className={`relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md`}>
@@ -15,25 +34,46 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
           ? 'bg-slate-950/70'
           : 'bg-white/80'
       }`}>
-        <div className="space-y-4">
-          {/* Company Name */}
-          <div>
-            <p className={`text-xs font-semibold tracking-wider uppercase ${
-              isDark ? 'text-emerald-400/80' : 'text-emerald-700'
-            }`}>
-              Business Information
-            </p>
-            <h3 className={`text-lg font-bold mt-1 ${
-              isDark ? 'text-slate-50' : 'text-slate-900'
-            }`}>
-              {businessDetails.company_name}
-            </h3>
-          </div>
+        <div aria-label="Business information">
+          <button
+            type="button"
+            onClick={() => setIsOpen((prev) => !prev)}
+            aria-expanded={isOpen}
+            className="w-full text-left"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className={`text-xs font-semibold tracking-wider uppercase ${
+                  isDark ? 'text-emerald-400/80' : 'text-emerald-700'
+                }`}>
+                  Business Information
+                </p>
+                <h3 className={`text-lg font-bold mt-1 ${
+                  isDark ? 'text-slate-50' : 'text-slate-900'
+                }`}>
+                  {businessDetails.company_name}
+                </h3>
+              </div>
+              <ChevronDown
+                className={`mt-1 h-5 w-5 flex-shrink-0 transition-transform duration-500 ease-in-out ${
+                  isOpen ? 'rotate-180' : 'rotate-0'
+                } ${
+                  isDark ? 'text-emerald-300' : 'text-emerald-700'
+                }`}
+              />
+            </div>
+          </button>
 
-          {/* Contact Information */}
-          <div className="space-y-2 pt-2">
-            {businessDetails.email && (
-              <div className="flex items-start gap-3">
+          <div
+            className="overflow-hidden transition-[max-height] duration-500 ease-in-out"
+            style={{ maxHeight: isOpen ? `${contentHeight}px` : '0px' }}
+          >
+            <div ref={contentRef}>
+              <div className={`space-y-2 pt-4 transition-all duration-400 ease-in-out ${
+                isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1'
+              }`}>
+                {businessDetails.email && (
+                  <div className="flex items-start gap-3">
                 <Mail className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
                   isDark ? 'text-emerald-400' : 'text-emerald-600'
                 }`} />
@@ -46,10 +86,10 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                   {businessDetails.email}
                 </a>
               </div>
-            )}
+                )}
 
-            {businessDetails.phone && (
-              <div className="flex items-start gap-3">
+                {businessDetails.phone && (
+                  <div className="flex items-start gap-3">
                 <Phone className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
                   isDark ? 'text-emerald-400' : 'text-emerald-600'
                 }`} />
@@ -62,10 +102,10 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                   Telephone: {businessDetails.phone}
                 </a>
               </div>
-            )}
+                )}
 
-            {businessDetails.mobile_phone && (
-              <div className="flex items-start gap-3">
+                {businessDetails.mobile_phone && (
+                  <div className="flex items-start gap-3">
                 <Smartphone className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
                   isDark ? 'text-emerald-400' : 'text-emerald-600'
                 }`} />
@@ -78,10 +118,10 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                   Mobile: {businessDetails.mobile_phone}
                 </a>
               </div>
-            )}
+                )}
 
-            {businessDetails.vat_reg_tin && (
-              <div className="flex items-start gap-3">
+                {businessDetails.vat_reg_tin && (
+                  <div className="flex items-start gap-3">
                 <Globe className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
                   isDark ? 'text-emerald-400' : 'text-emerald-600'
                 }`} />
@@ -91,10 +131,10 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                   VAT REG TIN No.: {businessDetails.vat_reg_tin}
                 </p>
               </div>
-            )}
+                )}
 
-            {businessDetails.address && (
-              <div className="flex items-start gap-3">
+                {businessDetails.address && (
+                  <div className="flex items-start gap-3">
                 <MapPin className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
                   isDark ? 'text-emerald-400' : 'text-emerald-600'
                 }`} />
@@ -104,10 +144,10 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                   {businessDetails.address}
                 </p>
               </div>
-            )}
+                )}
 
-            {businessDetails.country && (
-              <div className="flex items-start gap-3">
+                {businessDetails.country && (
+                  <div className="flex items-start gap-3">
                 <MapPin className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
                   isDark ? 'text-emerald-400' : 'text-emerald-600'
                 }`} />
@@ -117,10 +157,10 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                   {businessDetails.country}
                 </p>
               </div>
-            )}
+                )}
 
-            {businessDetails.website && (
-              <div className="flex items-start gap-3">
+                {businessDetails.website && (
+                  <div className="flex items-start gap-3">
                 <Globe className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
                   isDark ? 'text-emerald-400' : 'text-emerald-600'
                 }`} />
@@ -135,7 +175,9 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                   {businessDetails.website.replace(/^https?:\/\//, '')}
                 </a>
               </div>
-            )}
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

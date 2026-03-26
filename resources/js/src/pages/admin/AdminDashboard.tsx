@@ -7,11 +7,15 @@ import {
   Plus,
   Bell,
   UserPlus,
+  Calendar,
   X } from
 'lucide-react';
 import {
-  AreaChart,
-  Area,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -22,6 +26,13 @@ import {
   Legend } from
 'recharts';
 
+const ANALYTICS_COLORS = ['#22c55e', '#eab308', '#94a3b8'];
+const RANGE_OPTIONS = [
+  { label: 'Last 3 Months', months: 3 },
+  { label: 'Last 6 Months', months: 6 },
+  { label: 'Last 12 Months', months: 12 },
+];
+
 function getCookie(name: string): string {
   const match = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
   return match ? decodeURIComponent(match[2]) : '';
@@ -29,12 +40,19 @@ function getCookie(name: string): string {
 
 interface DashboardStats {
   total_employees: number;
+  active_employees?: number;
   active_courses: number;
   completion_rate: number;
   avg_quiz_score: number;
   completion_trends: { name: string; rate: number }[];
   department_performance: { name: string; completed: number; assigned: number }[];
   recent_activity: { id: number; user: string; action: string; target: string; time: string }[];
+}
+
+interface ReportData {
+  completion_status: { name: string; value: number }[];
+  monthly_trends: { name: string; enrollments: number; completions: number }[];
+  popular_courses: { name: string; students: number }[];
 }
 
 interface ActivityItem {
@@ -51,8 +69,12 @@ interface Props {
 
 export function AdminDashboard({ onNavigate }: Props) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reportsLoading, setReportsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState('');
+  const [analyticsRange, setAnalyticsRange] = useState(6);
+  const [showRangeMenu, setShowRangeMenu] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [allActivity, setAllActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -73,24 +95,75 @@ export function AdminDashboard({ onNavigate }: Props) {
   };
 
   useEffect(() => {
-    fetch('/api/admin/dashboard', {
-      headers: {
-        'Accept': 'application/json',
-        'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-      },
-      credentials: 'include',
-    })
-      .then((res) => res.json())
-      .then((data: DashboardStats) => {
+    let isMounted = true;
+
+    const loadDashboard = async (showSpinner = false) => {
+      if (showSpinner) setLoading(true);
+      try {
+        const res = await fetch('/api/admin/dashboard', {
+          headers: {
+            'Accept': 'application/json',
+            'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+          },
+          credentials: 'include',
+        });
+        const data: DashboardStats = await res.json();
+        if (!isMounted) return;
         setStats(data);
         setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        if (showSpinner && isMounted) setLoading(false);
+      }
+    };
+
+    loadDashboard(true);
+    const intervalId = window.setInterval(() => {
+      loadDashboard(false);
+    }, 20000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
   }, []);
 
-  const completionData = stats?.completion_trends ?? [];
-  const departmentData = stats?.department_performance ?? [];
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadReports = async (showSpinner = false) => {
+      if (showSpinner) setReportsLoading(true);
+      try {
+        const res = await fetch(`/api/admin/reports?months=${analyticsRange}`, {
+          headers: {
+            'Accept': 'application/json',
+            'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+          },
+          credentials: 'include',
+        });
+        const data: ReportData = await res.json();
+        if (!isMounted) return;
+        setReportData(data);
+      } finally {
+        if (showSpinner && isMounted) setReportsLoading(false);
+      }
+    };
+
+    loadReports(true);
+    const intervalId = window.setInterval(() => {
+      loadReports(false);
+    }, 20000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [analyticsRange]);
+
+  const completionStatus = reportData?.completion_status ?? [];
+  const monthlyTrends = reportData?.monthly_trends ?? [];
+  const popularCourses = reportData?.popular_courses ?? [];
   const recentActivity = stats?.recent_activity ?? [];
+  const currentRangeLabel = RANGE_OPTIONS.find((o) => o.months === analyticsRange)?.label ?? 'Last 6 Months';
 
   return (
     <>
@@ -121,7 +194,9 @@ export function AdminDashboard({ onNavigate }: Props) {
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
-            <span className="text-slate-400">Active employees</span>
+            <span className="text-slate-400">
+              {loading ? 'Active employees' : `${stats?.active_employees ?? 0} active employees`}
+            </span>
           </div>
         </div>
 
@@ -186,77 +261,123 @@ export function AdminDashboard({ onNavigate }: Props) {
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Course Completion Trends
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-slate-900">
+              Overall Completion Status
+            </h3>
+            <div className="relative">
+              <button
+                onClick={() => setShowRangeMenu((v) => !v)}
+                className="inline-flex items-center px-3 py-2 border border-slate-300 rounded-md text-sm font-medium text-slate-700 bg-white hover:bg-slate-50">
+                <Calendar className="h-4 w-4 mr-2" />
+                {currentRangeLabel}
+              </button>
+              {showRangeMenu && (
+                <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-md shadow-lg z-20">
+                  {RANGE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.months}
+                      onClick={() => {
+                        setAnalyticsRange(opt.months);
+                        setShowRangeMenu(false);
+                      }}
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${analyticsRange === opt.months ? 'text-green-600 font-medium' : 'text-slate-700'}`}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
           <div className="h-80">
-            {loading ? (
-              <div className="flex items-center justify-center h-full text-slate-400">Loading…</div>
-            ) : completionData.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-slate-400">No completion data yet</div>
+            {reportsLoading ? (
+              <div className="h-full flex items-center justify-center text-slate-400">Loading…</div>
+            ) : completionStatus.every((d) => d.value === 0) ? (
+              <div className="h-full flex items-center justify-center text-slate-400">No enrollment data yet</div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={completionData}>
-                  <defs>
-                    <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="#e2e8f0" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                  <YAxis axisLine={false} tickLine={false} />
-                  <Tooltip />
-                  <Area
-                    type="monotone"
-                    dataKey="rate"
-                    stroke="#22c55e"
-                    fillOpacity={1}
-                    fill="url(#colorRate)" />
-                </AreaChart>
-              </ResponsiveContainer>
+              <div className="h-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={completionStatus}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={5}
+                      dataKey="value">
+                      {completionStatus.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={ANALYTICS_COLORS[index % ANALYTICS_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value, name) => [value, name]} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Department Performance
+            Enrollment vs Completion Trends
           </h3>
           <div className="h-80">
-            {loading ? (
+            {reportsLoading ? (
               <div className="flex items-center justify-center h-full text-slate-400">Loading…</div>
-            ) : departmentData.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-slate-400">No department data yet</div>
+            ) : monthlyTrends.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-slate-400">No trend data yet</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={departmentData}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="#e2e8f0" />
+                <LineChart data={monthlyTrends}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} />
                   <YAxis axisLine={false} tickLine={false} />
                   <Tooltip />
                   <Legend />
-                  <Bar
-                    dataKey="completed"
-                    fill="#22c55e"
-                    name="Completed"
-                    radius={[4, 4, 0, 0]} />
-                  <Bar
-                    dataKey="assigned"
-                    fill="#e2e8f0"
-                    name="Assigned"
-                    radius={[4, 4, 0, 0]} />
-                </BarChart>
+                  <Line type="monotone" dataKey="enrollments" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="completions" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
+                </LineChart>
               </ResponsiveContainer>
             )}
           </div>
         </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">
+          Most Popular Courses
+        </h3>
+        {reportsLoading ? (
+          <div className="h-80 flex items-center justify-center text-slate-400">Loading…</div>
+        ) : popularCourses.length === 0 ? (
+          <div className="h-80 flex items-center justify-center text-slate-400">No course enrollment data yet</div>
+        ) : (
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={popularCourses} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                <XAxis type="number" axisLine={false} tickLine={false} />
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  width={160}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(v: string) => v.length > 22 ? v.slice(0, 22) + '…' : v}
+                />
+                <Tooltip formatter={(value) => [value, 'Enrolled Students']} />
+                <Bar dataKey="students" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={28}>
+                  {popularCourses.map((_, i) => (
+                    <Cell key={i} fill={i === 0 ? '#16a34a' : i === 1 ? '#22c55e' : '#4ade80'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       {/* Bottom Section: Activity & Quick Actions */}

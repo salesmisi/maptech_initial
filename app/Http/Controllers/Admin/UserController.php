@@ -8,6 +8,8 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
+use App\Models\Enrollment;
+use App\Models\QuizAttempt;
 use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -270,7 +272,7 @@ class UserController extends Controller
      */
     public function activity()
     {
-        $activity = CourseEnrollment::with(['user:id,fullname', 'course:id,title'])
+        $activity = Enrollment::with(['user:id,fullname', 'course:id,title'])
             ->orderBy('updated_at', 'desc')
             ->take(100)
             ->get()
@@ -278,6 +280,7 @@ class UserController extends Controller
                 $action = match ($enrollment->status) {
                     'Completed' => 'Completed Course',
                     'Dropped'   => 'Dropped Course',
+                    'In Progress' => 'Started Course',
                     default     => 'Enrolled',
                 };
                 return [
@@ -301,9 +304,17 @@ class UserController extends Controller
         $since = now()->subMonths($range)->startOfMonth();
 
         // --- Overall Completion Status ---
-        $completed  = CourseEnrollment::where('status', 'Completed')->count();
-        $inProgress = CourseEnrollment::where('status', 'Active')->where('progress', '>', 0)->count();
-        $notStarted = CourseEnrollment::where('status', 'Active')->where('progress', 0)->count();
+        $total = Enrollment::count();
+        $completed  = Enrollment::where('status', 'Completed')->count();
+        $inProgress = Enrollment::where(function ($query) {
+            $query->where('status', 'In Progress')
+                ->orWhere(function ($q) {
+                    $q->where('status', 'Active')
+                        ->where('progress', '>', 0)
+                        ->where('progress', '<', 100);
+                });
+        })->count();
+        $notStarted = max(0, $total - $completed - $inProgress);
 
         $completionStatus = [
             ['name' => 'Completed',   'value' => $completed],
@@ -312,22 +323,21 @@ class UserController extends Controller
         ];
 
         // --- Monthly Enrollment vs Completion Trends ---
-        $enrollmentsByMonth = DB::table('course_enrollments')
+        $enrollmentsByMonth = DB::table('enrollments')
             ->selectRaw("TO_CHAR(enrolled_at, 'Mon') as month, TO_CHAR(enrolled_at, 'YYYY-MM') as sort_key, COUNT(*) as enrollments")
             ->where('enrolled_at', '>=', $since)
             ->groupByRaw("TO_CHAR(enrolled_at, 'YYYY-MM'), TO_CHAR(enrolled_at, 'Mon')")
             ->orderByRaw("TO_CHAR(enrolled_at, 'YYYY-MM')")
             ->pluck('enrollments', 'sort_key');
 
-        $completionsByMonth = DB::table('course_enrollments')
-            ->selectRaw("TO_CHAR(completed_at, 'YYYY-MM') as sort_key, COUNT(*) as completions")
+        $completionsByMonth = DB::table('enrollments')
+            ->selectRaw("TO_CHAR(updated_at, 'YYYY-MM') as sort_key, COUNT(*) as completions")
             ->where('status', 'Completed')
-            ->whereNotNull('completed_at')
-            ->where('completed_at', '>=', $since)
-            ->groupByRaw("TO_CHAR(completed_at, 'YYYY-MM')")
+            ->where('updated_at', '>=', $since)
+            ->groupByRaw("TO_CHAR(updated_at, 'YYYY-MM')")
             ->pluck('completions', 'sort_key');
 
-        $monthLabels = DB::table('course_enrollments')
+        $monthLabels = DB::table('enrollments')
             ->selectRaw("TO_CHAR(enrolled_at, 'Mon') as label, TO_CHAR(enrolled_at, 'YYYY-MM') as sort_key")
             ->where('enrolled_at', '>=', $since)
             ->groupByRaw("TO_CHAR(enrolled_at, 'YYYY-MM'), TO_CHAR(enrolled_at, 'Mon')")
@@ -343,11 +353,11 @@ class UserController extends Controller
         })->values();
 
         // --- Most Popular Courses (by enrollment count) ---
-        $popularCourses = DB::table('course_enrollments')
-            ->join('courses', 'course_enrollments.course_id', '=', 'courses.id')
-            ->selectRaw('courses.title as name, COUNT(course_enrollments.id) as students')
+        $popularCourses = DB::table('enrollments')
+            ->join('courses', 'enrollments.course_id', '=', 'courses.id')
+            ->selectRaw('courses.title as name, COUNT(enrollments.id) as students')
             ->groupBy('courses.id', 'courses.title')
-            ->orderByRaw('COUNT(course_enrollments.id) DESC')
+            ->orderByRaw('COUNT(enrollments.id) DESC')
             ->limit(10)
             ->get()
             ->map(fn($r) => ['name' => $r->name, 'students' => (int) $r->students])
@@ -365,7 +375,7 @@ class UserController extends Controller
      */
     public function exportReport(): StreamedResponse
     {
-        $enrollments = CourseEnrollment::with(['user:id,fullname,department', 'course:id,title'])
+        $enrollments = Enrollment::with(['user:id,fullname,department', 'course:id,title'])
             ->orderBy('enrolled_at', 'desc')
             ->get();
 
@@ -382,7 +392,7 @@ class UserController extends Controller
                     $e->status,
                     $e->progress,
                     $e->enrolled_at?->format('Y-m-d H:i') ?? '',
-                    $e->completed_at?->format('Y-m-d H:i') ?? '',
+                    $e->status === 'Completed' ? ($e->updated_at?->format('Y-m-d H:i') ?? '') : '',
                 ]);
             }
             fclose($handle);
@@ -397,16 +407,20 @@ class UserController extends Controller
     public function dashboard()
     {
         // Stat cards
-        $totalEmployees = User::where('role', 'Employee')->count();
+        $totalEmployees = User::where('role', 'employee')->count();
+        $activeEmployees = User::where('role', 'employee')
+            ->where('status', 'Active')
+            ->count();
         $activeCourses  = Course::where('status', 'Active')->count();
 
-        $totalEnrollments     = CourseEnrollment::count();
-        $completedEnrollments = CourseEnrollment::where('status', 'Completed')->count();
+        $totalEnrollments     = Enrollment::count();
+        $completedEnrollments = Enrollment::where('status', 'Completed')->count();
         $completionRate = $totalEnrollments > 0
             ? round(($completedEnrollments / $totalEnrollments) * 100)
             : 0;
 
-        $avgQuizScore = (int) round(CourseEnrollment::whereNotNull('progress')->avg('progress') ?? 0);
+        // Average based on actual quiz attempt percentages.
+        $avgQuizScore = (int) round(QuizAttempt::avg('percentage') ?? 0);
 
         // Course completion trends — last 6 months (PostgreSQL)
         try {
@@ -427,20 +441,20 @@ class UserController extends Controller
         }
 
         // Department performance
-        $departments = User::where('role', 'Employee')
+        $departments = User::where('role', 'employee')
             ->whereNotNull('department')
             ->distinct()
             ->pluck('department');
 
         $departmentPerformance = $departments->map(function ($dept) {
-            $userIds   = User::where('role', 'Employee')->where('department', $dept)->pluck('id');
-            $assigned  = CourseEnrollment::whereIn('user_id', $userIds)->count();
-            $completed = CourseEnrollment::whereIn('user_id', $userIds)->where('status', 'Completed')->count();
+            $userIds   = User::where('role', 'employee')->where('department', $dept)->pluck('id');
+            $assigned  = Enrollment::whereIn('user_id', $userIds)->count();
+            $completed = Enrollment::whereIn('user_id', $userIds)->where('status', 'Completed')->count();
             return ['name' => $dept, 'assigned' => $assigned, 'completed' => $completed];
         })->values();
 
         // Recent activity — last 10 enrollment events
-        $recentActivity = CourseEnrollment::with(['user:id,fullname', 'course:id,title'])
+        $recentActivity = Enrollment::with(['user:id,fullname', 'course:id,title'])
             ->orderBy('updated_at', 'desc')
             ->take(10)
             ->get()
@@ -448,6 +462,7 @@ class UserController extends Controller
                 $action = match ($enrollment->status) {
                     'Completed' => 'Completed Course',
                     'Dropped'   => 'Dropped Course',
+                    'In Progress' => 'Started Course',
                     default     => 'Enrolled',
                 };
                 return [
@@ -461,6 +476,7 @@ class UserController extends Controller
 
         return response()->json([
             'total_employees'        => $totalEmployees,
+            'active_employees'       => $activeEmployees,
             'active_courses'         => $activeCourses,
             'completion_rate'        => $completionRate,
             'avg_quiz_score'         => $avgQuizScore,
