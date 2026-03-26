@@ -271,6 +271,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     // Course Enrollment Management
     Route::get('/enrollments', [AdminCourseController::class, 'allEnrollments']);
     Route::get('/courses/{id}/enrollments', [AdminCourseController::class, 'enrollments']);
+    Route::get('/modules/{moduleId}/enrollment-lists', [AdminCourseController::class, 'moduleEnrollmentLists']);
     Route::post('/courses/{id}/enrollments', [AdminCourseController::class, 'enroll']);
     Route::delete('/courses/{courseId}/enrollments/{userId}', [AdminCourseController::class, 'unenroll']);
     Route::post('/courses/{courseId}/enrollments/{userId}/lock', [AdminCourseController::class, 'lockEnrollment']);
@@ -638,6 +639,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
 
     // Quiz Management
     Route::get('/quizzes', [InstructorQuizController::class, 'index']);
+    Route::get('/quiz-attempts', [InstructorQuizController::class, 'attempts']);
     Route::get('/courses/{courseId}/quizzes', [InstructorQuizController::class, 'forCourse']);
     Route::post('/courses/{courseId}/quizzes', [InstructorQuizController::class, 'store']);
     Route::get('/modules/{moduleId}/quizzes', [InstructorQuizController::class, 'forModule']);

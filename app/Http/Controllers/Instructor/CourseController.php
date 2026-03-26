@@ -684,13 +684,47 @@ $module = $course->modules()->create($data);
     /**
      * List active employees (for enrollment dropdown).
      */
-    public function listUsers()
+    public function listUsers(Request $request)
     {
-        $users = User::where('status', 'Active')
-            ->whereIn('role', ['Employee'])
+        $instructor = $request->user();
+        $assignedSubIds = $instructor->subdepartments()->pluck('subdepartments.id')->toArray();
+        $assignedDept = trim((string) ($instructor->department ?? ''));
+
+        $departmentFilter = $assignedDept !== '' ? $assignedDept : null;
+
+        if ($request->filled('course_id')) {
+            $course = Course::findOrFail((string) $request->input('course_id'));
+
+            $allowed = ($course->instructor_id == $instructor->id)
+                || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+                || ($assignedDept !== '' && $this->departmentsMatch($course->department, $assignedDept));
+
+            if (!$allowed) {
+                return response()->json(['message' => 'Forbidden'], 403);
+            }
+
+            // For enrollment, prioritize the course's department so instructors only see eligible employees.
+            $courseDepartment = trim((string) ($course->department ?? ''));
+            if ($courseDepartment !== '') {
+                $departmentFilter = $courseDepartment;
+            }
+        }
+
+        $usersQuery = User::query()
+            ->where('status', 'Active')
+            // Roles are stored lowercase by the mutator; query case-insensitively for safety.
+            ->whereRaw('LOWER(role) = ?', ['employee']);
+
+        $users = $usersQuery
             ->select('id', 'fullname', 'email', 'role', 'department', 'status')
             ->orderBy('fullname')
             ->get();
+
+        if ($departmentFilter) {
+            $users = $users->filter(function ($u) use ($departmentFilter) {
+                return $this->departmentsMatch($u->department, $departmentFilter);
+            })->values();
+        }
 
         return response()->json($users);
     }
@@ -753,7 +787,7 @@ $module = $course->modules()->create($data);
 
         $allowed = ($course->instructor_id === $user->id)
             || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
-            || ($assignedDept && $course->department === $assignedDept);
+            || ($assignedDept && $this->departmentsMatch($course->department, $assignedDept));
 
         if (!$allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
@@ -1087,6 +1121,23 @@ $module = $course->modules()->create($data);
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
+        $targetUser = User::select('id', 'fullname', 'email', 'department', 'role', 'status')
+            ->findOrFail($request->user_id);
+
+        if (strtolower((string) $targetUser->role) !== 'employee') {
+            return response()->json(['message' => 'Only employees can be enrolled'], 422);
+        }
+
+        if ((string) $targetUser->status !== 'Active') {
+            return response()->json(['message' => 'Only active employees can be enrolled'], 422);
+        }
+
+        if (!$this->departmentsMatch($course->department, $targetUser->department)) {
+            return response()->json([
+                'message' => 'This employee is not in the course department and cannot be enrolled here',
+            ], 422);
+        }
+
         if ($course->enrollments()->where('user_id', $request->user_id)->exists()) {
             return response()->json(['message' => 'User is already enrolled in this course'], 409);
         }
@@ -1097,12 +1148,9 @@ $module = $course->modules()->create($data);
             'enrolled_at' => now(),
         ]);
 
-        $user = User::select('id', 'fullname', 'email', 'department', 'role', 'status')
-            ->findOrFail($request->user_id);
-
         return response()->json([
             'message' => 'User enrolled successfully',
-            'user'    => $user,
+            'user'    => $targetUser,
         ], 201);
     }
 
@@ -1132,5 +1180,32 @@ $module = $course->modules()->create($data);
         }
 
         return response()->json(['message' => 'User unenrolled successfully']);
+    }
+
+    private function normalizeDepartmentKey(?string $value): string
+    {
+        $raw = strtolower(trim((string) $value));
+        if ($raw === '') return '';
+
+        $compact = preg_replace('/department|dept/', '', $raw);
+        $compact = preg_replace('/[^a-z0-9]/', '', (string) $compact);
+
+        if (in_array($compact, ['it', 'informationtechnology', 'informationtech'], true)) return 'it';
+        if (in_array($compact, ['hr', 'humanresources'], true)) return 'humanresources';
+        if (in_array($compact, ['salesandmarketing', 'marketingandsales'], true)) return 'salesandmarketing';
+
+        return (string) $compact;
+    }
+
+    private function departmentsMatch(?string $a, ?string $b): bool
+    {
+        $left = $this->normalizeDepartmentKey($a);
+        $right = $this->normalizeDepartmentKey($b);
+
+        if ($left === '' || $right === '') {
+            return false;
+        }
+
+        return $left === $right;
     }
 }

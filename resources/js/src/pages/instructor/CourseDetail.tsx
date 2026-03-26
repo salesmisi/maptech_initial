@@ -245,6 +245,77 @@ const DEPT_COLORS: Record<string, string> = {
   Marketing: 'bg-orange-600',
 };
 
+const LESSON_INFO_BLOCK_RE = /<div\s+data-lesson-info="1">[\s\S]*?<\/div>/i;
+const LESSON_GLOSSARY_BLOCK_RE = /<div\s+data-lesson-glossary="1"\s+data-json="([^"]*)"\s*><\/div>/i;
+
+const escapeHtml = (input: string) =>
+  input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+const stripLessonInfoBlock = (content: string) =>
+  (content || '').replace(LESSON_INFO_BLOCK_RE, '').trim();
+
+const stripLessonMetaBlocks = (content: string) =>
+  (content || '').replace(LESSON_INFO_BLOCK_RE, '').replace(LESSON_GLOSSARY_BLOCK_RE, '').trim();
+
+const extractLessonInfo = (content: string) => {
+  const match = (content || '').match(LESSON_INFO_BLOCK_RE);
+  if (!match) return '';
+  return match[0]
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/Lesson Info:\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const extractLessonGlossary = (content: string): Record<string, string> => {
+  const match = (content || '').match(LESSON_GLOSSARY_BLOCK_RE);
+  if (!match?.[1]) return {};
+
+  try {
+    const json = decodeURIComponent(match[1]);
+    const parsed = JSON.parse(json);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed as Record<string, string>;
+  } catch {
+    return {};
+  }
+};
+
+const composeLessonContent = (info: string, richContent: string, glossary: Record<string, string> = {}) => {
+  const cleanedRich = stripLessonMetaBlocks(richContent || '');
+  const cleanedInfo = info.trim();
+  const cleanedGlossary = Object.entries(glossary)
+    .reduce<Record<string, string>>((acc, [k, v]) => {
+      const word = (k || '').trim();
+      const def = (v || '').trim();
+      if (word && def) {
+        acc[word] = def;
+      }
+      return acc;
+    }, {});
+
+  const blocks: string[] = [];
+
+  if (cleanedInfo) {
+    blocks.push(`<div data-lesson-info="1"><p><strong>Lesson Info:</strong> ${escapeHtml(cleanedInfo)}</p></div>`);
+  }
+
+  if (Object.keys(cleanedGlossary).length > 0) {
+    blocks.push(`<div data-lesson-glossary="1" data-json="${encodeURIComponent(JSON.stringify(cleanedGlossary))}"></div>`);
+  }
+
+  if (cleanedRich) {
+    blocks.push(cleanedRich);
+  }
+
+  return blocks.join('\n').trim();
+};
+
 export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPrefix = 'instructor' }: Props) {
   const [course, setCourse] = useState<CourseData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -262,6 +333,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   // Lesson state
   const [addingLessonForModule, setAddingLessonForModule] = useState<number | null>(null);
   const [lessonTitle, setLessonTitle] = useState('');
+  const [lessonInfo, setLessonInfo] = useState('');
   const [lessonTextContent, setLessonTextContent] = useState('');
   const [lessonFile, setLessonFile] = useState<File | null>(null);
   const [uploadingLesson, setUploadingLesson] = useState(false);
@@ -296,9 +368,17 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   // Edit lesson state
   const [editingLessonId, setEditingLessonId] = useState<number | null>(null);
   const [editLessonTitle, setEditLessonTitle] = useState('');
+  const [editLessonInfo, setEditLessonInfo] = useState('');
   const [editLessonTextContent, setEditLessonTextContent] = useState('');
   const [editLessonFile, setEditLessonFile] = useState<File | null>(null);
   const [savingLesson, setSavingLesson] = useState(false);
+  const [quickEditLessonId, setQuickEditLessonId] = useState<number | null>(null);
+  const [quickEditInfo, setQuickEditInfo] = useState('');
+  const [savingQuickEdit, setSavingQuickEdit] = useState(false);
+  const [wordEditorLessonId, setWordEditorLessonId] = useState<number | null>(null);
+  const [wordEditorWord, setWordEditorWord] = useState('');
+  const [wordEditorDefinition, setWordEditorDefinition] = useState('');
+  const [savingWordDefinition, setSavingWordDefinition] = useState(false);
   const editLessonFileRef = useRef<HTMLInputElement>(null);
 
   // Tab state
@@ -307,6 +387,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   // Enrollment state
   const [allUsers, setAllUsers] = useState<AllUser[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [enrollSearch, setEnrollSearch] = useState('');
   const [enrolling, setEnrolling] = useState(false);
   const [enrollError, setEnrollError] = useState<string | null>(null);
   const [enrollSuccess, setEnrollSuccess] = useState<string | null>(null);
@@ -558,7 +639,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
   const loadAllUsers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/${apiPrefix}/users`, {
+      const query = courseId ? `?course_id=${encodeURIComponent(courseId)}` : '';
+      const res = await fetch(`${API_BASE}/${apiPrefix}/users${query}`, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
@@ -577,6 +659,12 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       loadAllUsers();
     }
   }, [courseId]);
+
+  useEffect(() => {
+    if (courseId && activeTab === 'students') {
+      loadAllUsers();
+    }
+  }, [courseId, activeTab]);
 
   const deptOptions = Array.from(new Set(course?.enrolled_users.map(u => String(u.department).trim()).filter(d => d && d !== 'null')) || []);
 
@@ -653,7 +741,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       const token = await getXsrfToken();
       const fd = new FormData();
       fd.append('title', lessonTitle.trim());
-      if (lessonTextContent.trim()) fd.append('text_content', lessonTextContent.trim());
+      const combinedText = composeLessonContent(lessonInfo, lessonTextContent, {});
+      if (combinedText.trim()) fd.append('text_content', combinedText);
       if (lessonFile) fd.append('content', lessonFile);
 
       const res = await fetch(`${API_BASE}/${apiPrefix}/modules/${moduleId}/lessons`, {
@@ -667,6 +756,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
         throw new Error(err.message || 'Failed to add lesson.');
       }
       setLessonTitle('');
+      setLessonInfo('');
       setLessonTextContent('');
       setLessonFile(null);
       if (lessonFileRef.current) lessonFileRef.current.value = '';
@@ -729,12 +819,15 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   // ─── EDIT LESSON ──────────────────────────────────────────────────────────
   const startEditLesson = (lesson: Lesson) => {
     setEditingLessonId(lesson.id);
+    setQuickEditLessonId(null);
+    setWordEditorLessonId(null);
     setEditLessonTitle(lesson.title);
-    setEditLessonTextContent(lesson.text_content || '');
+    setEditLessonInfo(extractLessonInfo(lesson.text_content || ''));
+    setEditLessonTextContent(stripLessonMetaBlocks(lesson.text_content || ''));
     setEditLessonFile(null);
   };
 
-  const cancelEditLesson = () => { setEditingLessonId(null); setEditLessonTitle(''); setEditLessonTextContent(''); setEditLessonFile(null); };
+  const cancelEditLesson = () => { setEditingLessonId(null); setEditLessonTitle(''); setEditLessonInfo(''); setEditLessonTextContent(''); setEditLessonFile(null); };
 
   const handleSaveLesson = async (moduleId: number, lessonId: number) => {
     if (!editLessonTitle.trim()) return;
@@ -743,7 +836,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       const token = await getXsrfToken();
       const fd = new FormData();
       fd.append('title', editLessonTitle.trim());
-      fd.append('text_content', editLessonTextContent);
+      fd.append('text_content', composeLessonContent(editLessonInfo, editLessonTextContent, extractLessonGlossary(course?.modules.flatMap(m => m.lessons).find(l => l.id === lessonId)?.text_content || '')));
       if (editLessonFile) fd.append('content', editLessonFile);
 
       const res = await fetch(`${API_BASE}/${apiPrefix}/modules/${moduleId}/lessons/${lessonId}`, {
@@ -759,6 +852,149 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       alert(e.message);
     } finally {
       setSavingLesson(false);
+    }
+  };
+
+  const startQuickEditLessonText = (lesson: Lesson) => {
+    setQuickEditLessonId(lesson.id);
+    setWordEditorLessonId(null);
+    setQuickEditInfo(extractLessonInfo(lesson.text_content || ''));
+  };
+
+  const cancelQuickEditLessonText = () => {
+    setQuickEditLessonId(null);
+    setQuickEditInfo('');
+  };
+
+  const handleSaveQuickLessonText = async (moduleId: number, lesson: Lesson) => {
+    setSavingQuickEdit(true);
+    try {
+      const token = await getXsrfToken();
+      const fd = new FormData();
+      fd.append('title', lesson.title);
+      fd.append('text_content', composeLessonContent(quickEditInfo, stripLessonMetaBlocks(lesson.text_content || ''), extractLessonGlossary(lesson.text_content || '')));
+
+      const res = await fetch(`${API_BASE}/${apiPrefix}/modules/${moduleId}/lessons/${lesson.id}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+        body: fd,
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to update lesson text information.');
+      }
+
+      cancelQuickEditLessonText();
+      await loadCourse();
+    } catch (e: any) {
+      alert(e.message || 'Failed to update lesson text information.');
+    } finally {
+      setSavingQuickEdit(false);
+    }
+  };
+
+  const getSentenceFromClick = (event: React.MouseEvent<HTMLDivElement>): string => {
+    const selected = window.getSelection()?.toString().trim();
+    if (selected) {
+      return selected.replace(/\s+/g, ' ').trim();
+    }
+
+    const pointX = event.clientX;
+    const pointY = event.clientY;
+    let textNode: Text | null = null;
+    let offset = 0;
+
+    const anyDoc = document as any;
+    if (typeof anyDoc.caretPositionFromPoint === 'function') {
+      const pos = anyDoc.caretPositionFromPoint(pointX, pointY);
+      textNode = pos?.offsetNode ?? null;
+      offset = pos?.offset ?? 0;
+    } else if (typeof anyDoc.caretRangeFromPoint === 'function') {
+      const range = anyDoc.caretRangeFromPoint(pointX, pointY);
+      textNode = range?.startContainer ?? null;
+      offset = range?.startOffset ?? 0;
+    }
+
+    if (!textNode || textNode.nodeType !== Node.TEXT_NODE || !textNode.textContent) {
+      return '';
+    }
+
+    const text = textNode.textContent;
+    if (!text) return '';
+
+    let idx = Math.min(Math.max(offset, 0), text.length - 1);
+    if (/\s/.test(text[idx] || '') && idx > 0) {
+      idx -= 1;
+    }
+    if (!text[idx]) {
+      return '';
+    }
+
+    let start = idx;
+    let end = idx;
+
+    while (start > 0 && !/[.!?\n]/.test(text[start - 1])) start--;
+    while (end < text.length && !/[.!?\n]/.test(text[end])) end++;
+    if (end < text.length && /[.!?]/.test(text[end])) end++;
+
+    return text
+      .slice(start, end)
+      .replace(/\s+/g, ' ')
+        .replace(/^[\s\-*]+/, '')
+      .trim();
+  };
+
+  const startWordDefinitionEditor = (event: React.MouseEvent<HTMLDivElement>, lesson: Lesson) => {
+    const sentence = getSentenceFromClick(event);
+    if (!sentence) return;
+
+    const glossary = extractLessonGlossary(lesson.text_content || '');
+    setWordEditorLessonId(lesson.id);
+    setWordEditorWord(sentence);
+    setWordEditorDefinition(glossary[sentence] || '');
+  };
+
+  const handleSaveWordDefinition = async (moduleId: number, lesson: Lesson) => {
+    if (!wordEditorWord.trim()) return;
+    if (!wordEditorDefinition.trim()) {
+      alert('Please enter a definition before saving.');
+      return;
+    }
+
+    setSavingWordDefinition(true);
+    try {
+      const glossary = extractLessonGlossary(lesson.text_content || '');
+      glossary[wordEditorWord.trim()] = wordEditorDefinition.trim();
+
+      const token = await getXsrfToken();
+      const fd = new FormData();
+      fd.append('title', lesson.title);
+      fd.append('text_content', composeLessonContent(
+        extractLessonInfo(lesson.text_content || ''),
+        stripLessonMetaBlocks(lesson.text_content || ''),
+        glossary
+      ));
+
+      const res = await fetch(`${API_BASE}/${apiPrefix}/modules/${moduleId}/lessons/${lesson.id}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+        body: fd,
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to save sentence definition.');
+      }
+
+      setWordEditorLessonId(null);
+      setWordEditorWord('');
+      setWordEditorDefinition('');
+      await loadCourse();
+    } catch (e: any) {
+      alert(e.message || 'Failed to save sentence definition.');
+    } finally {
+      setSavingWordDefinition(false);
     }
   };
 
@@ -810,8 +1046,35 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
   // ─── ENROLLMENT HANDLERS ──────────────────────────────────────────────────
   const enrolledIds = new Set(course?.enrolled_users.map(u => u.id) ?? []);
+
+  const normalizeDepartmentKey = (value?: string | null) => {
+    const raw = String(value || '').toLowerCase();
+    const compact = raw
+      .replace(/department/g, '')
+      .replace(/dept/g, '')
+      .replace(/[^a-z0-9]/g, '');
+
+    if (['it', 'informationtechnology', 'informationtech'].includes(compact)) return 'it';
+    if (['hr', 'humanresources'].includes(compact)) return 'humanresources';
+    if (['salesandmarketing', 'marketingandsales'].includes(compact)) return 'salesandmarketing';
+    return compact;
+  };
+
+  const courseDepartmentKey = normalizeDepartmentKey(course?.department);
   // Only show employees from the same department as the course (exclude already-enrolled)
-  const availableUsers = allUsers.filter(u => !enrolledIds.has(u.id) && String(u.department) === String(course?.department));
+  const availableUsers = allUsers.filter(u => {
+    if (enrolledIds.has(u.id)) return false;
+    if (!courseDepartmentKey) return true;
+    return normalizeDepartmentKey(u.department) === courseDepartmentKey;
+  });
+
+  const normalizedEnrollSearch = enrollSearch.trim().toLowerCase();
+  const filteredAvailableUsers = availableUsers.filter(u => {
+    if (!normalizedEnrollSearch) return true;
+    const name = (u.fullname || '').toLowerCase();
+    const email = (u.email || '').toLowerCase();
+    return name.includes(normalizedEnrollSearch) || email.includes(normalizedEnrollSearch);
+  });
 
   const handleEnroll = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1177,6 +1440,13 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                         placeholder="Lesson content..."
                                         minHeight="120px"
                                       />
+                                      <textarea
+                                        value={editLessonInfo}
+                                        onChange={e => setEditLessonInfo(e.target.value)}
+                                        rows={2}
+                                        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+                                        placeholder="Text information (short summary for this lesson)"
+                                      />
                                       <div className="flex items-center gap-2">
                                         <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 rounded-md cursor-pointer hover:bg-white text-xs text-slate-600">
                                           <Upload className="h-3.5 w-3.5" />
@@ -1223,8 +1493,80 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                       </div>
                                       {lesson.text_content && (
                                         <div className="px-4 pb-3 pt-1 border-t border-slate-200">
-                                          <div className={RICH_CONTENT_STYLES}
-                                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(lesson.text_content) }} />
+                                          {quickEditLessonId === lesson.id ? (
+                                            <div className="space-y-2">
+                                              <textarea
+                                                value={quickEditInfo}
+                                                onChange={(e) => setQuickEditInfo(e.target.value)}
+                                                rows={3}
+                                                className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+                                                placeholder="Enter lesson text information or definition"
+                                              />
+                                              <div className="flex items-center gap-2">
+                                                <button
+                                                  onClick={() => handleSaveQuickLessonText(mod.id, lesson)}
+                                                  disabled={savingQuickEdit}
+                                                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-md disabled:opacity-50"
+                                                >
+                                                  {savingQuickEdit ? 'Saving...' : 'Save Info'}
+                                                </button>
+                                                <button
+                                                  onClick={cancelQuickEditLessonText}
+                                                  className="px-3 py-1.5 border border-slate-300 text-slate-600 text-xs font-medium rounded-md hover:bg-white"
+                                                >
+                                                  Cancel
+                                                </button>
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <div className="space-y-2">
+                                              <div
+                                                className={`${RICH_CONTENT_STYLES} cursor-text`}
+                                                title="Click a specific sentence to add/view definition"
+                                                onClick={(e) => startWordDefinitionEditor(e, lesson)}
+                                                dangerouslySetInnerHTML={{ __html: sanitizeHtml(stripLessonMetaBlocks(lesson.text_content)) }}
+                                              />
+                                              <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                                                <span>Click a sentence to add or view its definition.</span>
+                                                <button
+                                                  onClick={() => startQuickEditLessonText(lesson)}
+                                                  className="px-2 py-1 border border-slate-300 rounded hover:bg-white text-slate-600"
+                                                >
+                                                  Edit Text Info
+                                                </button>
+                                              </div>
+
+                                              {wordEditorLessonId === lesson.id && (
+                                                <div className="rounded-md border border-indigo-200 bg-indigo-50 p-2.5 space-y-2">
+                                                  <p className="text-xs text-indigo-800">
+                                                    <strong>Sentence:</strong> {wordEditorWord}
+                                                  </p>
+                                                  <textarea
+                                                    value={wordEditorDefinition}
+                                                    onChange={(e) => setWordEditorDefinition(e.target.value)}
+                                                    rows={2}
+                                                    className="w-full border border-indigo-300 rounded-md py-1.5 px-2 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+                                                    placeholder="Type the definition for this sentence"
+                                                  />
+                                                  <div className="flex items-center gap-2">
+                                                    <button
+                                                      onClick={() => handleSaveWordDefinition(mod.id, lesson)}
+                                                      disabled={savingWordDefinition}
+                                                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded disabled:opacity-50"
+                                                    >
+                                                      {savingWordDefinition ? 'Saving...' : 'Save Definition'}
+                                                    </button>
+                                                    <button
+                                                      onClick={() => { setWordEditorLessonId(null); setWordEditorWord(''); setWordEditorDefinition(''); }}
+                                                      className="px-2.5 py-1 border border-slate-300 text-slate-600 text-xs rounded hover:bg-white"
+                                                    >
+                                                      Close
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
                                         </div>
                                       )}
                                       {lesson.content_url && lesson.file_type === 'video' && (
@@ -1271,6 +1613,13 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                               placeholder="Type the lesson content here — use the toolbar for bold, headings, lists..."
                               minHeight="120px"
                             />
+                            <textarea
+                              rows={2}
+                              placeholder="Text information (short summary for this lesson)"
+                              value={lessonInfo}
+                              onChange={e => setLessonInfo(e.target.value)}
+                              className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+                            />
                             <div className="flex items-center gap-2">
                               <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 rounded-md cursor-pointer hover:bg-white text-xs text-slate-600">
                                 <Upload className="h-3.5 w-3.5" />
@@ -1302,7 +1651,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                 {uploadingLesson ? 'Saving...' : 'Save Lesson'}
                               </button>
                               <button
-                                onClick={() => { setAddingLessonForModule(null); setLessonTitle(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
+                                onClick={() => { setAddingLessonForModule(null); setLessonTitle(''); setLessonInfo(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
                                 className="px-3 py-1.5 border border-slate-300 text-slate-600 text-xs font-medium rounded-md hover:bg-white"
                               >
                                 Cancel
@@ -1311,7 +1660,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                           </div>
                         ) : (
                           <button
-                            onClick={() => { setAddingLessonForModule(mod.id); setLessonTitle(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
+                            onClick={() => { setAddingLessonForModule(mod.id); setLessonTitle(''); setLessonInfo(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
                             className="mt-2 flex items-center gap-1 text-xs text-green-600 hover:text-green-800 font-medium"
                           >
                             <Plus className="h-3.5 w-3.5" /> Add Lesson
@@ -1422,22 +1771,34 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                 {enrollSuccess}
               </div>
             )}
-            <form onSubmit={handleEnroll} className="flex gap-3">
-              <select
-                value={selectedUserId}
-                onChange={e => setSelectedUserId(e.target.value)}
-                className="flex-1 border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              >
-                <option value="">— Select an employee to enroll —</option>
-                {safeArray(availableUsers).length === 0 && (
-                  <option disabled>All active employees are already enrolled</option>
-                )}
-                {safeArray(availableUsers).map(u => (
-                  <option key={u.id} value={u.id}>
-                    {u.fullname} ({u.email}) · {u.department || 'No Dept'}
-                  </option>
-                ))}
-              </select>
+            <form onSubmit={handleEnroll} className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 space-y-2">
+                <input
+                  type="text"
+                  value={enrollSearch}
+                  onChange={e => setEnrollSearch(e.target.value)}
+                  className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  placeholder={course.department ? `Search ${course.department} employees by name or email` : 'Search employees by name or email'}
+                />
+                <select
+                  value={selectedUserId}
+                  onChange={e => setSelectedUserId(e.target.value)}
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  {filteredAvailableUsers.length === 0 && (
+                    <option disabled>
+                      {availableUsers.length === 0
+                        ? 'All active employees are already enrolled'
+                        : 'No employees match your search'}
+                    </option>
+                  )}
+                  {filteredAvailableUsers.map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.fullname} ({u.email}) · {u.department || 'No Dept'}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
                 type="submit"
                 disabled={!selectedUserId || enrolling}

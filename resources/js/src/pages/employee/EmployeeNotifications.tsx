@@ -217,9 +217,9 @@ export function EmployeeNotifications() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Notifications</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Notifications</h1>
           {unreadCount > 0 && (
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">
               You have {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
             </p>
           )}
@@ -251,12 +251,12 @@ export function EmployeeNotifications() {
       </div>
 
       {/* Notifications List */}
-      <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-slate-500">Loading...</div>
-        ) : safeArray(notifications).length === 0 ? (
-          <div className="p-8 text-center text-slate-500">
-            <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300" />
+          <div className="p-8 text-center text-slate-500 dark:text-slate-300">Loading...</div>
+        ) : notifications.length === 0 ? (
+          <div className="p-8 text-center text-slate-500 dark:text-slate-300">
+            <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
             <p>No notifications yet</p>
             <p className="text-sm mt-2">You'll receive notifications from instructors and admin here</p>
           </div>
@@ -265,8 +265,8 @@ export function EmployeeNotifications() {
             {safeArray(notifications).map((notification) => (
               <div
                 key={notification.id}
-                className={`p-4 hover:bg-slate-50 transition-colors ${
-                  !notification.read_at ? 'bg-green-50' : ''
+                className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors ${
+                  !notification.read_at ? 'bg-green-50 dark:bg-green-900/40' : 'dark:bg-slate-800'
                 }`}
               >
                 <div className="flex items-start justify-between">
@@ -275,7 +275,7 @@ export function EmployeeNotifications() {
                       {getNotificationIcon(notification.type, notification.data?.from_role)}
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-slate-900">
+                      <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">
                         {notification.title}
                         {!notification.read_at && (
                           <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
@@ -283,14 +283,14 @@ export function EmployeeNotifications() {
                           </span>
                         )}
                       </h3>
-                      <p className="mt-1 text-sm text-slate-600">{notification.message}</p>
+                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-200">{notification.message}</p>
                       {notification.data?.from_user_name && (
-                        <p className="mt-1 text-xs text-slate-400">
+                        <p className="mt-1 text-xs text-slate-400 dark:text-slate-300">
                           From: {notification.data.from_user_name} ({notification.data.from_role})
                           {notification.data.course_title && ` • ${notification.data.course_title}`}
                         </p>
                       )}
-                      <p className="mt-1 text-xs text-slate-400">
+                      <p className="mt-1 text-xs text-slate-400 dark:text-slate-300">
                         {formatDate(notification.created_at)}
                       </p>
                     </div>
