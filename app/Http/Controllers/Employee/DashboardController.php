@@ -11,6 +11,7 @@ use App\Models\QuizAttempt;
 use App\Models\Subdepartment;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -27,6 +28,34 @@ class DashboardController extends Controller
             }
         }
         return $user->department;
+    }
+
+    /**
+     * Return a map of course_id => true for courses where at least one
+     * module is currently manually unlocked for the given user.
+     */
+    private function getManuallyUnlockedCourseIdsForUser(int $userId, $courseIds): array
+    {
+        $courseIds = collect($courseIds)->filter()->unique()->values();
+        if ($courseIds->isEmpty()) {
+            return [];
+        }
+
+        $rows = DB::table('module_user')
+            ->join('modules', 'module_user.module_id', '=', 'modules.id')
+            ->where('module_user.user_id', $userId)
+            ->whereIn('modules.course_id', $courseIds)
+            ->where('module_user.unlocked', true)
+            ->where(function ($q) {
+                $q->whereNull('module_user.unlocked_until')
+                  ->orWhere('module_user.unlocked_until', '>', now());
+            })
+            ->pluck('modules.course_id')
+            ->map(fn($id) => (string) $id)
+            ->toArray();
+
+        // flip to use as a quick lookup set
+        return array_flip($rows);
     }
 
     /**
@@ -96,18 +125,33 @@ class DashboardController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
+        $manuallyUnlockedCourseIds = $this->getManuallyUnlockedCourseIdsForUser(
+            $user->id,
+            $courses->pluck('id')
+        );
+
         // Attach enrollment progress to each course
         $enrollments = CourseEnrollment::where('user_id', $user->id)
             ->whereIn('course_id', $courses->pluck('id'))
             ->get()
             ->keyBy('course_id');
 
-        $coursesWithProgress = $courses->map(function (Course $course) use ($enrollments) {
+        $coursesWithProgress = $courses->map(function (Course $course) use ($enrollments, $manuallyUnlockedCourseIds) {
             $enrollment = $enrollments->get($course->id);
+            $locked     = (bool) ($enrollment->locked ?? false);
+
+            // If at least one module is manually unlocked for this user
+            // on this course, treat it as unlocked on the dashboard.
+            if ($locked && isset($manuallyUnlockedCourseIds[$course->id])) {
+                $locked = false;
+            }
+
             return array_merge($course->toArray(), [
                 'progress'       => $enrollment?->progress ?? 0,
                 'enroll_status'  => $enrollment?->status ?? null,
                 'last_activity'  => $enrollment?->updated_at?->toISOString() ?? null,
+                'locked'         => $locked,
+                'has_manual_unlock' => isset($manuallyUnlockedCourseIds[$course->id]),
             ]);
         });
 
@@ -140,14 +184,25 @@ class DashboardController extends Controller
             ->orderBy('title')
             ->get();
 
+        $manuallyUnlockedCourseIds = $this->getManuallyUnlockedCourseIdsForUser(
+            $user->id,
+            $courses->pluck('id')
+        );
+
         // Index enrollments by course_id for O(1) lookup
         $enrollments = Enrollment::where('user_id', $user->id)
             ->whereIn('course_id', $courses->pluck('id'))
             ->get()
             ->keyBy('course_id');
 
-        $result = $courses->map(function (Course $course) use ($enrollments) {
+        $result = $courses->map(function (Course $course) use ($enrollments, $manuallyUnlockedCourseIds) {
             $enrollment = $enrollments->get($course->id);
+            $locked     = (bool) ($enrollment->locked ?? false);
+
+            if ($locked && isset($manuallyUnlockedCourseIds[$course->id])) {
+                $locked = false;
+            }
+
             return [
                 'id'            => $course->id,
                 'title'         => $course->title,
@@ -159,7 +214,9 @@ class DashboardController extends Controller
                 'instructor'    => $course->instructor?->fullname,
                 'is_enrolled'   => (bool) $enrollment,
                 'my_progress'   => $enrollment?->progress ?? 0,
-                'my_status'     => $enrollment instanceof Enrollment ? $this->resolveStatus($enrollment, $course) : null,
+                'my_status'     => $enrollment ? $this->resolveStatus($enrollment, $course) : null,
+                'locked'        => $locked,
+                'has_manual_unlock' => isset($manuallyUnlockedCourseIds[$course->id]),
             ];
         });
 
@@ -181,14 +238,27 @@ class DashboardController extends Controller
             ->get()
             ->filter(fn ($e) => $e->course !== null);
 
+        $courseIds = $enrollments->pluck('course_id');
+        $manuallyUnlockedCourseIds = $this->getManuallyUnlockedCourseIdsForUser($user->id, $courseIds);
+
         // Recalculate progress for all enrollments from quiz attempts
+        /** @var \App\Models\Enrollment $enrollment */
         foreach ($enrollments as $enrollment) {
             Enrollment::recalculateProgress($user->id, $enrollment->course_id);
             $enrollment->refresh();
         }
 
-        $result = $enrollments->map(function (Enrollment $enrollment) {
+        $result = $enrollments->map(function (Enrollment $enrollment) use ($manuallyUnlockedCourseIds) {
             $course = $enrollment->course;
+            $locked = (bool) ($enrollment->locked ?? false);
+
+            // If instructor has manually unlocked any module in this course
+            // for this employee (including department-wide unlocks), treat
+            // the course as unlocked in the "My Courses" list so it can be opened.
+            if ($locked && isset($manuallyUnlockedCourseIds[$course->id])) {
+                $locked = false;
+            }
+
             return [
                 'id'           => $course->id,
                 'title'        => $course->title,
@@ -200,6 +270,8 @@ class DashboardController extends Controller
                 'progress'     => $enrollment->progress,
                 'status'       => $this->resolveStatus($enrollment, $course),
                 'enrolled_at'  => $enrollment->enrolled_at,
+                'locked'       => $locked,
+                'has_manual_unlock' => isset($manuallyUnlockedCourseIds[$course->id]),
             ];
         })->values();
 
@@ -244,7 +316,6 @@ class DashboardController extends Controller
         Enrollment::create([
             'user_id'     => $user->id,
             'course_id'   => $id,
-            'status'      => 'active',
             'progress'    => 0,
             'enrolled_at' => now(),
         ]);
@@ -273,8 +344,40 @@ class DashboardController extends Controller
             return response()->json(['message' => 'Course not found or not accessible.'], 404);
         }
 
-        // Load quizzes for every module in this course (keyed by module_id)
+        // Load module IDs for this course early (used below)
         $moduleIds      = $course->modules->pluck('id');
+
+        // Load manual module unlocks for this user (if any) early so we can
+        // allow access to specific modules even when the instructor has
+        // locked the overall enrollment for this user.
+        $manualUnlockedModuleIds = DB::table('module_user')
+            ->where('user_id', $user->id)
+            ->whereIn('module_id', $moduleIds)
+            ->where('unlocked', true)
+            ->where(function ($q) {
+                $q->whereNull('unlocked_until')
+                  ->orWhere('unlocked_until', '>', now());
+            })
+            ->pluck('module_id')
+            ->map(fn($id) => (string)$id)
+            ->toArray();
+
+        // Prevent access if the instructor locked this enrollment and there
+        // are no manually-unlocked modules for this user. If some modules
+        // were manually unlocked, allow access so the employee can open them.
+        $enrollmentRecord = Enrollment::where('user_id', $user->id)
+            ->where('course_id', $id)
+            ->first();
+        if ($enrollmentRecord && ($enrollmentRecord->locked ?? false)) {
+            $enrollmentUnlockedUntil = $enrollmentRecord->unlocked_until ?? null;
+            $enrollmentCurrentlyUnlocked = $enrollmentUnlockedUntil && \Carbon\Carbon::parse($enrollmentUnlockedUntil)->isFuture();
+            if (empty($manualUnlockedModuleIds) && !$enrollmentCurrentlyUnlocked) {
+                return response()->json(['message' => 'This course has been locked by the instructor.'], 403);
+            }
+            // otherwise, continue and show the course with only the unlocked modules available
+        }
+
+        // Load quizzes for every module in this course (keyed by module_id)
         $quizByModule   = Quiz::whereIn('module_id', $moduleIds)
             ->withCount('questions')
             ->get()
@@ -289,6 +392,8 @@ class DashboardController extends Controller
             ->where('passed', true)
             ->pluck('quiz_id')
             ->flip(); // flip to use as a set for O(1) lookup
+
+        // manual unlocks were loaded earlier
 
         // Best attempt per quiz (for the UI to show last score)
         $bestAttempts = QuizAttempt::where('user_id', $user->id)
@@ -307,9 +412,16 @@ class DashboardController extends Controller
             &$previousUnlocked,
             $quizByModule,
             $passedQuizIds,
-            $bestAttempts
+            $bestAttempts,
+            $manualUnlockedModuleIds
         ) {
             $isUnlocked = $previousUnlocked;
+
+            // If instructor manually unlocked this module for the user, ensure access
+            if (in_array((string) $mod->id, $manualUnlockedModuleIds, true)) {
+                $isUnlocked = true;
+                // Do not alter $previousUnlocked (manual unlock doesn't change sequence rules)
+            }
 
             $quiz = $quizByModule->get($mod->id);
 
@@ -394,6 +506,7 @@ class DashboardController extends Controller
         $inProgress = 0;
         $notStarted = 0;
 
+        /** @var \App\Models\Enrollment $enrollment */
         foreach ($enrollments as $enrollment) {
             if (!$enrollment->course) continue;
             $status = $this->resolveStatus($enrollment, $enrollment->course);
@@ -459,5 +572,62 @@ class DashboardController extends Controller
             'weekly_activity' => $weekDays->toArray(),
             'quiz_history'    => $quizHistory->toArray(),
         ]);
+    }
+
+    /**
+     * Return quizzes with upcoming course deadlines that the user hasn't passed yet.
+     * Query param `hours` controls the reminder window (default 48 hours).
+     */
+    public function quizReminders(Request $request)
+    {
+        $user = $request->user();
+        $hours = (int) ($request->query('hours') ?? 48);
+        $now = Carbon::now();
+        $until = $now->copy()->addHours($hours);
+
+        // Courses in the user's department/subdepartment whose deadline is within the window
+        $courses = Course::active()
+            ->whereBetween('deadline', [$now, $until])
+            ->where(function ($q) use ($user) {
+                $this->scopeCoursesForUser($q, $user);
+            })
+            ->with('modules')
+            ->get();
+
+        if ($courses->isEmpty()) {
+            return response()->json([]);
+        }
+
+        // Collect module ids
+        $moduleIds = $courses->flatMap(fn($c) => $c->modules->pluck('id'))->unique()->values();
+
+        if ($moduleIds->isEmpty()) {
+            return response()->json([]);
+        }
+
+        // Find quizzes in these modules
+        $quizzes = Quiz::whereIn('module_id', $moduleIds)
+            ->with(['module:id,title', 'course:id,title,deadline'])
+            ->get();
+
+        if ($quizzes->isEmpty()) {
+            return response()->json([]);
+        }
+
+        // Quizzes the user already passed
+        $passed = QuizAttempt::where('user_id', $user->id)->where('passed', true)->pluck('quiz_id')->toArray();
+
+        $reminders = $quizzes->filter(fn($q) => !in_array($q->id, $passed))->map(function ($q) {
+            return [
+                'id' => $q->id,
+                'title' => $q->title,
+                'module_title' => $q->module?->title,
+                'course_title' => $q->course?->title,
+                'deadline' => $q->course?->deadline?->toISOString(),
+                'type' => 'quiz',
+            ];
+        })->values();
+
+        return response()->json($reminders);
     }
 }

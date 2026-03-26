@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
-import { safeArray } from '../../utils/safe';
+import useConfirm from '../../hooks/useConfirm';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -132,11 +132,13 @@ const getCookie = (name: string) => {
 
 // Fetch CSRF cookie then return decoded XSRF token
 const getXsrfToken = async (): Promise<string> => {
-  await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+  await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
   return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
 };
 
 export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, courseId?: string) => void }) {
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
   const [courses, setCourses] = useState<Course[]>(initialCourses);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -259,23 +261,24 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   });
   // Delete Handler
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this course?')) return;
-    try {
-      const xsrfToken = await getXsrfToken();
-      const response = await fetch(`${API_BASE}/admin/courses/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-XSRF-TOKEN': xsrfToken,
-        },
-      });
-      if (!response.ok) throw new Error('Failed to delete course');
-      setCourses(prev => prev.filter((c) => c.id !== id));
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete course');
-    }
+    showConfirm('Are you sure you want to delete this course?', async () => {
+      try {
+        const xsrfToken = await getXsrfToken();
+        const response = await fetch(`${API_BASE}/admin/courses/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': xsrfToken,
+          },
+        });
+        if (!response.ok) throw new Error('Failed to delete course');
+        setCourses(prev => prev.filter((c) => c.id !== id));
+      } catch (err: any) {
+        alert(err.message || 'Failed to delete course');
+      }
+    });
   };
   // Modal Handlers
   const handleOpenModal = (course?: Course) => {
@@ -374,13 +377,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold text-slate-900">Course Management</h1>
-        <button
-          onClick={() => handleOpenModal()}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-
-          <Plus className="h-4 w-4 mr-2" />
-          Create Course
-        </button>
+        {/* Create Course removed on admin UI */}
       </div>
 
       {/* Filters */}
@@ -415,6 +412,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
           </div>
         </div>
       </div>
+      {confirm.ConfirmModalRenderer()}
 
       {/* Course Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

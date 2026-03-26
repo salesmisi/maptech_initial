@@ -29,6 +29,12 @@ class AuthorizeRole
         $userRole = strtolower($user->role);
 
         if (!in_array($userRole, $allowedRoles)) {
+            // Special-case: allow `employee` in the `IT` department to act as Instructor
+            if ($userRole === 'employee' && in_array('instructor', $allowedRoles) &&
+                !empty($user->department) && strtolower($user->department) === 'it') {
+                return $next($request);
+            }
+
             return response()->json([
                 'message' => 'Forbidden. You do not have permission to access this resource.',
                 'required_role' => $roles,

@@ -12,10 +12,12 @@ class AuditLog extends Model
         'user_id',
         'action',
         'ip_address',
+        'created_at',
     ];
 
     protected $casts = [
         'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     public function user()

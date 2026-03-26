@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import { Bell, Send, Eye, Trash2, MessageCircle, AlertCircle, X, User } from 'lucide-react';
 import { safeArray } from '../../utils/safe';
 
@@ -42,41 +43,8 @@ export function EmployeeNotifications() {
   });
 
   const token = localStorage.getItem('token');
-
-  const getCookie = (name: string) => {
-    const match = document.cookie.match(new RegExp('(^|;)\\s*' + name + '=([^;]+)'));
-    return match ? decodeURIComponent(match[2]) : null;
-  };
-
-  const fetchOptions = (method = 'GET', body?: any) => {
-    const opts: any = {
-      method,
-      headers: {
-        'Accept': 'application/json',
-      },
-    };
-
-    // Always include credentials so cookies are sent for stateful auth
-    opts.credentials = 'include';
-    opts.headers['X-Requested-With'] = 'XMLHttpRequest';
-
-    // Attach CSRF header when cookie exists
-    const xsrfRaw = getCookie('XSRF-TOKEN');
-    const xsrf = xsrfRaw ? decodeURIComponent(xsrfRaw) : null;
-    if (xsrf) opts.headers['X-XSRF-TOKEN'] = xsrf;
-
-    // If token is present, also send Authorization header (bearer fallback)
-    if (token) {
-      opts.headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    if (body) {
-      opts.headers['Content-Type'] = 'application/json';
-      opts.body = JSON.stringify(body);
-    }
-
-    return opts;
-  };
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
 
   useEffect(() => {
     fetchNotifications();
@@ -138,13 +106,20 @@ export function EmployeeNotifications() {
   };
 
   const deleteNotification = async (id: number) => {
-    if (!confirm('Delete this notification?')) return;
-    try {
-      await fetch(`/api/employee/notifications/${id}`, fetchOptions('DELETE'));
-      fetchNotifications();
-    } catch (err) {
-      console.error('Failed to delete notification:', err);
-    }
+    showConfirm('Delete this notification?', async () => {
+      try {
+        await fetch(`/api/employee/notifications/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+          },
+        });
+        fetchNotifications();
+      } catch (err) {
+        console.error('Failed to delete notification:', err);
+      }
+    });
   };
 
   const openModal = (type: 'instructor' | 'admin') => {
@@ -376,8 +351,10 @@ export function EmployeeNotifications() {
                 <form onSubmit={handleSend} className="space-y-4">
                   {modalType === 'instructor' && (
                     <div>
-                      <label className="block text-sm font-medium text-slate-700">Course *</label>
+                      <label htmlFor="notify-course" className="block text-sm font-medium text-slate-700">Course *</label>
                       <select
+                        id="notify-course"
+                        name="course_id"
                         required
                         value={formData.course_id}
                         onChange={(e) => setFormData({ ...formData, course_id: e.target.value })}
@@ -392,8 +369,10 @@ export function EmployeeNotifications() {
                   )}
                   {modalType === 'admin' && (
                     <div>
-                      <label className="block text-sm font-medium text-slate-700">Type</label>
+                      <label htmlFor="notify-type" className="block text-sm font-medium text-slate-700">Type</label>
                       <select
+                        id="notify-type"
+                        name="type"
                         value={formData.type}
                         onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                         className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
@@ -405,8 +384,10 @@ export function EmployeeNotifications() {
                     </div>
                   )}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Subject *</label>
+                    <label htmlFor="notify-title" className="block text-sm font-medium text-slate-700">Subject *</label>
                     <input
+                      id="notify-title"
+                      name="title"
                       type="text"
                       required
                       value={formData.title}
@@ -416,8 +397,10 @@ export function EmployeeNotifications() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Message *</label>
+                    <label htmlFor="notify-message" className="block text-sm font-medium text-slate-700">Message *</label>
                     <textarea
+                      id="notify-message"
+                      name="message"
                       rows={4}
                       required
                       value={formData.message}

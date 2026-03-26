@@ -17,18 +17,32 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-// Admin notification creation page (web)
-Route::get('/admin/notifications/create', function () {
-    return view('admin.notifications.create');
-})->middleware(['auth', 'role:Admin']);
+// =====================
+// LOGIN (Session-based for SPA)
+// =====================
+Route::post('/login', [LoginController::class, 'login']);
+// Serve SPA for the login page via GET so the React app can handle routing
+Route::get('/login', function () {
+    return view('welcome');
+});
 
 // =====================
 // READ-ONLY LOGIN (session-based)
 // Uses only DB reads; does not modify records.
 // =====================
-Route::post('/login', [ReadOnlyLoginController::class, 'login']);
-Route::post('/logout', [ReadOnlyLoginController::class, 'logout']);
-Route::get('/user', [ReadOnlyLoginController::class, 'user']);
+Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth');
+
+// =====================
+// GET AUTH USER
+// =====================
+Route::get('/user', [LoginController::class, 'user'])->middleware('auth');
+
+// Expose time-log API endpoints for session-authenticated SPA requests
+Route::prefix('api/time-logs')->middleware('auth')->group(function () {
+    Route::get('/me', [\App\Http\Controllers\TimeLogController::class, 'myLogs']);
+    Route::post('/punch-in', [\App\Http\Controllers\TimeLogController::class, 'punchIn']);
+    Route::post('/punch-out', [\App\Http\Controllers\TimeLogController::class, 'punchOut']);
+});
 
 // =====================
 // YOUTUBE API INTEGRATION
@@ -36,3 +50,5 @@ Route::get('/user', [ReadOnlyLoginController::class, 'user']);
 Route::get('/youtube', [YouTubeController::class, 'index'])->name('youtube.index');
 Route::get('/youtube/callback', [YouTubeController::class, 'callback'])->name('youtube.callback');
 Route::post('/youtube/logout', [YouTubeController::class, 'logout'])->name('youtube.logout');
+// Upload route for instructors/admins (uses session auth)
+Route::post('/youtube/upload', [YouTubeController::class, 'uploadVideo'])->middleware('auth');

@@ -28,6 +28,12 @@ class Lesson extends Model
         if (!$this->content_path) {
             return null;
         }
+
+        // If content_path already contains an absolute URL (e.g., YouTube embed URL), return it directly
+        if (preg_match('#^https?://#i', $this->content_path)) {
+            return $this->content_path;
+        }
+
         return url('/storage/' . $this->content_path);
     }
 
@@ -35,6 +41,12 @@ class Lesson extends Model
     {
         if (!$this->content_path) {
             return null;
+        }
+
+        // If it's an external URL and the lesson type is Video, treat as video
+        if (preg_match('#^https?://#i', $this->content_path)) {
+            if ($this->type === 'Video') return 'video';
+            return 'file';
         }
 
         $extension = strtolower(pathinfo($this->content_path, PATHINFO_EXTENSION));

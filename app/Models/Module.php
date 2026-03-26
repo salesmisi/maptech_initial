@@ -24,6 +24,7 @@ class Module extends Model
         'title',
         'description',
         'content_path',
+        'logo_path',
         'course_id',
         'order',
     ];
@@ -98,5 +99,15 @@ class Module extends Model
     public function quiz()
     {
         return $this->hasOne(Quiz::class);
+    }
+
+    /**
+     * Users who have this module explicitly unlocked (pivot `module_user`).
+     */
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'module_user')
+            ->withPivot('unlocked', 'unlocked_at', 'unlocked_until')
+            ->withTimestamps();
     }
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   BookOpen,
@@ -10,32 +10,99 @@ import {
   Search,
   Menu,
   Bell,
-  Settings } from
+  Settings,
+  Moon,
+  Sun } from
 'lucide-react';
-import { safeArray } from '../../utils/safe';
+import { NotificationBell } from '../NotificationBell';
+import { useBusinessDetails } from '../../hooks/useBusinessDetails';
 interface EmployeeLayoutProps {
   children: React.ReactNode;
   currentPage: string;
   onNavigate: (page: string) => void;
   onLogout: () => void;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
   user: {
-    name: string;
+    name?: string;
+    fullName?: string;
+    fullname?: string;
     email: string;
     profile_picture?: string | null;
   };
   globalSearch?: string;
   onGlobalSearch?: (term: string) => void;
+  onGlobalSearchSubmit?: (term: string) => void | Promise<void>;
 }
 export function EmployeeLayout({
   children,
   currentPage,
   onNavigate,
   onLogout,
+  theme,
+  onToggleTheme,
   user,
   globalSearch = '',
   onGlobalSearch,
+  onGlobalSearchSubmit,
 }: EmployeeLayoutProps) {
   const [showPicPreview, setShowPicPreview] = useState(false);
+  const isDark = theme === 'dark';
+  const businessDetails = useBusinessDetails();
+  let storedName: string | null = null;
+  try {
+    storedName = typeof localStorage !== 'undefined' ? localStorage.getItem('maptech_user_name') : null;
+  } catch (e) {
+    storedName = null;
+  }
+
+  const initialName = user?.fullName || user?.fullname || user?.name || storedName || '';
+  const [displayName, setDisplayName] = useState<string>(initialName);
+
+  useEffect(() => {
+    // Always fetch the authoritative user record on mount to ensure sidebar shows the correct name.
+    let cancelled = false;
+    (async () => {
+      try {
+        // first try localStorage fallback (set by App) to avoid flashing
+        try {
+          if (typeof localStorage !== 'undefined') {
+            const stored = localStorage.getItem('maptech_user_name');
+            if (stored) setDisplayName(stored);
+          }
+        } catch (e) {
+          // ignore
+        }
+
+        const res = await fetch('/user', { credentials: 'include', headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+        if (!res.ok) return;
+        const d = await res.json();
+        if (cancelled) return;
+        const name = d.fullName || d.fullname || d.name;
+        if (name) {
+          setDisplayName(name);
+          try { localStorage.setItem('maptech_user_name', name); } catch (e) { /* ignore */ }
+        }
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
+
+  // Update display name if `user` prop changes after initial mount
+  useEffect(() => {
+    try {
+      const nameFromUser = user?.fullName || user?.fullname || user?.name;
+      if (nameFromUser) {
+        setDisplayName(nameFromUser);
+        try { localStorage.setItem('maptech_user_name', nameFromUser); } catch (e) { /* ignore */ }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [user]);
   const navItems = [
   {
     id: 'dashboard',
@@ -79,20 +146,19 @@ export function EmployeeLayout({
   }];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className={`app-theme-scope min-h-screen flex ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
       {/* Sidebar */}
       <div className="hidden md:flex md:w-64 md:flex-col fixed inset-y-0 z-10 bg-slate-900 text-white">
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex flex-col items-center pt-8 pb-6 px-4 bg-slate-950">
             <img
               className="h-16 w-auto mb-3 brightness-110 contrast-110"
-              src="/assets/Maptech-Official-Logo.png"
+              src={businessDetails.logo_url}
               alt="Maptech"
             />
 
             <p className="text-center text-sm font-medium text-slate-300 leading-tight">
-              Maptech Information Solutions<br />
-              Inc.
+              {businessDetails.company_name}
             </p>
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
@@ -120,10 +186,10 @@ export function EmployeeLayout({
             <div className="flex-shrink-0 w-full group block">
               <div className="flex items-center">
                 <div className="h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
-                  {user.name.charAt(0)}
+                  {(displayName?.charAt(0) ?? 'E').toUpperCase()}
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-white">{user.name}</p>
+                  <p className="text-sm font-medium text-white">{displayName || ''}</p>
                   <p className="text-xs font-medium text-slate-400">Employee</p>
                 </div>
                 <button
@@ -141,27 +207,33 @@ export function EmployeeLayout({
 
       {/* Main content */}
       <div className="flex flex-col w-full md:pl-64">
-        <div className="sticky top-0 z-10 flex-shrink-0 flex h-16 bg-white shadow-sm border-b border-slate-200">
+        <div className={`sticky top-0 z-10 flex-shrink-0 flex h-16 items-center border-b ${isDark ? 'bg-slate-900/75 backdrop-blur-md border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
           <button
             type="button"
-            className="px-4 border-r border-slate-200 text-slate-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500 md:hidden">
+            className={`px-4 border-r focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500 md:hidden ${isDark ? 'border-slate-800 text-slate-300' : 'border-slate-200 text-slate-500'}`}>
 
             <span className="sr-only">Open sidebar</span>
             <Menu className="h-6 w-6" />
           </button>
-          <div className="flex-1 px-4 flex justify-between">
-            <div className="flex-1 flex">
-              <form className="w-full flex md:ml-0" onSubmit={(e) => e.preventDefault()}>
+          <div className="flex-1 px-4 flex items-center justify-between gap-4">
+            <div className="flex-1 flex items-center">
+              <form
+                className="w-full flex md:ml-0"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  onGlobalSearchSubmit?.(globalSearch);
+                }}
+              >
                 <label htmlFor="search-field" className="sr-only">
                   Search
                 </label>
-                <div className="relative w-full text-slate-400 focus-within:text-slate-600">
-                  <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
+                <div className={`relative w-full max-w-4xl h-10 text-slate-400 ${isDark ? 'focus-within:text-slate-300' : 'focus-within:text-slate-600'}`}>
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                     <Search className="h-5 w-5" />
                   </div>
                   <input
                     id="search-field"
-                    className="block w-full h-full pl-8 pr-3 py-2 border-transparent text-slate-900 placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-0 focus:border-transparent sm:text-sm"
+                    className={`block w-full h-10 rounded-xl pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500/40 sm:text-sm ${isDark ? 'bg-slate-800/80 border border-slate-700 text-slate-100 placeholder-slate-400' : 'bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-500'}`}
                     placeholder="Search all courses..."
                     type="search"
                     name="search"
@@ -173,16 +245,34 @@ export function EmployeeLayout({
             </div>
             <div className="ml-4 flex items-center md:ml-6">
               <button
-                onClick={() => onNavigate('notifications')}
-                className="bg-white p-1 rounded-full text-slate-400 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                <span className="sr-only">View notifications</span>
-                <Bell className="h-6 w-6" />
+                onClick={onToggleTheme}
+                aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                className="mr-2 inline-flex items-center"
+                title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                <span className="inline-flex items-center gap-2 rounded-full border border-slate-300/60 bg-white/90 px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition-colors dark:border-slate-600/70 dark:bg-slate-900/85 dark:text-slate-100">
+                  <span className="relative inline-flex h-6 w-11 items-center rounded-full bg-gradient-to-r from-amber-300 via-orange-300 to-yellow-200 p-0.5 dark:from-slate-700 dark:via-slate-600 dark:to-slate-500">
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow ring-1 ring-black/5 transition-all duration-300 dark:bg-slate-900 dark:ring-white/10 ${
+                        theme === 'dark' ? 'left-[22px]' : 'left-0.5'
+                      }`}
+                    >
+                      {theme === 'dark' ? (
+                        <Moon className="m-0.5 h-4 w-4 text-cyan-300" />
+                      ) : (
+                        <Sun className="m-0.5 h-4 w-4 text-amber-500" />
+                      )}
+                    </span>
+                  </span>
+                  <span className="tracking-wide">{theme === 'dark' ? 'Dark' : 'Light'}</span>
+                </span>
               </button>
+              <NotificationBell role="Employee" onOpenAll={() => onNavigate('notifications')} />
             </div>
           </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto bg-slate-50 p-6">
+        <main className={`flex-1 overflow-y-auto p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50'}`}>
           {children}
         </main>
       </div>

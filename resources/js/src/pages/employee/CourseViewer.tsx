@@ -17,9 +17,9 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { sanitizeHtml } from '../../components/RichTextEditor';
-import { safeArray } from '../../utils/safe';
+import YouTubePlayer from '../../components/YouTubePlayer';
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = '/api';
 
 const getCookie = (name: string) => {
   const value = `; ${document.cookie}`;
@@ -28,7 +28,7 @@ const getCookie = (name: string) => {
 };
 
 const getXsrfToken = async (): Promise<string> => {
-  await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+  await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
   return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
 };
 
@@ -114,6 +114,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<number | null>(null);
 
   // Quiz state
   const [quizState, setQuizState] = useState<null | 'loading' | 'taking' | 'submitted'>(null);
@@ -156,6 +157,58 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
 
   useEffect(() => {
     if (courseId) loadCourse();
+  }, [courseId]);
+
+  // Subscribe to realtime enrollment unlock events for the current user
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/user', { credentials: 'include', headers: { Accept: 'application/json' } });
+        if (res.ok) {
+          const data = await res.json();
+          if (mounted && data?.id) setUserId(data.id);
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    const Echo = (window as any).Echo;
+    if (!Echo || typeof Echo.private !== 'function') return;
+
+    const channel = Echo.private('user.' + userId);
+    const handler = (payload: any) => {
+      if (!payload || payload.course_id == null) return;
+      // If this event is for the currently-open course, reload it so modules reflect unlock
+      if (String(payload.course_id) === String(courseId)) {
+        loadCourse();
+      }
+    };
+
+    channel.listen('EnrollmentUnlocked', handler);
+    channel.listen('ModuleUnlocked', handler);
+
+    return () => {
+      try { channel.stopListening('EnrollmentUnlocked'); } catch (e) { /* ignore */ }
+      try { channel.stopListening('ModuleUnlocked'); } catch (e) { /* ignore */ }
+    };
+  }, [userId, courseId]);
+
+  // Listen for same-window unlock events dispatched by instructor pages
+  useEffect(() => {
+    const handler = (e: any) => {
+      const cid = e?.detail?.courseId ?? e?.detail?.course_id;
+      if (!cid) return;
+      if (String(cid) === String(courseId)) loadCourse();
+    };
+    window.addEventListener('course:unlocked', handler as EventListener);
+    return () => window.removeEventListener('course:unlocked', handler as EventListener);
   }, [courseId]);
 
   // Reset quiz state when module changes
@@ -322,13 +375,20 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     ) : null;
 
     if (file_type === 'video') {
+      // Check if content_url is a YouTube link
+      const isYouTube = content_url && (/youtube\.com|youtu\.be/.test(content_url));
       return (
         <div className="space-y-4">
           {textBlock}
           <div className="aspect-video bg-slate-900 rounded-xl overflow-hidden">
-            <video controls className="w-full h-full" src={content_url}>
-              Your browser does not support the video tag.
-            </video>
+            {isYouTube ? (
+              // YouTube player container; we'll initialize the YT player via JS API
+              <YouTubePlayer contentUrl={content_url!} lessonId={currentLesson!.id} />
+            ) : (
+              <video controls className="w-full h-full" src={content_url}>
+                Your browser does not support the video tag.
+              </video>
+            )}
           </div>
         </div>
       );
@@ -981,3 +1041,5 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     </div>
   );
 }
+
+// YouTube player now provided by shared component at ../../components/YouTubePlayer

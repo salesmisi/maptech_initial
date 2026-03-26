@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Lock, ArrowRight } from 'lucide-react';
+import { BusinessFooter } from '../components/business/BusinessFooter';
 
 interface LoginPageProps {
   onLogin: (
@@ -10,13 +11,15 @@ interface LoginPageProps {
     department?: string,
     profile_picture?: string | null
   ) => void;
+  theme: 'light' | 'dark';
 }
 
-export function LoginPage({ onLogin }: LoginPageProps) {
+export function LoginPage({ onLogin, theme }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
 
   // ✅ Function to get cookie value
   const getCookie = (name: string) => {
@@ -68,22 +71,70 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       }
 
       // ✅ 4. Refresh CSRF cookie after login (session()->regenerate() creates a new token)
-      await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', {
+      await fetch('/sanctum/csrf-cookie', {
         credentials: 'include',
       });
 
       setEmail('');
       setPassword('');
 
+      // Auto punch-in for employee/instructor if no open time log
+      const role = data.role?.toLowerCase();
+      if (role === 'employee' || role === 'instructor') {
+        try {
+          // Check for open time log
+          const logsRes = await fetch('/api/time-logs/me', {
+            credentials: 'include',
+            headers: {
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+            },
+          });
+          if (logsRes.ok) {
+            const logs = await logsRes.json();
+            const hasOpen = Array.isArray(logs) && logs.some((l) => l.time_in && !l.time_out);
+            if (!hasOpen) {
+              // Punch in if no open log
+              // include XSRF token for session-authenticated POST
+              const xsrf = getCookie('XSRF-TOKEN');
+              await fetch('/api/time-logs/punch-in', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json',
+                  'X-Requested-With': 'XMLHttpRequest',
+                  'X-XSRF-TOKEN': decodeURIComponent(xsrf || ''),
+                },
+                body: JSON.stringify({}),
+              });
+            }
+          }
+        } catch (e) {
+          // ignore punch-in errors
+        }
+      }
+
       // Pass role (lowercase), name, email, and department
       onLogin(
-        data.id,
-        data.role?.toLowerCase() as 'admin' | 'instructor' | 'employee',
-        data.name,
+        role as 'admin' | 'instructor' | 'employee',
+        data.fullName ?? data.fullname ?? data.name,
         data.email,
         data.department,
         data.profile_picture
       );
+
+      // If server returned the created time_log, emit a window event so dashboard can update immediately
+      try {
+        if (data?.time_log) {
+          // Fire event for mounted dashboards
+          window.dispatchEvent(new CustomEvent('timeLogCreated', { detail: data.time_log }));
+          // Also persist briefly so dashboards that mount after navigation can pick it up
+          try { sessionStorage.setItem('last_time_log', JSON.stringify(data.time_log)); } catch (e) { /* ignore */ }
+        }
+      } catch (e) {
+        // ignore
+      }
 
     } catch (err: any) {
       setError(err.message || 'Invalid credentials.');
@@ -92,9 +143,29 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     }
   };
 
+  const isDark = theme === 'dark';
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+    <div className="relative min-h-screen overflow-hidden flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <video
+        className="absolute inset-0 h-full w-full object-cover"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        poster="/assets/pasted-image.jpg"
+        onCanPlay={() => setVideoReady(true)}
+      >
+        <source src="/assets/loginvid.mp4" type="video/mp4" />
+      </video>
+
+      <div
+        className={`absolute inset-0 bg-slate-950/65 transition-opacity duration-500 ${videoReady ? 'opacity-100' : 'opacity-90'}`}
+        aria-hidden="true"
+      />
+
+      <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
           <img
             className="h-20 w-auto"
@@ -102,20 +173,20 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             alt="Maptech LearnHub"
           />
         </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900">
+        <h2 className={`mt-6 text-center text-3xl font-extrabold ${isDark ? 'text-white' : 'text-slate-50'}`}>
           Sign in to LearnHub
         </h2>
-        <p className="mt-2 text-center text-sm text-slate-600">
+        <p className={`mt-2 text-center text-sm ${isDark ? 'text-slate-200' : 'text-slate-100'}`}>
           Maptech Information Solutions Inc.
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border-t-4 border-green-500">
+      <div className="relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className={`backdrop-blur-sm py-8 px-4 shadow sm:rounded-lg sm:px-10 border-t-4 border-green-500 ${isDark ? 'bg-slate-950/75' : 'bg-white/90'}`}>
           <form className="space-y-6" onSubmit={handleSubmit}>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700">
+              <label htmlFor="login-email" className={`block text-sm font-medium ${isDark ? 'text-slate-100' : 'text-slate-700'}`}>
                 Email address
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
@@ -123,18 +194,21 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   <Mail className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
+                  id="login-email"
+                  name="email"
+                  autoComplete="email"
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500"
+                  className={`block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
                   placeholder="name@maptech.com"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700">
+              <label htmlFor="login-password" className={`block text-sm font-medium ${isDark ? 'text-slate-100' : 'text-slate-700'}`}>
                 Password
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
@@ -142,11 +216,14 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   <Lock className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
+                  id="login-password"
+                  name="password"
+                  autoComplete="current-password"
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500"
+                  className={`block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
                   placeholder="••••••••"
                 />
               </div>
@@ -174,6 +251,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           </form>
         </div>
       </div>
+
+      <BusinessFooter isDark={isDark} />
     </div>
   );
 }

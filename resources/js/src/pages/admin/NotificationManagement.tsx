@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X } from 'lucide-react';
 import { safeArray } from '../../utils/safe';
 
@@ -44,43 +45,32 @@ export function NotificationManagement() {
     message: '',
     roles: [] as string[],
     course_id: '',
+    target_user_ids: [] as number[],
   });
 
-  const token = localStorage.getItem('token');
+  // User search state
+  const [userQuery, setUserQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{ id: number; fullname: string; role: string }[]>([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const userSearchTimer = React.useRef<number | null>(null);
+  const [selectedUsers, setSelectedUsers] = useState<{ id: number; fullname: string; role: string }[]>([]);
+  const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
 
+  const token = localStorage.getItem('token');
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
+
+  // Helper to read cookie value
   const getCookie = (name: string) => {
-    const match = document.cookie.match(new RegExp('(^|;)\\s*' + name + '=([^;]+)'));
-    return match ? decodeURIComponent(match[2]) : null;
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
   };
 
-  const fetchOptions = (method = 'GET', body?: any) => {
-    const opts: any = {
-      method,
-      headers: {
-        'Accept': 'application/json',
-      },
-    };
-
-    // Always include credentials so cookies are sent for stateful auth
-    opts.credentials = 'include';
-    opts.headers['X-Requested-With'] = 'XMLHttpRequest';
-
-    // Attach CSRF header when cookie exists
-    const xsrfRaw = getCookie('XSRF-TOKEN');
-    const xsrf = xsrfRaw ? decodeURIComponent(xsrfRaw) : null;
-    if (xsrf) opts.headers['X-XSRF-TOKEN'] = xsrf;
-
-    // If token is present, also send Authorization header (bearer fallback)
-    if (token) {
-      opts.headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    if (body) {
-      opts.headers['Content-Type'] = 'application/json';
-      opts.body = JSON.stringify(body);
-    }
-
-    return opts;
+  const getXsrfToken = async (): Promise<string> => {
+    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+    return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
   };
 
   // Load notifications
@@ -146,23 +136,95 @@ export function NotificationManagement() {
   };
 
   const deleteNotification = async (id: number) => {
-    if (!confirm('Delete this notification?')) return;
-    try {
-      await fetch(`/api/admin/notifications/${id}`, fetchOptions('DELETE'));
-      fetchNotifications();
-    } catch (err) {
-      console.error('Failed to delete notification:', err);
-    }
+    showConfirm('Delete this notification?', async () => {
+      try {
+        await fetch(`/api/admin/notifications/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+          },
+        });
+        fetchNotifications();
+      } catch (err) {
+        console.error('Failed to delete notification:', err);
+      }
+    });
   };
 
   const handleRoleToggle = (role: string) => {
-    setFormData(prev => {
-      const prevRoles = Array.isArray(prev.roles) ? prev.roles : (prev.roles ? [prev.roles] : []);
-      const has = prevRoles.includes(role);
-      const nextRoles = has ? prevRoles.filter(r => r !== role) : [...prevRoles, role];
-      return { ...prev, roles: nextRoles };
-    });
+    setFormData(prev => ({
+      ...prev,
+      roles: prev.roles.includes(role)
+        ? prev.roles.filter(r => r !== role)
+        : [...prev.roles, role],
+      // clear selected users when role deselected
+      target_user_ids: prev.roles.includes(role) ? prev.target_user_ids.filter(id => {
+        // keep only users whose role is still selected — we'll filter after fetching details
+        return true;
+      }) : prev.target_user_ids,
+    }));
   };
+
+  const handleAddUser = (user: { id: number; fullname: string; role: string }) => {
+    // Ensure we always keep canonical selected user objects for display.
+    if (!formData.target_user_ids.includes(user.id)) {
+      setFormData(prev => ({ ...prev, target_user_ids: [...prev.target_user_ids, user.id] }));
+    }
+    if (!selectedUsers.find(u => u.id === user.id)) {
+      setSelectedUsers(prev => [...prev, user]);
+    }
+    setSearchResults([]);
+    setUserQuery('');
+  };
+
+  const handleRemoveUser = (userId: number) => {
+    setFormData(prev => ({ ...prev, target_user_ids: prev.target_user_ids.filter(id => id !== userId) }));
+    setSelectedUsers(prev => prev.filter(u => u.id !== userId));
+  };
+
+  const searchUsers = async (q: string) => {
+    if (!q || q.length < 1) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      setIsSearchingUsers(true);
+      const roleParam = formData.roles.length === 1 ? `&role=${encodeURIComponent(formData.roles[0])}` : '';
+      const deptParam = selectedDepartment ? `&department_id=${encodeURIComponent(selectedDepartment)}` : '';
+      const res = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}${roleParam}${deptParam}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      const data = await res.json();
+      // normalize: expect array of users
+      const users = Array.isArray(data) ? data : (data?.data || []);
+      setSearchResults(users.map((u: any) => ({ id: u.id, fullname: u.fullname || u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim(), role: u.role || '' })));
+    } catch (err) {
+      console.error('User search failed', err);
+    } finally {
+      setIsSearchingUsers(false);
+    }
+  };
+
+  // debounce user search
+  useEffect(() => {
+    if (userSearchTimer.current) window.clearTimeout(userSearchTimer.current);
+    userSearchTimer.current = window.setTimeout(() => {
+      searchUsers(userQuery);
+    }, 300) as unknown as number;
+    return () => { if (userSearchTimer.current) window.clearTimeout(userSearchTimer.current); };
+  }, [userQuery, formData.roles, selectedDepartment]);
+
+  // load departments for selector
+  useEffect(() => {
+    fetch('/api/departments')
+      .then(res => res.json())
+      .then(data => setDepartments(Array.isArray(data) ? data : []))
+      .catch(err => console.error('Failed to load departments:', err));
+  }, []);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,37 +236,40 @@ export function NotificationManagement() {
 
     setIsSending(true);
     try {
-      // Ensure we have a fresh CSRF cookie when not using token fallback
-      if (!token) {
-        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-      }
-      const payload = { title: formData.title, message: formData.message, roles: rolesArray, course_id: formData.course_id || null };
-      console.debug('Send announce payload', payload);
-      const res = await fetch('/api/admin/notifications/announce', fetchOptions('POST', payload));
+      const xsrf = await getXsrfToken();
+      const res = await fetch('/api/admin/notifications/announce', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrf,
+        },
+        body: JSON.stringify({
+          title: formData.title,
+          message: formData.message,
+          roles: formData.roles,
+          course_id: formData.course_id || null,
+            department_id: selectedDepartment ? Number(selectedDepartment) : null,
+          target_user_ids: formData.target_user_ids && formData.target_user_ids.length > 0 ? formData.target_user_ids : null,
+        }),
+      });
 
-      let data: any = null;
-      if (res.headers.get('content-type')?.includes('application/json')) {
-        try {
-          data = await res.json();
-        } catch (parseErr) {
-          console.error('Failed to parse send response JSON', parseErr);
-        }
-      } else {
-        const text = await res.text().catch(() => null);
-        console.warn('send announcement returned non-json', { status: res.status, text });
-      }
+      const data = await res.json();
 
       if (res.ok) {
         alert(`Announcement sent to ${data.recipients_count} users!`);
         setIsModalOpen(false);
-        setFormData({ title: '', message: '', roles: [], course_id: '' });
+        setFormData({ title: '', message: '', roles: [], course_id: '', target_user_ids: [] });
 
         // Add to sent history
         setSentHistory(prev => [{
           id: Date.now(),
           title: formData.title,
           message: formData.message,
-          target: formData.roles.join(', '),
+          target: formData.target_user_ids && formData.target_user_ids.length > 0 ? `Users: ${formData.target_user_ids.length}` : formData.roles.join(', '),
           date: new Date().toISOString().split('T')[0],
           status: 'Sent',
           recipients_count: data.recipients_count,
@@ -520,6 +585,51 @@ export function NotificationManagement() {
                         </label>
                       ))}
                     </div>
+                    <div className="mt-3 grid grid-cols-1 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700">Department (optional)</label>
+                        <select
+                          value={selectedDepartment}
+                          onChange={(e) => setSelectedDepartment(e.target.value)}
+                          className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                        >
+                          <option value="">All departments</option>
+                          {departments.map(d => (
+                            <option key={d.id} value={String(d.id)}>{d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700">Search Users (by name)</label>
+                        <input
+                          type="text"
+                          value={userQuery}
+                          onChange={(e) => setUserQuery(e.target.value)}
+                          placeholder="Type a name to search instructors or employees"
+                          className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                        />
+                      {searchResults.length > 0 && (
+                        <div className="mt-1 border border-slate-200 rounded bg-white max-h-48 overflow-auto">
+                          {searchResults.map(u => (
+                            <div key={u.id} className="px-3 py-2 hover:bg-slate-50 cursor-pointer" onClick={() => handleAddUser(u)}>
+                              <div className="text-sm font-medium text-slate-900">{u.fullname}</div>
+                              <div className="text-xs text-slate-400">{u.role}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {selectedUsers.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {selectedUsers.map(u => (
+                            <span key={u.id} className="inline-flex items-center gap-2 px-2 py-1 bg-slate-100 text-slate-700 rounded-full text-xs">
+                              <span>{u.fullname}</span>
+                              <button type="button" onClick={() => handleRemoveUser(u.id)} className="text-slate-400 hover:text-red-600">×</button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      </div>
+                    </div>
                   </div>
                   <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
                     <button
@@ -551,6 +661,7 @@ export function NotificationManagement() {
           </div>
         </div>
       )}
+      {confirm.ConfirmModalRenderer()}
     </div>
   );
 }

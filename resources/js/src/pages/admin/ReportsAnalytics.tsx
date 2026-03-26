@@ -41,16 +41,36 @@ export function ReportsAnalytics() {
   const [range, setRange] = useState(6);
   const [showRangeMenu, setShowRangeMenu] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
-    setLoading(true);
-    fetch(`/api/admin/reports?months=${range}`, {
-      headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCookie('XSRF-TOKEN') },
-      credentials: 'include',
-    })
-      .then((res) => res.json())
-      .then((d: ReportData) => setData(d))
-      .finally(() => setLoading(false));
+    let isMounted = true;
+
+    const loadReports = async (showSpinner = false) => {
+      if (showSpinner) setLoading(true);
+      try {
+        const res = await fetch(`/api/admin/reports?months=${range}`, {
+          headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCookie('XSRF-TOKEN') },
+          credentials: 'include',
+        });
+        const d: ReportData = await res.json();
+        if (!isMounted) return;
+        setData(d);
+        setLastUpdated(new Date());
+      } finally {
+        if (showSpinner && isMounted) setLoading(false);
+      }
+    };
+
+    loadReports(true);
+    const intervalId = window.setInterval(() => {
+      loadReports(false);
+    }, 20000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
   }, [range]);
 
   const handleExport = async () => {
@@ -86,6 +106,9 @@ export function ReportsAnalytics() {
         <h1 className="text-2xl font-bold text-slate-900">
           Reports &amp; Analytics
         </h1>
+        <div className="text-xs text-slate-500 mr-auto ml-4 hidden sm:block">
+          Live refresh every 20s{lastUpdated ? ` • Updated ${lastUpdated.toLocaleTimeString()}` : ''}
+        </div>
         <div className="flex space-x-3">
           {/* Range picker */}
           <div className="relative">

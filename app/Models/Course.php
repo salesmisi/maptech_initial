@@ -116,7 +116,7 @@ class Course extends Model
     public function enrolledUsers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'enrollments')
-            ->withPivot(['status', 'progress', 'enrolled_at'])
+            ->withPivot(['status', 'progress', 'enrolled_at', 'locked'])
             ->withTimestamps();
     }
 }

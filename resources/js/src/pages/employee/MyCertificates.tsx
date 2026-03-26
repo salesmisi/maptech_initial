@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { safeArray } from '../../utils/safe';
-import { Download, Award, Calendar, ExternalLink, BookOpen, Upload, Trash2, Image } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Download, Award, Calendar, ExternalLink } from 'lucide-react';
 
 const API_BASE = '/api';
 
@@ -15,26 +14,13 @@ interface Certificate {
   score: string;
   user_name: string;
   logo_url: string | null;
-  has_course_logo?: boolean;
+  instructor_name: string;
+  instructor_signature_url: string | null;
 }
 
 export function MyCertificates() {
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [uploadingId, setUploadingId] = useState<number | null>(null);
-
-  const getCookie = (name: string) => {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop()?.split(';').shift();
-  };
-
-  const getHeaders = () => ({
-    'Accept': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest',
-    'X-XSRF-TOKEN': decodeURIComponent(getCookie('XSRF-TOKEN') || ''),
-  });
 
   const loadCertificates = async () => {
     try {
@@ -56,55 +42,6 @@ export function MyCertificates() {
     loadCertificates();
   }, []);
 
-  const handleUploadLogo = (certId: number) => {
-    setUploadingId(certId);
-    fileInputRef.current?.click();
-  };
-
-  const onFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !uploadingId) return;
-
-    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-    const formData = new FormData();
-    formData.append('logo', file);
-
-    try {
-      const res = await fetch(`${API_BASE}/employee/certificates/${uploadingId}/logo`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: getHeaders(),
-        body: formData,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(err.message || 'Failed to upload logo');
-        return;
-      }
-      loadCertificates();
-    } catch {
-      alert('Upload failed');
-    } finally {
-      setUploadingId(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  const handleRemoveLogo = async (certId: number) => {
-    if (!window.confirm('Remove logo from this certificate?')) return;
-    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-    try {
-      await fetch(`${API_BASE}/employee/certificates/${certId}/logo`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: getHeaders(),
-      });
-      loadCertificates();
-    } catch {
-      alert('Failed to remove logo');
-    }
-  };
-
   const handleDownloadPdf = async (cert: Certificate) => {
     // If there's a logo, load it first
     let logoImg: HTMLImageElement | null = null;
@@ -118,119 +55,152 @@ export function MyCertificates() {
       });
     }
 
+    let signatureImg: HTMLImageElement | null = null;
+    if (cert.instructor_signature_url) {
+      signatureImg = await new Promise<HTMLImageElement | null>((resolve) => {
+        const img = new window.Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = cert.instructor_signature_url!;
+      });
+    }
+
     const canvas = document.createElement('canvas');
     const scale = 2;
-    canvas.width = 800 * scale;
-    canvas.height = 560 * scale;
+    canvas.width = 1000 * scale;
+    canvas.height = 700 * scale;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.scale(scale, scale);
 
     // Background
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 800, 560);
+    ctx.fillRect(0, 0, 1000, 700);
 
-    // Green top bar
-    ctx.fillStyle = '#16a34a';
-    ctx.fillRect(0, 0, 800, 8);
+    // Outer green frame matching the provided template
+    ctx.strokeStyle = '#0f6a4f';
+    ctx.lineWidth = 14;
+    ctx.strokeRect(16, 16, 968, 668);
 
-    // Border
-    ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(30, 30, 740, 500);
+    // Inner frame
+    ctx.lineWidth = 3;
+    ctx.strokeRect(34, 34, 932, 632);
 
-    // Inner border
-    ctx.strokeStyle = '#16a34a';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(40, 40, 720, 480);
-
-    // Award icon or uploaded logo
+    // Product logo (if mapped), centered near top
     if (logoImg) {
-      // Draw the uploaded logo centered at top
-      const maxW = 80, maxH = 60;
+      const maxW = 150, maxH = 85;
       const ratio = Math.min(maxW / logoImg.width, maxH / logoImg.height);
       const w = logoImg.width * ratio;
       const h = logoImg.height * ratio;
-      ctx.drawImage(logoImg, 400 - w / 2, 70, w, h);
+      ctx.drawImage(logoImg, 500 - w / 2, 58, w, h);
     } else {
       ctx.beginPath();
-      ctx.arc(400, 100, 30, 0, Math.PI * 2);
-      ctx.fillStyle = '#dcfce7';
+      ctx.arc(500, 95, 26, 0, Math.PI * 2);
+      ctx.fillStyle = '#ecfdf5';
       ctx.fill();
-      ctx.fillStyle = '#16a34a';
-      ctx.font = 'bold 28px Arial';
+      ctx.fillStyle = '#0f6a4f';
+      ctx.font = 'bold 26px Georgia';
       ctx.textAlign = 'center';
-      ctx.fillText('★', 400, 112);
+      ctx.fillText('★', 500, 104);
     }
 
-    // Title
-    ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 26px Arial';
-    ctx.fillText('CERTIFICATE OF COMPLETION', 400, 170);
+    // Main heading
+    ctx.fillStyle = '#0f6a4f';
+    ctx.font = 'bold 68px Georgia';
+    ctx.fillText('Certificate of Achievement', 500, 200);
 
-    // Divider
-    ctx.strokeStyle = '#16a34a';
+    // Heading ornament line
+    ctx.strokeStyle = '#0f6a4f';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(235, 228);
+    ctx.lineTo(765, 228);
+    ctx.stroke();
+    ctx.fillStyle = '#0f6a4f';
+    ctx.beginPath();
+    ctx.moveTo(500, 218);
+    ctx.lineTo(514, 228);
+    ctx.lineTo(500, 238);
+    ctx.lineTo(486, 228);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#1f2937';
+    ctx.font = 'bold 54px Times New Roman';
+    ctx.fillText('This certifies that:', 500, 292);
+
+    ctx.strokeStyle = '#9ca3af';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(250, 185);
-    ctx.lineTo(550, 185);
+    ctx.moveTo(200, 308);
+    ctx.lineTo(800, 308);
     ctx.stroke();
 
-    // Presented to
-    ctx.fillStyle = '#64748b';
-    ctx.font = '14px Arial';
-    ctx.fillText('This is to certify that', 400, 220);
+    ctx.fillStyle = '#111827';
+    ctx.font = 'bold 58px Times New Roman';
+    ctx.fillText(cert.user_name, 500, 372);
 
-    // User name
-    ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 32px Georgia';
-    ctx.fillText(cert.user_name, 400, 265);
-
-    // Underline name
-    ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#9ca3af';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(200, 275);
-    ctx.lineTo(600, 275);
+    ctx.moveTo(140, 392);
+    ctx.lineTo(860, 392);
     ctx.stroke();
 
-    // Has completed
-    ctx.fillStyle = '#64748b';
-    ctx.font = '14px Arial';
-    ctx.fillText('has successfully completed the course', 400, 310);
+    ctx.fillStyle = '#1f2937';
+    ctx.font = 'bold 50px Times New Roman';
+    ctx.fillText('has successfully completed the requirements', 500, 462);
+    ctx.fillText('of the seminar for', 500, 520);
 
-    // Course title
     ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 22px Arial';
-    ctx.fillText(cert.title, 400, 350);
+    ctx.font = 'bold 54px Times New Roman';
+    ctx.fillText(cert.title, 500, 580);
 
-    // Score
-    ctx.fillStyle = '#16a34a';
-    ctx.font = 'bold 16px Arial';
-    ctx.fillText(`Score: ${cert.score}%`, 400, 385);
-
-    // Footer line
-    ctx.strokeStyle = '#e2e8f0';
+    ctx.strokeStyle = '#9ca3af';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(60, 440);
-    ctx.lineTo(740, 440);
+    ctx.moveTo(200, 598);
+    ctx.lineTo(800, 598);
     ctx.stroke();
 
-    // Date
-    ctx.fillStyle = '#64748b';
-    ctx.font = '12px Arial';
+    // Footer section
+    ctx.font = 'italic 42px Times New Roman';
+    ctx.fillStyle = '#374151';
     ctx.textAlign = 'left';
-    ctx.fillText(`Date: ${cert.completed_date}`, 80, 470);
+    ctx.fillText(`Date: ${cert.completed_date}`, 120, 645);
 
-    // Certificate ID
     ctx.textAlign = 'right';
-    ctx.fillText(`ID: ${cert.certificate_code}`, 720, 470);
+    ctx.fillText('Instructor', 880, 645);
 
-    // Company
+    ctx.strokeStyle = '#4b5563';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(120, 652);
+    ctx.lineTo(360, 652);
+    ctx.moveTo(640, 652);
+    ctx.lineTo(880, 652);
+    ctx.stroke();
+
+    if (signatureImg) {
+      const maxSigW = 220;
+      const maxSigH = 70;
+      const ratio = Math.min(maxSigW / signatureImg.width, maxSigH / signatureImg.height);
+      const sigW = signatureImg.width * ratio;
+      const sigH = signatureImg.height * ratio;
+      ctx.drawImage(signatureImg, 760 - sigW / 2, 575, sigW, sigH);
+    }
+
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '11px Arial';
-    ctx.fillText('Maptech Information Solutions Inc.', 400, 510);
+    ctx.fillStyle = '#374151';
+    ctx.font = 'bold 24px Times New Roman';
+    ctx.fillText(cert.instructor_name || 'Instructor', 760, 675);
+
+    // Certificate code
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '18px Arial';
+    ctx.fillText(`Certificate ID: ${cert.certificate_code}`, 500, 695);
 
     // Download as image (PNG pretending as PDF for simplicity)
     const link = document.createElement('a');
@@ -252,17 +222,8 @@ export function MyCertificates() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-900">My Certificates</h1>
       <p className="text-slate-500">
-        View and download your earned certificates. Certificates display the course logo set by the instructor, or you can upload a custom logo.
+        View and download your earned certificates. Product logos are mapped automatically based on your completed modules and lessons.
       </p>
-
-      {/* Hidden file input for logo upload */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={onFileSelected}
-        accept="image/png,image/jpeg,image/jpg,image/svg+xml"
-        className="hidden"
-      />
 
       {certificates.length === 0 ? (
         <div className="text-center py-12">
@@ -289,7 +250,7 @@ export function MyCertificates() {
                     <Award className="h-8 w-8 text-green-600 mb-2" />
                   )}
                   <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-1">
-                    Certificate of Completion
+                    Certificate of Achievement
                   </h3>
                   <p className="text-[10px] text-slate-500 mb-2">
                     Presented to {cert.user_name}
@@ -299,7 +260,7 @@ export function MyCertificates() {
                   </p>
                   <div className="mt-auto pt-2 border-t border-slate-100 w-full flex justify-between text-[8px] text-slate-400">
                     <span>{cert.completed_date}</span>
-                    <span>Maptech Inc.</span>
+                    <span>{cert.instructor_name || 'Instructor'}</span>
                   </div>
                 </div>
 
@@ -330,32 +291,6 @@ export function MyCertificates() {
                     ID: {cert.certificate_code}
                   </span>
                   <div className="flex items-center gap-2">
-                    {cert.has_course_logo ? (
-                      <span className="text-xs text-slate-400 flex items-center" title="Logo set by course instructor">
-                        <Image className="h-3 w-3 mr-1" />
-                        Course Logo
-                      </span>
-                    ) : (
-                      <>
-                        {cert.logo_url && (
-                          <button
-                            onClick={() => handleRemoveLogo(cert.id)}
-                            className="text-red-500 hover:text-red-700 text-sm flex items-center"
-                            title="Remove logo"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleUploadLogo(cert.id)}
-                          className="text-blue-600 hover:text-blue-700 text-sm flex items-center"
-                          title={cert.logo_url ? 'Change logo' : 'Upload logo'}
-                        >
-                          <Upload className="h-4 w-4 mr-1" />
-                          Logo
-                        </button>
-                      </>
-                    )}
                     <button
                       onClick={() => handleDownloadPdf(cert)}
                       className="text-green-600 hover:text-green-700 font-medium text-sm flex items-center"

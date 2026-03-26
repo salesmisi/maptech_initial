@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers\Admin;
 
+use Illuminate\Support\Facades\Log;
+
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
+use App\Models\Enrollment;
 use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -71,9 +74,11 @@ class UserController extends Controller
             ], 422);
         }
 
-$user = User::create([
-    'fullname' => $validated['fullName'],
-    'email' => $validated['email'],
+        // Create user; store into lowercase `fullname` column used by this schema.
+        // The API still exposes `fullName` as a JSON field for frontend compatibility.
+        $user = User::create([
+            'fullname' => $validated['fullName'],
+            'email' => $validated['email'],
             'password' => $validated['password'],
             'role' => $validated['role'],
             'department' => $validated['department'] ?? null,
@@ -136,28 +141,14 @@ $user = User::create([
             ], 422);
         }
 
-// Update fields
-if (isset($validated['fullName'])) {
-    $user->fullname = $validated['fullName'];
-}
-        if (isset($validated['email'])) {
-            $user->email = $validated['email'];
+        // Map fullName to fullname for fillable
+        if (isset($validated['fullName'])) {
+            $validated['fullname'] = $validated['fullName'];
+            unset($validated['fullName']);
         }
-        if (isset($validated['password'])) {
-            $user->password = $validated['password'];
-        }
-        if (isset($validated['role'])) {
-            $user->role = $validated['role'];
-        }
-        if (array_key_exists('department', $validated)) {
-            $user->department = $validated['department'];
-        }
-        if (array_key_exists('subdepartment_id', $validated)) {
-            $user->subdepartment_id = $validated['subdepartment_id'];
-        }
-        if (isset($validated['status'])) {
-            $user->status = $validated['status'];
-        }
+
+        $user->fill($validated);
+        $user->save();
 
         $user->save();
 
@@ -222,6 +213,35 @@ if (isset($validated['fullName'])) {
     }
 
     /**
+     * Bulk delete users by IDs passed as JSON { ids: [1,2,3] }
+     */
+    public function bulkDelete(Request $request)
+    {
+        $data = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:users,id'
+        ]);
+
+        $ids = $data['ids'];
+
+        try {
+            $usersToDelete = User::whereIn('id', $ids)->get();
+            foreach ($usersToDelete as $u) {
+                $u->tokens()->delete();
+                $u->delete();
+            }
+
+            return response()->json([
+                'message' => 'Users deleted successfully',
+                'deleted' => $ids
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to bulk delete users', ['ids' => $ids, 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Failed to delete users: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Upload profile picture for a user.
      */
     public function uploadPhoto(Request $request, string $id)
@@ -282,9 +302,17 @@ if (isset($validated['fullName'])) {
         $since = now()->subMonths($range)->startOfMonth();
 
         // --- Overall Completion Status ---
-        $completed  = CourseEnrollment::where('status', 'Completed')->count();
-        $inProgress = CourseEnrollment::where('status', 'Active')->where('progress', '>', 0)->count();
-        $notStarted = CourseEnrollment::where('status', 'Active')->where('progress', 0)->count();
+        $total = Enrollment::count();
+        $completed  = Enrollment::where('status', 'Completed')->count();
+        $inProgress = Enrollment::where(function ($query) {
+            $query->where('status', 'In Progress')
+                ->orWhere(function ($q) {
+                    $q->where('status', 'Active')
+                        ->where('progress', '>', 0)
+                        ->where('progress', '<', 100);
+                });
+        })->count();
+        $notStarted = max(0, $total - $completed - $inProgress);
 
         $completionStatus = [
             ['name' => 'Completed',   'value' => $completed],
@@ -293,22 +321,21 @@ if (isset($validated['fullName'])) {
         ];
 
         // --- Monthly Enrollment vs Completion Trends ---
-        $enrollmentsByMonth = DB::table('course_enrollments')
+        $enrollmentsByMonth = DB::table('enrollments')
             ->selectRaw("TO_CHAR(enrolled_at, 'Mon') as month, TO_CHAR(enrolled_at, 'YYYY-MM') as sort_key, COUNT(*) as enrollments")
             ->where('enrolled_at', '>=', $since)
             ->groupByRaw("TO_CHAR(enrolled_at, 'YYYY-MM'), TO_CHAR(enrolled_at, 'Mon')")
             ->orderByRaw("TO_CHAR(enrolled_at, 'YYYY-MM')")
             ->pluck('enrollments', 'sort_key');
 
-        $completionsByMonth = DB::table('course_enrollments')
-            ->selectRaw("TO_CHAR(completed_at, 'YYYY-MM') as sort_key, COUNT(*) as completions")
+        $completionsByMonth = DB::table('enrollments')
+            ->selectRaw("TO_CHAR(updated_at, 'YYYY-MM') as sort_key, COUNT(*) as completions")
             ->where('status', 'Completed')
-            ->whereNotNull('completed_at')
-            ->where('completed_at', '>=', $since)
-            ->groupByRaw("TO_CHAR(completed_at, 'YYYY-MM')")
+            ->where('updated_at', '>=', $since)
+            ->groupByRaw("TO_CHAR(updated_at, 'YYYY-MM')")
             ->pluck('completions', 'sort_key');
 
-        $monthLabels = DB::table('course_enrollments')
+        $monthLabels = DB::table('enrollments')
             ->selectRaw("TO_CHAR(enrolled_at, 'Mon') as label, TO_CHAR(enrolled_at, 'YYYY-MM') as sort_key")
             ->where('enrolled_at', '>=', $since)
             ->groupByRaw("TO_CHAR(enrolled_at, 'YYYY-MM'), TO_CHAR(enrolled_at, 'Mon')")
@@ -324,11 +351,11 @@ if (isset($validated['fullName'])) {
         })->values();
 
         // --- Most Popular Courses (by enrollment count) ---
-        $popularCourses = DB::table('course_enrollments')
-            ->join('courses', 'course_enrollments.course_id', '=', 'courses.id')
-            ->selectRaw('courses.title as name, COUNT(course_enrollments.id) as students')
+        $popularCourses = DB::table('enrollments')
+            ->join('courses', 'enrollments.course_id', '=', 'courses.id')
+            ->selectRaw('courses.title as name, COUNT(enrollments.id) as students')
             ->groupBy('courses.id', 'courses.title')
-            ->orderByRaw('COUNT(course_enrollments.id) DESC')
+            ->orderByRaw('COUNT(enrollments.id) DESC')
             ->limit(10)
             ->get()
             ->map(fn($r) => ['name' => $r->name, 'students' => (int) $r->students])
@@ -346,7 +373,7 @@ if (isset($validated['fullName'])) {
      */
     public function exportReport(): StreamedResponse
     {
-        $enrollments = CourseEnrollment::with(['user:id,fullname,department', 'course:id,title'])
+        $enrollments = Enrollment::with(['user:id,fullname,department', 'course:id,title'])
             ->orderBy('enrolled_at', 'desc')
             ->get();
 
@@ -363,7 +390,7 @@ if (isset($validated['fullName'])) {
                     $e->status,
                     $e->progress,
                     $e->enrolled_at?->format('Y-m-d H:i') ?? '',
-                    $e->completed_at?->format('Y-m-d H:i') ?? '',
+                    $e->status === 'Completed' ? ($e->updated_at?->format('Y-m-d H:i') ?? '') : '',
                 ]);
             }
             fclose($handle);
@@ -390,16 +417,22 @@ if (isset($validated['fullName'])) {
         $avgQuizScore = (int) round(CourseEnrollment::whereNotNull('progress')->avg('progress') ?? 0);
 
         // Course completion trends — last 6 months (PostgreSQL)
-        $completionTrends = DB::table('course_enrollments')
-            ->selectRaw("TO_CHAR(completed_at, 'Mon') as name, TO_CHAR(completed_at, 'YYYY-MM') as month_key, COUNT(*) as rate")
-            ->where('status', 'Completed')
-            ->whereNotNull('completed_at')
-            ->where('completed_at', '>=', now()->subMonths(6))
-            ->groupByRaw("TO_CHAR(completed_at, 'YYYY-MM'), TO_CHAR(completed_at, 'Mon')")
-            ->orderByRaw("TO_CHAR(completed_at, 'YYYY-MM')")
-            ->get()
-            ->map(fn($row) => ['name' => $row->name, 'rate' => (int) $row->rate])
-            ->values();
+        try {
+            $completionTrends = DB::table('course_enrollments')
+                ->selectRaw("TO_CHAR(completed_at, 'Mon') as name, TO_CHAR(completed_at, 'YYYY-MM') as month_key, COUNT(*) as rate")
+                ->where('status', 'Completed')
+                ->whereNotNull('completed_at')
+                ->where('completed_at', '>=', now()->subMonths(6))
+                ->groupByRaw("TO_CHAR(completed_at, 'YYYY-MM'), TO_CHAR(completed_at, 'Mon')")
+                ->orderByRaw("TO_CHAR(completed_at, 'YYYY-MM')")
+                ->get()
+                ->map(fn($row) => ['name' => $row->name, 'rate' => (int) $row->rate])
+                ->values();
+        } catch (\Exception $e) {
+            // Likely running on SQLite or other DB without TO_CHAR support; fall back to empty trends
+            Log::warning('Completion trends query failed, falling back to empty set', ['error' => $e->getMessage()]);
+            $completionTrends = collect();
+        }
 
         // Department performance
         $departments = User::where('role', 'Employee')

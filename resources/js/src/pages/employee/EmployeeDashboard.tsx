@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../../components/ToastProvider';
 import {
   BookOpen,
   Clock,
@@ -7,9 +8,9 @@ import {
   PlayCircle,
   ArrowRight,
   Bell,
-  FileQuestion } from
-'lucide-react';
-import { safeArray } from '../../utils/safe';
+  FileQuestion,
+} from 'lucide-react';
+import { UserTimeLog } from '../../components/UserTimeLog';
 
 const API_BASE = '/api';
 
@@ -68,6 +69,8 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const lastUnreadRef = React.useRef<number>(0);
+  const { pushToast } = useToast();
 
   const loadNotifications = async () => {
     try {
@@ -77,22 +80,50 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       });
       if (res.ok) {
         const data = await res.json();
-        const normalized = Array.isArray(data)
-          ? data
-          : data.data || data.notifications?.data || data.notifications || [];
-        setNotifications(safeArray(normalized) as any);
+        // API may return an object with `{ data: [...] }` or the array directly.
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        setNotifications(list);
+        return list;
       }
+      return [];
     } catch (err) {
       console.error('Failed to load notifications:', err);
+      return [];
+    }
+  };
+
+  const loadQuizReminders = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/employee/quiz-reminders?hours=48`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' },
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) return [];
+
+      // Show toasts for each reminder via global toast provider
+      data.forEach((r: any) => {
+        const title = `Quiz due soon: ${r.title}`;
+        const dateText = r.deadline ? new Date(r.deadline).toLocaleString() : 'Soon';
+        pushToast(title, `${r.course_title} • Due ${dateText}`, 'info', 8000);
+      });
+
+      return data;
+    } catch (err) {
+      // ignore
+      return [];
     }
   };
 
   const markAsRead = async (id: number) => {
     try {
       await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-      const v = `; ${document.cookie}`;
-      const parts = v.split('; XSRF-TOKEN=');
-      const xsrf = parts.length === 2 ? decodeURIComponent(parts.pop()?.split(';').shift() || '') : '';
+      const getCookie = (name: string) => {
+        const match = document.cookie.match(new RegExp('(^|; )' + name + '=([^;]*)'));
+        return match ? decodeURIComponent(match[2]) : '';
+      };
+      const xsrf = getCookie('XSRF-TOKEN');
       await fetch(`${API_BASE}/employee/notifications/${id}/read`, {
         method: 'PUT',
         credentials: 'include',
@@ -122,7 +153,8 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
         const data = await response.json();
 
         // Map courses to include thumbnail colors
-        const mappedCourses = safeArray(data.courses).map((course: any) => ({
+        const coursesArr = data.courses || [];
+        const mappedCourses = coursesArr.map((course: any) => ({
           id: course.id,
           title: course.title,
           progress: course.my_progress ?? course.progress ?? 0,
@@ -134,7 +166,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
 
         setDashboardData({
-          user: data?.user ?? { id: 0, name: 'Employee', email: '', department: '' },
+          user: (data && data.user) ? data.user : { id: 0, name: 'Employee', email: '', department: '' },
           courses: mappedCourses,
           total_courses: mappedCourses.length,
         });
@@ -145,28 +177,114 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       }
     };
 
-    loadDashboard();
-    loadNotifications();
+    const handles: any = {};
+    const runAsync = async () => {
+      await loadDashboard();
+      const initial = await loadNotifications();
+      await loadQuizReminders();
+      // initialize last unread count after initial load
+      lastUnreadRef.current = (initial || []).filter((n: any) => !n.read).length;
+      // Subscribe to realtime notifications channel (if Echo is available)
+      try {
+        const Echo = (window as any).Echo;
+        if (Echo && typeof Echo.private === 'function' && data?.user?.id) {
+          const notifChannel = Echo.private('notifications.' + data.user.id);
+          const createdHandler = (payload: any) => {
+            const n = payload?.notification || payload;
+            if (!n) return;
+            setNotifications(prev => [n, ...prev.filter(p => p.id !== n.id)]);
+            pushToast(n.title, n.message, 'info', 6000);
+          };
+          const countHandler = (payload: any) => {
+            const c = payload?.count ?? 0;
+            lastUnreadRef.current = c;
+          };
+          notifChannel.listen('NotificationCreated', createdHandler);
+          notifChannel.listen('NotificationCountUpdated', countHandler);
+
+          // store for cleanup
+          handles.notifChannel = notifChannel;
+        }
+      } catch (e) {
+        // ignore realtime subscription errors
+      }
+      // Poll for new notifications. If Echo (websockets) is available we'll poll infrequently;
+      // otherwise poll at a reduced rate to lower server load.
+      const Echo = (window as any).Echo;
+      const pollMs = (Echo && typeof Echo.private === 'function') ? 60_000 : 10_000;
+      handles.poll = setInterval(async () => {
+        try {
+          const res = await fetch(`${API_BASE}/employee/notifications/unread-count`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' },
+          });
+          if (!res.ok) return;
+          const data = await res.json();
+          const count = data.count || 0;
+          if (count > lastUnreadRef.current) {
+            // new notifications arrived
+            const latest = await loadNotifications();
+            const newOnes = (latest || []).filter((n: any) => !n.read).slice(0, count - lastUnreadRef.current);
+            newOnes.forEach(n => {
+              pushToast(n.title, n.message, 'info', 6000);
+            });
+            lastUnreadRef.current = count;
+          } else {
+            lastUnreadRef.current = count;
+          }
+        } catch (err) {
+          // ignore polling errors
+        }
+      }, pollMs);
+
+      // Reminders polling (every 15 minutes)
+      const reminderInterval = setInterval(async () => {
+        await loadQuizReminders();
+      }, 15 * 60 * 1000);
+      // store on handles so cleanup can clear it too
+      handles.reminder = reminderInterval;
+    };
+    runAsync();
+    return () => {
+      // cleanup polling intervals
+      try {
+        if (handles.poll) clearInterval(handles.poll);
+        if (handles.reminder) clearInterval(handles.reminder);
+      } catch (e) {
+        // ignore
+      }
+      // cleanup realtime notif subscription if present
+      try {
+        const notifChannel = handles.notifChannel;
+        if (notifChannel && typeof notifChannel.stopListening === 'function') {
+          notifChannel.stopListening('NotificationCreated');
+          notifChannel.stopListening('NotificationCountUpdated');
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
   }, []);
 
   const getThumbnailColor = (department: string) => {
     const colors: Record<string, string> = {
-      'IT': 'bg-blue-500',
-      'HR': 'bg-purple-500',
-      'Operations': 'bg-green-500',
-      'Finance': 'bg-yellow-500',
-      'Marketing': 'bg-orange-500',
+      it: 'bg-blue-500',
+      hr: 'bg-purple-500',
+      operations: 'bg-green-500',
+      finance: 'bg-yellow-500',
+      marketing: 'bg-orange-500',
     };
-    return colors[department] || 'bg-slate-500';
+    const key = (department || '').toLowerCase();
+    return colors[key] || 'bg-slate-500';
   };
 
   const myCourses = dashboardData?.courses || [];
-  const userName = dashboardData?.user?.name || 'Employee';
+  const userName = (dashboardData?.user && (dashboardData.user.fullName || dashboardData.user.fullname || dashboardData.user.name)) || 'Employee';
   const totalCourses = dashboardData?.total_courses || 0;
 
   // Find the most-recently-active in-progress course for Resume Learning
-  const resumeCourse = safeArray<Course>(myCourses)
-    .filter(c => c.progress > 0 && c.enroll_status !== 'Completed')
+  const resumeCourse = myCourses
+    .filter(c => c.progress > 0 && ((c.enroll_status || '').toLowerCase() !== 'completed'))
     .sort((a, b) => {
       if (!a.last_activity && !b.last_activity) return 0;
       if (!a.last_activity) return 1;
@@ -184,6 +302,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   }
   return (
     <div className="space-y-8">
+
       {/* Welcome Section */}
       <div className="bg-white rounded-lg shadow-sm border border-slate-100 p-6 flex justify-between items-center">
         <div>
@@ -277,7 +396,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                   <p className="text-sm font-medium text-slate-900">{notif.title}</p>
                   <p className="text-xs text-slate-600 mt-1">{notif.message}</p>
                   <p className="text-xs text-slate-400 mt-1">
-                    {new Date(notif.created_at).toLocaleDateString()} at {new Date(notif.created_at).toLocaleTimeString()}
+                    {notif.created_at ? `${new Date(notif.created_at).toLocaleDateString()} at ${new Date(notif.created_at).toLocaleTimeString()}` : ''}
                   </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
@@ -376,22 +495,22 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
         {/* Sidebar Widgets */}
         <div className="space-y-6">
           {/* Deadlines */}
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-            <h3 className="text-lg font-bold text-slate-900 mb-4">
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 dark:bg-slate-900/80 dark:border-slate-700">
+            <h3 className="text-lg font-bold text-slate-900 mb-4 dark:text-slate-100">
               Upcoming Deadlines
             </h3>
             <div className="space-y-4">
               {upcomingDeadlines.map((item) =>
               <div
                 key={item.id}
-                className="flex items-start p-3 bg-red-50 rounded-md border border-red-100">
+                className="flex items-start p-3 bg-red-50 rounded-md border border-red-100 dark:bg-red-950/25 dark:border-red-900/40">
 
-                  <Clock className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                  <Clock className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0 dark:text-red-400" />
                   <div className="ml-3">
-                    <p className="text-sm font-medium text-slate-900">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-300">
                       {item.title}
                     </p>
-                    <p className="text-xs text-red-600 mt-1">
+                    <p className="text-xs text-red-600 mt-1 dark:text-red-400">
                       {item.date} • {item.type}
                     </p>
                   </div>
@@ -416,6 +535,12 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             >
               View Certificates
             </button>
+          </div>
+
+          {/* Time Log */}
+          <div className="bg-white rounded-lg shadow-sm border border-slate-100 p-6">
+            <h3 className="text-lg font-bold mb-4">Time Log</h3>
+            <UserTimeLog />
           </div>
         </div>
       </div>

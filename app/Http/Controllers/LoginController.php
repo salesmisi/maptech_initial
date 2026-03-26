@@ -5,8 +5,13 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Carbon;
 use App\Models\User;
 use App\Models\AuditLog;
+use App\Models\TimeLog;
+use App\Events\AuditLogCreated;
+use App\Events\TimeLogUpdated;
 
 class LoginController extends Controller
 {
@@ -42,32 +47,61 @@ class LoginController extends Controller
 
         $request->session()->regenerate();
 
-        // Auto-close any previously open session (login without matching logout)
-        $lastLog = AuditLog::where('user_id', $user->id)
-            ->latest('created_at')
-            ->first();
-        if ($lastLog && $lastLog->action === 'login') {
-            AuditLog::create([
-                'user_id' => $user->id,
-                'action' => 'logout',
-                'ip_address' => $request->ip(),
-            ]);
+        // Record a single consistent UTC timestamp for audit + time log
+        $ts = Carbon::now();
+        // Debug: Log user role
+        Log::info('LOGIN: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
+        // Record audit log for Employees and Admins
+        $log = null;
+        $shouldTrack = $user->isEmployee() || $user->isInstructor() || $user->isAdmin();
+        if ($shouldTrack) {
+            Log::info('LOGIN: Creating AuditLog', ['user_id' => $user->id, 'action' => 'login']);
+            try {
+                $log = AuditLog::create([
+                    'user_id' => $user->id,
+                    'action' => 'login',
+                    'ip_address' => $request->ip(),
+                    'created_at' => $ts,
+                ]);
+                // Broadcast the audit log so admins receive realtime updates
+                event(new AuditLogCreated($log));
+            } catch (\Exception $e) {
+                Log::warning('Failed to create AuditLog on login', ['error' => $e->getMessage()]);
+            }
         }
 
-        AuditLog::create([
-            'user_id' => $user->id,
-            'action' => 'login',
-            'ip_address' => $request->ip(),
-        ]);
+        // For login, always start a fresh TimeLog tied to this login time.
+        // Close any previously open logs so that each login/logout pair is a distinct session.
+        $timeLog = null;
+        if ($shouldTrack) {
+            $openLogs = TimeLog::where('user_id', $user->id)->whereNull('time_out')->get();
+            foreach ($openLogs as $open) {
+                Log::info('LOGIN: Closing stale open TimeLog before creating new one', ['log_id' => $open->id, 'user_id' => $user->id]);
+                $open->time_out = $ts;
+                $open->save();
+                event(new TimeLogUpdated($open->fresh()));
+            }
+
+            Log::info('LOGIN: Creating new TimeLog for this login', ['user_id' => $user->id, 'time_in' => $ts]);
+            $timeLog = TimeLog::create([
+                'user_id' => $user->id,
+                'time_in' => $ts,
+            ]);
+            event(new TimeLogUpdated($timeLog->fresh()));
+        }
 
         return response()->json([
             'id' => $user->id,
             'name' => $user->fullname,
+            'fullName' => $user->fullname,
+            'fullname' => $user->fullname,
             'email' => $user->email,
             'role' => $user->role,
             'department' => $user->department,
             'status' => $user->status,
             'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
+            'signature_path' => $user->signature_path ? asset('storage/' . $user->signature_path) : null,
+            'time_log' => $timeLog,
         ]);
     }
 
@@ -104,23 +138,47 @@ class LoginController extends Controller
         $abilities = $this->getTokenAbilities($user);
         $token = $user->createToken('auth-token', $abilities)->plainTextToken;
 
-        // Auto-close any previously open session (login without matching logout)
-        $lastLog = AuditLog::where('user_id', $user->id)
-            ->latest('created_at')
-            ->first();
-        if ($lastLog && $lastLog->action === 'login') {
-            AuditLog::create([
-                'user_id' => $user->id,
-                'action' => 'logout',
-                'ip_address' => $request->ip(),
-            ]);
+        // Record single timestamp for API login audit + time log
+            $ts = Carbon::now();
+        // Debug: Log user role
+        Log::info('API LOGIN: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
+        // Record audit log for Employees and Admins
+        $log = null;
+        $shouldTrack = $user->isEmployee() || $user->isInstructor() || $user->isAdmin();
+        if ($shouldTrack) {
+            Log::info('API LOGIN: Creating AuditLog', ['user_id' => $user->id, 'action' => 'login']);
+            try {
+                $log = AuditLog::create([
+                    'user_id' => $user->id,
+                    'action' => 'login',
+                    'ip_address' => $request->ip(),
+                    'created_at' => $ts,
+                ]);
+                // Broadcast the audit log so admins receive realtime updates
+                event(new AuditLogCreated($log));
+            } catch (\Exception $e) {
+                Log::warning('Failed to create AuditLog on apiLogin', ['error' => $e->getMessage()]);
+            }
         }
 
-        AuditLog::create([
-            'user_id' => $user->id,
-            'action' => 'login',
-            'ip_address' => $request->ip(),
-        ]);
+        // For API login, mirror session login behavior: close any open logs and create a new one.
+        $timeLog = null;
+        if ($shouldTrack) {
+            $openLogs = TimeLog::where('user_id', $user->id)->whereNull('time_out')->get();
+            foreach ($openLogs as $open) {
+                Log::info('API LOGIN: Closing stale open TimeLog before creating new one', ['log_id' => $open->id, 'user_id' => $user->id]);
+                $open->time_out = $ts;
+                $open->save();
+                event(new TimeLogUpdated($open->fresh()));
+            }
+
+            Log::info('API LOGIN: Creating new TimeLog for this login', ['user_id' => $user->id, 'time_in' => $ts]);
+            $timeLog = TimeLog::create([
+                'user_id' => $user->id,
+                'time_in' => $ts,
+            ]);
+            event(new TimeLogUpdated($timeLog->fresh()));
+        }
 
         return response()->json([
             'token' => $token,
@@ -128,11 +186,16 @@ class LoginController extends Controller
             'user' => [
                 'id' => $user->id,
                 'name' => $user->fullname,
+                'fullName' => $user->fullname,
+                'fullname' => $user->fullname,
                 'email' => $user->email,
                 'role' => $user->role,
                 'department' => $user->department,
                 'status' => $user->status,
-            ]
+                'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
+                'signature_path' => $user->signature_path ? asset('storage/' . $user->signature_path) : null,
+            ],
+            'time_log' => $timeLog,
         ]);
     }
 
@@ -144,11 +207,38 @@ class LoginController extends Controller
         $user = $request->user();
 
         if ($user) {
-            AuditLog::create([
-                'user_id' => $user->id,
-                'action' => 'logout',
-                'ip_address' => $request->ip(),
-            ]);
+            $ts = Carbon::now();
+            // Debug: Log user role
+            Log::info('LOGOUT: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
+            // Record logout audit for Employees and Admins
+            $log = null;
+            $shouldTrack = $user->isEmployee() || $user->isInstructor() || $user->isAdmin();
+            if ($shouldTrack) {
+                Log::info('LOGOUT: Creating AuditLog', ['user_id' => $user->id, 'action' => 'logout']);
+                try {
+                    $log = AuditLog::create([
+                        'user_id' => $user->id,
+                        'action' => 'logout',
+                        'ip_address' => $request->ip(),
+                        'created_at' => $ts,
+                    ]);
+                    event(new AuditLogCreated($log));
+                } catch (\Exception $e) {
+                    Log::warning('Failed to create AuditLog on logout', ['error' => $e->getMessage()]);
+                }
+            }
+
+            // If user is an employee or admin, close ALL open time logs (punched-in without time_out)
+            if ($shouldTrack) {
+                Log::info('LOGOUT: Closing open TimeLogs', ['user_id' => $user->id]);
+                $openLogs = TimeLog::where('user_id', $user->id)->whereNull('time_out')->get();
+                foreach ($openLogs as $open) {
+                    Log::info('LOGOUT: Closing TimeLog', ['log_id' => $open->id, 'user_id' => $user->id]);
+                    $open->time_out = $ts;
+                    $open->save();
+                    event(new TimeLogUpdated($open->fresh()));
+                }
+            }
         }
 
         // For API token logout
@@ -178,11 +268,14 @@ class LoginController extends Controller
         return response()->json([
             'id' => $user->id,
             'name' => $user->fullname,
+            'fullName' => $user->fullname,
+            'fullname' => $user->fullname,
             'email' => $user->email,
             'role' => $user->role,
             'department' => $user->department,
             'status' => $user->status,
             'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
+            'signature_path' => $user->signature_path ? asset('storage/' . $user->signature_path) : null,
         ]);
     }
 

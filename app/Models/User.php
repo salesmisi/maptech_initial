@@ -27,6 +27,9 @@ class User extends Authenticatable
      * The attributes that are mass assignable.
      */
     protected $fillable = [
+
+        // support both column name variants (legacy inconsistencies)
+        'fullName',
         'fullname',
         'email',
         'password',
@@ -35,6 +38,7 @@ class User extends Authenticatable
         'subdepartment_id',
         'status',
         'profile_picture',
+        'signature_path',
     ];
 
     /**
@@ -126,6 +130,16 @@ class User extends Authenticatable
     public function subdepartments()
     {
         return $this->belongsToMany(Subdepartment::class, 'user_subdepartment')->withTimestamps();
+    }
+
+    /**
+     * Modules manually unlocked for this user (pivot `module_user`).
+     */
+    public function modules()
+    {
+        return $this->belongsToMany(Module::class, 'module_user')
+            ->withPivot('unlocked', 'unlocked_at', 'unlocked_until')
+            ->withTimestamps();
     }
 
     /**

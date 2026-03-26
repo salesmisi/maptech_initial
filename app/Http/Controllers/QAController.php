@@ -8,7 +8,9 @@ use App\Models\QuestionReplyReaction;
 use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\Enrollment;
+use App\Models\Notification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class QAController extends Controller
 {
@@ -172,10 +174,29 @@ class QAController extends Controller
         $question->update([
             'answer'      => $validated['answer'],
             'answered_by' => $request->user()->id,
-            'answered_at' => now(),
+            'answered_at' => Carbon::now()->utc(),
         ]);
 
         $question->load(['user:id,fullname,department', 'course:id,title', 'answerer:id,fullname', 'replies.user:id,fullname,role', 'replies.reactions']);
+
+        // Notify the question owner that their question has been answered
+        $answerer = $request->user();
+        if ($question->user_id && $answerer && $question->user_id !== $answerer->id) {
+            Notification::create([
+                'user_id'   => $question->user_id,
+                'course_id' => $question->course_id,
+                'type'      => 'qa_answer',
+                'title'     => 'Your question has been answered',
+                'message'   => $validated['answer'],
+                'data'      => [
+                    'from_user_id'   => $answerer->id,
+                    'from_user_name' => $answerer->fullname ?? $answerer->name ?? null,
+                    'from_role'      => $answerer->role ?? null,
+                    'course_title'   => optional($question->course)->title,
+                    'question_id'    => $question->id,
+                ],
+            ]);
+        }
 
         return response()->json($question);
     }
@@ -199,6 +220,25 @@ class QAController extends Controller
     }
 
     /**
+     * Admin: permanently delete a question and its replies.
+     */
+    public function adminDestroy(int $id)
+    {
+        $question = Question::with('replies:id,question_id')->findOrFail($id);
+
+        // Collect reply IDs and delete associated reactions, then replies.
+        $replyIds = $question->replies->pluck('id');
+        if ($replyIds->isNotEmpty()) {
+            QuestionReplyReaction::whereIn('reply_id', $replyIds)->delete();
+            QuestionReply::whereIn('id', $replyIds)->delete();
+        }
+
+        $question->delete();
+
+        return response()->json(['message' => 'Question deleted']);
+    }
+
+    /**
      * Post a reply to a question (works for any authenticated user).
      */
     public function storeReply(Request $request, int $id)
@@ -217,6 +257,25 @@ class QAController extends Controller
 
         $reply->load('user:id,fullname,role');
         $reply->load('reactions');
+
+        // Notify the original question owner when someone else replies
+        $replier = $request->user();
+        if ($question->user_id && $replier && $question->user_id !== $replier->id) {
+            Notification::create([
+                'user_id'   => $question->user_id,
+                'course_id' => $question->course_id,
+                'type'      => 'qa_reply',
+                'title'     => 'New reply to your question',
+                'message'   => $validated['message'],
+                'data'      => [
+                    'from_user_id'   => $replier->id,
+                    'from_user_name' => $replier->fullname ?? $replier->name ?? null,
+                    'from_role'      => $replier->role ?? null,
+                    'course_title'   => optional($question->course)->title,
+                    'question_id'    => $question->id,
+                ],
+            ]);
+        }
 
         return response()->json($reply, 201);
     }

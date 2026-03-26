@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle } from 'lucide-react';
 import { safeArray } from '../../utils/safe';
 
@@ -24,6 +25,14 @@ interface Course {
   title: string;
 }
 
+interface FormData {
+  title: string;
+  message: string;
+  course_id: string;
+  department_id: string | number;
+  type: string;
+}
+
 export function InstructorNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -31,52 +40,56 @@ export function InstructorNotifications() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [departments, setDepartments] = useState<{id:number;name:string}[]>([]);
 
-  // Form state for sending to employees
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     title: '',
     message: '',
     course_id: '',
-    type: 'announcement' as string,
+    department_id: '',
+    type: 'announcement',
   });
 
   const token = localStorage.getItem('token');
-
-  const getCookie = (name: string) => {
-    const match = document.cookie.match(new RegExp('(^|;)\\s*' + name + '=([^;]+)'));
-    return match ? decodeURIComponent(match[2]) : null;
-  };
-
-  const fetchOptions = (method = 'GET', body?: any) => {
-    const opts: any = {
-      method,
-      headers: {
-        'Accept': 'application/json',
-      },
-    };
-
-    if (token) {
-      opts.headers['Authorization'] = `Bearer ${token}`;
-    } else {
-      opts.credentials = 'include';
-      opts.headers['X-Requested-With'] = 'XMLHttpRequest';
-      const xsrfRaw = getCookie('XSRF-TOKEN');
-      const xsrf = xsrfRaw ? decodeURIComponent(xsrfRaw) : null;
-      if (xsrf) opts.headers['X-XSRF-TOKEN'] = xsrf;
-    }
-
-    if (body) {
-      opts.headers['Content-Type'] = 'application/json';
-      opts.body = JSON.stringify(body);
-    }
-
-    return opts;
-  };
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
 
   useEffect(() => {
     fetchNotifications();
     fetchUnreadCount();
     fetchCourses();
+    fetchDepartments();
+
+    // Subscribe to realtime notifications if Echo is available
+    (async () => {
+      try {
+        const Echo = (window as any).Echo;
+        if (!Echo || typeof Echo.private !== 'function') return;
+        // Try to fetch current user id (token auth may work via Bearer)
+        const res = await fetch('/user', { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
+        if (!res.ok) return;
+        const me = await res.json();
+        if (!me?.id) return;
+        const channel = Echo.private('notifications.' + me.id);
+        const createdHandler = (payload: any) => {
+          const n = payload?.notification || payload;
+          if (!n) return;
+          setNotifications(prev => [n, ...prev.filter(p => p.id !== n.id)]);
+          setUnreadCount(c => c + 1);
+        };
+        const countHandler = (payload: any) => {
+          setUnreadCount(payload?.count ?? 0);
+        };
+        channel.listen('NotificationCreated', createdHandler);
+        channel.listen('NotificationCountUpdated', countHandler);
+
+        return () => {
+          try { channel.stopListening('NotificationCreated'); channel.stopListening('NotificationCountUpdated'); } catch (e) {}
+        };
+      } catch (e) {
+        // ignore
+      }
+    })();
   }, []);
 
   const fetchCourses = async () => {
@@ -86,6 +99,16 @@ export function InstructorNotifications() {
       setCourses(Array.isArray(data) ? data : data.data || []);
     } catch (err) {
       console.error('Failed to load courses:', err);
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await fetch('/api/departments', { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
+      const data = await res.json();
+      setDepartments(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load departments:', err);
     }
   };
 
@@ -133,37 +156,57 @@ export function InstructorNotifications() {
   };
 
   const deleteNotification = async (id: number) => {
-    if (!confirm('Delete this notification?')) return;
-    try {
-      await fetch(`/api/instructor/notifications/${id}`, fetchOptions('DELETE'));
-      fetchNotifications();
-    } catch (err) {
-      console.error('Failed to delete notification:', err);
-    }
+    showConfirm('Delete this notification?', async () => {
+      try {
+        await fetch(`/api/instructor/notifications/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+          },
+        });
+        fetchNotifications();
+      } catch (err) {
+        console.error('Failed to delete notification:', err);
+      }
+    });
   };
 
   const handleSendToEmployees = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.course_id) {
-      alert('Please select a course');
+
+    // allow either department or course selection
+    if (!formData.course_id && !formData.department_id) {
+      alert('Please select a department or a course');
       return;
     }
 
     setIsSending(true);
     try {
-      const res = await fetch('/api/instructor/notifications/notify-employees', fetchOptions('POST', {
+      const payload: any = {
         title: formData.title,
         message: formData.message,
-        course_id: formData.course_id,
         type: formData.type,
-      }));
+      };
+      if (formData.course_id) payload.course_id = formData.course_id;
+      if (formData.department_id) payload.department_id = formData.department_id;
+
+      const res = await fetch('/api/instructor/notifications/notify-employees', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
 
       const data = await res.json();
 
       if (res.ok) {
         alert(`Notification sent to ${data.recipients_count} enrolled employees!`);
         setIsModalOpen(false);
-        setFormData({ title: '', message: '', course_id: '', type: 'announcement' });
+        setFormData({ title: '', message: '', course_id: '', department_id: '', type: 'announcement' });
       } else {
         alert(data.message || 'Failed to send notification');
       }
@@ -328,25 +371,41 @@ export function InstructorNotifications() {
                 </h3>
                 <form onSubmit={handleSendToEmployees} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Course *</label>
+                    <label htmlFor="notify-department" className="block text-sm font-medium text-slate-700">Department *</label>
                     <select
-                      required
-                      value={formData.course_id}
-                      onChange={(e) => setFormData({ ...formData, course_id: e.target.value })}
+                      id="notify-department"
+                      name="department_id"
+                      value={(formData as any).department_id ?? ''}
+                      onChange={(e) => setFormData({ ...formData, course_id: '', department_id: e.target.value ? Number(e.target.value) : '' })}
                       className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     >
-                      <option value="">Select a course</option>
-                      {safeArray(courses).map((course) => (
-                        <option key={course.id} value={course.id}>{course.title}</option>
+                      <option value="">Select a department</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
                       ))}
                     </select>
                     <p className="mt-1 text-xs text-slate-500">
-                      Notification will be sent to all enrolled employees in this course
+                      Notification will be sent to all enrolled employees across courses in this department (where you have access)
                     </p>
+                    <div className="mt-3 text-xs text-slate-500">Or choose a specific course below:</div>
+                    <select
+                      id="notify-course"
+                      name="course_id"
+                      value={formData.course_id}
+                      onChange={(e) => setFormData({ ...formData, course_id: e.target.value, department_id: '' })}
+                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    >
+                      <option value="">Select a course (optional)</option>
+                      {courses.map((course) => (
+                        <option key={course.id} value={course.id}>{course.title}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Type</label>
+                    <label htmlFor="notify-type" className="block text-sm font-medium text-slate-700">Type</label>
                     <select
+                      id="notify-type"
+                      name="type"
                       value={formData.type}
                       onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                       className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
@@ -357,8 +416,10 @@ export function InstructorNotifications() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Title *</label>
+                    <label htmlFor="notify-title" className="block text-sm font-medium text-slate-700">Title *</label>
                     <input
+                      id="notify-title"
+                      name="title"
                       type="text"
                       required
                       value={formData.title}
@@ -368,8 +429,10 @@ export function InstructorNotifications() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Message *</label>
+                    <label htmlFor="notify-message" className="block text-sm font-medium text-slate-700">Message *</label>
                     <textarea
+                      id="notify-message"
+                      name="message"
                       rows={4}
                       required
                       value={formData.message}
@@ -401,6 +464,7 @@ export function InstructorNotifications() {
           </div>
         </div>
       )}
+      {confirm.ConfirmModalRenderer()}
     </div>
   );
 }

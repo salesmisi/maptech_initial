@@ -95,7 +95,7 @@ export default function DepartmentManagement() {
 
   // ================= HELPERS =================
   const getXsrfToken = async (): Promise<string> => {
-    await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
     return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
   };
 
@@ -130,7 +130,7 @@ export default function DepartmentManagement() {
 
   const loadInstructors = async () => {
     try {
-      await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
       const res = await fetch(`${API}/admin/users?role=Instructor`, {
         credentials: 'include',
         headers: {
@@ -140,13 +140,13 @@ export default function DepartmentManagement() {
       });
       if (!res.ok) return;
       const data = await res.json();
-      setInstructors(safeArray(data).map((u: any) => ({ id: u.id, fullname: u.fullname })));
+      setInstructors(data.map((u: any) => ({ id: u.id, fullname: u.fullname || u.fullName || u.name })));
     } catch { /* ignore */ }
   };
 
   const loadEmployees = async () => {
     try {
-      await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', { credentials: 'include' });
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
       const res = await fetch(`${API}/admin/users?role=Employee`, {
         credentials: 'include',
         headers: {
@@ -156,7 +156,7 @@ export default function DepartmentManagement() {
       });
       if (!res.ok) return;
       const data = await res.json();
-      setEmployees(safeArray(data).map((u: any) => ({ id: u.id, fullname: u.fullname })));
+      setEmployees(data.map((u: any) => ({ id: u.id, fullname: u.fullname || u.fullName || u.name })));
     } catch { /* ignore */ }
   };
 
@@ -321,14 +321,14 @@ export default function DepartmentManagement() {
   };
 
   // ================= RENDER =================
-  if (loading) return <div className="p-6">Loading...</div>;
+  if (loading) return <div className="p-6 text-slate-600 dark:text-slate-300">Loading...</div>;
   if (error) return <div className="p-6 text-red-600">{error}</div>;
 
   return (
-    <div className="p-6">
+    <div className="p-6 text-slate-900 dark:text-slate-100">
       {/* HEADER */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
           Department Management
         </h1>
 
@@ -338,7 +338,7 @@ export default function DepartmentManagement() {
             setDeptForm({ name: "", code: "", head: "", head_id: "", description: "" });
             setShowDeptModal(true);
           }}
-          className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+          className="flex items-center px-4 py-2 bg-emerald-500 text-slate-950 font-semibold rounded-lg hover:bg-emerald-400 transition-colors"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add Department
@@ -347,27 +347,27 @@ export default function DepartmentManagement() {
 
       {/* GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {safeArray(departments).map((dept) => (
-          <div key={dept.id} className="bg-white rounded-lg shadow p-5">
+        {departments.map((dept) => (
+          <div key={dept.id} className="bg-white border border-slate-200 rounded-xl shadow p-5 dark:bg-slate-900/80 dark:border-slate-700/80 dark:shadow-[0_10px_30px_rgba(2,6,23,0.35)]">
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-green-100 rounded-md">
-                  <Building2 className="w-5 h-5 text-green-600" />
+                <div className="p-3 bg-emerald-500/20 rounded-lg border border-emerald-500/30">
+                  <Building2 className="w-5 h-5 text-emerald-700 dark:text-emerald-300" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-lg">{dept.name}</h2>
-                  <p className="text-sm text-gray-500">{dept.code}</p>
+                  <h2 className="font-semibold text-lg text-slate-900 dark:text-slate-100">{dept.name}</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{dept.code}</p>
                 </div>
               </div>
             </div>
 
-            <p className="text-sm text-gray-600 mb-2">
-              Head: <span className="font-medium">{dept.head_user?.fullname || dept.head || 'Unassigned'}</span>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">
+              Head: <span className="font-medium text-slate-900 dark:text-slate-100">{dept.head_user?.fullname || dept.head || 'Unassigned'}</span>
             </p>
 
             {/* DESCRIPTION */}
             {dept.description && (
-              <p className="text-sm text-gray-500 mb-3">
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
                 {dept.description}
               </p>
             )}
@@ -375,15 +375,15 @@ export default function DepartmentManagement() {
             {/* SUBDEPARTMENTS */}
             {safeArray(dept.subdepartments).length > 0 && (
               <div className="mb-3">
-                <p className="text-xs text-gray-500 mb-2 font-medium">Subdepartments:</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-medium">Subdepartments:</p>
                 <div className="space-y-2">
                 {safeArray(dept.subdepartments).map((sub) => (
                   <div
                     key={sub.id}
-                    className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-xs group"
+                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs group dark:bg-slate-800/90 dark:border-slate-700"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-medium text-blue-700">{sub.name}</span>
+                      <span className="font-medium text-sky-700 dark:text-sky-300">{sub.name}</span>
                       <div className="flex items-center gap-1">
                         <Pencil
                           onClick={() => {
@@ -395,7 +395,7 @@ export default function DepartmentManagement() {
                             });
                             setShowSubModal(true);
                           }}
-                          className="w-3 h-3 cursor-pointer text-blue-400 hover:text-blue-900"
+                          className="w-3 h-3 cursor-pointer text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
                         />
                         <X
                           onClick={() => {
@@ -403,13 +403,13 @@ export default function DepartmentManagement() {
                             setSelectedSubName(sub.name);
                             setShowDeleteSubModal(true);
                           }}
-                          className="w-3 h-3 cursor-pointer text-blue-400 hover:text-red-600"
+                          className="w-3 h-3 cursor-pointer text-slate-500 hover:text-rose-500 dark:text-slate-400 dark:hover:text-rose-400"
                         />
                       </div>
                     </div>
-                    <div className="mt-1 text-gray-500 space-y-0.5">
-                      <p>Head: <span className="text-gray-700">{sub.head_user?.fullname || 'Unassigned'}</span></p>
-                      <p>Employee: <span className="text-gray-700">{sub.employee?.fullname || 'Unassigned'}</span></p>
+                    <div className="mt-1 text-slate-500 dark:text-slate-400 space-y-0.5">
+                      <p>Head: <span className="text-slate-700 dark:text-slate-200">{sub.head_user?.fullname || 'Unassigned'}</span></p>
+                      <p>Employee: <span className="text-slate-700 dark:text-slate-200">{sub.employee?.fullname || 'Unassigned'}</span></p>
                     </div>
                   </div>
                 ))}
@@ -426,7 +426,7 @@ export default function DepartmentManagement() {
                     setEditingSub(null);
                     setShowSubModal(true);
                   }}
-                  className="text-green-600 text-xs"
+                  className="text-emerald-700 text-xs font-medium hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
                 >
                   + Sub
                 </button>
@@ -443,7 +443,7 @@ export default function DepartmentManagement() {
                     });
                     setShowDeptModal(true);
                   }}
-                  className="w-4 h-4 cursor-pointer text-gray-600"
+                  className="w-4 h-4 cursor-pointer text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
                 />
 
                 <Trash2
@@ -451,7 +451,7 @@ export default function DepartmentManagement() {
                     setSelectedDeptId(dept.id);
                     setShowDeleteModal(true);
                   }}
-                  className="w-4 h-4 cursor-pointer text-gray-600"
+                  className="w-4 h-4 cursor-pointer text-slate-500 hover:text-rose-500 dark:text-slate-400 dark:hover:text-rose-400"
                 />
               </div>
             </div>
@@ -476,12 +476,12 @@ export default function DepartmentManagement() {
             value={deptForm.code}
             onChange={(v) => setDeptForm({ ...deptForm, code: v })}
           />
-              <div className="mb-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Department Head</label>
+          <div className="mb-3">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Department Head</label>
             <select
               value={deptForm.head_id}
               onChange={(e) => setDeptForm({ ...deptForm, head_id: e.target.value })}
-              className="w-full border rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500"
+              className="w-full border border-slate-300 bg-white text-slate-900 rounded-md px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
             >
               <option value="">Select Instructor</option>
               {safeArray(instructors).map((inst) => (
@@ -500,7 +500,7 @@ export default function DepartmentManagement() {
           <button
             onClick={handleSaveDepartment}
             disabled={saving}
-            className="w-full mt-4 bg-green-600 text-white py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-700"
+            className="w-full mt-4 bg-emerald-500 text-slate-950 font-semibold py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-400"
           >
             {saving ? 'Saving...' : 'Save'}
           </button>
@@ -525,11 +525,11 @@ export default function DepartmentManagement() {
           />
 
           <div className="mb-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Subdepartment Head</label>
-              <select
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Subdepartment Head</label>
+            <select
               value={subForm.head_id}
               onChange={(e) => setSubForm({ ...subForm, head_id: e.target.value })}
-              className="w-full border rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500"
+              className="w-full border border-slate-300 bg-white text-slate-900 rounded-md px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
             >
               <option value="">Select Head</option>
               {safeArray(instructors).map((inst) => (
@@ -539,11 +539,11 @@ export default function DepartmentManagement() {
           </div>
 
           <div className="mb-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Subdepartment Employee</label>
-              <select
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Subdepartment Employee</label>
+            <select
               value={subForm.employee_id}
               onChange={(e) => setSubForm({ ...subForm, employee_id: e.target.value })}
-              className="w-full border rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500"
+              className="w-full border border-slate-300 bg-white text-slate-900 rounded-md px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
             >
               <option value="">Select Employee</option>
               {safeArray(employees).map((emp) => (
@@ -554,7 +554,7 @@ export default function DepartmentManagement() {
 
           <button
             onClick={handleSaveSub}
-            className="w-full mt-4 bg-green-600 text-white py-2 rounded-md"
+            className="w-full mt-4 bg-emerald-500 text-slate-950 font-semibold py-2 rounded-md hover:bg-emerald-400"
           >
             {editingSub ? "Update Subdepartment" : "Save Subdepartment"}
           </button>
@@ -569,14 +569,14 @@ export default function DepartmentManagement() {
           <h2 className="text-lg font-semibold mb-2">
             Delete Department
           </h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Are you sure you want to delete <span className="font-semibold text-gray-800">"{deptToDelete?.name}"</span>? This will also remove all its subdepartments. This action cannot be undone.
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+            Are you sure you want to delete <span className="font-semibold text-slate-900 dark:text-slate-100">"{deptToDelete?.name}"</span>? This will also remove all its subdepartments. This action cannot be undone.
           </p>
 
           <div className="flex justify-end gap-3">
             <button
               onClick={() => setShowDeleteModal(false)}
-              className="px-4 py-2 border rounded-md"
+              className="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Cancel
             </button>
@@ -598,14 +598,14 @@ export default function DepartmentManagement() {
           <h2 className="text-lg font-semibold mb-2">
             Delete Subdepartment
           </h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Are you sure you want to delete <span className="font-semibold text-gray-800">"{selectedSubName}"</span>? This action cannot be undone and all employees assigned to this subdepartment will be unassigned.
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+            Are you sure you want to delete <span className="font-semibold text-slate-900 dark:text-slate-100">"{selectedSubName}"</span>? This action cannot be undone and all employees assigned to this subdepartment will be unassigned.
           </p>
 
           <div className="flex justify-end gap-3">
             <button
               onClick={() => setShowDeleteSubModal(false)}
-              className="px-4 py-2 border rounded-md"
+              className="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Cancel
             </button>
@@ -633,13 +633,13 @@ function Modal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white w-96 rounded-lg shadow-lg p-6 relative">
+    <div className="fixed inset-0 bg-slate-900/40 dark:bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white border border-slate-200 w-96 rounded-lg shadow-xl p-6 relative text-slate-900 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100">
         <button
           onClick={onClose}
-          className="absolute top-3 right-3"
+          className="absolute top-3 right-3 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
         >
-          <X className="w-5 h-5 text-gray-500" />
+          <X className="w-5 h-5" />
         </button>
         {children}
       </div>
@@ -660,7 +660,7 @@ function Input({
     <input
       type="text"
       placeholder={placeholder}
-      className="w-full border rounded-md px-3 py-2 mb-3"
+      className="w-full border border-slate-300 bg-white text-slate-900 rounded-md px-3 py-2 mb-3 placeholder:text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
       value={value}
       onChange={(e) => onChange(e.target.value)}
     />

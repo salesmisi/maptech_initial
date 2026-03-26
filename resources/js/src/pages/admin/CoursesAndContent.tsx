@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -85,6 +86,8 @@ interface UserOption {
 }
 
 export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, courseId?: string) => void }) {
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -99,6 +102,10 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [departments, setDepartments] = useState<{id: number; name: string}[]>([]);
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
+  const [selectedCourseIds, setSelectedCourseIds] = useState<number[]>([]);
+  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
+  const [bulkInstructorId, setBulkInstructorId] = useState<number | null>(null);
+  const [isBulkAssigning, setIsBulkAssigning] = useState(false);
   const [editInstructorId, setEditInstructorId] = useState<number | null>(null);
   const [createInstructorId, setCreateInstructorId] = useState<number | null>(null);
   const [editDepartment, setEditDepartment] = useState('');
@@ -127,6 +134,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   const [uploadStatus, setUploadStatus] = useState<'Published' | 'Draft'>('Draft');
   // Preview state
   const [previewLesson, setPreviewLesson] = useState<any>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   // Quiz state
   const [quizQuestions, setQuizQuestions] = useState<{id: number; question: string; options: string[]; answer: number}[]>([]);
   // Send Quiz state
@@ -199,6 +207,19 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     };
   }, []);
 
+  // Refresh courses list when a module is added elsewhere (instructor UI)
+  useEffect(() => {
+    const handler = (e: any) => {
+      try {
+        loadCourses();
+      } catch (err) {
+        // ignore
+      }
+    };
+    window.addEventListener('module:added', handler as EventListener);
+    return () => window.removeEventListener('module:added', handler as EventListener);
+  }, []);
+
   // Load departments and instructors for edit form
   useEffect(() => {
     fetch('/api/departments')
@@ -209,6 +230,23 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       .then(res => res.json())
       .then(data => setInstructors(safeArray<any>(data).map((u: any) => ({ id: u.id, fullname: u.fullname, email: u.email, department: u.department, profile_picture: u.profile_picture ? `/storage/${u.profile_picture}` : null }))))
       .catch(err => console.error('Failed to load instructors:', err));
+  }, []);
+
+  // Fetch current profile to determine role (used for preview actions)
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const res = await fetch('/api/profile', { credentials: 'include', headers: { Accept: 'application/json' } });
+        if (res.ok) {
+          const d = await res.json();
+          setCurrentUserRole((d.role || '').toLowerCase());
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchProfile();
   }, []);
 
   const loadCourses = async () => {
@@ -389,32 +427,30 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   };
 
   const handleDeleteCourse = async (course: Course) => {
-    if (!window.confirm(`Are you sure you want to delete "${course.title}"? This action cannot be undone.`)) {
-      return;
-    }
+    showConfirm(`Are you sure you want to delete "${course.title}"? This action cannot be undone.`, async () => {
+      try {
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const csrfToken = getXsrfToken();
 
-    try {
-      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-      const csrfToken = getXsrfToken();
+        const response = await fetch(`/api/admin/courses/${course.id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'X-XSRF-TOKEN': csrfToken,
+          },
+        });
 
-      const response = await fetch(`/api/admin/courses/${course.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'X-XSRF-TOKEN': csrfToken,
-        },
-      });
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.message || 'Failed to delete course');
+        }
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.message || 'Failed to delete course');
+        await loadCourses();
+      } catch (err: any) {
+        alert(err.message);
       }
-
-      await loadCourses();
-    } catch (err: any) {
-      alert(err.message);
-    }
+    });
   };
 
   // ── Helper: get XSRF token from cookie ──
@@ -505,22 +541,23 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
   // ── Delete Module ──
   const handleDeleteModule = async (moduleId: number) => {
-    if (!window.confirm('Delete this module and all its lessons?')) return;
-    try {
-      const csrf = await getCsrf();
-      const res = await fetch(`/api/modules/${moduleId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
-      });
-      if (!res.ok) throw new Error('Failed to delete module');
-      if (selectedCourse) {
-        await loadModules(selectedCourse.id);
-        await loadCourses();
+    showConfirm('Delete this module and all its lessons?', async () => {
+      try {
+        const csrf = await getCsrf();
+        const res = await fetch(`/api/modules/${moduleId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
+        });
+        if (!res.ok) throw new Error('Failed to delete module');
+        if (selectedCourse) {
+          await loadModules(selectedCourse.id);
+          await loadCourses();
+        }
+      } catch (err: any) {
+        alert(err.message);
       }
-    } catch (err: any) {
-      alert(err.message);
-    }
+    });
   };
 
   // ── Upload Lesson (Video/Document/Text) to Module ──
@@ -603,19 +640,39 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
   // ── Delete Lesson ──
   const handleDeleteLesson = async (lessonId: number) => {
-    if (!window.confirm('Delete this lesson?')) return;
-    try {
-      const csrf = await getCsrf();
-      const res = await fetch(`/api/lessons/${lessonId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
-      });
-      if (!res.ok) throw new Error('Failed to delete lesson');
-      if (selectedCourse) await loadModules(selectedCourse.id);
-    } catch (err: any) {
-      alert(err.message);
-    }
+    showConfirm('Delete this lesson?', async () => {
+      try {
+        const csrf = await getCsrf();
+        const res = await fetch(`/api/lessons/${lessonId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
+        });
+        if (!res.ok) throw new Error('Failed to delete lesson');
+        if (selectedCourse) await loadModules(selectedCourse.id);
+      } catch (err: any) {
+        alert(err.message);
+      }
+    });
+  };
+
+  // Delete lesson from preview modal (admin/instructor)
+  const handleDeletePreviewLesson = async (lessonId: number) => {
+    showConfirm('Delete this lesson?', async () => {
+      try {
+        const csrf = await getCsrf();
+        const res = await fetch(`/api/lessons/${lessonId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
+        });
+        if (!res.ok) throw new Error('Failed to delete lesson');
+        setPreviewLesson(null);
+        if (selectedCourse) await loadModules(selectedCourse.id);
+      } catch (err: any) {
+        alert(err.message);
+      }
+    });
   };
 
   // ── Save Quiz (Pre-Assessment) to Module ──
@@ -711,20 +768,21 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   // ── Unenroll Student ──
   const handleUnenrollStudent = async (userId: number) => {
     if (!selectedCourse) return;
-    if (!window.confirm('Remove this student from the course?')) return;
-    try {
-      const csrf = await getCsrf();
-      const res = await fetch(`/api/admin/courses/${selectedCourse.id}/students/${userId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
-      });
-      if (!res.ok) throw new Error('Failed to unenroll student');
-      await loadEnrolledStudents(selectedCourse.id);
-      await loadCourses();
-    } catch (err: any) {
-      alert(err.message);
-    }
+    showConfirm('Remove this student from the course?', async () => {
+      try {
+        const csrf = await getCsrf();
+        const res = await fetch(`/api/admin/courses/${selectedCourse.id}/students/${userId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
+        });
+        if (!res.ok) throw new Error('Failed to unenroll student');
+        await loadEnrolledStudents(selectedCourse.id);
+        await loadCourses();
+      } catch (err: any) {
+        alert(err.message);
+      }
+    });
   };
 
   // ── Open Manage Content Modal ──
@@ -779,9 +837,9 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
   const getStatusBadge = (status: string) => {
     const badges = {
-      Active: 'bg-green-100 text-green-800',
-      Draft: 'bg-yellow-100 text-yellow-800',
-      Inactive: 'bg-gray-100 text-gray-800'
+      Active: 'bg-green-100 text-green-800 dark:bg-emerald-500/20 dark:text-emerald-300',
+      Draft: 'bg-yellow-100 text-yellow-800 dark:bg-amber-500/20 dark:text-amber-300',
+      Inactive: 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-200'
     };
     return badges[status as keyof typeof badges] || badges.Draft;
   };
@@ -820,13 +878,6 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-gray-900">Course Management</h1>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
-            >
-              <PlusIcon className="h-5 w-5" />
-              Create Course
-            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -892,30 +943,23 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Course Management</h1>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
-        >
-          <PlusIcon className="h-5 w-5" />
-          Create Course
-        </button>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Course Management</h1>
       </div>
 
       {/* Search and Filter */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="flex-1 relative">
-          <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-3 text-gray-400" />
+          <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-3 text-gray-400 dark:text-slate-400" />
           <input
             type="text"
             placeholder="Search courses..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-400"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <select
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         >
@@ -929,24 +973,24 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       {/* Courses Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCourses.map((course) => (
-          <div key={course.id} className="bg-white rounded-lg shadow hover:shadow-md transition-shadow">
+          <div key={course.id} className="relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)]">
             {/* Course Icon */}
-            <div className="h-32 bg-gradient-to-br from-green-400 to-green-600 rounded-t-lg flex items-center justify-center">
-              <div className="w-16 h-16 bg-white rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 shadow-md">
+            <div className="h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-teal-500 rounded-t-xl flex items-center justify-center">
+              <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md">
                 {course.instructor_profile_picture ? (
                   <img src={course.instructor_profile_picture} alt={course.instructor} className="w-full h-full object-cover" />
                 ) : course.instructor !== 'Unassigned' ? (
-                  <span className="text-2xl font-bold text-green-600">
+                  <span className="text-2xl font-bold text-green-700 dark:text-emerald-300">
                     {course.instructor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                   </span>
                 ) : (
-                  <AcademicCapIcon className="h-8 w-8 text-green-600" />
+                  <AcademicCapIcon className="h-8 w-8 text-green-700 dark:text-emerald-300" />
                 )}
               </div>
             </div>
 
             {/* Course Content */}
-            <div className="p-6">
+            <div className="p-5">
               {/* Status Badge */}
               <div className="flex justify-between items-start mb-3">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getStatusBadge(course.status)}`}>
@@ -955,21 +999,21 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 <div className="flex space-x-1">
                   <button
                     onClick={() => onNavigate?.('course-detail', String(course.id))}
-                    className="p-1 text-gray-400 hover:text-blue-600"
+                    className="p-1.5 rounded-md text-gray-600 hover:text-blue-700 hover:bg-blue-50 dark:text-slate-300 dark:hover:text-sky-300 dark:hover:bg-slate-800"
                     title="Manage Content"
                   >
                     <EyeIcon className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleEditCourse(course)}
-                    className="p-1 text-gray-400 hover:text-yellow-600"
+                    className="p-1.5 rounded-md text-gray-600 hover:text-amber-700 hover:bg-amber-50 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800"
                     title="Edit"
                   >
                     <PencilIcon className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteCourse(course)}
-                    className="p-1 text-gray-400 hover:text-red-600"
+                    className="p-1.5 rounded-md text-gray-600 hover:text-rose-700 hover:bg-rose-50 dark:text-slate-300 dark:hover:text-rose-300 dark:hover:bg-slate-800"
                     title="Delete"
                   >
                     <TrashIcon className="h-4 w-4" />
@@ -978,10 +1022,10 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               </div>
 
               {/* Course Title */}
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">{course.title}</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2 leading-tight">{course.title}</h3>
 
               {/* Stats */}
-              <div className="flex items-center text-sm text-gray-600 mb-4 space-x-4">
+              <div className="flex items-center text-sm text-gray-600 dark:text-slate-300 mb-4 space-x-4">
                 <div className="flex items-center">
                   <UsersIcon className="h-4 w-4 mr-1" />
                   {course.enrolled_count} Enrolled
@@ -998,19 +1042,19 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <img
                     src={course.instructor_profile_picture}
                     alt={course.instructor}
-                    className="w-8 h-8 rounded-full object-cover border border-gray-200 flex-shrink-0"
+                    className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-slate-600 flex-shrink-0"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-green-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs font-semibold text-green-700">
+                  <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-emerald-500/20 border border-gray-200 dark:border-slate-600 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-semibold text-green-700 dark:text-emerald-300">
                       {course.instructor !== 'Unassigned'
                         ? course.instructor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
                         : '?'}
                     </span>
                   </div>
                 )}
-                <div className="text-sm text-gray-600">
-                  <div className="font-medium">{course.department}</div>
+                <div className="text-sm text-gray-600 dark:text-slate-300">
+                  <div className="font-medium text-gray-700 dark:text-slate-200">{course.department}</div>
                   <div>{course.instructor}</div>
                 </div>
               </div>
@@ -1018,7 +1062,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               {/* Manage Content Button */}
               <button
                 onClick={() => onNavigate?.('course-detail', String(course.id))}
-                className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors"
+                className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
               >
                 Manage Content →
               </button>
@@ -1030,20 +1074,15 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       {/* Empty State */}
       {filteredCourses.length === 0 && (
         <div className="text-center py-12">
-          <AcademicCapIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No courses found</h3>
-          <p className="text-gray-600 mb-4">
+          <AcademicCapIcon className="h-12 w-12 text-gray-400 dark:text-slate-500 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-slate-100 mb-2">No courses found</h3>
+          <p className="text-gray-600 dark:text-slate-300 mb-4">
             {searchTerm || statusFilter !== 'all'
               ? 'Try adjusting your search or filter criteria'
               : 'Get started by creating your first course'
             }
           </p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-          >
-            Create Course
-          </button>
+          {/* Create Course removed on admin UI */}
         </div>
       )}
 
@@ -1632,6 +1671,73 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
         </div>
       )}
 
+      {/* Bulk Assign Modal */}
+      {showBulkAssignModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Bulk Assign Courses</h3>
+              <button onClick={() => setShowBulkAssignModal(false)} className="text-gray-400 hover:text-gray-600"><XMarkIcon className="h-5 w-5"/></button>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">Assign {selectedCourseIds.length} selected course(s) to an instructor. Choose 'Unassigned' to clear assignment.</p>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Instructor</label>
+              <select
+                value={bulkInstructorId ?? ''}
+                onChange={(e) => setBulkInstructorId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full border border-gray-300 rounded-md py-2 px-3"
+              >
+                <option value="">Unassigned</option>
+                {instructors.map(i => (
+                  <option key={i.id} value={i.id}>{i.fullname} ({i.email})</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowBulkAssignModal(false)} className="px-4 py-2 border rounded-md">Cancel</button>
+              <button
+                onClick={async () => {
+                  setIsBulkAssigning(true);
+                  try {
+                    // Ensure Laravel's CSRF cookie is set for Sanctum stateful auth
+                    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+                    const csrf = getXsrfToken();
+
+                    const res = await fetch('/api/admin/courses/bulk-assign', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-XSRF-TOKEN': csrf },
+                      credentials: 'include',
+                      body: JSON.stringify({ course_ids: selectedCourseIds, instructor_id: bulkInstructorId }),
+                    });
+                    if (!res.ok) {
+                      const text = await res.text().catch(() => `Status ${res.status}`);
+                      throw new Error(text || `Status ${res.status}`);
+                    }
+                    const data = await res.json();
+                    // refresh courses
+                    await loadCourses();
+                    setSelectedCourseIds([]);
+                    setShowBulkAssignModal(false);
+                  } catch (err) {
+                    console.error('Bulk assign failed', err);
+                    alert('Bulk assign failed. See console for details.');
+                  } finally {
+                    setIsBulkAssigning(false);
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                disabled={isBulkAssigning}
+              >
+                {isBulkAssigning ? 'Assigning...' : 'Assign'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create Course Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -1969,9 +2075,20 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     )}
                   </div>
                 </div>
-                <button onClick={() => setPreviewLesson(null)} className="text-gray-400 hover:text-gray-600">
-                  <XMarkIcon className="h-5 w-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {(currentUserRole === 'admin' || currentUserRole === 'instructor') && (
+                    <button
+                      onClick={() => handleDeletePreviewLesson(previewLesson.id)}
+                      className="text-red-600 hover:text-red-800 text-sm px-2 py-1 rounded border border-red-100 bg-red-50"
+                      title="Delete Lesson"
+                    >
+                      Delete
+                    </button>
+                  )}
+                  <button onClick={() => setPreviewLesson(null)} className="text-gray-400 hover:text-gray-600">
+                    <XMarkIcon className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
               <div className="p-6 overflow-y-auto flex-1">
                 {previewLesson.type === 'Video' && previewLesson.content_url && (
@@ -2024,6 +2141,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           </div>
         </div>
       )}
+      {confirm.ConfirmModalRenderer()}
     </div>
   );
 }

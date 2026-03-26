@@ -24,6 +24,8 @@ interface Course {
   is_enrolled?: boolean;
   start_date?: string | null;
   deadline?: string | null;
+  locked?: boolean;
+  has_manual_unlock?: boolean;
 }
 
 interface MyCoursesProps {
@@ -84,6 +86,8 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
     is_enrolled: c.is_enrolled ?? true,
     start_date: c.start_date ?? null,
     deadline: c.deadline ?? null,
+    locked: c.locked ?? false,
+    has_manual_unlock: c.has_manual_unlock ?? false,
   });
 
   const loadMyCourses = async () => {
@@ -113,6 +117,19 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
       .finally(() => setLoading(false));
   }, []);
 
+  // Listen for same-window course unlock events and refresh lists
+  useEffect(() => {
+    const handler = (e: any) => {
+      const cid = e?.detail?.courseId ?? e?.detail?.course_id;
+      if (!cid) return;
+      // refresh lists when any course is unlocked
+      loadMyCourses().catch(console.error);
+      loadAllCourses().catch(console.error);
+    };
+    window.addEventListener('course:unlocked', handler as EventListener);
+    return () => window.removeEventListener('course:unlocked', handler as EventListener);
+  }, []);
+
   // --- Browse mode: all dept courses filtered by globalSearch ---
   const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, '');
   const browseResults = safeArray<Course>(allCourses).filter((c) =>
@@ -138,9 +155,14 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
   };
 
   const CourseCard = ({ course }: { course: Course }) => {
-    const isExpired = course.deadline && new Date(course.deadline) <= new Date();
+    const isExpired = !!course.deadline && new Date(course.deadline) <= new Date();
     const notStartedYet = course.start_date && new Date(course.start_date) > new Date();
-    const isLocked = isExpired || notStartedYet;
+    // If the course is expired but instructor manually unlocked modules
+    // for this employee, treat it as unlocked for expiry purposes.
+    const isLockedByExpiry = isExpired && !course.has_manual_unlock;
+    // Final locked state combines server-side locked flag, deadline lock,
+    // and not-started-yet state.
+    const isLocked = (course.locked ?? false) || isLockedByExpiry || !!notStartedYet;
 
     return (
       <div className={`rounded-lg shadow-sm border overflow-hidden transition-shadow flex flex-col ${
@@ -152,9 +174,9 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
           </div>
           <div className="absolute top-4 right-4">
             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium shadow-sm ${
-              isExpired ? 'bg-red-100 text-red-800' : notStartedYet ? 'bg-gray-200 text-gray-600' : 'bg-white/90 text-slate-800'
+              isLockedByExpiry ? 'bg-red-100 text-red-800' : notStartedYet ? 'bg-gray-200 text-gray-600' : 'bg-white/90 text-slate-800'
             }`}>
-              {isExpired ? 'Locked' : notStartedYet ? 'Not Started' : course.department}
+              {isLockedByExpiry ? 'Locked' : notStartedYet ? 'Not Started' : course.department}
             </span>
           </div>
           {course.deadline && !isExpired && (
@@ -171,7 +193,7 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
             <h3 className={`text-lg font-bold line-clamp-2 mb-1 ${isLocked ? 'text-gray-500' : 'text-slate-900'}`}>{course.title}</h3>
             <p className={`text-sm line-clamp-2 mb-3 ${isLocked ? 'text-gray-400' : 'text-slate-500'}`}>{course.description}</p>
 
-            {isExpired && (
+            {isLockedByExpiry && (
               <p className="text-xs text-red-600 font-medium mb-2">
                 This course has ended and is locked.
               </p>
@@ -211,7 +233,7 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
                   disabled
                   className="w-full flex justify-center items-center py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white bg-gray-400 cursor-not-allowed"
                 >
-                  {isExpired ? 'Course Locked' : 'Course Not Started'}
+                  {isLockedByExpiry ? 'Course Locked' : 'Course Not Started'}
                 </button>
               ) : (
                 <button

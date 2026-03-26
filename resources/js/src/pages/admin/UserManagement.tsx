@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
+import useConfirm from '../../hooks/useConfirm';
 import {
   Search,
   Plus,
@@ -47,7 +48,9 @@ interface DeptWithSubs {
 
 const API_BASE = '/api';
 
-export function UserManagement() {
+export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmail?: string; onLogout?: () => Promise<void> | (() => void) }) {
+  const confirm = useConfirm();
+  const { showConfirm } = confirm;
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +61,7 @@ export function UserManagement() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [departments, setDepartments] = useState<DeptWithSubs[]>([]);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [formDepartment, setFormDepartment] = useState('');
   const [formSubdepartment, setFormSubdepartment] = useState('');
   const [formRole, setFormRole] = useState<'Admin' | 'Instructor' | 'Employee'>('Employee');
@@ -151,31 +155,79 @@ export function UserManagement() {
 
   // Delete handler
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) {
-      return;
-    }
+    showConfirm('Are you sure you want to delete this user?', async () => {
+      try {
+        const xsrfToken = await getXsrfToken();
+        const response = await fetch(`${API_BASE}/admin/users/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': xsrfToken,
+          },
+        });
 
-    try {
-      const xsrfToken = await getXsrfToken();
-      const response = await fetch(`${API_BASE}/admin/users/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-XSRF-TOKEN': xsrfToken,
-        },
-      });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || 'Failed to delete user');
+        }
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to delete user');
+        setUsers(users.filter((user) => user.id !== id));
+      } catch (err: any) {
+        alert(err.message || 'Failed to delete user');
       }
+    });
+  };
 
-      setUsers(users.filter((user) => user.id !== id));
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete user');
+  // Toggle selection for a single user
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  // Select or deselect all filtered users
+  const toggleSelectAll = () => {
+    const filteredIds = filteredUsers.map(u => u.id);
+    const allSelected = filteredIds.every(id => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(id => !filteredIds.includes(id)));
+    } else {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...filteredIds])));
     }
+  };
+
+  // Bulk delete selected users
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    showConfirm(`Are you sure you want to delete ${selectedIds.length} user(s)?`, async () => {
+      try {
+        const xsrfToken = await getXsrfToken();
+        const response = await fetch(`${API_BASE}/admin/users/bulk-delete`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': xsrfToken,
+          },
+          body: JSON.stringify({ ids: selectedIds }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || 'Failed to delete users');
+        }
+
+        // Remove deleted users from state and clear selection
+        setUsers(prev => prev.filter(u => !selectedIds.includes(u.id)));
+        setSelectedIds([]);
+      } catch (err: any) {
+        alert(err.message || 'Failed to delete users');
+      }
+    });
   };
 
   // Modal handlers
@@ -237,16 +289,7 @@ export function UserManagement() {
       setSubmitting(false);
       return;
     }
-    if (formData.role === 'Employee' && !formData.department) {
-      setFormError('Department is required for Employee role');
-      setSubmitting(false);
-      return;
-    }
-    if (formData.role === 'Instructor' && !formData.department) {
-      setFormError('Department is required for Instructor role');
-      setSubmitting(false);
-      return;
-    }
+    // Department selection removed from modal; do not enforce department here.
 
     try {
       const xsrfToken = await getXsrfToken();
@@ -260,7 +303,7 @@ export function UserManagement() {
         fullName: formData.fullName,
         email: formData.email,
         role: formData.role,
-        department: (formData.role === 'Employee' || formData.role === 'Instructor') ? formData.department : null,
+        department: formData.department || null,
         subdepartment_id: formData.role === 'Employee' && formData.subdepartment_id ? Number(formData.subdepartment_id) : null,
         status: formData.status,
       };
@@ -318,12 +361,13 @@ export function UserManagement() {
       setSubmitting(false);
     }
   };
+  // continue to main render below; confirm modal will be rendered inside the main JSX
 
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
-        <Loader2 className="h-8 w-8 animate-spin text-green-600" />
-        <span className="ml-2 text-slate-600">Loading users...</span>
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-500 dark:text-emerald-400" />
+        <span className="ml-2 text-slate-600 dark:text-slate-300">Loading users...</span>
       </div>
     );
   }
@@ -331,12 +375,12 @@ export function UserManagement() {
   if (error) {
     return (
       <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center">
+        <div className="bg-rose-50 border border-rose-200 rounded-lg p-4 flex items-center dark:bg-rose-950/40 dark:border-rose-500/40">
           <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-          <span className="text-red-700">{error}</span>
+          <span className="text-rose-700 dark:text-rose-200">{error}</span>
           <button
             onClick={loadUsers}
-            className="ml-auto text-red-600 hover:text-red-800 underline"
+            className="ml-auto text-rose-600 hover:text-rose-700 underline dark:text-rose-300 dark:hover:text-rose-200"
           >
             Retry
           </button>
@@ -348,25 +392,35 @@ export function UserManagement() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold text-slate-900">User Management</h1>
-        <button
-          onClick={() => handleOpenModal()}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add User
-        </button>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">User Management</h1>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={handleBulkDelete}
+            disabled={selectedIds.length === 0}
+            className="inline-flex items-center px-3 py-2 border border-rose-500/40 rounded-md shadow-sm text-sm font-medium text-rose-200 bg-rose-900/40 hover:bg-rose-800/50 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Selected ({selectedIds.length})
+          </button>
+          <button
+            onClick={() => handleOpenModal()}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-slate-950 bg-emerald-400 hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add User
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-4">
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-4 dark:bg-slate-900/80 dark:border-slate-700/80">
         <div className="relative flex-1">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
             <Search className="h-5 w-5 text-slate-400" />
           </div>
           <input
             type="text"
-            className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+            className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400"
             placeholder="Search by name or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -374,11 +428,11 @@ export function UserManagement() {
         </div>
         <div className="sm:w-48">
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
               <Filter className="h-4 w-4 text-slate-400" />
             </div>
             <select
-              className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+              className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
             >
@@ -392,21 +446,29 @@ export function UserManagement() {
       </div>
 
       {/* Table */}
-      <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
+      <div className="bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden dark:bg-slate-900/80 dark:border-slate-700/80">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-slate-50">
+          <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+            <thead className="bg-slate-50 dark:bg-slate-800/80">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
+                  <input
+                    type="checkbox"
+                    onChange={toggleSelectAll}
+                    checked={filteredUsers.length > 0 && filteredUsers.every(u => selectedIds.includes(u.id))}
+                    className="h-4 w-4 text-emerald-500 border-slate-300 rounded bg-white dark:border-slate-600 dark:bg-slate-800"
+                  />
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   Name
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   Department
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   Role
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="relative px-6 py-3">
@@ -414,16 +476,24 @@ export function UserManagement() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-slate-200">
+            <tbody className="bg-white divide-y divide-slate-200 dark:bg-slate-900/30 dark:divide-slate-700">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
                     No users found
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={user.id} className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-800/50">
+                    <td className="px-3 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(user.id)}
+                        onChange={() => toggleSelect(user.id)}
+                        className="h-4 w-4 text-emerald-500 border-slate-300 rounded bg-white dark:border-slate-600 dark:bg-slate-800"
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
@@ -434,25 +504,25 @@ export function UserManagement() {
                               className="h-10 w-10 rounded-full object-cover"
                             />
                           ) : (
-                            <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold">
+                            <div className="h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-bold">
                               {(user.fullname || '?').charAt(0).toUpperCase()}
                             </div>
                           )}
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-slate-900">
+                          <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
                             {user.fullname}
                           </div>
-                          <div className="text-sm text-slate-500">{user.email}</div>
+                          <div className="text-sm text-slate-500 dark:text-slate-400">{user.email}</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-900">
+                      <div className="text-sm text-slate-900 dark:text-slate-100">
                         {user.department || '-'}
                       </div>
                       {user.role === 'Instructor' && user.head_of_departments && user.head_of_departments.length > 0 && (
-                        <div className="text-xs text-amber-600 font-medium">Head</div>
+                        <div className="text-xs text-amber-700 dark:text-amber-300 font-medium">Head</div>
                       )}
                       {user.role === 'Employee' && user.subdepartment && (
                         <div className="text-xs text-slate-400">
@@ -469,10 +539,10 @@ export function UserManagement() {
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                           user.role === 'Admin'
-                            ? 'bg-purple-100 text-purple-800'
+                            ? 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-500/20 dark:text-fuchsia-300'
                             : user.role === 'Instructor'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-slate-100 text-slate-800'
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200'
+                            : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
                         }`}
                       >
                         {user.role}
@@ -482,8 +552,8 @@ export function UserManagement() {
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                           user.status === 'Active'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300'
+                            : 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300'
                         }`}
                       >
                         {user.status}
@@ -493,13 +563,13 @@ export function UserManagement() {
                       <div className="flex justify-end space-x-2">
                         <button
                           onClick={() => handleOpenModal(user)}
-                          className="text-blue-600 hover:text-blue-900 p-1 hover:bg-blue-50 rounded"
+                          className="text-sky-700 hover:text-sky-900 p-1 hover:bg-sky-50 rounded dark:text-sky-400 dark:hover:text-sky-300 dark:hover:bg-slate-700"
                         >
                           <Edit2 className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(user.id)}
-                          className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded"
+                          className="text-rose-700 hover:text-rose-900 p-1 hover:bg-rose-50 rounded dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-slate-700"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -634,93 +704,71 @@ export function UserManagement() {
                     </select>
                   </div>
 
-                  {/* Department dropdown for Employee and Instructor */}
-                  {(formRole === 'Employee' || formRole === 'Instructor') && (
+                  {/* Department and subdepartment selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700">Department</label>
+                    <select
+                      value={formDepartment}
+                      onChange={(e) => {
+                        setFormDepartment(e.target.value);
+                        setFormSubdepartment('');
+                        setFormSubdepartmentIds([]);
+                        setFormIsHead(false);
+                      }}
+                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    >
+                      <option value="">Select department</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.name}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {formRole === 'Employee' && formDepartment && (
                     <div>
-                      <label className="block text-sm font-medium text-slate-700">
-                        Department
-                      </label>
+                      <label className="block text-sm font-medium text-slate-700">Subdepartment</label>
                       <select
-                        value={formDepartment}
-                        onChange={(e) => {
-                          setFormDepartment(e.target.value);
-                          setFormSubdepartment('');
-                          setFormSubdepartmentIds([]);
-                          setFormIsHead(false);
-                        }}
+                        value={formSubdepartment}
+                        onChange={(e) => setFormSubdepartment(e.target.value)}
                         className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                       >
-                        <option value="">Select Department</option>
-                        {departments.map((d) => (
-                          <option key={d.id} value={d.name}>{d.name}</option>
+                        <option value="">Select subdepartment (optional)</option>
+                        {(departments.find(d => d.name === formDepartment)?.subdepartments || []).map(s => (
+                          <option key={s.id} value={String(s.id)}>{s.name}</option>
                         ))}
                       </select>
                     </div>
                   )}
 
-                  {/* Employee: single subdepartment dropdown */}
-                  {formRole === 'Employee' && formDepartment && (() => {
-                    const dept = safeArray(departments).find(d => d.name === formDepartment);
-                    const subs = safeArray(dept?.subdepartments);
-                    return subs.length > 0 ? (
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700">
-                          Sub Department
-                        </label>
-                        <select
-                          value={formSubdepartment}
-                          onChange={(e) => setFormSubdepartment(e.target.value)}
-                          className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                        >
-                          <option value="">Select Sub Department</option>
-                          {subs.map((s) => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    ) : null;
-                  })()}
+                  {formRole === 'Instructor' && formDepartment && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700">Instructor Subdepartments</label>
+                      <select
+                        multiple
+                        value={formSubdepartmentIds.map(String)}
+                        onChange={(e) => {
+                          const vals = Array.from(e.target.selectedOptions).map(o => Number(o.value));
+                          setFormSubdepartmentIds(vals);
+                        }}
+                        className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 h-28 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      >
+                        {(departments.find(d => d.name === formDepartment)?.subdepartments || []).map(s => (
+                          <option key={s.id} value={String(s.id)}>{s.name}</option>
+                        ))}
+                      </select>
 
-                  {/* Instructor: checkbox subdepartments + head of department */}
-                  {formRole === 'Instructor' && formDepartment && (() => {
-                    const dept = safeArray(departments).find(d => d.name === formDepartment);
-                    const subs = safeArray(dept?.subdepartments);
-                    return subs.length > 0 ? (
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Sub Departments
-                        </label>
-                        <div className="border border-slate-300 rounded-md p-3 max-h-40 overflow-y-auto space-y-2">
-                          {subs.map((s) => (
-                            <label key={s.id} className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={formSubdepartmentIds.includes(s.id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setFormSubdepartmentIds([...formSubdepartmentIds, s.id]);
-                                  } else {
-                                    setFormSubdepartmentIds(formSubdepartmentIds.filter(id => id !== s.id));
-                                  }
-                                }}
-                                className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
-                              />
-                              <span className="text-sm text-slate-700">{s.name}</span>
-                            </label>
-                          ))}
-                        </div>
-                        <label className="flex items-center gap-2 mt-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={formIsHead}
-                            onChange={(e) => setFormIsHead(e.target.checked)}
-                            className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
-                          />
-                          <span className="text-sm text-slate-700 font-medium">Head of Department</span>
-                        </label>
+                      <div className="flex items-center mt-2">
+                        <input
+                          type="checkbox"
+                          checked={formIsHead}
+                          onChange={(e) => setFormIsHead(e.target.checked)}
+                          className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
+                        />
+                        <label className="ml-2 block text-sm text-slate-900">Set as Department Head</label>
                       </div>
-                    ) : null;
-                  })()}
+                    </div>
+                  )}
+
                   <div className="flex items-center">
                     <input
                       ref={statusRef}
@@ -760,6 +808,7 @@ export function UserManagement() {
           </div>
         </div>
       )}
+      {confirm.ConfirmModalRenderer()}
     </div>
   );
 }

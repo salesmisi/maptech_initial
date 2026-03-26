@@ -11,7 +11,7 @@ import {
   User,
 } from 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = '/api';
 
 function getCookie(name: string): string {
   const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));

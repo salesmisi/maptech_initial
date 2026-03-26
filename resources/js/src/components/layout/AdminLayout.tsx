@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -13,16 +13,27 @@ import {
   Video,
   MessageCircle,
   Settings,
-  ClipboardList
+  ClipboardList,
+  ImagePlus,
+  Moon,
+  Sun
 } from 'lucide-react';
-import { safeArray } from '../../utils/safe';
+import { NotificationBell } from '../NotificationBell';
+import { useBusinessDetails } from '../../hooks/useBusinessDetails';
 interface AdminLayoutProps {
   children: React.ReactNode;
   currentPage: string;
   onNavigate: (page: string) => void;
   onLogout: () => void;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
+  globalSearch?: string;
+  onGlobalSearch?: (term: string) => void;
+  onGlobalSearchSubmit?: (term: string) => void | Promise<void>;
   user: {
-    name: string;
+    name?: string;
+    fullName?: string;
+    fullname?: string;
     email: string;
     profile_picture?: string | null;
   };
@@ -32,9 +43,36 @@ export function AdminLayout({
   currentPage,
   onNavigate,
   onLogout,
+  theme,
+  onToggleTheme,
+  globalSearch = '',
+  onGlobalSearch,
+  onGlobalSearchSubmit,
   user
 }: AdminLayoutProps) {
   const [showPicPreview, setShowPicPreview] = useState(false);
+  const [displayName, setDisplayName] = useState<string | null>(user?.fullName ?? user?.fullname ?? user?.name ?? null);
+  const isDark = theme === 'dark';
+  const businessDetails = useBusinessDetails();
+
+  // If user prop lacks a name, try fetching profile as a fallback (helps when time-in event updates profile separately)
+  useEffect(() => {
+    if (displayName) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/profile', { credentials: 'include', headers: { Accept: 'application/json' } });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (mounted && (data?.fullName || data?.fullname || data?.name)) {
+          setDisplayName(data.fullName ?? data.fullname ?? data.name);
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, [displayName]);
   const navItems = [
   {
     id: 'dashboard',
@@ -82,26 +120,35 @@ export function AdminLayout({
     icon: ClipboardList
   },
   {
+    id: 'product-logos',
+    label: 'Product Logo Manager',
+    icon: ImagePlus
+  },
+  {
     id: 'settings',
     label: 'Settings',
     icon: Settings
+  },
+  {
+    id: 'business-details',
+    label: 'Business Details',
+    icon: Building2
   }];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar */}
-      <div className="hidden md:flex md:w-64 md:flex-col fixed inset-y-0 z-10 bg-slate-900 text-white">
+    <div className={`app-theme-scope min-h-screen flex ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+      {/* Sidebar (fixed on all viewports to avoid layout shift when zooming) */}
+      <div className={`flex w-64 flex-col fixed inset-y-0 z-10 border-r ${isDark ? 'border-slate-800/80 bg-slate-950/95 text-white' : 'border-slate-200 bg-slate-900 text-white'}`}>
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex flex-col items-center pt-8 pb-6 px-4 bg-slate-950">
             <img
               className="h-16 w-auto mb-3 brightness-110 contrast-110"
-              src="/assets/Maptech-Official-Logo.png"
+              src={businessDetails.logo_url}
               alt="Maptech"
             />
 
-            <p className="text-center text-sm font-medium text-slate-300 leading-tight">
-              Maptech Information Solutions<br />
-              Inc.
+            <p className={`text-center text-sm font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-slate-300'}`}>
+              {businessDetails.company_name}
             </p>
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
@@ -113,10 +160,10 @@ export function AdminLayout({
                   <button
                     key={item.id}
                     onClick={() => onNavigate(item.id)}
-                    className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md w-full transition-colors ${isActive ? 'bg-green-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                    className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg w-full transition-colors ${isActive ? 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}>
 
                     <Icon
-                      className={`mr-3 flex-shrink-0 h-5 w-5 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'}`} />
+                      className={`mr-3 flex-shrink-0 h-5 w-5 ${isActive ? 'text-emerald-300' : 'text-slate-400 group-hover:text-slate-200'}`} />
 
                     {item.label}
                   </button>);
@@ -124,7 +171,7 @@ export function AdminLayout({
               })}
             </nav>
           </div>
-          <div className="flex-shrink-0 flex border-t border-slate-800 p-4">
+          <div className={`flex-shrink-0 flex border-t p-4 ${isDark ? 'border-slate-800/80' : 'border-slate-800'}`}>
             <div className="flex-shrink-0 w-full group block">
               <div className="flex items-center">
                 {user.profile_picture ? (
@@ -136,11 +183,11 @@ export function AdminLayout({
                   />
                 ) : (
                   <div className="h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
-                    {user.name.charAt(0)}
+                    {(displayName?.charAt(0) ?? 'U').toUpperCase()}
                   </div>
                 )}
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-white">{user.name}</p>
+                  <p className={`text-sm font-medium ${isDark ? 'text-slate-100' : 'text-white'}`}>{displayName ?? 'Unknown'}</p>
                   <p className="text-xs font-medium text-slate-400">
                     Administrator
                   </p>
@@ -159,45 +206,73 @@ export function AdminLayout({
       </div>
 
       {/* Main content */}
-      <div className="flex flex-col w-full md:pl-64">
-        <div className="sticky top-0 z-10 flex-shrink-0 flex h-16 bg-white shadow-sm border-b border-slate-200">
+      <div className="flex flex-col w-full pl-64">
+        <div className={`sticky top-0 z-10 flex-shrink-0 flex h-16 items-center border-b ${isDark ? 'bg-slate-900/75 backdrop-blur-md border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
           <button
             type="button"
-            className="px-4 border-r border-slate-200 text-slate-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500 md:hidden">
+            className={`px-4 border-r focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 md:hidden ${isDark ? 'border-slate-800 text-slate-300' : 'border-slate-200 text-slate-500'}`}>
 
             <span className="sr-only">Open sidebar</span>
             <Menu className="h-6 w-6" />
           </button>
-          <div className="flex-1 px-4 flex justify-between">
-            <div className="flex-1 flex">
-              <form className="w-full flex md:ml-0" action="#" method="GET">
+          <div className="flex-1 px-4 flex items-center justify-between gap-4">
+            <div className="flex-1 flex items-center">
+              <form
+                className="w-full max-w-4xl md:ml-0"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  onGlobalSearchSubmit?.(globalSearch);
+                }}
+              >
                 <label htmlFor="search-field" className="sr-only">
                   Search
                 </label>
-                <div className="relative w-full text-slate-400 focus-within:text-slate-600">
-                  <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
+                <div className={`relative w-full h-10 text-slate-400 ${isDark ? 'focus-within:text-slate-300' : 'focus-within:text-slate-600'}`}>
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                     <Search className="h-5 w-5" />
                   </div>
                   <input
                     id="search-field"
-                    className="block w-full h-full pl-8 pr-3 py-2 border-transparent text-slate-900 placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-0 focus:border-transparent sm:text-sm"
+                    className={`block w-full h-10 rounded-xl pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500/40 sm:text-sm ${isDark ? 'bg-slate-800/80 border border-slate-700 text-slate-100 placeholder-slate-400' : 'bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-500'}`}
                     placeholder="Search courses, users, or reports..."
                     type="search"
-                    name="search" />
+                    name="search"
+                    value={globalSearch}
+                    onChange={(e) => onGlobalSearch?.(e.target.value)} />
 
                 </div>
               </form>
             </div>
             <div className="ml-4 flex items-center md:ml-6">
-              <button className="bg-white p-1 rounded-full text-slate-400 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                <span className="sr-only">View notifications</span>
-                <Bell className="h-6 w-6" />
+              <button
+                onClick={onToggleTheme}
+                aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                className="mr-2 inline-flex items-center"
+                title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                <span className="inline-flex items-center gap-2 rounded-full border border-slate-300/60 bg-white/90 px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition-colors dark:border-slate-600/70 dark:bg-slate-900/85 dark:text-slate-100">
+                  <span className="relative inline-flex h-6 w-11 items-center rounded-full bg-gradient-to-r from-amber-300 via-orange-300 to-yellow-200 p-0.5 dark:from-slate-700 dark:via-slate-600 dark:to-slate-500">
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow ring-1 ring-black/5 transition-all duration-300 dark:bg-slate-900 dark:ring-white/10 ${
+                        theme === 'dark' ? 'left-[22px]' : 'left-0.5'
+                      }`}
+                    >
+                      {theme === 'dark' ? (
+                        <Moon className="m-0.5 h-4 w-4 text-cyan-300" />
+                      ) : (
+                        <Sun className="m-0.5 h-4 w-4 text-amber-500" />
+                      )}
+                    </span>
+                  </span>
+                  <span className="tracking-wide">{theme === 'dark' ? 'Dark' : 'Light'}</span>
+                </span>
               </button>
+              <NotificationBell role="Admin" onOpenAll={() => onNavigate('notifications')} />
             </div>
           </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto bg-slate-50 p-6">
+        <main className={`flex-1 overflow-y-auto p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50'}`}>
           {children}
         </main>
       </div>

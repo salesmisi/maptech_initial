@@ -12,7 +12,9 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Exception;
+use App\Models\Notification;
 
 class CourseController extends Controller
 {
@@ -274,6 +276,61 @@ class CourseController extends Controller
     }
 
     /**
+     * Bulk assign multiple courses to an instructor (or unassign if instructor_id is null).
+     */
+    public function bulkAssign(Request $request)
+    {
+        $validated = $request->validate([
+            'course_ids' => 'required|array|min:1',
+            'course_ids.*' => 'required|exists:courses,id',
+            'instructor_id' => 'nullable|exists:users,id',
+        ]);
+
+        $courseIds = $validated['course_ids'];
+        $instructorId = $validated['instructor_id'] ?? null;
+
+        try {
+            $updated = Course::whereIn('id', $courseIds)->update(['instructor_id' => $instructorId]);
+
+            // If an instructor was assigned, create a notification for them
+            if ($instructorId) {
+                $instructor = \App\Models\User::find($instructorId);
+                if ($instructor) {
+                    $assignedCourses = Course::whereIn('id', $courseIds)->pluck('title')->toArray();
+                    $title = 'Courses assigned to you';
+                    $message = 'You have been assigned ' . count($assignedCourses) . ' course(s): ' . implode(', ', array_slice($assignedCourses, 0, 5));
+
+                    Notification::create([
+                        'user_id' => $instructor->id,
+                        'course_id' => null,
+                        'type' => 'info',
+                        'title' => $title,
+                        'message' => $message,
+                        'data' => [
+                            'course_ids' => $courseIds,
+                        ],
+                    ]);
+
+                    // Broadcast an event so the instructor can update in real-time
+                    try {
+                        event(new \App\Events\InstructorCoursesAssigned($instructor->id, $courseIds));
+                    } catch (Exception $ex) {
+                        Log::warning('Failed to broadcast InstructorCoursesAssigned', ['error' => $ex->getMessage()]);
+                    }
+                }
+            }
+
+            return response()->json([
+                'message' => 'Bulk assignment completed',
+                'updated_count' => $updated,
+            ]);
+        } catch (Exception $e) {
+            Log::error('Bulk assign failed', ['error' => $e->getMessage(), 'course_ids' => $courseIds, 'instructor_id' => $instructorId]);
+            return response()->json(['message' => 'Bulk assignment failed', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * List ALL enrollments across all courses.
      */
     public function allEnrollments(Request $request)
@@ -332,6 +389,7 @@ class CourseController extends Controller
                     'enrolled_at' => $user->pivot->enrolled_at,
                     'progress'    => $user->pivot->progress,
                     'enrollment_status' => $user->pivot->status,
+                    'locked'      => $user->pivot->locked ?? false,
                 ];
             });
 
@@ -355,7 +413,6 @@ class CourseController extends Controller
 
         $course->enrollments()->create([
             'user_id'     => $request->user_id,
-            'status'      => 'active',
             'progress'    => 0,
             'enrolled_at' => now(),
         ]);
@@ -438,7 +495,11 @@ class CourseController extends Controller
         $request->validate([
             'title'        => 'required|string|max:255',
             'text_content' => 'nullable|string',
-            'content'      => 'nullable|file|max:102400',
+            // Allow large video files (up to ~2 GB)
+            'content'      => 'nullable|file|max:2048000',
+            'content_url'  => 'nullable|url|max:2000',
+            'type'         => 'nullable|in:Video,Document,Text',
+            'status'       => 'nullable|in:Published,Draft',
         ]);
 
         $nextOrder = $module->lessons()->max('order') + 1;
@@ -449,8 +510,19 @@ class CourseController extends Controller
             'order'        => $nextOrder,
         ];
 
-        if ($request->hasFile('content')) {
+        // If provided an external content URL (YouTube embed), save it directly
+        if ($request->filled('content_url')) {
+            $data['content_path'] = $request->input('content_url');
+        } elseif ($request->hasFile('content')) {
             $data['content_path'] = $request->file('content')->store('course-content', 'public');
+        }
+
+        if ($request->filled('type')) {
+            $data['type'] = $request->input('type');
+        }
+
+        if ($request->filled('status')) {
+            $data['status'] = $request->input('status');
         }
 
         $lesson = $module->lessons()->create($data);
@@ -539,5 +611,109 @@ class CourseController extends Controller
         }
 
         return response()->json(['message' => 'Modules reordered']);
+    }
+
+    /**
+     * Lock a specific enrollment.
+     */
+    public function lockEnrollment(Request $request, string $courseId, int $userId)
+    {
+        $course = Course::findOrFail($courseId);
+
+        /** @var \App\Models\Enrollment|null $enrollment */
+        $enrollment = $course->enrollments()->where('user_id', $userId)->first();
+        if (!$enrollment) {
+            return response()->json(['message' => 'Enrollment not found'], 404);
+        }
+
+        $enrollment->update(['locked' => true]);
+
+        return response()->json(['message' => 'Enrollment locked']);
+    }
+
+    /**
+     * Unlock an enrollment.
+     */
+    public function unlockEnrollment(Request $request, string $courseId, int $userId)
+    {
+        $request->validate([
+            'duration_minutes' => 'nullable|integer|min:1',
+            'expires_at' => 'nullable|date',
+        ]);
+
+        $course = Course::findOrFail($courseId);
+
+        /** @var \App\Models\Enrollment|null $enrollment */
+        $enrollment = $course->enrollments()->where('user_id', $userId)->first();
+        if (!$enrollment) {
+            return response()->json(['message' => 'Enrollment not found'], 404);
+        }
+
+        // compute unlocked_until if provided
+        $until = null;
+        if ($request->filled('duration_minutes')) {
+            $until = now()->addMinutes((int) $request->input('duration_minutes'));
+        } elseif ($request->filled('expires_at')) {
+            $until = \Carbon\Carbon::parse($request->input('expires_at'))->setTimezone('UTC');
+        }
+
+        $data = ['locked' => false];
+        if ($until) $data['unlocked_until'] = $until;
+
+        $enrollment->update($data);
+
+        return response()->json(['message' => 'Enrollment unlocked']);
+    }
+
+    /**
+     * Lock a specific module for a given user.
+     */
+    public function lockModule(Request $request, string $courseId, string $moduleId, int $userId)
+    {
+        $course = Course::findOrFail($courseId);
+
+        $module = Module::where('course_id', $course->id)->where('id', $moduleId)->first();
+        if (!$module) return response()->json(['message' => 'Module not found'], 404);
+
+        DB::table('module_user')->updateOrInsert(
+            ['module_id' => $module->id, 'user_id' => $userId],
+            ['unlocked' => false, 'unlocked_at' => null, 'unlocked_until' => null, 'updated_at' => now(), 'created_at' => now()]
+        );
+
+        return response()->json(['message' => 'Module locked for user']);
+    }
+
+    /**
+     * Unlock a specific module for a given user.
+     */
+    public function unlockModule(Request $request, string $courseId, string $moduleId, int $userId)
+    {
+        $request->validate([
+            'duration_minutes' => 'nullable|integer|min:1',
+            'expires_at' => 'nullable|date',
+        ]);
+
+        $course = Course::findOrFail($courseId);
+
+        $module = Module::where('course_id', $course->id)->where('id', $moduleId)->first();
+        if (!$module) return response()->json(['message' => 'Module not found'], 404);
+
+        // Upsert pivot
+        $until = null;
+        if ($request->filled('duration_minutes')) {
+            $until = now()->addMinutes((int) $request->input('duration_minutes'));
+        } elseif ($request->filled('expires_at')) {
+            $until = \Carbon\Carbon::parse($request->input('expires_at'))->setTimezone('UTC');
+        }
+
+        $payload = ['unlocked' => true, 'unlocked_at' => now(), 'updated_at' => now(), 'created_at' => now()];
+        if ($until) $payload['unlocked_until'] = $until;
+
+        DB::table('module_user')->updateOrInsert(
+            ['module_id' => $module->id, 'user_id' => $userId],
+            $payload
+        );
+
+        return response()->json(['message' => 'Module unlocked for user']);
     }
 }
