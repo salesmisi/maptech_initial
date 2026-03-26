@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { Star, Plus, Edit2, Trash2, X } from 'lucide-react';
+import { safeArray } from '../../utils/safe';
 
 const API = '/api/employee';
 

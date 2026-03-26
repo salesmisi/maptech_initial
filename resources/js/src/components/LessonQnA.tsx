@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import useConfirm from '../hooks/useConfirm';
+import { safeArray } from '../utils/safe';
 
 interface Question {
   id: number;

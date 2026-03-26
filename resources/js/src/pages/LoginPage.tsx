@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Mail, Lock, ArrowRight } from 'lucide-react';
 import { BusinessFooter } from '../components/business/BusinessFooter';
 
@@ -20,6 +20,10 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
+  const [videoSrcIndex, setVideoSrcIndex] = useState(0);
+  const [videoFailed, setVideoFailed] = useState(false);
+  const loginVideoSources = ['/assets/loginvid.mp4', '/loginvid.mp4'];
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // ✅ Function to get cookie value
   const getCookie = (name: string) => {
@@ -117,6 +121,7 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
 
       // Pass role (lowercase), name, email, and department
       onLogin(
+        data.id,
         role as 'admin' | 'instructor' | 'employee',
         data.fullName ?? data.fullname ?? data.name,
         data.email,
@@ -144,24 +149,59 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
   };
 
   const isDark = theme === 'dark';
+  const activeVideoSource = loginVideoSources[videoSrcIndex];
+
+  useEffect(() => {
+    if (videoFailed || !videoRef.current) return;
+
+    const video = videoRef.current;
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.then === 'function') {
+      playPromise.catch(() => {
+        // Keep poster fallback behavior; browsers may block playback in rare cases.
+      });
+    }
+  }, [activeVideoSource, videoFailed]);
+
+  const handleVideoError = () => {
+    if (videoSrcIndex < loginVideoSources.length - 1) {
+      setVideoSrcIndex((index) => index + 1);
+      return;
+    }
+
+    setVideoFailed(true);
+  };
 
   return (
     <div className="relative min-h-screen overflow-hidden flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <video
-        className="absolute inset-0 h-full w-full object-cover"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        poster="/assets/pasted-image.jpg"
-        onCanPlay={() => setVideoReady(true)}
-      >
-        <source src="/assets/loginvid.mp4" type="video/mp4" />
-      </video>
+      {!videoFailed && (
+        <video
+          key={activeVideoSource}
+          ref={videoRef}
+          className="absolute inset-0 h-full w-full object-cover"
+          src={activeVideoSource}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          poster="/assets/pasted-image.jpg"
+          onLoadedData={() => setVideoReady(true)}
+          onCanPlay={() => setVideoReady(true)}
+          onError={handleVideoError}
+        />
+      )}
+
+      {videoFailed && (
+        <div
+          className="absolute inset-0 h-full w-full bg-cover bg-center"
+          style={{ backgroundImage: 'url(/assets/pasted-image.jpg)' }}
+          aria-hidden="true"
+        />
+      )}
 
       <div
-        className={`absolute inset-0 bg-slate-950/65 transition-opacity duration-500 ${videoReady ? 'opacity-100' : 'opacity-90'}`}
+        className={`absolute inset-0 bg-slate-950/70 transition-opacity duration-500 ${videoReady ? 'opacity-100' : 'opacity-90'}`}
         aria-hidden="true"
       />
 

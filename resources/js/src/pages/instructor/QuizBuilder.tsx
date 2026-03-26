@@ -15,6 +15,7 @@ import {
   Check,
 } from 'lucide-react';
 import useConfirm from '../../hooks/useConfirm';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 

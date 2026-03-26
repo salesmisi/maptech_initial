@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { NotificationBell } from '../NotificationBell';
 import { useBusinessDetails } from '../../hooks/useBusinessDetails';
+import { safeArray } from '../../utils/safe';
 interface AdminLayoutProps {
   children: React.ReactNode;
   currentPage: string;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { resolveImageUrl } from '../utils/safe';
 
 export interface BusinessDetails {
   company_name: string;
@@ -34,7 +35,7 @@ export function useBusinessDetails() {
         if (!cancelled) {
           setBusinessDetails({
             company_name: data?.company_name || DEFAULT_DETAILS.company_name,
-            logo_url: data?.logo_url || DEFAULT_DETAILS.logo_url,
+            logo_url: resolveImageUrl(data?.logo_url, { fallback: DEFAULT_DETAILS.logo_url }),
             email: data?.email || undefined,
             phone: data?.phone || undefined,
             mobile_phone: data?.mobile_phone || undefined,

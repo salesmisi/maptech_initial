@@ -27,6 +27,7 @@ import {
 import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
 import UnlockModuleModal from '../../components/UnlockModuleModal';
 import ConfirmModal from '../../components/ConfirmModal';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 

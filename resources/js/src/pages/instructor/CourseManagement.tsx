@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { useToast } from '../../components/ToastProvider';
 import { createPortal } from 'react-dom';
+import { safeArray } from '../../utils/safe';
 import {
   Search,
   Plus,

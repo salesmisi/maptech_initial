@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { sanitizeHtml } from '../../components/RichTextEditor';
 import YouTubePlayer from '../../components/YouTubePlayer';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 

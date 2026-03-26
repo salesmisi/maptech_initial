@@ -10,21 +10,21 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
 
   return (
     <div className={`relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md`}>
-      <div className={`backdrop-blur-sm py-6 px-4 shadow sm:rounded-lg sm:px-6 border-t border-emerald-500/50 ${
+      <div className={`backdrop-blur-md py-6 px-4 shadow-xl sm:rounded-lg sm:px-6 border-t border-emerald-500/60 ring-1 ${
         isDark
-          ? 'bg-slate-950/70'
-          : 'bg-white/80'
+          ? 'bg-slate-950/85 ring-slate-800/80'
+          : 'bg-white/95 ring-slate-300/70'
       }`}>
         <div className="space-y-4">
           {/* Company Name */}
           <div>
             <p className={`text-xs font-semibold tracking-wider uppercase ${
-              isDark ? 'text-emerald-400/80' : 'text-emerald-700'
+              isDark ? 'text-emerald-300' : 'text-emerald-800'
             }`}>
               Business Information
             </p>
             <h3 className={`text-lg font-bold mt-1 ${
-              isDark ? 'text-slate-50' : 'text-slate-900'
+              isDark ? 'text-slate-50' : 'text-slate-950'
             }`}>
               {businessDetails.company_name}
             </h3>
@@ -40,7 +40,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                 <a
                   href={`mailto:${businessDetails.email}`}
                   className={`text-sm break-all hover:underline ${
-                    isDark ? 'text-slate-300 hover:text-emerald-300' : 'text-slate-700 hover:text-emerald-700'
+                    isDark ? 'text-slate-200 hover:text-emerald-200' : 'text-slate-800 hover:text-emerald-800'
                   }`}
                 >
                   {businessDetails.email}
@@ -56,7 +56,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                 <a
                   href={`tel:${businessDetails.phone}`}
                   className={`text-sm hover:underline ${
-                    isDark ? 'text-slate-300 hover:text-emerald-300' : 'text-slate-700 hover:text-emerald-700'
+                    isDark ? 'text-slate-200 hover:text-emerald-200' : 'text-slate-800 hover:text-emerald-800'
                   }`}
                 >
                   Telephone: {businessDetails.phone}
@@ -72,7 +72,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                 <a
                   href={`tel:${businessDetails.mobile_phone}`}
                   className={`text-sm hover:underline ${
-                    isDark ? 'text-slate-300 hover:text-emerald-300' : 'text-slate-700 hover:text-emerald-700'
+                    isDark ? 'text-slate-200 hover:text-emerald-200' : 'text-slate-800 hover:text-emerald-800'
                   }`}
                 >
                   Mobile: {businessDetails.mobile_phone}
@@ -86,7 +86,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                   isDark ? 'text-emerald-400' : 'text-emerald-600'
                 }`} />
                 <p className={`text-sm ${
-                  isDark ? 'text-slate-300' : 'text-slate-700'
+                  isDark ? 'text-slate-200' : 'text-slate-800'
                 }`}>
                   VAT REG TIN No.: {businessDetails.vat_reg_tin}
                 </p>
@@ -99,7 +99,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                   isDark ? 'text-emerald-400' : 'text-emerald-600'
                 }`} />
                 <p className={`text-sm ${
-                  isDark ? 'text-slate-300' : 'text-slate-700'
+                  isDark ? 'text-slate-200' : 'text-slate-800'
                 }`}>
                   {businessDetails.address}
                 </p>
@@ -112,7 +112,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                   isDark ? 'text-emerald-400' : 'text-emerald-600'
                 }`} />
                 <p className={`text-sm ${
-                  isDark ? 'text-slate-300' : 'text-slate-700'
+                  isDark ? 'text-slate-200' : 'text-slate-800'
                 }`}>
                   {businessDetails.country}
                 </p>
@@ -129,7 +129,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                   target="_blank"
                   rel="noopener noreferrer"
                   className={`text-sm break-all hover:underline ${
-                    isDark ? 'text-slate-300 hover:text-emerald-300' : 'text-slate-700 hover:text-emerald-700'
+                    isDark ? 'text-slate-200 hover:text-emerald-200' : 'text-slate-800 hover:text-emerald-800'
                   }`}
                 >
                   {businessDetails.website.replace(/^https?:\/\//, '')}

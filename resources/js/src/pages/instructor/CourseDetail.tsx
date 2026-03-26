@@ -28,6 +28,7 @@ import YouTubePlayer from '../../components/YouTubePlayer';
 import UnlockModuleModal from '../../components/UnlockModuleModal';
 import DepartmentSelectModal from '../../components/DepartmentSelectModal';
 import useConfirm from '../../hooks/useConfirm';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 

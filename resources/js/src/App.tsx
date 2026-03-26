@@ -45,6 +45,7 @@ import { EmployeeNotifications } from './pages/employee/EmployeeNotifications';
 // Shared Pages
 import { ProfileSettings } from './pages/shared/ProfileSettings';
 import { YTDebug } from './pages/debug/YTDebug';
+import { resolveImageUrl } from './utils/safe';
 
 interface User {
   id?: number;
@@ -262,7 +263,7 @@ export function App() {
             fullName: data.fullName ?? data.fullname ?? data.name,
             email: data.email,
             department: data.department,
-            profile_picture: data.profile_picture,
+            profile_picture: resolveImageUrl(data.profile_picture || null) || null,
           });
           // persist display name as a quick fallback for UI components
           try { localStorage.setItem('maptech_user_name', (data.fullName ?? data.fullname ?? data.name) || ''); } catch (e) { /* ignore */ }
@@ -317,7 +318,15 @@ export function App() {
     department?: string,
     profile_picture?: string | null
   ) => {
-    setUser({ role, name, fullName: name, email, department, profile_picture });
+    setUser({
+      id,
+      role,
+      name,
+      fullName: name,
+      email,
+      department,
+      profile_picture: resolveImageUrl(profile_picture || null) || null,
+    });
     try { localStorage.setItem('maptech_user_name', name || ''); } catch (e) { /* ignore */ }
     setCurrentPage('dashboard');
     localStorage.setItem(`maptech_page_${role}`, 'dashboard');

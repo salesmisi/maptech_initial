@@ -10,6 +10,7 @@ import {
   Layers,
   User,
 } from 'lucide-react';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 

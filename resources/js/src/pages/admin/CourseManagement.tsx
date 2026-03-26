@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { createPortal } from 'react-dom';
+import { safeArray } from '../../utils/safe';
 import {
   Search,
   Plus,

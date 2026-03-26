@@ -12,7 +12,7 @@ import {
   Camera
 } from 'lucide-react';
 
-import { safeArray } from '../../utils/safe';
+import { safeArray, resolveImageUrl } from '../../utils/safe';
 
 interface User {
   id: number;
@@ -240,7 +240,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     setFormIsHead(user?.head_of_departments && user.head_of_departments.length > 0 ? true : false);
     setFormError(null);
     setProfilePictureFile(null);
-    setProfilePicturePreview(user?.profile_picture ? `/storage/${user.profile_picture}` : null);
+    setProfilePicturePreview(resolveImageUrl(user?.profile_picture || null) || null);
     setIsModalOpen(true);
   };
 
@@ -499,7 +499,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                         <div className="flex-shrink-0 h-10 w-10">
                           {user.profile_picture ? (
                             <img
-                              src={`/storage/${user.profile_picture}`}
+                              src={resolveImageUrl(user.profile_picture)}
                               alt={user.fullname}
                               className="h-10 w-10 rounded-full object-cover"
                             />
