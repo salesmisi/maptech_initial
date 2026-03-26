@@ -257,22 +257,22 @@ export function InstructorNotifications() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'announcement':
-        return <Bell className="h-4 w-4 text-blue-600" />;
+        return <Bell className="h-4 w-4 text-blue-700 dark:text-blue-300" />;
       case 'employee_message':
-        return <MessageCircle className="h-4 w-4 text-yellow-600" />;
+        return <MessageCircle className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />;
       default:
-        return <AlertCircle className="h-4 w-4 text-slate-600" />;
+        return <AlertCircle className="h-4 w-4 text-slate-700 dark:text-slate-300" />;
     }
   };
 
   const getNotificationBg = (type: string) => {
     switch (type) {
       case 'announcement':
-        return 'bg-blue-100';
+        return 'bg-blue-100 dark:bg-blue-900/50';
       case 'employee_message':
-        return 'bg-yellow-100';
+        return 'bg-yellow-100 dark:bg-yellow-900/50';
       default:
-        return 'bg-slate-100';
+        return 'bg-slate-100 dark:bg-slate-700';
     }
   };
 
@@ -291,7 +291,7 @@ export function InstructorNotifications() {
           {unreadCount > 0 && (
             <button
               onClick={markAllAsRead}
-              className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
+              className="inline-flex items-center px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
             >
               Mark All Read
             </button>
@@ -307,7 +307,7 @@ export function InstructorNotifications() {
       </div>
 
       {/* Notifications List */}
-      <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-slate-500 dark:text-slate-300">Loading...</div>
         ) : notifications.length === 0 ? (
@@ -321,8 +321,8 @@ export function InstructorNotifications() {
             {notifications.map((notification) => (
               <div
                 key={notification.id}
-                className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors ${
-                  !notification.read_at ? 'bg-green-50 dark:bg-green-900/40' : 'dark:bg-slate-800'
+                className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
+                  !notification.read_at ? 'bg-emerald-50 dark:bg-emerald-950/35' : 'bg-white dark:bg-slate-900'
                 }`}
               >
                 <div className="flex items-start justify-between">
@@ -334,19 +334,19 @@ export function InstructorNotifications() {
                       <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">
                         {notification.title}
                         {!notification.read_at && (
-                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
                             New
                           </span>
                         )}
                       </h3>
-                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-200">{notification.message}</p>
+                      <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{notification.message}</p>
                       {notification.data?.from_user_name && (
-                        <p className="mt-1 text-xs text-slate-400 dark:text-slate-300">
+                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
                           From: {notification.data.from_user_name} ({notification.data.from_role})
                           {notification.data.course_title && ` • ${notification.data.course_title}`}
                         </p>
                       )}
-                      <p className="mt-1 text-xs text-slate-400 dark:text-slate-300">
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
                         {formatDate(notification.created_at)}
                       </p>
                     </div>
@@ -355,7 +355,7 @@ export function InstructorNotifications() {
                     {!notification.read_at && (
                       <button
                         onClick={() => markAsRead(notification.id)}
-                        className="text-slate-400 hover:text-green-600"
+                        className="text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-300"
                         title="Mark as read"
                       >
                         <Eye className="h-5 w-5" />
@@ -363,7 +363,7 @@ export function InstructorNotifications() {
                     )}
                     <button
                       onClick={() => deleteNotification(notification.id)}
-                      className="text-slate-400 hover:text-red-600"
+                      className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"
                       title="Delete"
                     >
                       <Trash2 className="h-5 w-5" />
@@ -381,45 +381,45 @@ export function InstructorNotifications() {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-slate-500 opacity-75"></div>
+              <div className="absolute inset-0 bg-slate-900/70"></div>
             </div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div className="inline-block align-bottom bg-white dark:bg-slate-900 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-slate-200 dark:border-slate-700">
               <div className="absolute top-4 right-4">
-                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 dark:text-slate-300 hover:text-slate-600 dark:hover:text-white">
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <h3 className="text-lg leading-6 font-medium text-slate-900 mb-4">
+              <div className="bg-white dark:bg-slate-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <h3 className="text-lg leading-6 font-medium text-slate-900 dark:text-slate-100 mb-4">
                   <Users className="h-5 w-5 inline mr-2" />
                   Notify Enrolled Employees
                 </h3>
                 <form onSubmit={handleSendToEmployees} className="space-y-4">
                   <div>
-                    <label htmlFor="notify-department" className="block text-sm font-medium text-slate-700">Department *</label>
+                    <label htmlFor="notify-department" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Department *</label>
                     <select
                       id="notify-department"
                       name="department_id"
                       value={(formData as any).department_id ?? ''}
                       onChange={(e) => setFormData({ ...formData, course_id: '', department_id: e.target.value ? Number(e.target.value) : '' })}
-                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     >
                       <option value="">Select a department</option>
                       {departments.map((d) => (
                         <option key={d.id} value={d.id}>{d.name}</option>
                       ))}
                     </select>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
                       Notification will be sent to all enrolled employees across courses in this department (where you have access)
                     </p>
-                    <div className="mt-3 text-xs text-slate-500">Or choose a specific course below:</div>
+                    <div className="mt-3 text-xs text-slate-500 dark:text-slate-300">Or choose a specific course below:</div>
                     <select
                       id="notify-course"
                       name="course_id"
                       value={formData.course_id}
                       onChange={(e) => setFormData({ ...formData, course_id: e.target.value, department_id: '' })}
-                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     >
                       <option value="">Select a course (optional)</option>
                       {courses.map((course) => (
@@ -428,13 +428,13 @@ export function InstructorNotifications() {
                     </select>
                   </div>
                   <div>
-                    <label htmlFor="notify-type" className="block text-sm font-medium text-slate-700">Type</label>
+                    <label htmlFor="notify-type" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Type</label>
                     <select
                       id="notify-type"
                       name="type"
                       value={formData.type}
                       onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     >
                       <option value="announcement">Announcement</option>
                       <option value="lesson_update">Lesson Update</option>
@@ -442,7 +442,7 @@ export function InstructorNotifications() {
                     </select>
                   </div>
                   <div>
-                    <label htmlFor="notify-title" className="block text-sm font-medium text-slate-700">Title *</label>
+                    <label htmlFor="notify-title" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Title *</label>
                     <input
                       id="notify-title"
                       name="title"
@@ -450,12 +450,12 @@ export function InstructorNotifications() {
                       required
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                       placeholder="Notification title"
                     />
                   </div>
                   <div>
-                    <label htmlFor="notify-message" className="block text-sm font-medium text-slate-700">Message *</label>
+                    <label htmlFor="notify-message" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Message *</label>
                     <textarea
                       id="notify-message"
                       name="message"
@@ -463,7 +463,7 @@ export function InstructorNotifications() {
                       required
                       value={formData.message}
                       onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                       placeholder="Type your message here..."
                     />
                   </div>
@@ -471,7 +471,7 @@ export function InstructorNotifications() {
                     <button
                       type="button"
                       onClick={() => setIsModalOpen(false)}
-                      className="w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 sm:text-sm"
+                      className="w-full inline-flex justify-center rounded-md border border-slate-300 dark:border-slate-600 shadow-sm px-4 py-2 bg-white dark:bg-slate-800 text-base font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 sm:text-sm"
                     >
                       Cancel
                     </button>
