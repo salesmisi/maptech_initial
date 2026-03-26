@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X } from 'lucide-react';
+import { safeArray } from '../../utils/safe';
 
 interface Notification {
   id: number;
@@ -47,8 +48,44 @@ export function NotificationManagement() {
 
   const token = localStorage.getItem('token');
 
+  const getCookie = (name: string) => {
+    const match = document.cookie.match(new RegExp('(^|;)\\s*' + name + '=([^;]+)'));
+    return match ? decodeURIComponent(match[2]) : null;
+  };
+
+  const fetchOptions = (method = 'GET', body?: any) => {
+    const opts: any = {
+      method,
+      headers: {
+        'Accept': 'application/json',
+      },
+    };
+
+    // Always include credentials so cookies are sent for stateful auth
+    opts.credentials = 'include';
+    opts.headers['X-Requested-With'] = 'XMLHttpRequest';
+
+    // Attach CSRF header when cookie exists
+    const xsrfRaw = getCookie('XSRF-TOKEN');
+    const xsrf = xsrfRaw ? decodeURIComponent(xsrfRaw) : null;
+    if (xsrf) opts.headers['X-XSRF-TOKEN'] = xsrf;
+
+    // If token is present, also send Authorization header (bearer fallback)
+    if (token) {
+      opts.headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    if (body) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+
+    return opts;
+  };
+
   // Load notifications
   useEffect(() => {
+    console.debug('NotificationManagement mounted', { formData });
     fetchNotifications();
     fetchUnreadCount();
   }, []);
@@ -56,14 +93,21 @@ export function NotificationManagement() {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/notifications', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
-      const data = await res.json();
-      setNotifications(data.notifications?.data || []);
+      const res = await fetch('/api/admin/notifications', fetchOptions('GET'));
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        const text = await res.text().catch(() => null);
+        console.error('Failed to parse /api/admin/notifications response as JSON', { status: res.status, text });
+        data = null;
+      }
+
+      const list = safeArray(data?.notifications?.data);
+      if (!Array.isArray(data?.notifications?.data) && data !== null) {
+        console.warn('/api/admin/notifications returned unexpected shape', data);
+      }
+      setNotifications(list);
     } catch (err) {
       console.error('Failed to load notifications:', err);
     } finally {
@@ -73,12 +117,7 @@ export function NotificationManagement() {
 
   const fetchUnreadCount = async () => {
     try {
-      const res = await fetch('/api/admin/notifications/unread-count', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/admin/notifications/unread-count', fetchOptions('GET'));
       const data = await res.json();
       setUnreadCount(data.count || 0);
     } catch (err) {
@@ -88,13 +127,7 @@ export function NotificationManagement() {
 
   const markAsRead = async (id: number) => {
     try {
-      await fetch(`/api/admin/notifications/${id}/read`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch(`/api/admin/notifications/${id}/read`, fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
@@ -104,13 +137,7 @@ export function NotificationManagement() {
 
   const markAllAsRead = async () => {
     try {
-      await fetch('/api/admin/notifications/read-all', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch('/api/admin/notifications/read-all', fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
@@ -121,13 +148,7 @@ export function NotificationManagement() {
   const deleteNotification = async (id: number) => {
     if (!confirm('Delete this notification?')) return;
     try {
-      await fetch(`/api/admin/notifications/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch(`/api/admin/notifications/${id}`, fetchOptions('DELETE'));
       fetchNotifications();
     } catch (err) {
       console.error('Failed to delete notification:', err);
@@ -135,39 +156,43 @@ export function NotificationManagement() {
   };
 
   const handleRoleToggle = (role: string) => {
-    setFormData(prev => ({
-      ...prev,
-      roles: prev.roles.includes(role)
-        ? prev.roles.filter(r => r !== role)
-        : [...prev.roles, role]
-    }));
+    setFormData(prev => {
+      const prevRoles = Array.isArray(prev.roles) ? prev.roles : (prev.roles ? [prev.roles] : []);
+      const has = prevRoles.includes(role);
+      const nextRoles = has ? prevRoles.filter(r => r !== role) : [...prevRoles, role];
+      return { ...prev, roles: nextRoles };
+    });
   };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.roles.length === 0) {
+    const rolesArray = Array.isArray(formData.roles) ? formData.roles : (formData.roles ? [formData.roles] : []);
+    if (rolesArray.length === 0) {
       alert('Please select at least one target audience');
       return;
     }
 
     setIsSending(true);
     try {
-      const res = await fetch('/api/admin/notifications/announce', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          title: formData.title,
-          message: formData.message,
-          roles: formData.roles,
-          course_id: formData.course_id || null,
-        }),
-      });
+      // Ensure we have a fresh CSRF cookie when not using token fallback
+      if (!token) {
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      }
+      const payload = { title: formData.title, message: formData.message, roles: rolesArray, course_id: formData.course_id || null };
+      console.debug('Send announce payload', payload);
+      const res = await fetch('/api/admin/notifications/announce', fetchOptions('POST', payload));
 
-      const data = await res.json();
+      let data: any = null;
+      if (res.headers.get('content-type')?.includes('application/json')) {
+        try {
+          data = await res.json();
+        } catch (parseErr) {
+          console.error('Failed to parse send response JSON', parseErr);
+        }
+      } else {
+        const text = await res.text().catch(() => null);
+        console.warn('send announcement returned non-json', { status: res.status, text });
+      }
 
       if (res.ok) {
         alert(`Announcement sent to ${data.recipients_count} users!`);
@@ -185,13 +210,56 @@ export function NotificationManagement() {
           recipients_count: data.recipients_count,
         }, ...prev]);
       } else {
-        alert(data.message || 'Failed to send announcement');
+        const msg = data?.message || `Failed to send announcement (status ${res.status})`;
+        alert(msg);
       }
     } catch (err) {
       console.error('Failed to send announcement:', err);
       alert('Failed to send announcement');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handlePreview = async () => {
+    const rolesArray = Array.isArray(formData.roles) ? formData.roles : (formData.roles ? [formData.roles] : []);
+    if (rolesArray.length === 0) {
+      alert('Please select at least one target audience');
+      return;
+    }
+
+    try {
+      // Ensure we have a fresh CSRF cookie when not using token fallback
+      if (!token) {
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      }
+      const payload = {
+        title: formData.title,
+        message: formData.message,
+        roles: rolesArray,
+        course_id: formData.course_id || null,
+        preview: true,
+      };
+      console.debug('Preview announce payload', payload);
+
+      const res = await fetch('/api/admin/notifications/announce', fetchOptions('POST', payload));
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        const text = await res.text().catch(() => null);
+        console.error('Failed to parse preview response JSON', { status: res.status, text });
+      }
+
+      if (res.ok) {
+        alert(`Preview: ${data?.recipients_count ?? 'unknown'} recipients`);
+      } else {
+        alert(data?.message || `Failed to preview recipients (status ${res.status})`);
+      }
+    } catch (err) {
+      console.error('Preview failed:', err);
+      alert('Preview failed');
     }
   };
 
@@ -218,7 +286,7 @@ export function NotificationManagement() {
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+          <div className="flex gap-2">
           {unreadCount > 0 && (
             <button
               onClick={markAllAsRead}
@@ -229,7 +297,10 @@ export function NotificationManagement() {
             </button>
           )}
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={async () => {
+              if (!token) await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+              setIsModalOpen(true);
+            }}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -249,7 +320,7 @@ export function NotificationManagement() {
                 : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
             }`}
           >
-            Received ({notifications.length})
+            Received ({safeArray(notifications).length})
           </button>
           <button
             onClick={() => setActiveTab('sent')}
@@ -269,14 +340,14 @@ export function NotificationManagement() {
         <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-slate-500">Loading...</div>
-          ) : notifications.length === 0 ? (
+          ) : safeArray(notifications).length === 0 ? (
             <div className="p-8 text-center text-slate-500">
               <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300" />
               <p>No notifications yet</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-200">
-              {notifications.map((notification) => (
+              {safeArray(notifications).map((notification) => (
                 <div
                   key={notification.id}
                   className={`p-4 hover:bg-slate-50 transition-colors ${
@@ -365,7 +436,7 @@ export function NotificationManagement() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
-                  {sentHistory.map((item) => (
+                  {safeArray(sentHistory).map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
                         {item.title}
@@ -457,6 +528,13 @@ export function NotificationManagement() {
                       className="w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 sm:text-sm"
                     >
                       Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePreview}
+                      className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 sm:text-sm mr-2"
+                    >
+                      Preview Recipients
                     </button>
                     <button
                       type="submit"

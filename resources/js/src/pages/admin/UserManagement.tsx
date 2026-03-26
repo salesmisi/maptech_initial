@@ -11,6 +11,8 @@ import {
   Camera
 } from 'lucide-react';
 
+import { safeArray } from '../../utils/safe';
+
 interface User {
   id: number;
   fullname: string;
@@ -137,7 +139,7 @@ export function UserManagement() {
   };
 
   // Filter users
-  const filteredUsers = users.filter((user) => {
+  const filteredUsers = safeArray(users).filter((user) => {
     const name = user.fullname || '';
     const matchesSearch =
       name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -381,7 +383,7 @@ export function UserManagement() {
               onChange={(e) => setDepartmentFilter(e.target.value)}
             >
               <option value="All">All Departments</option>
-              {departments.map((d) => (
+              {safeArray(departments).map((d) => (
                 <option key={d.id} value={d.name}>{d.name}</option>
               ))}
             </select>
@@ -459,7 +461,7 @@ export function UserManagement() {
                       )}
                       {user.role === 'Instructor' && user.subdepartments && user.subdepartments.length > 0 && (
                         <div className="text-xs text-slate-400">
-                          {user.subdepartments.map(s => s.name).join(', ')}
+                          {safeArray(user.subdepartments).map(s => s.name).join(', ')}
                         </div>
                       )}
                     </td>
@@ -658,8 +660,8 @@ export function UserManagement() {
 
                   {/* Employee: single subdepartment dropdown */}
                   {formRole === 'Employee' && formDepartment && (() => {
-                    const dept = departments.find(d => d.name === formDepartment);
-                    const subs = dept?.subdepartments || [];
+                    const dept = safeArray(departments).find(d => d.name === formDepartment);
+                    const subs = safeArray(dept?.subdepartments);
                     return subs.length > 0 ? (
                       <div>
                         <label className="block text-sm font-medium text-slate-700">
@@ -681,8 +683,8 @@ export function UserManagement() {
 
                   {/* Instructor: checkbox subdepartments + head of department */}
                   {formRole === 'Instructor' && formDepartment && (() => {
-                    const dept = departments.find(d => d.name === formDepartment);
-                    const subs = dept?.subdepartments || [];
+                    const dept = safeArray(departments).find(d => d.name === formDepartment);
+                    const subs = safeArray(dept?.subdepartments);
                     return subs.length > 0 ? (
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">

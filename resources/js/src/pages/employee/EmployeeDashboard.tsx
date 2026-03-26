@@ -9,6 +9,7 @@ import {
   Bell,
   FileQuestion } from
 'lucide-react';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 
@@ -76,7 +77,10 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       });
       if (res.ok) {
         const data = await res.json();
-        setNotifications(data);
+        const normalized = Array.isArray(data)
+          ? data
+          : data.data || data.notifications?.data || data.notifications || [];
+        setNotifications(safeArray(normalized) as any);
       }
     } catch (err) {
       console.error('Failed to load notifications:', err);
@@ -118,7 +122,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
         const data = await response.json();
 
         // Map courses to include thumbnail colors
-        const mappedCourses = data.courses.map((course: any) => ({
+        const mappedCourses = safeArray(data.courses).map((course: any) => ({
           id: course.id,
           title: course.title,
           progress: course.my_progress ?? course.progress ?? 0,
@@ -130,7 +134,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
 
         setDashboardData({
-          user: dashData?.user ?? { id: 0, name: 'Employee', email: '', department: '' },
+          user: data?.user ?? { id: 0, name: 'Employee', email: '', department: '' },
           courses: mappedCourses,
           total_courses: mappedCourses.length,
         });
@@ -161,7 +165,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const totalCourses = dashboardData?.total_courses || 0;
 
   // Find the most-recently-active in-progress course for Resume Learning
-  const resumeCourse = myCourses
+  const resumeCourse = safeArray<Course>(myCourses)
     .filter(c => c.progress > 0 && c.enroll_status !== 'Completed')
     .sort((a, b) => {
       if (!a.last_activity && !b.last_activity) return 0;
@@ -226,7 +230,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-slate-500">Completed</p>
-              <p className="text-2xl font-bold text-slate-900">{myCourses.filter(c => c.progress === 100).length}</p>
+              <p className="text-2xl font-bold text-slate-900">{safeArray<Course>(myCourses).filter(c => c.progress === 100).length}</p>
             </div>
           </div>
         </div>
@@ -238,7 +242,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-slate-500">In Progress</p>
-              <p className="text-2xl font-bold text-slate-900">{myCourses.filter(c => c.progress > 0 && c.progress < 100).length}</p>
+              <p className="text-2xl font-bold text-slate-900">{safeArray<Course>(myCourses).filter(c => c.progress > 0 && c.progress < 100).length}</p>
             </div>
           </div>
         </div>
@@ -257,16 +261,16 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       </div>
 
       {/* Quiz Notifications */}
-      {notifications.filter(n => !n.read).length > 0 && (
+      {safeArray<NotificationItem>(notifications).filter(n => !n.read).length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-orange-200 p-6">
           <div className="flex items-center gap-2 mb-4">
             <Bell className="h-5 w-5 text-orange-600" />
             <h2 className="text-lg font-bold text-slate-900">
-              Notifications ({notifications.filter(n => !n.read).length} new)
+              Notifications ({safeArray<NotificationItem>(notifications).filter(n => !n.read).length} new)
             </h2>
           </div>
           <div className="space-y-3">
-            {notifications.filter(n => !n.read).map(notif => (
+            {safeArray<NotificationItem>(notifications).filter(n => !n.read).map(notif => (
               <div key={notif.id} className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-100 rounded-lg">
                 <FileQuestion className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
@@ -406,7 +410,10 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
               You've earned the "Safety First" badge for completing Workplace
               Safety training!
             </p>
-            <button className="w-full py-2 bg-white/20 hover:bg-white/30 rounded-md text-sm font-medium transition-colors backdrop-blur-sm">
+            <button
+              onClick={() => onNavigate?.('certificates')}
+              className="w-full py-2 bg-white/20 hover:bg-white/30 rounded-md text-sm font-medium transition-colors backdrop-blur-sm"
+            >
               View Certificates
             </button>
           </div>

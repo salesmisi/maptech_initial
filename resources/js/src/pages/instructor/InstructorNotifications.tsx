@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle } from 'lucide-react';
+import { safeArray } from '../../utils/safe';
 
 interface Notification {
   id: number;
@@ -41,6 +42,37 @@ export function InstructorNotifications() {
 
   const token = localStorage.getItem('token');
 
+  const getCookie = (name: string) => {
+    const match = document.cookie.match(new RegExp('(^|;)\\s*' + name + '=([^;]+)'));
+    return match ? decodeURIComponent(match[2]) : null;
+  };
+
+  const fetchOptions = (method = 'GET', body?: any) => {
+    const opts: any = {
+      method,
+      headers: {
+        'Accept': 'application/json',
+      },
+    };
+
+    if (token) {
+      opts.headers['Authorization'] = `Bearer ${token}`;
+    } else {
+      opts.credentials = 'include';
+      opts.headers['X-Requested-With'] = 'XMLHttpRequest';
+      const xsrfRaw = getCookie('XSRF-TOKEN');
+      const xsrf = xsrfRaw ? decodeURIComponent(xsrfRaw) : null;
+      if (xsrf) opts.headers['X-XSRF-TOKEN'] = xsrf;
+    }
+
+    if (body) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+
+    return opts;
+  };
+
   useEffect(() => {
     fetchNotifications();
     fetchUnreadCount();
@@ -49,12 +81,7 @@ export function InstructorNotifications() {
 
   const fetchCourses = async () => {
     try {
-      const res = await fetch('/api/instructor/courses', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/instructor/courses', fetchOptions('GET'));
       const data = await res.json();
       setCourses(Array.isArray(data) ? data : data.data || []);
     } catch (err) {
@@ -65,12 +92,7 @@ export function InstructorNotifications() {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/instructor/notifications', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/instructor/notifications', fetchOptions('GET'));
       const data = await res.json();
       setNotifications(data.notifications?.data || []);
     } catch (err) {
@@ -82,12 +104,7 @@ export function InstructorNotifications() {
 
   const fetchUnreadCount = async () => {
     try {
-      const res = await fetch('/api/instructor/notifications/unread-count', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/instructor/notifications/unread-count', fetchOptions('GET'));
       const data = await res.json();
       setUnreadCount(data.count || 0);
     } catch (err) {
@@ -97,13 +114,7 @@ export function InstructorNotifications() {
 
   const markAsRead = async (id: number) => {
     try {
-      await fetch(`/api/instructor/notifications/${id}/read`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch(`/api/instructor/notifications/${id}/read`, fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
@@ -113,13 +124,7 @@ export function InstructorNotifications() {
 
   const markAllAsRead = async () => {
     try {
-      await fetch('/api/instructor/notifications/read-all', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch('/api/instructor/notifications/read-all', fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
@@ -130,13 +135,7 @@ export function InstructorNotifications() {
   const deleteNotification = async (id: number) => {
     if (!confirm('Delete this notification?')) return;
     try {
-      await fetch(`/api/instructor/notifications/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch(`/api/instructor/notifications/${id}`, fetchOptions('DELETE'));
       fetchNotifications();
     } catch (err) {
       console.error('Failed to delete notification:', err);
@@ -152,20 +151,12 @@ export function InstructorNotifications() {
 
     setIsSending(true);
     try {
-      const res = await fetch('/api/instructor/notifications/notify-employees', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          title: formData.title,
-          message: formData.message,
-          course_id: formData.course_id,
-          type: formData.type,
-        }),
-      });
+      const res = await fetch('/api/instructor/notifications/notify-employees', fetchOptions('POST', {
+        title: formData.title,
+        message: formData.message,
+        course_id: formData.course_id,
+        type: formData.type,
+      }));
 
       const data = await res.json();
 
@@ -250,7 +241,7 @@ export function InstructorNotifications() {
       <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-slate-500">Loading...</div>
-        ) : notifications.length === 0 ? (
+        ) : safeArray(notifications).length === 0 ? (
           <div className="p-8 text-center text-slate-500">
             <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300" />
             <p>No notifications yet</p>
@@ -258,7 +249,7 @@ export function InstructorNotifications() {
           </div>
         ) : (
           <div className="divide-y divide-slate-200">
-            {notifications.map((notification) => (
+            {safeArray(notifications).map((notification) => (
               <div
                 key={notification.id}
                 className={`p-4 hover:bg-slate-50 transition-colors ${
@@ -345,7 +336,7 @@ export function InstructorNotifications() {
                       className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     >
                       <option value="">Select a course</option>
-                      {courses.map((course) => (
+                      {safeArray(courses).map((course) => (
                         <option key={course.id} value={course.id}>{course.title}</option>
                       ))}
                     </select>

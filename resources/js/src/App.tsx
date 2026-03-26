@@ -103,13 +103,14 @@ export function App() {
   // HANDLE LOGIN
   // =========================
   const handleLogin = async (
+    id: number | undefined,
     role: 'admin' | 'instructor' | 'employee',
     name: string,
     email: string,
     department?: string,
     profile_picture?: string | null
   ) => {
-    setUser({ role, name, email, department, profile_picture });
+    setUser({ id, role, name, email, department, profile_picture });
     setCurrentPage('dashboard');
     localStorage.setItem(`maptech_page_${role}`, 'dashboard');
     localStorage.removeItem(`maptech_courseId_${role}`);

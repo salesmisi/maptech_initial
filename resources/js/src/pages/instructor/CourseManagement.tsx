@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { safeArray } from '../../utils/safe';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -442,7 +443,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   <p className="text-sm text-slate-500 italic">No modules added yet.</p>
                 ) : (
                   <div className="space-y-3">
-                    {modules.map((mod, idx) => (
+                    {safeArray(modules).map((mod, idx) => (
                       <div key={mod.id} className="p-3 bg-slate-50 rounded-md border border-slate-200">
                         <div className="flex gap-2 items-start">
                           <div className="flex-1 space-y-2">

@@ -79,7 +79,7 @@ export function InstructorLayout({
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
             <nav className="mt-5 flex-1 px-2 space-y-1">
-              {navItems.map((item) => {
+              {safeArray(navItems).map((item) => {
                 const Icon = item.icon;
                 const isActive = currentPage === item.id ||
                   (item.id === 'courses' && currentPage === 'instructor-course-detail') ||

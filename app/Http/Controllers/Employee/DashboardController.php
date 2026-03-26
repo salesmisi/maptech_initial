@@ -67,7 +67,7 @@ class DashboardController extends Controller
     /**
      * Resolve enrollment status for a given enrollment row + course.
      */
-    private function resolveStatus(Enrollment $enrollment, Course $course): string
+    private function resolveStatus($enrollment, Course $course): string
     {
         if ($enrollment->progress >= 100) {
             return 'Completed';
@@ -102,7 +102,7 @@ class DashboardController extends Controller
             ->get()
             ->keyBy('course_id');
 
-        $coursesWithProgress = $courses->map(function ($course) use ($enrollments) {
+        $coursesWithProgress = $courses->map(function (Course $course) use ($enrollments) {
             $enrollment = $enrollments->get($course->id);
             return array_merge($course->toArray(), [
                 'progress'       => $enrollment?->progress ?? 0,
@@ -118,7 +118,7 @@ class DashboardController extends Controller
                 'email'      => $user->email,
                 'department' => $user->department,
             ],
-            'courses'       => $courses,
+            'courses'       => $coursesWithProgress,
             'total_courses' => $courses->count(),
         ]);
     }
@@ -159,7 +159,7 @@ class DashboardController extends Controller
                 'instructor'    => $course->instructor?->fullname,
                 'is_enrolled'   => (bool) $enrollment,
                 'my_progress'   => $enrollment?->progress ?? 0,
-                'my_status'     => $enrollment ? $this->resolveStatus($enrollment, $course) : null,
+                'my_status'     => $enrollment instanceof Enrollment ? $this->resolveStatus($enrollment, $course) : null,
             ];
         });
 
@@ -244,7 +244,7 @@ class DashboardController extends Controller
         Enrollment::create([
             'user_id'     => $user->id,
             'course_id'   => $id,
-            'status'      => 'Not Started',
+            'status'      => 'active',
             'progress'    => 0,
             'enrolled_at' => now(),
         ]);

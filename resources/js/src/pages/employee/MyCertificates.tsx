@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { safeArray } from '../../utils/safe';
 import { Download, Award, Calendar, ExternalLink, BookOpen, Upload, Trash2, Image } from 'lucide-react';
 
 const API_BASE = '/api';
@@ -273,7 +274,7 @@ export function MyCertificates() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {certificates.map((cert) => (
+          {safeArray(certificates).map((cert) => (
             <div
               key={cert.id}
               className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group"

@@ -14,6 +14,7 @@ import {
   XMarkIcon,
   CameraIcon,
 } from '@heroicons/react/24/outline';
+import { safeArray } from '../../utils/safe';
 
 interface Course {
   id: number;
@@ -206,7 +207,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       .catch(err => console.error('Failed to load departments:', err));
     fetch('/api/admin/users?role=Instructor', { credentials: 'include', headers: { Accept: 'application/json' } })
       .then(res => res.json())
-      .then(data => setInstructors(Array.isArray(data) ? data.map((u: any) => ({ id: u.id, fullname: u.fullname, email: u.email, department: u.department, profile_picture: u.profile_picture ? `/storage/${u.profile_picture}` : null })) : []))
+      .then(data => setInstructors(safeArray<any>(data).map((u: any) => ({ id: u.id, fullname: u.fullname, email: u.email, department: u.department, profile_picture: u.profile_picture ? `/storage/${u.profile_picture}` : null }))))
       .catch(err => console.error('Failed to load instructors:', err));
   }, []);
 
@@ -439,7 +440,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       });
       if (res.ok) {
         const data = await res.json();
-        setCourseModules(data.map((m: any) => ({ ...m, isOpen: false })));
+        setCourseModules(safeArray<any>(data).map((m: any) => ({ ...m, isOpen: false })));
       }
     } catch (err) {
       console.error('Failed to load modules:', err);
@@ -674,7 +675,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       });
       if (res.ok) {
         const data = await res.json();
-        setAvailableUsers(Array.isArray(data) ? data : []);
+        setAvailableUsers(safeArray<any>(data));
       }
     } catch (err) {
       console.error('Failed to load users:', err);
@@ -768,7 +769,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     }
   };
 
-  const filteredCourses = courses.filter(course => {
+  const filteredCourses = safeArray<Course>(courses).filter(course => {
     const matchesSearch = course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          course.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          course.instructor.toLowerCase().includes(searchTerm.toLowerCase());
@@ -1128,7 +1129,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     <div className="text-center py-8 text-gray-500">No modules yet. Add one above.</div>
                   ) : (
                     <div className="space-y-3">
-                      {courseModules.map((mod) => (
+                      {safeArray(courseModules).map((mod) => (
                         <div key={mod.id} className="border border-gray-200 rounded-lg overflow-hidden">
                           {/* Module Header */}
                           <div className="flex items-center justify-between p-4 bg-gray-50 cursor-pointer"
@@ -1155,7 +1156,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                               )}
                             </div>
                             <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                              <span className="text-xs text-gray-500">{mod.lessons?.length || 0} lessons</span>
+                              <span className="text-xs text-gray-500">{safeArray(mod.lessons).length || 0} lessons</span>
                               <button
                                 onClick={() => { setSelectedModuleId(mod.id); setActivePanel('upload'); }}
                                 className="p-1 text-gray-400 hover:text-purple-600"
@@ -1182,14 +1183,14 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                           {/* Module Lessons */}
                           {mod.isOpen && (
                             <div className="p-4 space-y-2">
-                              {mod.pre_assessment && mod.pre_assessment.length > 0 && (
+                              {safeArray(mod.pre_assessment).length > 0 && (
                                 <div className="flex items-center gap-2 p-2 bg-green-50 rounded text-sm text-green-700">
                                   <AcademicCapIcon className="h-4 w-4" />
-                                  Quiz: {mod.pre_assessment.length} question{mod.pre_assessment.length !== 1 ? 's' : ''}
+                                  Quiz: {safeArray(mod.pre_assessment).length} question{safeArray(mod.pre_assessment).length !== 1 ? 's' : ''}
                                 </div>
                               )}
-                              {mod.lessons && mod.lessons.length > 0 ? (
-                                mod.lessons.map((lesson: any) => (
+                              {safeArray(mod.lessons).length > 0 ? (
+                                safeArray(mod.lessons).map((lesson: any) => (
                                   <div key={lesson.id} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setPreviewLesson(lesson)}>
                                     <div className="flex items-center gap-2">
                                       {lesson.type === 'Video' ? (
@@ -1272,7 +1273,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                         className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                       >
                         <option value="">-- Choose a module --</option>
-                        {courseModules.map(m => (
+                        {safeArray(courseModules).map(m => (
                           <option key={m.id} value={m.id}>{m.title}</option>
                         ))}
                       </select>
@@ -1416,7 +1417,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                       className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     >
                       <option value="">-- Choose a module --</option>
-                      {courseModules.map(m => (
+                      {safeArray(courseModules).map(m => (
                         <option key={m.id} value={m.id}>{m.title}</option>
                       ))}
                     </select>
@@ -1447,7 +1448,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                           className="w-full border border-gray-300 rounded-md py-2 px-3 mb-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                         />
                         <div className="space-y-2">
-                          {q.options.map((opt: string, oi: number) => (
+                          {safeArray(q.options).map((opt: string, oi: number) => (
                             <div key={oi} className="flex items-center gap-2">
                               <input
                                 type="radio"
@@ -1514,7 +1515,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                       >
                         <option value="">-- Select module with quiz --</option>
                         {courseModules
-                          .filter(m => m.pre_assessment && m.pre_assessment.length > 0)
+                          .filter(m => (Array.isArray(m.pre_assessment) ? m.pre_assessment.length > 0 : false))
                           .map(m => (
                             <option key={m.id} value={m.id}>
                               {m.title} ({m.pre_assessment.length} question{m.pre_assessment.length !== 1 ? 's' : ''})
@@ -1529,7 +1530,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                         {sendingQuiz ? 'Sending...' : 'Send Quiz'}
                       </button>
                     </div>
-                    {courseModules.filter(m => m.pre_assessment && m.pre_assessment.length > 0).length === 0 && (
+                    {safeArray<ModuleDetail>(courseModules).filter(m => (Array.isArray(m.pre_assessment) ? m.pre_assessment.length > 0 : false)).length === 0 && (
                       <p className="text-xs text-blue-600 mt-2">No modules have quizzes yet. Create one in the "Create Quiz" tab first.</p>
                     )}
                   </div>
@@ -1572,7 +1573,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                               <div className="text-xs text-gray-500">{u.email} &middot; {u.department || 'No Dept'}</div>
                             </button>
                           ))}
-                        {availableUsers.filter(u => {
+                        {safeArray<UserOption>(availableUsers).filter(u => {
                           const term = enrollSearchTerm.toLowerCase();
                           const alreadyEnrolled = enrolledStudents.some(s => s.id === u.id);
                           return !alreadyEnrolled && (

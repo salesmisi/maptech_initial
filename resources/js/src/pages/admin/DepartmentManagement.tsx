@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect } from "react";
+import { safeArray } from '../../utils/safe';
 import {
   Plus,
   Pencil,
@@ -139,7 +140,7 @@ export default function DepartmentManagement() {
       });
       if (!res.ok) return;
       const data = await res.json();
-      setInstructors(data.map((u: any) => ({ id: u.id, fullname: u.fullname })));
+      setInstructors(safeArray(data).map((u: any) => ({ id: u.id, fullname: u.fullname })));
     } catch { /* ignore */ }
   };
 
@@ -155,7 +156,7 @@ export default function DepartmentManagement() {
       });
       if (!res.ok) return;
       const data = await res.json();
-      setEmployees(data.map((u: any) => ({ id: u.id, fullname: u.fullname })));
+      setEmployees(safeArray(data).map((u: any) => ({ id: u.id, fullname: u.fullname })));
     } catch { /* ignore */ }
   };
 
@@ -346,7 +347,7 @@ export default function DepartmentManagement() {
 
       {/* GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {departments.map((dept) => (
+        {safeArray(departments).map((dept) => (
           <div key={dept.id} className="bg-white rounded-lg shadow p-5">
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
@@ -372,11 +373,11 @@ export default function DepartmentManagement() {
             )}
 
             {/* SUBDEPARTMENTS */}
-            {dept.subdepartments?.length > 0 && (
+            {safeArray(dept.subdepartments).length > 0 && (
               <div className="mb-3">
                 <p className="text-xs text-gray-500 mb-2 font-medium">Subdepartments:</p>
                 <div className="space-y-2">
-                {dept.subdepartments.map((sub) => (
+                {safeArray(dept.subdepartments).map((sub) => (
                   <div
                     key={sub.id}
                     className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-xs group"
@@ -475,7 +476,7 @@ export default function DepartmentManagement() {
             value={deptForm.code}
             onChange={(v) => setDeptForm({ ...deptForm, code: v })}
           />
-          <div className="mb-3">
+              <div className="mb-3">
             <label className="block text-sm font-medium text-gray-700 mb-1">Department Head</label>
             <select
               value={deptForm.head_id}
@@ -483,7 +484,7 @@ export default function DepartmentManagement() {
               className="w-full border rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500"
             >
               <option value="">Select Instructor</option>
-              {instructors.map((inst) => (
+              {safeArray(instructors).map((inst) => (
                 <option key={inst.id} value={inst.id}>{inst.fullname}</option>
               ))}
             </select>
@@ -525,13 +526,13 @@ export default function DepartmentManagement() {
 
           <div className="mb-3">
             <label className="block text-sm font-medium text-gray-700 mb-1">Subdepartment Head</label>
-            <select
+              <select
               value={subForm.head_id}
               onChange={(e) => setSubForm({ ...subForm, head_id: e.target.value })}
               className="w-full border rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500"
             >
               <option value="">Select Head</option>
-              {instructors.map((inst) => (
+              {safeArray(instructors).map((inst) => (
                 <option key={inst.id} value={inst.id}>{inst.fullname}</option>
               ))}
             </select>
@@ -539,13 +540,13 @@ export default function DepartmentManagement() {
 
           <div className="mb-3">
             <label className="block text-sm font-medium text-gray-700 mb-1">Subdepartment Employee</label>
-            <select
+              <select
               value={subForm.employee_id}
               onChange={(e) => setSubForm({ ...subForm, employee_id: e.target.value })}
               className="w-full border rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500"
             >
               <option value="">Select Employee</option>
-              {employees.map((emp) => (
+              {safeArray(employees).map((emp) => (
                 <option key={emp.id} value={emp.id}>{emp.fullname}</option>
               ))}
             </select>

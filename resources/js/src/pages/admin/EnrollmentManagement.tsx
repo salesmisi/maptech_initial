@@ -11,6 +11,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = 'http://127.0.0.1:8000/api';
 
@@ -100,11 +101,11 @@ export function EnrollmentManagement() {
       ]);
       if (coursesRes.ok) {
         const c = await coursesRes.json();
-        setCourses(c.map((x: any) => ({ id: x.id, title: x.title, department: x.department })));
+        setCourses(safeArray(c).map((x: any) => ({ id: x.id, title: x.title, department: x.department })));
       }
       if (usersRes.ok) {
         const u = await usersRes.json();
-        setUsers(u.map((x: any) => ({ id: x.id, fullname: x.fullname, email: x.email, department: x.department })));
+        setUsers(safeArray(u).map((x: any) => ({ id: x.id, fullname: x.fullname, email: x.email, department: x.department })));
       }
     } catch {}
   };
@@ -175,7 +176,7 @@ export function EnrollmentManagement() {
     return status;
   };
 
-  const filteredEnrollments = enrollments.filter((enrollment) => {
+  const filteredEnrollments = safeArray<Enrollment>(enrollments).filter((enrollment) => {
     const matchesSearch =
       enrollment.employee_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       enrollment.course_title.toLowerCase().includes(searchTerm.toLowerCase());
@@ -386,7 +387,7 @@ export function EnrollmentManagement() {
                     onChange={(e) => setSelectedUserId(e.target.value)}
                   >
                     <option value="">-- Select an employee --</option>
-                    {users.map((u) => (
+                    {safeArray(users).map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.fullname} ({u.email}) — {u.department}
                       </option>
@@ -403,7 +404,7 @@ export function EnrollmentManagement() {
                     onChange={(e) => setSelectedCourseId(e.target.value)}
                   >
                     <option value="">-- Select a course --</option>
-                    {courses.map((c) => (
+                    {safeArray(courses).map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.title} ({c.department})
                       </option>

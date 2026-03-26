@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { safeArray } from '../../utils/safe';
 import { Star, Plus, Edit2, Trash2, X } from 'lucide-react';
 
 const API = '/api/employee';
@@ -161,7 +162,7 @@ export function MyFeedback() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6">
-          {feedbacks.map((fb) => (
+          {safeArray(feedbacks).map((fb) => (
             <div key={fb.id} className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
               <div className="flex justify-between items-start">
                 <div>
@@ -233,7 +234,7 @@ export function MyFeedback() {
                         required
                       >
                         <option value="">-- Select a lesson --</option>
-                        {lessons.map((l) => (
+                        {safeArray(lessons).map((l) => (
                           <option key={l.id} value={l.id}>
                             {l.course_title} &rsaquo; {l.module_title} &rsaquo; {l.title}
                           </option>

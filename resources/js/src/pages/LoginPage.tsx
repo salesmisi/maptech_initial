@@ -3,6 +3,7 @@ import { Mail, Lock, ArrowRight } from 'lucide-react';
 
 interface LoginPageProps {
   onLogin: (
+    id: number | undefined,
     role: 'admin' | 'instructor' | 'employee',
     name: string,
     email: string,
@@ -61,6 +62,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
       const data = await response.json();
 
+      // Store token if provided so frontend can use bearer fallback when cookies fail
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
+
       // ✅ 4. Refresh CSRF cookie after login (session()->regenerate() creates a new token)
       await fetch('http://127.0.0.1:8000/sanctum/csrf-cookie', {
         credentials: 'include',
@@ -71,6 +77,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
       // Pass role (lowercase), name, email, and department
       onLogin(
+        data.id,
         data.role?.toLowerCase() as 'admin' | 'instructor' | 'employee',
         data.name,
         data.email,

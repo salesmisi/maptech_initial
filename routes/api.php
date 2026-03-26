@@ -133,6 +133,8 @@ Route::delete('/subdepartments/{id}', function ($id) {
 */
 
 use App\Http\Controllers\LoginController;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 
 // API Token Login (JWT-like)
 Route::post('/login', [LoginController::class, 'apiLogin']);
@@ -156,19 +158,30 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\CourseController as AdminCourseController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\QuizController as AdminQuizController;
+use App\Http\Controllers\Admin\NotificationController as AdminNotificationController;
 
 // Test route for debugging
 Route::get('/test-auth', function () {
+    $user = Auth::user();
     return response()->json([
         'message' => 'API is working',
         'timestamp' => now(),
-        'user' => auth()->user() ? [
-            'id' => auth()->user()->id,
-            'name' => auth()->user()->fullname,
-            'role' => auth()->user()->role,
-            'status' => auth()->user()->status,
+        'user' => $user ? [
+            'id' => $user->id,
+            'name' => $user->fullname,
+            'role' => $user->role,
+            'status' => $user->status,
         ] : null
     ]);
+});
+
+// Client-side error reporting (used for capturing runtime errors from browser)
+Route::post('/client-error', function (Request $request) {
+    $payload = $request->all();
+    $body = $request->getContent();
+    // Log a simple marker; payloads can be viewed via request logs if needed
+    Log::error('Client runtime error reported');
+    return response()->json(['status' => 'ok']);
 });
 
 Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->group(function () {
@@ -248,6 +261,15 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         return $query->paginate(50);
     });
 
+    // Targeted Notifications (Admin)
+    Route::get('/notifications', [AdminNotificationController::class, 'index']);
+    Route::post('/notifications', [AdminNotificationController::class, 'store']);
+    Route::get('/notifications/unread-count', [AdminNotificationController::class, 'unreadCount']);
+    Route::post('/notifications/{id}/read', [AdminNotificationController::class, 'markRead']);
+    Route::post('/notifications/read-all', [AdminNotificationController::class, 'readAll']);
+    Route::delete('/notifications/{id}', [AdminNotificationController::class, 'destroy']);
+    Route::post('/notifications/announce', [AdminNotificationController::class, 'announce']);
+
     // YouTube Video Management (Admin)
     Route::prefix('youtube')->group(function () {
         Route::get('/auth-check', [\App\Http\Controllers\YouTubeController::class, 'checkAuth']);
@@ -259,17 +281,12 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         Route::delete('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'deleteVideo']);
     });
 
-    // Notification Management (Admin)
-    Route::prefix('notifications')->group(function () {
-        Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index']);
-        Route::get('/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount']);
-        Route::post('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead']);
-        Route::post('/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
-        Route::delete('/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy']);
-        Route::post('/announce', [\App\Http\Controllers\NotificationController::class, 'adminAnnounce']);
-        Route::post('/notify-user', [\App\Http\Controllers\NotificationController::class, 'adminNotifyUser']);
-    });
+    // Note: admin notification management handled by Admin\NotificationController above
 });
+
+// Notifications for authenticated user
+Route::get('/notifications', [\App\Http\Controllers\NotificationController::class, 'index'])->middleware('auth:sanctum');
+Route::patch('/notifications/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markRead'])->middleware('auth:sanctum');
 
 
 /*

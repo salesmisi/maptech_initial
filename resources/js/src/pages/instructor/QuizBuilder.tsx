@@ -415,8 +415,8 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
     setEditingQuestionId(q.id);
     setQText(q.question_text);
     setDraftOptions(
-      q.options.length > 0
-        ? q.options.map((o) => ({ text: o.option_text, is_correct: o.is_correct }))
+      safeArray(q.options).length > 0
+        ? safeArray(q.options).map((o) => ({ text: o.option_text, is_correct: o.is_correct }))
         : emptyDraftOptions()
     );
     setMediaType(q.image_url ? 'image' : q.video_url ? 'video' : 'none');
@@ -658,7 +658,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
               {/* Options */}
               {editingQuestionId !== q.id && (
                 <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {q.options.map((opt, oi) => (
+                  {safeArray(q.options).map((opt, oi) => (
                     <div
                       key={oi}
                       className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg border text-sm ${

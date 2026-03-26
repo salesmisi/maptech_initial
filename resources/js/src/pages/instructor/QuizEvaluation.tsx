@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { safeArray } from '../../utils/safe';
 import {
   CheckCircle,
   XCircle,
@@ -140,7 +141,7 @@ export function QuizEvaluation() {
   const [filter, setFilter] = useState<'All' | 'Pending' | 'Graded'>('All');
   const [expandedId, setExpandedId] = useState<number | null>(1);
   const [essayScores, setEssayScores] = useState<Record<string, number>>({});
-  const filtered = submissions.filter(
+  const filtered = safeArray<Submission>(submissions).filter(
     (s) =>
     filter === 'All' ||
     s.status === filter ||

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { safeArray } from '../../utils/safe';
 import {
   Users,
   BookOpen,
@@ -68,7 +69,7 @@ export function AdminDashboard({ onNavigate }: Props) {
       credentials: 'include',
     })
       .then((res) => res.json())
-      .then((data: ActivityItem[]) => setAllActivity(data))
+      .then((data: ActivityItem[]) => setAllActivity(safeArray(data)))
       .finally(() => setActivityLoading(false));
   };
 
@@ -300,7 +301,7 @@ export function AdminDashboard({ onNavigate }: Props) {
                     </td>
                   </tr>
                 ) : (
-                  recentActivity.map((activity) =>
+                  safeArray(recentActivity).map((activity) =>
                     <tr
                       key={activity.id}
                       className="hover:bg-slate-50 transition-colors">
@@ -417,7 +418,7 @@ export function AdminDashboard({ onNavigate }: Props) {
                       <td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-400">No activity found</td>
                     </tr>
                   ) : (
-                    allActivity.map((item) => (
+                    safeArray(allActivity).map((item) => (
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{item.user}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{item.action}</td>

@@ -23,6 +23,7 @@ import {
   UserMinus,
 } from 'lucide-react';
 import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = 'http://127.0.0.1:8000/api';
 
@@ -321,7 +322,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       });
       if (!res.ok) return;
       const data: AllUser[] = await res.json();
-      setAllUsers(data.filter(u => u.status === 'Active'));
+      setAllUsers(safeArray<AllUser>(data).filter(u => u.status === 'Active'));
     } catch {
       // ignore
     }
@@ -527,7 +528,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token },
-        body: JSON.stringify({ order: modules.map(m => m.id) }),
+        body: JSON.stringify({ order: safeArray(modules).map(m => m.id) }),
       });
     } catch {
       await loadCourse();
@@ -554,8 +555,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   };
 
   // ─── ENROLLMENT HANDLERS ──────────────────────────────────────────────────
-  const enrolledIds = new Set(course?.enrolled_users.map(u => u.id) ?? []);
-  const availableUsers = allUsers.filter(u => !enrolledIds.has(u.id));
+  const enrolledIds = new Set(safeArray<any>(course?.enrolled_users).map((u: any) => u.id));
+  const availableUsers = safeArray<AllUser>(allUsers).filter(u => !enrolledIds.has(u.id));
 
   const handleEnroll = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -776,7 +777,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
               No modules yet. Click <strong>Add Module</strong> to get started.
             </div>
           ) : (
-            course.modules.map((mod, idx) => {
+            safeArray(course.modules).map((mod, idx) => {
               const quiz = quizByModule[mod.id];
               const isExpanded = expandedModules.has(mod.id);
               const isEditingMod = editingModuleId === mod.id;
@@ -877,7 +878,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                           <p className="text-xs text-slate-400 italic">No lessons yet. Add one below.</p>
                         ) : (
                           <div className="space-y-2">
-                            {mod.lessons.map((lesson, li) => {
+                            {safeArray(mod.lessons).map((lesson, li) => {
                               const isEditingThisLesson = editingLessonId === lesson.id;
                               return (
                                 <div key={lesson.id} className="rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
@@ -1143,10 +1144,10 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                 className="flex-1 border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
               >
                 <option value="">— Select an employee to enroll —</option>
-                {availableUsers.length === 0 && (
+                {safeArray(availableUsers).length === 0 && (
                   <option disabled>All active employees are already enrolled</option>
                 )}
-                {availableUsers.map(u => (
+                {safeArray(availableUsers).map(u => (
                   <option key={u.id} value={u.id}>
                     {u.fullname} ({u.email}) · {u.department || 'No Dept'}
                   </option>
@@ -1183,7 +1184,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
-                  {course.enrolled_users.map(user => (
+                  {safeArray(course.enrolled_users).map(user => (
                     <tr key={user.id} className="hover:bg-slate-50">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">

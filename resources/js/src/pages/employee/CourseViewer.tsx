@@ -17,6 +17,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { sanitizeHtml } from '../../components/RichTextEditor';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = 'http://127.0.0.1:8000/api';
 
@@ -131,7 +132,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
       if (!res.ok) throw new Error('Failed to load course');
       const data = await res.json();
       setCourse(data);
-      const mods: ModuleData[] = data.modules ?? [];
+      const mods: ModuleData[] = safeArray<ModuleData>(data.modules);
       setModules(mods);
       setCurrentModule(prev => {
         if (prev) {
@@ -141,7 +142,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
         const firstUnlocked = mods.find(m => m.is_unlocked) ?? mods[0] ?? null;
         if (firstUnlocked) {
           setExpandedModules(new Set([firstUnlocked.id]));
-          const lessons = firstUnlocked.lessons ?? [];
+          const lessons = safeArray<LessonData>(firstUnlocked.lessons);
           if (lessons.length > 0) setCurrentLesson(lessons[0]);
         }
         return firstUnlocked;
@@ -170,7 +171,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     if (!mod.is_unlocked) return;
     setCurrentModule(mod);
     setExpandedModules(prev => new Set(prev).add(mod.id));
-    const lessons = mod.lessons ?? [];
+    const lessons = safeArray<LessonData>(mod.lessons);
     setCurrentLesson(lessons.length > 0 ? lessons[0] : null);
     setShowQuiz(false);
   };
@@ -415,11 +416,11 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
               Pass: {quiz.pass_percentage}%
             </span>
           </div>
-          {quizQuestions.map((q, qi) => (
+          {safeArray(quizQuestions).map((q, qi) => (
             <div key={q.id} className="bg-white rounded-lg p-4 border border-slate-200">
               <p className="text-sm font-semibold text-slate-800 mb-3">{qi + 1}. {q.question_text}</p>
               <div className="space-y-2">
-                {q.options.map(opt => (
+                {safeArray(q.options).map(opt => (
                   <label key={opt.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                     quizAnswers[q.id] === opt.id
                       ? 'bg-indigo-50 border-indigo-400 text-indigo-900'
@@ -657,9 +658,9 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
   }
 
   // Count total lessons across all modules for progress
-  const totalItems = modules.reduce((sum, m) => sum + (m.lessons?.length ?? 0) + (m.quiz ? 1 : 0), 0);
-  const completedModules = modules.filter(m => m.quiz?.has_passed).length;
-  const progress = modules.length > 0 ? Math.round((completedModules / modules.length) * 100) : 0;
+  const totalItems = safeArray<ModuleData>(modules).reduce((sum, m) => sum + (m.lessons?.length ?? 0) + (m.quiz ? 1 : 0), 0);
+  const completedModules = safeArray<ModuleData>(modules).filter(m => m.quiz?.has_passed).length;
+  const progress = safeArray<ModuleData>(modules).length > 0 ? Math.round((completedModules / safeArray<ModuleData>(modules).length) * 100) : 0;
 
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)] -m-6">
@@ -701,11 +702,11 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
               <p className="text-sm text-slate-500 italic">No modules available for this course.</p>
             ) : (
               <div className="space-y-1">
-                {modules.map((module, index) => {
+                {safeArray(modules).map((module, index) => {
                   const isLocked = !module.is_unlocked;
                   const isActiveModule = currentModule?.id === module.id;
                   const isModuleExpanded = expandedModules.has(module.id);
-                  const lessons = module.lessons ?? [];
+                          const lessons = safeArray(module.lessons);
 
                   return (
                     <div key={module.id}>
@@ -756,7 +757,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
                       {/* Expanded lessons + quiz */}
                       {isModuleExpanded && !isLocked && (
                         <div className="ml-6 mt-0.5 mb-1 space-y-0.5">
-                          {lessons.map((lesson) => {
+                          {safeArray(lessons).map((lesson) => {
                             const isActiveLesson = currentLesson?.id === lesson.id && isActiveModule && !showQuiz;
                             return (
                               <button
@@ -938,11 +939,11 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
               return (
                 <div className="mt-8 p-6 bg-white border rounded-lg">
                   <h3 className="text-lg font-bold mb-4">Pre-assessment</h3>
-                  {quiz.map((q: any) => (
+                  {safeArray(quiz).map((q: any) => (
                     <div key={q.id} className="mb-4">
                       <p className="font-medium">{q.id}. {q.question}</p>
                       <div className="mt-2 space-y-2">
-                        {q.options.map((opt: string, idx: number) => (
+                        {safeArray(q.options).map((opt: string, idx: number) => (
                           <label key={idx} className={`flex items-center space-x-3 cursor-pointer ${quizResult ? 'opacity-70' : ''}`}>
                             <input
                               type="radio"

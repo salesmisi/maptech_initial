@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { safeArray } from '../utils/safe';
 
 interface Question {
   id: number;
@@ -108,7 +109,7 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp }: { scope?
           className="w-full border border-slate-300 rounded-md py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500"
         >
           <option value="">{scope === 'employee' ? '-- Select a lesson to ask or view questions --' : '-- All Lessons (show all questions) --'}</option>
-          {lessons.map(l => (
+            {safeArray(lessons).map(l => (
             <option key={l.id} value={l.id}>{l.course_title} &rsaquo; {l.module_title} &rsaquo; {l.title}</option>
           ))}
         </select>
@@ -126,11 +127,11 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp }: { scope?
             </form>
           )}
 
-          {questions.length === 0 ? (
+          {safeArray(questions).length === 0 ? (
             <div className="text-slate-500 text-center py-8">No questions {lessonId ? 'for this lesson' : 'found'}.</div>
           ) : (
             <div className="space-y-4">
-              {questions.map(q => (
+              {safeArray(questions).map(q => (
                 <div key={q.id} className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -142,9 +143,9 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp }: { scope?
                   </div>
 
                   {/* Replies */}
-                  {q.replies.length > 0 && (
+                  {safeArray(q.replies).length > 0 && (
                     <div className="mt-4 space-y-2 pl-4 border-l-2 border-green-200">
-                      {q.replies.map(r => (
+                      {safeArray(q.replies).map(r => (
                         <div key={r.id} className="bg-slate-50 rounded p-3">
                           <div className="text-sm text-slate-700"><strong>{r.user.fullname}</strong> <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-600">{r.user.role}</span></div>
                           <div className="text-slate-600 mt-1">{r.message}</div>

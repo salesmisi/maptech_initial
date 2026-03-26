@@ -82,7 +82,7 @@ class CourseController extends Controller
         $courseStats = Course::where('instructor_id', $user->id)
             ->withCount([
                 'enrollments',
-                'enrollments as completed_count' => fn ($q) => $q->where('status', 'completed'),
+                'enrollments as completed_count' => fn ($q) => $q->where('status', 'Completed'),
             ])
             ->get()
             ->map(fn ($c) => [
@@ -568,7 +568,7 @@ $module = $course->modules()->create($data);
 
         $course->enrollments()->create([
             'user_id'     => $request->user_id,
-            'status'      => 'Not Started',
+            'status'      => 'active',
             'progress'    => 0,
             'enrolled_at' => now(),
         ]);

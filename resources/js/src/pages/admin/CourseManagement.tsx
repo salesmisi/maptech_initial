@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
+import { safeArray } from '../../utils/safe';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -150,7 +151,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
 
   // Debug: Monitor modules state changes
   useEffect(() => {
-    console.log('Modules state updated:', modules.map(m => ({ id: m.id, title: m.title, hasFile: !!m.file, fileName: m.file?.name })));
+    console.log('Modules state updated:', safeArray(modules).map(m => ({ id: m.id, title: m.title, hasFile: !!m.file, fileName: m.file?.name })));
   }, [modules]);
 
   // Module management functions
@@ -183,9 +184,10 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
       if (!response.ok) {
         throw new Error('Failed to load courses');
       }
-      const data = await response.json();
+      const raw = await response.json().catch(() => null);
+      const payload = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : raw?.courses || []);
       // Map API response to Course interface
-      const mappedCourses = data.map((course: any) => ({
+      const mappedCourses = (Array.isArray(payload) ? payload : []).map((course: any) => ({
         id: course.id,
         title: course.title,
         description: course.description || '',
@@ -217,8 +219,9 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
         headers: { Accept: 'application/json' },
       });
       if (!res.ok) return;
-      const data = await res.json();
-      setInstructors(data.map((u: any) => ({
+      const raw = await res.json().catch(() => null);
+      const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : raw?.users || []);
+      setInstructors((Array.isArray(list) ? list : []).map((u: any) => ({
         id: u.id,
         fullname: u.fullname,
         profile_picture: u.profile_picture ? `/storage/${u.profile_picture}` : null,
@@ -239,13 +242,14 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
         headers: { Accept: 'application/json' },
       });
       if (!res.ok) return;
-      const data = await res.json();
-      setDepartments(data);
+      const raw = await res.json().catch(() => null);
+      const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : raw?.departments || []);
+      setDepartments(Array.isArray(list) ? list : []);
     } catch { /* ignore */ }
   };
 
   // Filter Logic
-  const filteredCourses = courses.filter((course) => {
+  const filteredCourses = safeArray<Course>(courses).filter((course) => {
     const matchesSearch = course.title.
     toLowerCase().
     includes(searchTerm.toLowerCase());
@@ -280,7 +284,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
       setSelectedDepartment(course.department || '');
       setSelectedInstructorId(course.instructor_id ?? '');
       // Load existing modules for editing (without files since they're already uploaded)
-      setModules(course.modules?.map((m, index) => ({
+      setModules(safeArray(course.modules).map((m, index) => ({
         id: index + 1,
         title: m.title,
         file: null,
@@ -578,7 +582,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                     className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="" disabled>Select Department</option>
-                    {departments.map(dept => (
+                    {safeArray(departments).map(dept => (
                       <option key={dept.id} value={dept.name}>{dept.name}</option>
                     ))}
                   </select>
@@ -591,7 +595,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                     className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="">All (entire department)</option>
-                    {(departments.find(d => d.name === selectedDepartment)?.subdepartments || []).map(sub => (
+                    {safeArray(departments.find(d => d.name === selectedDepartment)?.subdepartments).map(sub => (
                       <option key={sub.id} value={sub.id}>{sub.name}</option>
                     ))}
                   </select>
@@ -685,7 +689,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">Select Instructor</option>
-                  {instructors.map((inst) => (
+                  {safeArray(instructors).map((inst) => (
                     <option key={inst.id} value={inst.id}>{inst.fullname}</option>
                   ))}
                 </select>
@@ -715,7 +719,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   <p className="text-sm text-slate-500 italic">No modules added yet. Click "Add Module" to add course content.</p>
                 ) : (
                   <div className="space-y-3">
-                    {modules.map((module, index) => (
+                    {safeArray(modules).map((module, index) => (
                       <div key={module.id} className="p-3 bg-slate-50 rounded-md border border-slate-200">
                         <div className="flex gap-2 items-start">
                           <div className="flex-1 space-y-2">
