@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
+use App\Models\QuizAttempt;
 use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -271,7 +272,7 @@ class UserController extends Controller
      */
     public function activity()
     {
-        $activity = CourseEnrollment::with(['user:id,fullname', 'course:id,title'])
+        $activity = Enrollment::with(['user:id,fullname', 'course:id,title'])
             ->orderBy('updated_at', 'desc')
             ->take(100)
             ->get()
@@ -279,6 +280,7 @@ class UserController extends Controller
                 $action = match ($enrollment->status) {
                     'Completed' => 'Completed Course',
                     'Dropped'   => 'Dropped Course',
+                    'In Progress' => 'Started Course',
                     default     => 'Enrolled',
                 };
                 return [
@@ -405,16 +407,20 @@ class UserController extends Controller
     public function dashboard()
     {
         // Stat cards
-        $totalEmployees = User::where('role', 'Employee')->count();
+        $totalEmployees = User::where('role', 'employee')->count();
+        $activeEmployees = User::where('role', 'employee')
+            ->where('status', 'Active')
+            ->count();
         $activeCourses  = Course::where('status', 'Active')->count();
 
-        $totalEnrollments     = CourseEnrollment::count();
-        $completedEnrollments = CourseEnrollment::where('status', 'Completed')->count();
+        $totalEnrollments     = Enrollment::count();
+        $completedEnrollments = Enrollment::where('status', 'Completed')->count();
         $completionRate = $totalEnrollments > 0
             ? round(($completedEnrollments / $totalEnrollments) * 100)
             : 0;
 
-        $avgQuizScore = (int) round(CourseEnrollment::whereNotNull('progress')->avg('progress') ?? 0);
+        // Average based on actual quiz attempt percentages.
+        $avgQuizScore = (int) round(QuizAttempt::avg('percentage') ?? 0);
 
         // Course completion trends — last 6 months (PostgreSQL)
         try {
@@ -435,20 +441,20 @@ class UserController extends Controller
         }
 
         // Department performance
-        $departments = User::where('role', 'Employee')
+        $departments = User::where('role', 'employee')
             ->whereNotNull('department')
             ->distinct()
             ->pluck('department');
 
         $departmentPerformance = $departments->map(function ($dept) {
-            $userIds   = User::where('role', 'Employee')->where('department', $dept)->pluck('id');
-            $assigned  = CourseEnrollment::whereIn('user_id', $userIds)->count();
-            $completed = CourseEnrollment::whereIn('user_id', $userIds)->where('status', 'Completed')->count();
+            $userIds   = User::where('role', 'employee')->where('department', $dept)->pluck('id');
+            $assigned  = Enrollment::whereIn('user_id', $userIds)->count();
+            $completed = Enrollment::whereIn('user_id', $userIds)->where('status', 'Completed')->count();
             return ['name' => $dept, 'assigned' => $assigned, 'completed' => $completed];
         })->values();
 
         // Recent activity — last 10 enrollment events
-        $recentActivity = CourseEnrollment::with(['user:id,fullname', 'course:id,title'])
+        $recentActivity = Enrollment::with(['user:id,fullname', 'course:id,title'])
             ->orderBy('updated_at', 'desc')
             ->take(10)
             ->get()
@@ -456,6 +462,7 @@ class UserController extends Controller
                 $action = match ($enrollment->status) {
                     'Completed' => 'Completed Course',
                     'Dropped'   => 'Dropped Course',
+                    'In Progress' => 'Started Course',
                     default     => 'Enrolled',
                 };
                 return [
@@ -469,6 +476,7 @@ class UserController extends Controller
 
         return response()->json([
             'total_employees'        => $totalEmployees,
+            'active_employees'       => $activeEmployees,
             'active_courses'         => $activeCourses,
             'completion_rate'        => $completionRate,
             'avg_quiz_score'         => $avgQuizScore,
