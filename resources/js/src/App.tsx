@@ -393,8 +393,25 @@ export function App() {
   if (isLoading) {
     return (
       <>
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-          <div className="text-slate-600">Loading...</div>
+        <div className="relative min-h-screen overflow-hidden flex items-center justify-center bg-slate-950">
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-cover bg-center opacity-80"
+            style={{ backgroundImage: "url('/assets/pasted-image.jpg')" }}
+          />
+          <div aria-hidden="true" className="absolute inset-0 bg-slate-950/65" />
+
+          <div className="relative z-10 flex flex-col items-center px-6 text-center transition-opacity duration-500 opacity-100">
+            <img
+              className="h-20 w-auto"
+              src="/assets/Maptech-Official-Logo.png"
+              alt="Maptech LearnHub"
+            />
+            <p className="mt-5 text-sm font-medium tracking-wide text-slate-200">Preparing LearnHub...</p>
+            <div className="mt-4 h-1 w-44 overflow-hidden rounded-full bg-white/20">
+              <span className="block h-full w-full rounded-full bg-green-400 animate-pulse" />
+            </div>
+          </div>
         </div>
         {renderThemeToggle()}
       </>
@@ -524,6 +541,7 @@ export function App() {
             <CourseViewer
               courseId={selectedCourseId || undefined}
               onBack={() => handleNavigate('my-courses')}
+              onViewCertificates={() => handleNavigate('certificates')}
             />
           )}
           {currentPage === 'progress' && <MyProgress />}
@@ -539,7 +557,7 @@ export function App() {
 
   return (
     <>
-      <LoginPage onLogin={handleLogin} />
+      <LoginPage onLogin={handleLogin} theme={theme} />
       {renderThemeToggle()}
     </>
   );

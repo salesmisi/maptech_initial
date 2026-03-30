@@ -42,6 +42,11 @@ class CourseController extends Controller
             $query->where('instructor_id', $request->instructor_id);
         }
 
+        // Filter by subdepartment
+        if ($request->filled('subdepartment_id')) {
+            $query->where('subdepartment_id', (int) $request->input('subdepartment_id'));
+        }
+
         $courses = $query->orderBy('created_at', 'desc')->get();
 
         // Transform the data to include enrollment counts
@@ -406,6 +411,20 @@ class CourseController extends Controller
         ]);
 
         $course = Course::findOrFail($id);
+        $employee = User::select('id', 'fullname', 'email', 'department', 'role', 'status', 'subdepartment_id')
+            ->findOrFail($request->user_id);
+
+        if (strtolower((string) $employee->role) !== 'employee') {
+            return response()->json(['message' => 'Only employees can be enrolled in courses.'], 422);
+        }
+
+        if ($course->subdepartment_id) {
+            if ((int) $employee->subdepartment_id !== (int) $course->subdepartment_id) {
+                return response()->json(['message' => 'Employee subdepartment does not match the selected course subdepartment.'], 422);
+            }
+        } elseif ($employee->department && $course->department && $employee->department !== $course->department) {
+            return response()->json(['message' => 'Employee department does not match the selected course department.'], 422);
+        }
 
         if ($course->enrollments()->where('user_id', $request->user_id)->exists()) {
             return response()->json(['message' => 'User is already enrolled in this course'], 409);
@@ -417,11 +436,9 @@ class CourseController extends Controller
             'enrolled_at' => now(),
         ]);
 
-        $user = User::select('id', 'fullname', 'email', 'department', 'role', 'status')->findOrFail($request->user_id);
-
         return response()->json([
             'message' => 'User enrolled successfully',
-            'user'    => $user,
+            'user'    => $employee,
         ], 201);
     }
 

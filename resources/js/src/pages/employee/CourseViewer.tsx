@@ -15,6 +15,8 @@ import {
   HelpCircle,
   ChevronDown,
   ChevronUp,
+  Trophy,
+  X,
 } from 'lucide-react';
 import { sanitizeHtml } from '../../components/RichTextEditor';
 import YouTubePlayer from '../../components/YouTubePlayer';
@@ -103,9 +105,10 @@ interface CourseData {
 interface CourseViewerProps {
   courseId?: string;
   onBack?: () => void;
+  onViewCertificates?: () => void;
 }
 
-export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
+export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseViewerProps) {
   const [course, setCourse] = useState<CourseData | null>(null);
   const [modules, setModules] = useState<ModuleData[]>([]);
   const [currentModule, setCurrentModule] = useState<ModuleData | null>(null);
@@ -123,6 +126,74 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [quizSubmitting, setQuizSubmitting] = useState(false);
   const [showResultRevealed, setShowResultRevealed] = useState(false);
+  const [viewedLessons, setViewedLessons] = useState<Set<number>>(new Set());
+  const [viewedModules, setViewedModules] = useState<Set<number>>(new Set());
+  const [showCompletionPopup, setShowCompletionPopup] = useState(false);
+
+  const viewedLessonStorageKey = userId && courseId ? `maptech_viewed_lessons_${userId}_${courseId}` : null;
+  const viewedModuleStorageKey = userId && courseId ? `maptech_viewed_modules_${userId}_${courseId}` : null;
+  const congratulatedStorageKey = userId && courseId ? `maptech_congrats_course_${userId}_${courseId}` : null;
+
+  const parseNumberArray = (raw: string | null): number[] => {
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value));
+    } catch (e) {
+      return [];
+    }
+  };
+
+  function markModuleViewed(moduleId: number) {
+    setViewedModules((prev) => {
+      if (prev.has(moduleId)) return prev;
+      const next = new Set(prev);
+      next.add(moduleId);
+      if (viewedModuleStorageKey) {
+        try {
+          localStorage.setItem(viewedModuleStorageKey, JSON.stringify(Array.from(next)));
+        } catch (e) {
+          // ignore localStorage write errors
+        }
+      }
+      return next;
+    });
+  }
+
+  function markLessonViewed(lessonId: number) {
+    setViewedLessons((prev) => {
+      if (prev.has(lessonId)) return prev;
+      const next = new Set(prev);
+      next.add(lessonId);
+      if (viewedLessonStorageKey) {
+        try {
+          localStorage.setItem(viewedLessonStorageKey, JSON.stringify(Array.from(next)));
+        } catch (e) {
+          // ignore localStorage write errors
+        }
+      }
+      return next;
+    });
+  }
+
+  useEffect(() => {
+    setViewedLessons(new Set());
+    setViewedModules(new Set());
+    setShowCompletionPopup(false);
+  }, [courseId]);
+
+  useEffect(() => {
+    if (!viewedLessonStorageKey || !viewedModuleStorageKey) return;
+
+    const savedLessonIds = parseNumberArray(localStorage.getItem(viewedLessonStorageKey));
+    const savedModuleIds = parseNumberArray(localStorage.getItem(viewedModuleStorageKey));
+
+    setViewedLessons((prev) => new Set([...Array.from(prev), ...savedLessonIds]));
+    setViewedModules((prev) => new Set([...Array.from(prev), ...savedModuleIds]));
+  }, [viewedLessonStorageKey, viewedModuleStorageKey]);
 
   const loadCourse = async () => {
     try {
@@ -143,8 +214,12 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
         const firstUnlocked = mods.find(m => m.is_unlocked) ?? mods[0] ?? null;
         if (firstUnlocked) {
           setExpandedModules(new Set([firstUnlocked.id]));
+          markModuleViewed(firstUnlocked.id);
           const lessons = firstUnlocked.lessons ?? [];
-          if (lessons.length > 0) setCurrentLesson(lessons[0]);
+          if (lessons.length > 0) {
+            setCurrentLesson(lessons[0]);
+            markLessonViewed(lessons[0].id);
+          }
         }
         return firstUnlocked;
       });
@@ -222,15 +297,20 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
 
   const selectModule = (mod: ModuleData) => {
     if (!mod.is_unlocked) return;
+    markModuleViewed(mod.id);
     setCurrentModule(mod);
     setExpandedModules(prev => new Set(prev).add(mod.id));
     const lessons = mod.lessons ?? [];
-    setCurrentLesson(lessons.length > 0 ? lessons[0] : null);
+    const firstLesson = lessons.length > 0 ? lessons[0] : null;
+    setCurrentLesson(firstLesson);
+    if (firstLesson) markLessonViewed(firstLesson.id);
     setShowQuiz(false);
   };
 
   const selectLesson = (mod: ModuleData, lesson: LessonData) => {
     if (!mod.is_unlocked) return;
+    markModuleViewed(mod.id);
+    markLessonViewed(lesson.id);
     setCurrentModule(mod);
     setCurrentLesson(lesson);
     setShowQuiz(false);
@@ -238,6 +318,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
 
   const selectQuiz = (mod: ModuleData) => {
     if (!mod.is_unlocked) return;
+    markModuleViewed(mod.id);
     setCurrentModule(mod);
     setCurrentLesson(null);
     setShowQuiz(true);
@@ -638,15 +719,20 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     if (showQuiz) {
       // Go back to last lesson in current module
       if (moduleLessons.length > 0) {
-        setCurrentLesson(moduleLessons[moduleLessons.length - 1]);
+        const previousLesson = moduleLessons[moduleLessons.length - 1];
+        setCurrentLesson(previousLesson);
+        markLessonViewed(previousLesson.id);
         setShowQuiz(false);
       }
     } else if (currentLessonIndex > 0) {
-      setCurrentLesson(moduleLessons[currentLessonIndex - 1]);
+      const previousLesson = moduleLessons[currentLessonIndex - 1];
+      setCurrentLesson(previousLesson);
+      markLessonViewed(previousLesson.id);
     } else if (currentModuleIndex > 0) {
       // Go to previous module's last item
       const prevMod = modules[currentModuleIndex - 1];
       if (prevMod.is_unlocked) {
+        markModuleViewed(prevMod.id);
         setCurrentModule(prevMod);
         setExpandedModules(prev => new Set(prev).add(prevMod.id));
         const prevLessons = prevMod.lessons ?? [];
@@ -654,7 +740,9 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
           setCurrentLesson(null);
           setShowQuiz(true);
         } else if (prevLessons.length > 0) {
-          setCurrentLesson(prevLessons[prevLessons.length - 1]);
+          const previousLesson = prevLessons[prevLessons.length - 1];
+          setCurrentLesson(previousLesson);
+          markLessonViewed(previousLesson.id);
           setShowQuiz(false);
         }
       }
@@ -663,7 +751,9 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
 
   const goToNext = () => {
     if (currentLesson && currentLessonIndex < moduleLessons.length - 1) {
-      setCurrentLesson(moduleLessons[currentLessonIndex + 1]);
+      const nextLesson = moduleLessons[currentLessonIndex + 1];
+      setCurrentLesson(nextLesson);
+      markLessonViewed(nextLesson.id);
     } else if (currentLesson && currentModule?.quiz && !showQuiz) {
       // Go to quiz
       setCurrentLesson(null);
@@ -684,6 +774,38 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     const nextMod = currentModuleIndex < modules.length - 1 ? modules[currentModuleIndex + 1] : null;
     return !!(nextMod && nextMod.is_unlocked);
   })();
+
+  const allModuleIds = modules.map((m) => m.id);
+  const allLessonIds = modules.flatMap((m) => (m.lessons ?? []).map((l) => l.id));
+  const allQuizzesPassed = modules.length > 0 && modules.every((m) => !m.quiz || m.quiz.has_passed);
+  const hasViewedAllModules = allModuleIds.length > 0 && allModuleIds.every((id) => viewedModules.has(id));
+  const hasViewedAllLessons = allLessonIds.length > 0 && allLessonIds.every((id) => viewedLessons.has(id));
+  const isCompletionEligible = allQuizzesPassed && hasViewedAllModules && hasViewedAllLessons;
+
+  useEffect(() => {
+    if (!congratulatedStorageKey || !isCompletionEligible) return;
+    if (quizState !== 'submitted' || !showResultRevealed || !quizResult?.passed) return;
+
+    let alreadyShown = false;
+    try {
+      alreadyShown = localStorage.getItem(congratulatedStorageKey) === '1';
+    } catch (e) {
+      alreadyShown = false;
+    }
+
+    if (alreadyShown) return;
+
+    const timer = window.setTimeout(() => {
+      setShowCompletionPopup(true);
+      try {
+        localStorage.setItem(congratulatedStorageKey, '1');
+      } catch (e) {
+        // ignore localStorage write errors
+      }
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [congratulatedStorageKey, isCompletionEligible, quizState, showResultRevealed, quizResult?.passed]);
 
   if (loading) {
     return (
@@ -724,6 +846,55 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
 
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)] -m-6">
+      {showCompletionPopup && (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+            onClick={() => setShowCompletionPopup(false)}
+            aria-hidden="true"
+          />
+          <div className="relative w-full max-w-md rounded-2xl border border-emerald-300/30 bg-slate-900/95 p-6 text-slate-100 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setShowCompletionPopup(false)}
+              className="absolute right-3 top-3 rounded-md p-1 text-slate-300 hover:bg-white/10 hover:text-white"
+              aria-label="Close congratulation popup"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/20 ring-1 ring-emerald-300/40">
+              <Trophy className="h-7 w-7 text-emerald-300" />
+            </div>
+
+            <h3 className="text-center text-2xl font-bold text-white">Congratulations!</h3>
+            <p className="mt-3 text-center text-sm text-slate-200">
+              You completed <span className="font-semibold text-emerald-300">{course.title}</span> by finishing quizzes and viewing all required modules and lessons.
+            </p>
+            <p className="mt-2 text-center text-xs text-slate-400">
+              Your achievement has been recorded. Keep up the great work!
+            </p>
+
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCompletionPopup(false);
+                  if (onViewCertificates) {
+                    onViewCertificates();
+                    return;
+                  }
+                  window.location.assign(`${window.location.pathname}?page=certificates`);
+                }}
+                className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                View Certificates
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center shrink-0">
         <div>

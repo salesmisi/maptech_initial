@@ -9,7 +9,9 @@ import {
   X,
   AlertCircle,
   Loader2,
-  Camera
+  Camera,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 interface User {
@@ -67,6 +69,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
   const [formIsHead, setFormIsHead] = useState(false);
   const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Form refs
   const fullNameRef = useRef<HTMLInputElement>(null);
@@ -239,6 +242,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     setFormError(null);
     setProfilePictureFile(null);
     setProfilePicturePreview(user?.profile_picture ? `/storage/${user.profile_picture}` : null);
+    setShowPassword(false);
     setIsModalOpen(true);
   };
 
@@ -253,6 +257,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     setFormError(null);
     setProfilePictureFile(null);
     setProfilePicturePreview(null);
+    setShowPassword(false);
   };
 
   // Form submit handler
@@ -673,12 +678,23 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                       Password {!editingUser && <span className="text-red-500">*</span>}
                       {editingUser && <span className="text-slate-400 text-xs ml-1">(leave blank to keep current)</span>}
                     </label>
-                    <input
-                      ref={passwordRef}
-                      type="password"
-                      placeholder={editingUser ? 'ΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇó' : ''}
-                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    />
+                    <div className="relative mt-1">
+                      <input
+                        ref={passwordRef}
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder={editingUser ? 'ΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇó' : ''}
+                        className="block w-full border border-slate-300 rounded-md shadow-sm py-2 pl-3 pr-10 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        title={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700">

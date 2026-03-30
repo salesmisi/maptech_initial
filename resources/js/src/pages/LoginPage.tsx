@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Mail, Lock, ArrowRight } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { BusinessFooter } from '../components/business/BusinessFooter';
 
 interface LoginPageProps {
@@ -18,7 +18,33 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
+  const [pageReady, setPageReady] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      setPageReady(true);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.readyState >= 2) {
+      setVideoReady(true);
+    }
+
+    void video.play().catch(() => {
+      // Ignore autoplay race conditions; native autoplay usually recovers once ready.
+    });
+  }, []);
 
   // ✅ Function to get cookie value
   const getCookie = (name: string) => {
@@ -138,44 +164,77 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
   };
 
   const isDark = theme === 'dark';
+  const markVideoReady = () => setVideoReady(true);
 
   return (
-    <div className="relative min-h-screen overflow-hidden flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div
+      className={`relative min-h-screen overflow-hidden flex flex-col justify-center py-12 sm:px-6 lg:px-8 transform transition-all duration-700 ease-out ${
+        pageReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+      }`}
+    >
+      <div
+        className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${videoReady ? 'opacity-0' : 'opacity-100'}`}
+        style={{ backgroundImage: "url('/assets/pasted-image.jpg')" }}
+        aria-hidden="true"
+      />
+
       <video
-        className="absolute inset-0 h-full w-full object-cover"
+        ref={videoRef}
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${videoReady ? 'opacity-100' : 'opacity-0'}`}
         autoPlay
         muted
         loop
         playsInline
         preload="auto"
         poster="/assets/pasted-image.jpg"
-        onCanPlay={() => setVideoReady(true)}
+        onLoadedData={markVideoReady}
+        onCanPlay={markVideoReady}
+        onCanPlayThrough={markVideoReady}
+        onPlaying={markVideoReady}
       >
         <source src="/assets/loginvid.mp4" type="video/mp4" />
       </video>
 
       <div
-        className={`absolute inset-0 bg-slate-950/65 transition-opacity duration-500 ${videoReady ? 'opacity-100' : 'opacity-90'}`}
+        className={`absolute inset-0 bg-slate-950/65 transition-opacity duration-700 ${videoReady ? 'opacity-100' : 'opacity-90'}`}
         aria-hidden="true"
       />
 
-      <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
+      <div
+        className={`relative z-10 sm:mx-auto sm:w-full sm:max-w-md transform transition-all duration-700 delay-100 ${
+          pageReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
+        }`}
+      >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 -top-14 h-56 w-80 -translate-x-1/2 rounded-full bg-cyan-300/22 blur-3xl"
+        />
         <div className="flex justify-center">
           <img
-            className="h-20 w-auto"
+            className="h-32 sm:h-40 md:h-44 w-auto drop-shadow-[0_14px_36px_rgba(0,0,0,0.58)]"
             src="/assets/Maptech-Official-Logo.png"
             alt="Maptech LearnHub"
           />
         </div>
-        <h2 className={`mt-6 text-center text-3xl font-extrabold ${isDark ? 'text-white' : 'text-slate-50'}`}>
+        <h2
+          className={`mt-6 text-center text-3xl font-extrabold ${isDark ? 'text-white' : 'text-slate-50'}`}
+          style={{ textShadow: '0 4px 18px rgba(2, 6, 23, 0.75)' }}
+        >
           Sign in to LearnHub
         </h2>
-        <p className={`mt-2 text-center text-sm ${isDark ? 'text-slate-200' : 'text-slate-100'}`}>
+        <p
+          className={`mt-2 text-center text-sm ${isDark ? 'text-slate-200' : 'text-slate-100'}`}
+          style={{ textShadow: '0 2px 12px rgba(2, 6, 23, 0.7)' }}
+        >
           Maptech Information Solutions Inc.
         </p>
       </div>
 
-      <div className="relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+      <div
+        className={`relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md transform transition-all duration-700 delay-150 ${
+          pageReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        }`}
+      >
         <div className={`backdrop-blur-sm py-8 px-4 shadow sm:rounded-lg sm:px-10 border-t-4 border-green-500 ${isDark ? 'bg-slate-950/75' : 'bg-white/90'}`}>
           <form className="space-y-6" onSubmit={handleSubmit}>
 
@@ -195,7 +254,7 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className={`block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
+                  className={`login-auth-input block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
                   placeholder="name@maptech.com"
                 />
               </div>
@@ -213,13 +272,22 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
                   id="login-password"
                   name="password"
                   autoComplete="current-password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
+                  className={`login-auth-input block w-full pl-10 pr-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
                   placeholder="••••••••"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
             </div>
 

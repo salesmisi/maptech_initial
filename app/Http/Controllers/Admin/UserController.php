@@ -27,6 +27,16 @@ class UserController extends Controller
     {
         $query = User::query();
 
+        // Search by name/email
+        if ($request->filled('q')) {
+            $term = strtolower(trim((string) $request->input('q')));
+            $like = '%' . $term . '%';
+            $query->where(function ($q) use ($like) {
+                $q->whereRaw('LOWER(fullname) LIKE ?', [$like])
+                  ->orWhereRaw('LOWER(email) LIKE ?', [$like]);
+            });
+        }
+
         // Filter by role (stored lowercase in DB; PostgreSQL is case-sensitive)
         if ($request->has('role')) {
             $query->where('role', strtolower($request->role));
@@ -40,6 +50,11 @@ class UserController extends Controller
         // Filter by status
         if ($request->has('status')) {
             $query->where('status', $request->status);
+        }
+
+        // Filter by employee subdepartment
+        if ($request->filled('subdepartment_id')) {
+            $query->where('subdepartment_id', (int) $request->input('subdepartment_id'));
         }
 
         $users = $query->select([
@@ -202,7 +217,7 @@ class UserController extends Controller
                 'message' => 'User deleted successfully'
             ]);
         } catch (\Exception $e) {
-            \Log::error('Failed to delete user', [
+            Log::error('Failed to delete user', [
                 'user_id' => $id,
                 'error' => $e->getMessage(),
             ]);
@@ -226,7 +241,9 @@ class UserController extends Controller
         $ids = $data['ids'];
 
         try {
+            /** @var \Illuminate\Database\Eloquent\Collection<int, User> $usersToDelete */
             $usersToDelete = User::whereIn('id', $ids)->get();
+            /** @var User $u */
             foreach ($usersToDelete as $u) {
                 $u->tokens()->delete();
                 $u->delete();
