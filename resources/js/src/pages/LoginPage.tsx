@@ -168,7 +168,7 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
 
   return (
     <div
-      className={`relative min-h-screen overflow-hidden flex flex-col justify-center py-12 sm:px-6 lg:px-8 transform transition-all duration-700 ease-out ${
+      className={`relative min-h-screen overflow-hidden flex flex-col justify-center py-6 sm:py-8 sm:px-6 lg:px-8 transform transition-all duration-700 ease-out ${
         pageReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       }`}
     >
@@ -211,13 +211,13 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
         />
         <div className="flex justify-center">
           <img
-            className="h-32 sm:h-40 md:h-44 w-auto drop-shadow-[0_14px_36px_rgba(0,0,0,0.58)]"
+            className="h-20 sm:h-28 md:h-32 w-auto drop-shadow-[0_14px_36px_rgba(0,0,0,0.58)]"
             src="/assets/Maptech-Official-Logo.png"
             alt="Maptech LearnHub"
           />
         </div>
         <h2
-          className={`mt-6 text-center text-3xl font-extrabold ${isDark ? 'text-white' : 'text-slate-50'}`}
+          className={`mt-4 text-center text-2xl font-extrabold ${isDark ? 'text-white' : 'text-slate-50'}`}
           style={{ textShadow: '0 4px 18px rgba(2, 6, 23, 0.75)' }}
         >
           Sign in to LearnHub
@@ -231,12 +231,12 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
       </div>
 
       <div
-        className={`relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md transform transition-all duration-700 delay-150 ${
+        className={`relative z-10 mt-5 sm:mx-auto sm:w-full sm:max-w-md transform transition-all duration-700 delay-150 ${
           pageReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
         }`}
       >
-        <div className={`backdrop-blur-sm py-8 px-4 shadow sm:rounded-lg sm:px-10 border-t-4 border-green-500 ${isDark ? 'bg-slate-950/75' : 'bg-white/90'}`}>
-          <form className="space-y-6" onSubmit={handleSubmit}>
+        <div className={`backdrop-blur-sm py-6 px-4 shadow sm:rounded-lg sm:px-8 border-t-4 border-green-500 ${isDark ? 'bg-slate-950/75' : 'bg-white/90'}`}>
+          <form className="space-y-4" onSubmit={handleSubmit}>
 
             <div>
               <label htmlFor="login-email" className={`block text-sm font-medium ${isDark ? 'text-slate-100' : 'text-slate-700'}`}>

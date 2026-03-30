@@ -28,8 +28,8 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
   }, [businessDetails]);
 
   return (
-    <div className={`relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md`}>
-      <div className={`backdrop-blur-sm py-6 px-4 shadow sm:rounded-lg sm:px-6 border-t border-emerald-500/50 ${
+    <div className={`relative z-10 mt-5 sm:mx-auto sm:w-full sm:max-w-md`}>
+      <div className={`backdrop-blur-sm py-4 px-4 shadow sm:rounded-lg sm:px-5 border-t border-emerald-500/50 ${
         isDark
           ? 'bg-slate-950/70'
           : 'bg-white/80'
@@ -48,7 +48,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                 }`}>
                   Business Information
                 </p>
-                <h3 className={`text-lg font-bold mt-1 ${
+                <h3 className={`text-base font-bold mt-1 ${
                   isDark ? 'text-slate-50' : 'text-slate-900'
                 }`}>
                   {businessDetails.company_name}
@@ -69,7 +69,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
             style={{ maxHeight: isOpen ? `${contentHeight}px` : '0px' }}
           >
             <div ref={contentRef}>
-              <div className={`space-y-2 pt-4 transition-all duration-400 ease-in-out ${
+              <div className={`space-y-1.5 pt-3 transition-all duration-400 ease-in-out ${
                 isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1'
               }`}>
                 {businessDetails.email && (
