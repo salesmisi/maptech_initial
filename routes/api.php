@@ -291,11 +291,11 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::delete('/courses/{courseId}/modules/{moduleId}', [AdminCourseController::class, 'deleteModule']);
     Route::post('/courses/{courseId}/modules/reorder', [AdminCourseController::class, 'reorderModules']);
 
-    // Product Logo Manager (one active logo per module)
-    Route::get('/product-logos/modules', [ProductLogoManagerController::class, 'index']);
-    Route::post('/product-logos/modules/{module}/logo', [ProductLogoManagerController::class, 'upload']);
-    Route::patch('/product-logos/modules/{module}/logo', [ProductLogoManagerController::class, 'updateName']);
-    Route::delete('/product-logos/modules/{module}/logo', [ProductLogoManagerController::class, 'destroy']);
+    // Product Logo Manager (one active logo per course)
+    Route::get('/product-logos/courses', [ProductLogoManagerController::class, 'index']);
+    Route::post('/product-logos/courses/{course}/logo', [ProductLogoManagerController::class, 'upload']);
+    Route::patch('/product-logos/courses/{course}/logo', [ProductLogoManagerController::class, 'updateName']);
+    Route::delete('/product-logos/courses/{course}/logo', [ProductLogoManagerController::class, 'destroy']);
 
     // Lesson Management
     Route::post('/modules/{moduleId}/lessons', [AdminCourseController::class, 'addLesson']);

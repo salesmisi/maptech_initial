@@ -59,10 +59,13 @@ interface UserOption {
 interface DepartmentOption {
   id: number;
   name: string;
+  code?: string | null;
   subdepartments: { id: number; name: string }[];
 }
 
 export function EnrollmentManagement() {
+  const normalizeDepartment = (value?: string | null) => (value || '').trim().toLowerCase();
+
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,13 +80,11 @@ export function EnrollmentManagement() {
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedModuleId, setSelectedModuleId] = useState('');
   const [selectedDeptId, setSelectedDeptId] = useState<number | ''>('');
-  const [selectedSubdeptId, setSelectedSubdeptId] = useState<number | ''>('');
   // multi-select users
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<UserOption[]>([]);
   const [userQuery, setUserQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserOption[]>([]);
-  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const userSearchTimer = React.useRef<number | null>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollError, setEnrollError] = useState<string | null>(null);
@@ -224,6 +225,7 @@ export function EnrollmentManagement() {
         setDepartments(d.map((x: any) => ({
           id: x.id,
           name: x.name,
+          code: x.code ?? null,
           subdepartments: Array.isArray(x.subdepartments)
             ? x.subdepartments.map((s: any) => ({ id: s.id, name: s.name }))
             : [],
@@ -235,12 +237,11 @@ export function EnrollmentManagement() {
   };
 
   const searchUsers = async (q: string) => {
-    if (!selectedSubdeptId || !q || q.length < 2) {
+    if (!q || q.length < 2) {
       setSearchResults([]);
       return;
     }
     try {
-      setIsSearchingUsers(true);
       // Always query backend so newly created users are immediately searchable.
       const params = new URLSearchParams();
       params.set('q', q);
@@ -250,26 +251,20 @@ export function EnrollmentManagement() {
         const deptName = departments.find(d => d.id === Number(selectedDeptId))?.name;
         if (deptName) params.set('department', deptName);
       }
-      if (selectedSubdeptId) {
-        params.set('subdepartment_id', String(selectedSubdeptId));
-      }
       const res = await fetch(`${API_BASE}/admin/users?${params.toString()}`, { credentials: 'include', headers: { Accept: 'application/json' } });
       if (!res.ok) return setSearchResults([]);
       const data = await res.json();
       const usersFound = Array.isArray(data) ? data : (data?.data || []);
-      const mapped = usersFound.map((x: any) => ({
+      setSearchResults(usersFound.map((x: any) => ({
         id: x.id,
         fullname: x.fullname || x.name || `${x.first_name || ''} ${x.last_name || ''}`.trim(),
         email: x.email,
         department: x.department,
         subdepartment_id: x.subdepartment_id ?? null,
         subdepartment_name: x.subdepartment?.name ?? null,
-      }));
-      setSearchResults(mapped.filter((u: UserOption) => Number(u.subdepartment_id) === Number(selectedSubdeptId)));
+      })));
     } catch (e) {
       setSearchResults([]);
-    } finally {
-      setIsSearchingUsers(false);
     }
   };
 
@@ -289,7 +284,6 @@ export function EnrollmentManagement() {
     setSelectedUserIds([]);
     setSelectedUsers([]);
     setSelectedDeptId('');
-    setSelectedSubdeptId('');
     setUserQuery('');
     setSearchResults([]);
     setEnrollError(null);
@@ -741,7 +735,6 @@ export function EnrollmentManagement() {
                     onChange={(e) => {
                       const v = e.target.value;
                       setSelectedDeptId(v ? Number(v) : '');
-                      setSelectedSubdeptId('');
                       setSelectedCourseId('');
                       setSelectedUserIds([]);
                       setSelectedUsers([]);
@@ -755,37 +748,12 @@ export function EnrollmentManagement() {
                     ))}
                   </select>
 
-                  {selectedDeptId ? (
-                    <>
-                      <label className="block text-sm font-medium text-slate-700 mt-3">Select Subdepartment</label>
-                      <select
-                        className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                        value={selectedSubdeptId}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setSelectedSubdeptId(v ? Number(v) : '');
-                          setSelectedCourseId('');
-                          setSelectedUserIds([]);
-                          setSelectedUsers([]);
-                          setSearchResults([]);
-                          setUserQuery('');
-                        }}
-                      >
-                        <option value="">-- Select subdepartment --</option>
-                        {(departments.find(d => d.id === Number(selectedDeptId))?.subdepartments || []).map((s) => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                      </select>
-                    </>
-                  ) : null}
-
                   <label className="block text-sm font-medium text-slate-700 mt-3">Search Employees</label>
                   <input
                     type="text"
                     value={userQuery}
                     onChange={(e) => setUserQuery(e.target.value)}
-                    placeholder={selectedSubdeptId ? 'Type name to search employees...' : 'Select a subdepartment first...'}
-                    disabled={!selectedSubdeptId}
+                    placeholder="Type name to search employees..."
                     className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                   />
                   {searchResults.length > 0 && (
@@ -859,12 +827,17 @@ export function EnrollmentManagement() {
                       setSelectedUsers([]);
                     }}
                   >
-                    <option value="">{selectedSubdeptId ? '-- Select a course --' : '-- Select a subdepartment first --'}</option>
+                    <option value="">-- Select a course --</option>
                     {(() => {
-                      const deptName = selectedDeptId ? departments.find(d => d.id === Number(selectedDeptId))?.name : null;
-                      const filtered = (deptName && selectedSubdeptId)
-                        ? courses.filter(c => c.department === deptName && Number(c.subdepartment_id) === Number(selectedSubdeptId))
-                        : [];
+                      const selectedDept = selectedDeptId ? departments.find(d => d.id === Number(selectedDeptId)) : null;
+                      const selectedDeptName = normalizeDepartment(selectedDept?.name);
+                      const selectedDeptCode = normalizeDepartment(selectedDept?.code);
+                      const filtered = selectedDept
+                        ? courses.filter((c) => {
+                            const courseDept = normalizeDepartment(c.department);
+                            return courseDept === selectedDeptName || (selectedDeptCode && courseDept === selectedDeptCode);
+                          })
+                        : courses;
                       return filtered.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.title} ({c.department})

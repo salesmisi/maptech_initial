@@ -444,7 +444,27 @@ class CourseController extends Controller
         // Prefer course department matching to keep admin choices relevant.
         $courseDepartment = trim((string) ($course->department ?? ''));
         if ($courseDepartment !== '') {
-            $notEnrolledQuery->whereRaw('LOWER(department) = ?', [strtolower($courseDepartment)]);
+            $courseDepartmentLower = strtolower($courseDepartment);
+            $deptRecord = DB::table('departments')
+                ->select('name', 'code')
+                ->whereRaw('LOWER(name) = ?', [$courseDepartmentLower])
+                ->orWhereRaw('LOWER(code) = ?', [$courseDepartmentLower])
+                ->first();
+
+            $acceptedDepartments = [$courseDepartmentLower];
+            if ($deptRecord) {
+                $deptName = strtolower(trim((string) ($deptRecord->name ?? '')));
+                $deptCode = strtolower(trim((string) ($deptRecord->code ?? '')));
+                if ($deptName !== '') $acceptedDepartments[] = $deptName;
+                if ($deptCode !== '') $acceptedDepartments[] = $deptCode;
+            }
+            $acceptedDepartments = array_values(array_unique($acceptedDepartments));
+
+            $notEnrolledQuery->where(function ($q) use ($acceptedDepartments) {
+                foreach ($acceptedDepartments as $dept) {
+                    $q->orWhereRaw('LOWER(department) = ?', [$dept]);
+                }
+            });
         }
 
         $notEnrolledUsers = $notEnrolledQuery
@@ -481,12 +501,28 @@ class CourseController extends Controller
             return response()->json(['message' => 'Only employees can be enrolled in courses.'], 422);
         }
 
-        if ($course->subdepartment_id) {
-            if ((int) $employee->subdepartment_id !== (int) $course->subdepartment_id) {
-                return response()->json(['message' => 'Employee subdepartment does not match the selected course subdepartment.'], 422);
+        if ($employee->department && $course->department && $employee->department !== $course->department) {
+            $courseDepartmentLower = strtolower(trim((string) $course->department));
+            $employeeDepartmentLower = strtolower(trim((string) $employee->department));
+
+            $deptRecord = DB::table('departments')
+                ->select('name', 'code')
+                ->whereRaw('LOWER(name) = ?', [$courseDepartmentLower])
+                ->orWhereRaw('LOWER(code) = ?', [$courseDepartmentLower])
+                ->first();
+
+            $acceptedDepartments = [$courseDepartmentLower];
+            if ($deptRecord) {
+                $deptName = strtolower(trim((string) ($deptRecord->name ?? '')));
+                $deptCode = strtolower(trim((string) ($deptRecord->code ?? '')));
+                if ($deptName !== '') $acceptedDepartments[] = $deptName;
+                if ($deptCode !== '') $acceptedDepartments[] = $deptCode;
             }
-        } elseif ($employee->department && $course->department && $employee->department !== $course->department) {
-            return response()->json(['message' => 'Employee department does not match the selected course department.'], 422);
+            $acceptedDepartments = array_values(array_unique($acceptedDepartments));
+
+            if (!in_array($employeeDepartmentLower, $acceptedDepartments, true)) {
+                return response()->json(['message' => 'Employee department does not match the selected course department.'], 422);
+            }
         }
 
         if ($course->enrollments()->where('user_id', $request->user_id)->exists()) {

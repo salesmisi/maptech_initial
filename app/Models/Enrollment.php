@@ -156,10 +156,15 @@ class Enrollment extends Model
 
     /**
      * Resolve the certificate logo from product logo mappings.
-     * Falls back to the course logo when no module/lesson mapping exists.
+     * Prioritizes course-level logo, then falls back to legacy module/lesson mappings.
      */
     private static function resolveLogoPath(int $userId, Course $course, $quizzes): ?string
     {
+        // Primary source for collaborator branding: one logo per course.
+        if (!empty($course->logo_path)) {
+            return $course->logo_path;
+        }
+
         $moduleIds = $quizzes->pluck('module_id')->filter()->unique()->values()->all();
         $quizIds = $quizzes->pluck('id')->filter()->unique()->values()->all();
 
@@ -258,6 +263,6 @@ class Enrollment extends Model
             }
         }
 
-        return $course->logo_path;
+        return null;
     }
 }

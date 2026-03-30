@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   CheckCircle,
@@ -11,7 +11,6 @@ import {
   BookOpen,
   Loader,
   Lock,
-  AlertCircle,
   HelpCircle,
   ChevronDown,
   ChevronUp,
@@ -157,8 +156,8 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
   const [quizAttempts, setQuizAttempts] = useState<QuizAttemptRecord[]>([]);
   const [selectedSentence, setSelectedSentence] = useState('');
   const [selectedSentenceDefinition, setSelectedSentenceDefinition] = useState('');
-  const [viewedLessons, setViewedLessons] = useState<Set<number>>(new Set());
-  const [viewedModules, setViewedModules] = useState<Set<number>>(new Set());
+  const [, setViewedLessons] = useState<Set<number>>(new Set());
+  const [, setViewedModules] = useState<Set<number>>(new Set());
   const [showCompletionPopup, setShowCompletionPopup] = useState(false);
 
   const viewedLessonStorageKey = userId && courseId ? `maptech_viewed_lessons_${userId}_${courseId}` : null;
@@ -570,6 +569,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     }
 
     const { file_type, content_url, title } = currentLesson;
+    const lessonContentUrl = content_url ?? undefined;
 
     const textBlock = hasText ? (
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-4">
@@ -605,9 +605,9 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
           <div className="aspect-video bg-slate-900 rounded-xl overflow-hidden">
             {isYouTube ? (
               // YouTube player container; we'll initialize the YT player via JS API
-              <YouTubePlayer contentUrl={content_url!} lessonId={currentLesson!.id} />
+              <YouTubePlayer contentUrl={lessonContentUrl || ''} lessonId={currentLesson!.id} />
             ) : (
-              <video controls className="w-full h-full" src={content_url}>
+              <video controls className="w-full h-full" src={lessonContentUrl}>
                 Your browser does not support the video tag.
               </video>
             )}
@@ -624,7 +624,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             <Music className="h-20 w-20 text-slate-400 mb-4" />
             <h3 className="text-lg font-medium text-slate-700 mb-4">{title}</h3>
             <audio controls className="w-full max-w-md">
-              <source src={content_url} />
+              <source src={lessonContentUrl} />
               Your browser does not support the audio element.
             </audio>
           </div>
@@ -637,7 +637,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
         <div className="space-y-4">
           {textBlock}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden" style={{ height: '70vh' }}>
-            <iframe src={content_url} className="w-full h-full" title={title} />
+            <iframe src={lessonContentUrl} className="w-full h-full" title={title} />
           </div>
         </div>
       );
@@ -653,7 +653,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             This file type is best viewed by downloading it.
           </p>
           <a
-            href={content_url}
+            href={lessonContentUrl}
             download
             target="_blank"
             rel="noopener noreferrer"
@@ -663,7 +663,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             Download File
           </a>
           <a
-            href={content_url}
+            href={lessonContentUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-3 text-sm text-green-600 hover:text-green-700"
@@ -782,18 +782,27 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
           <div className="flex justify-center gap-3">
             {quizResult.passed ? (
               <>
-                <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                <div>
-                  <p className="text-sm text-green-700 font-medium">Next module is now unlocked!</p>
-                  {currentModuleIndex < modules.length - 1 && modules[currentModuleIndex + 1]?.is_unlocked && (
-                    <button
-                      onClick={() => selectModule(modules[currentModuleIndex + 1])}
-                      className="mt-3 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg flex items-center gap-2 transition-colors"
-                    >
-                      Proceed to Next Module <ArrowRight className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
+                {isLastModule ? (
+                  <div className="text-center">
+                    <p className="text-sm text-green-700 font-medium">Final assessment passed.</p>
+                    <p className="text-xs text-slate-600 mt-1">Click <strong>Finish Course</strong> on the lower-right navigation button to complete this course.</p>
+                  </div>
+                ) : (
+                  <>
+                    <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-green-700 font-medium">Next module is now unlocked!</p>
+                      {currentModuleIndex < modules.length - 1 && modules[currentModuleIndex + 1]?.is_unlocked && (
+                        <button
+                          onClick={() => selectModule(modules[currentModuleIndex + 1])}
+                          className="mt-3 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg flex items-center gap-2 transition-colors"
+                        >
+                          Proceed to Next Module <ArrowRight className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
               </>
             ) : (
               <div className="text-center">
@@ -925,6 +934,17 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     }
   };
 
+  const openCompletionPopup = () => {
+    setShowCompletionPopup(true);
+    if (congratulatedStorageKey) {
+      try {
+        localStorage.setItem(congratulatedStorageKey, '1');
+      } catch (e) {
+        // ignore localStorage write errors
+      }
+    }
+  };
+
   const canGoPrevious = showQuiz || currentLessonIndex > 0 || currentModuleIndex > 0;
   const canGoNext = (() => {
     if (currentLesson && currentLessonIndex < moduleLessons.length - 1) return true;
@@ -932,38 +952,9 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     const nextMod = currentModuleIndex < modules.length - 1 ? modules[currentModuleIndex + 1] : null;
     return !!(nextMod && nextMod.is_unlocked);
   })();
-
-  const allModuleIds = modules.map((m) => m.id);
-  const allLessonIds = modules.flatMap((m) => (m.lessons ?? []).map((l) => l.id));
-  const allQuizzesPassed = modules.length > 0 && modules.every((m) => !m.quiz || m.quiz.has_passed);
-  const hasViewedAllModules = allModuleIds.length > 0 && allModuleIds.every((id) => viewedModules.has(id));
-  const hasViewedAllLessons = allLessonIds.length > 0 && allLessonIds.every((id) => viewedLessons.has(id));
-  const isCompletionEligible = allQuizzesPassed && hasViewedAllModules && hasViewedAllLessons;
-
-  useEffect(() => {
-    if (!congratulatedStorageKey || !isCompletionEligible) return;
-    if (quizState !== 'submitted' || !showResultRevealed || !quizResult?.passed) return;
-
-    let alreadyShown = false;
-    try {
-      alreadyShown = localStorage.getItem(congratulatedStorageKey) === '1';
-    } catch (e) {
-      alreadyShown = false;
-    }
-
-    if (alreadyShown) return;
-
-    const timer = window.setTimeout(() => {
-      setShowCompletionPopup(true);
-      try {
-        localStorage.setItem(congratulatedStorageKey, '1');
-      } catch (e) {
-        // ignore localStorage write errors
-      }
-    }, 300);
-
-    return () => window.clearTimeout(timer);
-  }, [congratulatedStorageKey, isCompletionEligible, quizState, showResultRevealed, quizResult?.passed]);
+  const isLastModule = currentModuleIndex >= 0 && currentModuleIndex === modules.length - 1;
+  const isFinalQuizReadyToFinish =
+    isLastModule && showQuiz && quizState === 'submitted' && showResultRevealed && !!quizResult?.passed;
 
   if (loading) {
     return (
@@ -997,8 +988,6 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     );
   }
 
-  // Count total lessons across all modules for progress
-  const totalItems = modules.reduce((sum, m) => sum + (m.lessons?.length ?? 0) + (m.quiz ? 1 : 0), 0);
   const completedModules = modules.filter(m => m.quiz?.has_passed).length;
   const progress = modules.length > 0 ? Math.round((completedModules / modules.length) * 100) : 0;
 
@@ -1027,10 +1016,10 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
             <h3 className="text-center text-2xl font-bold text-white">Congratulations!</h3>
             <p className="mt-3 text-center text-sm text-slate-200">
-              You completed <span className="font-semibold text-emerald-300">{course.title}</span> by finishing quizzes and viewing all required modules and lessons.
+              You successfully completed <span className="font-semibold text-emerald-300">{course.title}</span>.
             </p>
             <p className="mt-2 text-center text-xs text-slate-400">
-              Your achievement has been recorded. Keep up the great work!
+              You can now view and download your certificate from the certificates page.
             </p>
 
             <div className="mt-6 flex justify-center">
@@ -1265,105 +1254,27 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                       <Lock className="h-3 w-3" /> Pass the quiz to unlock the next module
                     </p>
                   )}
-                  <button
-                    onClick={goToNext}
-                    disabled={!canGoNext}
-                    className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Next
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </button>
+                  {isFinalQuizReadyToFinish ? (
+                    <button
+                      onClick={openCompletionPopup}
+                      className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm"
+                    >
+                      Finish Course
+                      <Trophy className="h-4 w-4 ml-2" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={goToNext}
+                      disabled={!canGoNext}
+                      className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </button>
+                  )}
                 </div>
               </div>
             )}
-            {/* Quiz Panel */}
-            {showQuiz && currentModule && (function renderQuiz() {
-              // pre_assessment may be stored as JSON string or object
-              let quiz = (currentModule as any).pre_assessment || null;
-              try {
-                if (typeof quiz === 'string') quiz = JSON.parse(quiz);
-              } catch (e) {
-                quiz = null;
-              }
-
-              if (!quiz || !Array.isArray(quiz) || quiz.length === 0) {
-                return (
-                  <div className="mt-8 p-6 bg-yellow-50 rounded">No assessment available.</div>
-                );
-              }
-
-              const total = quiz.length;
-
-              const submitQuiz = async () => {
-                let correct = 0;
-                for (const q of quiz) {
-                  const selected = quizAnswers[q.id];
-                  if (selected !== undefined && selected === q.answer) correct++;
-                }
-                const total = quiz.length;
-                const scorePercent = total > 0 ? Math.round((correct / total) * 100) : 0;
-                setQuizResult({ score: correct, total });
-
-                // Persist the attempt to the backend
-                try {
-                  await fetch(`${API_BASE}/employee/modules/${(currentModule as any).id}/quiz`, {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Accept': 'application/json',
-                      'X-XSRF-TOKEN': decodeURIComponent(getCookie('XSRF-TOKEN')),
-                    },
-                    body: JSON.stringify({
-                      score: scorePercent,
-                      correct_answers: correct,
-                      total_questions: total,
-                    }),
-                  });
-                } catch {
-                  // silent – progress page will still show 0 until next attempt
-                }
-              };
-
-              return (
-                <div className="mt-8 p-6 bg-white border rounded-lg">
-                  <h3 className="text-lg font-bold mb-4">Pre-assessment</h3>
-                  {quiz.map((q: any) => (
-                    <div key={q.id} className="mb-4">
-                      <p className="font-medium">{q.id}. {q.question}</p>
-                      <div className="mt-2 space-y-2">
-                        {q.options.map((opt: string, idx: number) => (
-                          <label key={idx} className={`flex items-center space-x-3 cursor-pointer ${quizResult ? 'opacity-70' : ''}`}>
-                            <input
-                              type="radio"
-                              name={`q_${q.id}`}
-                              value={idx}
-                              checked={quizAnswers[q.id] === idx}
-                              disabled={!!quizResult}
-                              onChange={() => setQuizAnswers(prev => ({ ...prev, [q.id]: idx }))}
-                            />
-                            <span>{opt}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-
-                  {!quizResult ? (
-                    <div className="flex items-center space-x-3">
-                      <button onClick={submitQuiz} className="px-4 py-2 bg-green-600 text-white rounded">Submit Assessment</button>
-                      <button onClick={() => { setShowQuiz(false); setQuizAnswers({}); }} className="px-4 py-2 border rounded">Close</button>
-                    </div>
-                  ) : (
-                    <div className="mt-4">
-                      <p className="font-semibold">Result: {quizResult.score} / {quizResult.total}</p>
-                      <button onClick={() => { setQuizResult(null); setQuizAnswers({}); }} className="mt-2 px-3 py-1 border rounded">Retry</button>
-                      <button onClick={() => setShowQuiz(false)} className="mt-2 ml-2 px-3 py-1 bg-green-600 text-white rounded">Close</button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
           </div>
         </div>
       </div>
