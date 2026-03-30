@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Course;
 use App\Models\Module;
 use App\Models\Quiz;
+use App\Models\QuizAttempt;
 use App\Models\QuizQuestion;
 use App\Models\QuizOption;
 use Illuminate\Http\Request;
@@ -107,6 +108,70 @@ class QuizController extends Controller
             });
 
         return response()->json($quizzes);
+    }
+
+    /**
+     * GET /instructor/quiz-attempts
+     * Return employee quiz attempt results for quizzes the instructor can manage.
+     */
+    public function attempts(Request $request)
+    {
+        $user = $request->user();
+        $quizId = $request->query('quiz_id');
+
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
+        $assignedDept = $user->department;
+
+        $query = QuizAttempt::with([
+            'user:id,fullname,email,department',
+            'quiz:id,title,course_id,module_id,pass_percentage',
+            'quiz.course:id,title,department,subdepartment_id,instructor_id',
+            'quiz.module:id,title',
+        ])->whereHas('quiz.course', function ($q) use ($user, $assignedSubIds, $assignedDept) {
+            $q->where(function ($inner) use ($user, $assignedSubIds, $assignedDept) {
+                $inner->where('instructor_id', $user->id);
+
+                if (!empty($assignedSubIds)) {
+                    $inner->orWhereIn('subdepartment_id', $assignedSubIds);
+                }
+
+                if ($assignedDept) {
+                    $inner->orWhere('department', $assignedDept);
+                }
+            });
+        });
+
+        if (!empty($quizId)) {
+            $query->where('quiz_id', (int) $quizId);
+        }
+
+        $attempts = $query->orderByDesc('created_at')
+            ->limit(1000)
+            ->get()
+            ->map(function ($attempt) {
+                return [
+                    'id' => $attempt->id,
+                    'user_id' => $attempt->user_id,
+                    'employee_name' => $attempt->user?->fullname,
+                    'employee_email' => $attempt->user?->email,
+                    'employee_department' => $attempt->user?->department,
+                    'quiz_id' => $attempt->quiz_id,
+                    'quiz_title' => $attempt->quiz?->title,
+                    'module_id' => $attempt->quiz?->module_id,
+                    'module_title' => $attempt->quiz?->module?->title,
+                    'course_id' => $attempt->quiz?->course_id,
+                    'course_title' => $attempt->quiz?->course?->title,
+                    'pass_percentage' => $attempt->quiz?->pass_percentage,
+                    'score' => $attempt->score,
+                    'total_questions' => $attempt->total_questions,
+                    'percentage' => (float) $attempt->percentage,
+                    'passed' => (bool) $attempt->passed,
+                    'submitted_at' => $attempt->created_at?->toISOString(),
+                ];
+            })
+            ->values();
+
+        return response()->json($attempts);
     }
 
     /** GET /instructor/courses/{courseId}/quizzes — quizzes for a specific course */

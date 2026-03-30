@@ -136,7 +136,7 @@ export function AdminLayout({
   }];
 
   return (
-    <div className={`app-theme-scope min-h-screen flex ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+    <div className={`app-theme-scope min-h-screen flex ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 dark:bg-slate-900 text-slate-900'}`}>
       {/* Sidebar (fixed on all viewports to avoid layout shift when zooming) */}
       <div className={`flex w-64 flex-col fixed inset-y-0 z-10 border-r ${isDark ? 'border-slate-800/80 bg-slate-950/95 text-white' : 'border-slate-200 bg-slate-900 text-white'}`}>
         <div className="flex-1 flex flex-col min-h-0">
@@ -272,7 +272,7 @@ export function AdminLayout({
           </div>
         </div>
 
-        <main className={`flex-1 overflow-y-auto p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50'}`}>
+        <main className={`flex-1 overflow-y-auto p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50 dark:bg-slate-900'}`}>
           {children}
         </main>
       </div>

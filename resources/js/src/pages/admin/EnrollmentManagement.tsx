@@ -44,7 +44,7 @@ interface CourseOption {
   id: string;
   title: string;
   department: string;
-  subdepartment_id?: number | null;
+  modules?: { id: number; title: string }[];
 }
 
 interface UserOption {
@@ -75,6 +75,7 @@ export function EnrollmentManagement() {
   const [users, setUsers] = useState<UserOption[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [selectedModuleId, setSelectedModuleId] = useState('');
   const [selectedDeptId, setSelectedDeptId] = useState<number | ''>('');
   const [selectedSubdeptId, setSelectedSubdeptId] = useState<number | ''>('');
   // multi-select users
@@ -86,6 +87,9 @@ export function EnrollmentManagement() {
   const userSearchTimer = React.useRef<number | null>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollError, setEnrollError] = useState<string | null>(null);
+  const [moduleUsersLoading, setModuleUsersLoading] = useState(false);
+  const [moduleNotEnrolledUsers, setModuleNotEnrolledUsers] = useState<UserOption[]>([]);
+  const [moduleEnrolledUsers, setModuleEnrolledUsers] = useState<UserOption[]>([]);
 
     const confirm = useConfirm();
     const { showConfirm } = confirm;
@@ -93,6 +97,15 @@ export function EnrollmentManagement() {
   // Action menu
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [unenrolling, setUnenrolling] = useState<number | null>(null);
+
+  // Persistent module enrollment lists (Admin view section)
+  const [listCourses, setListCourses] = useState<CourseOption[]>([]);
+  const [listCourseId, setListCourseId] = useState('');
+  const [listModuleId, setListModuleId] = useState('');
+  const [listLoading, setListLoading] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
+  const [listNotEnrolledUsers, setListNotEnrolledUsers] = useState<UserOption[]>([]);
+  const [listEnrolledUsers, setListEnrolledUsers] = useState<UserOption[]>([]);
 
   const loadEnrollments = async () => {
     setLoading(true);
@@ -114,6 +127,71 @@ export function EnrollmentManagement() {
 
   useEffect(() => { loadEnrollments(); }, []);
 
+  const loadCoursesForListSection = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/courses`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setListCourses(data.map((x: any) => ({
+        id: x.id,
+        title: x.title,
+        department: x.department,
+        modules: (x.modules || []).map((m: any) => ({ id: m.id, title: m.title })),
+      })));
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    loadCoursesForListSection();
+  }, []);
+
+  const loadPersistentModuleLists = async (moduleId: string) => {
+    if (!moduleId) {
+      setListNotEnrolledUsers([]);
+      setListEnrolledUsers([]);
+      setListError(null);
+      return;
+    }
+
+    setListLoading(true);
+    setListError(null);
+    try {
+      const res = await fetch(`${API_BASE}/admin/modules/${moduleId}/enrollment-lists`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error('Failed to load employee enrollment lists.');
+      const data = await res.json();
+      setListNotEnrolledUsers((data.not_enrolled_users || []).map((u: any) => ({
+        id: u.id,
+        fullname: u.fullname,
+        email: u.email,
+        department: u.department,
+      })));
+      setListEnrolledUsers((data.enrolled_users || []).map((u: any) => ({
+        id: u.id,
+        fullname: u.fullname,
+        email: u.email,
+        department: u.department,
+      })));
+    } catch (e: any) {
+      setListError(e.message || 'Failed to load employee enrollment lists.');
+      setListNotEnrolledUsers([]);
+      setListEnrolledUsers([]);
+    } finally {
+      setListLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPersistentModuleLists(listModuleId);
+  }, [listModuleId]);
+
   const loadModalData = async () => {
     try {
       const [coursesRes, usersRes, departmentsRes] = await Promise.all([
@@ -127,7 +205,7 @@ export function EnrollmentManagement() {
           id: x.id,
           title: x.title,
           department: x.department,
-          subdepartment_id: x.subdepartment_id ?? null,
+          modules: (x.modules || []).map((m: any) => ({ id: m.id, title: m.title })),
         })));
       }
       if (usersRes.ok) {
@@ -207,6 +285,7 @@ export function EnrollmentManagement() {
   const openModal = () => {
     setIsModalOpen(true);
     setSelectedCourseId('');
+    setSelectedModuleId('');
     setSelectedUserIds([]);
     setSelectedUsers([]);
     setSelectedDeptId('');
@@ -215,6 +294,60 @@ export function EnrollmentManagement() {
     setSearchResults([]);
     setEnrollError(null);
     loadModalData();
+  };
+
+  const addSelectedUser = (u: UserOption) => {
+    setSelectedUserIds(prev => (prev.includes(u.id) ? prev : [...prev, u.id]));
+    setSelectedUsers(prev => (prev.some(x => x.id === u.id) ? prev : [...prev, u]));
+  };
+
+  const removeSelectedUser = (userId: number) => {
+    setSelectedUserIds(prev => prev.filter(id => id !== userId));
+    setSelectedUsers(prev => prev.filter(x => x.id !== userId));
+  };
+
+  const loadModuleEnrollmentLists = async (moduleId: string) => {
+    if (!moduleId) {
+      setModuleNotEnrolledUsers([]);
+      setModuleEnrolledUsers([]);
+      return;
+    }
+    setModuleUsersLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/modules/${moduleId}/enrollment-lists`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error('Failed to load module enrollment lists.');
+      const data = await res.json();
+
+      const notEnrolled: UserOption[] = (data.not_enrolled_users || []).map((x: any) => ({
+        id: x.id,
+        fullname: x.fullname,
+        email: x.email,
+        department: x.department,
+      }));
+
+      const enrolled: UserOption[] = (data.enrolled_users || []).map((x: any) => ({
+        id: x.id,
+        fullname: x.fullname,
+        email: x.email,
+        department: x.department,
+      }));
+
+      setModuleNotEnrolledUsers(notEnrolled);
+      setModuleEnrolledUsers(enrolled);
+
+      const notEnrolledIds = new Set(notEnrolled.map(u => u.id));
+      setSelectedUserIds(prev => prev.filter(id => notEnrolledIds.has(id)));
+      setSelectedUsers(prev => prev.filter(u => notEnrolledIds.has(u.id)));
+    } catch (e: any) {
+      setModuleNotEnrolledUsers([]);
+      setModuleEnrolledUsers([]);
+      setEnrollError(e.message || 'Failed to load module enrollment lists.');
+    } finally {
+      setModuleUsersLoading(false);
+    }
   };
 
   // Poll for updates while modal is open so newly created users appear in search
@@ -232,10 +365,23 @@ export function EnrollmentManagement() {
     };
   }, [isModalOpen]);
 
+  useEffect(() => {
+    if (!selectedModuleId) {
+      setModuleNotEnrolledUsers([]);
+      setModuleEnrolledUsers([]);
+      return;
+    }
+    loadModuleEnrollmentLists(selectedModuleId);
+  }, [selectedModuleId]);
+
   const handleEnroll = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedDeptId || !selectedSubdeptId || !selectedCourseId || selectedUserIds.length === 0) {
-      setEnrollError('Please select a department, subdepartment, at least one employee, and a course.');
+    if (!selectedModuleId) {
+      setEnrollError('Please select a module first.');
+      return;
+    }
+    if (!selectedCourseId || selectedUserIds.length === 0) {
+      setEnrollError('Please select at least one employee and a course.');
       return;
     }
     setEnrolling(true);
@@ -348,6 +494,95 @@ export function EnrollmentManagement() {
               <option value="In Progress">In Progress</option>
               <option value="Not Started">Not Started</option>
             </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Module Enrollment Lists */}
+      <div className="bg-white dark:bg-slate-900/80 p-4 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Module Employee Lists</h2>
+          <span className="text-xs text-slate-500">New and old employees are grouped by selected module</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Course</label>
+            <select
+              className="mt-1 block w-full border border-slate-300 dark:border-slate-700 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+              value={listCourseId}
+              onChange={(e) => {
+                setListCourseId(e.target.value);
+                setListModuleId('');
+                setListNotEnrolledUsers([]);
+                setListEnrolledUsers([]);
+              }}
+            >
+              <option value="">-- Select a course --</option>
+              {listCourses.map((c) => (
+                <option key={c.id} value={c.id}>{c.title} ({c.department})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Module</label>
+            <select
+              className="mt-1 block w-full border border-slate-300 dark:border-slate-700 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+              value={listModuleId}
+              onChange={(e) => setListModuleId(e.target.value)}
+              disabled={!listCourseId}
+            >
+              <option value="">-- Select a module --</option>
+              {(listCourses.find(c => c.id === listCourseId)?.modules || []).map((m) => (
+                <option key={m.id} value={String(m.id)}>{m.title}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {listError && (
+          <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{listError}</div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+            <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">Not Yet Enrolled Employees ({listNotEnrolledUsers.length})</div>
+            {listLoading ? (
+              <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading...</div>
+            ) : !listModuleId ? (
+              <div className="text-xs text-slate-500">Select a module to view list.</div>
+            ) : listNotEnrolledUsers.length === 0 ? (
+              <div className="text-xs text-slate-500">No employees pending enrollment for this module.</div>
+            ) : (
+              <div className="max-h-56 overflow-auto divide-y divide-slate-100 dark:divide-slate-700">
+                {listNotEnrolledUsers.map((u) => (
+                  <div key={u.id} className="py-2">
+                    <div className="text-sm text-slate-800 dark:text-slate-100">{u.fullname}</div>
+                    <div className="text-xs text-slate-500">{u.email} - {u.department || 'No Dept'}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+            <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">Enrolled Employees ({listEnrolledUsers.length})</div>
+            {listLoading ? (
+              <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading...</div>
+            ) : !listModuleId ? (
+              <div className="text-xs text-slate-500">Select a module to view list.</div>
+            ) : listEnrolledUsers.length === 0 ? (
+              <div className="text-xs text-slate-500">No enrolled employees for this module.</div>
+            ) : (
+              <div className="max-h-56 overflow-auto divide-y divide-slate-100 dark:divide-slate-700">
+                {listEnrolledUsers.map((u) => (
+                  <div key={u.id} className="py-2">
+                    <div className="text-sm text-slate-800 dark:text-slate-100">{u.fullname}</div>
+                    <div className="text-xs text-slate-500">{u.email} - {u.department || 'No Dept'}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -615,8 +850,14 @@ export function EnrollmentManagement() {
                   <select
                     className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     value={selectedCourseId}
-                    onChange={(e) => setSelectedCourseId(e.target.value)}
-                    disabled={!selectedSubdeptId}
+                    onChange={(e) => {
+                      setSelectedCourseId(e.target.value);
+                      setSelectedModuleId('');
+                      setModuleNotEnrolledUsers([]);
+                      setModuleEnrolledUsers([]);
+                      setSelectedUserIds([]);
+                      setSelectedUsers([]);
+                    }}
                   >
                     <option value="">{selectedSubdeptId ? '-- Select a course --' : '-- Select a subdepartment first --'}</option>
                     {(() => {
@@ -632,14 +873,84 @@ export function EnrollmentManagement() {
                     })()}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">
+                    Select Module
+                  </label>
+                  <select
+                    className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    value={selectedModuleId}
+                    onChange={(e) => setSelectedModuleId(e.target.value)}
+                    disabled={!selectedCourseId}
+                  >
+                    <option value="">-- Select a module --</option>
+                    {(courses.find(c => c.id === selectedCourseId)?.modules || []).map((m) => (
+                      <option key={m.id} value={String(m.id)}>{m.title}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedModuleId && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="border border-slate-200 rounded-md p-3">
+                      <div className="text-sm font-semibold text-slate-800 mb-2">Not Yet Enrolled Employees</div>
+                      {moduleUsersLoading ? (
+                        <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading...</div>
+                      ) : moduleNotEnrolledUsers.length === 0 ? (
+                        <div className="text-xs text-slate-500">No available employees for this module.</div>
+                      ) : (
+                        <div className="max-h-44 overflow-auto space-y-1">
+                          {moduleNotEnrolledUsers.map((u) => {
+                            const checked = selectedUserIds.includes(u.id);
+                            return (
+                              <label key={u.id} className="flex items-start gap-2 text-xs p-1.5 rounded hover:bg-slate-50 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  className="mt-0.5"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) addSelectedUser(u);
+                                    else removeSelectedUser(u.id);
+                                  }}
+                                />
+                                <span>
+                                  <span className="block text-slate-800">{u.fullname}</span>
+                                  <span className="block text-slate-500">{u.email} - {u.department || 'No Dept'}</span>
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border border-slate-200 rounded-md p-3">
+                      <div className="text-sm font-semibold text-slate-800 mb-2">Enrolled Employees</div>
+                      {moduleUsersLoading ? (
+                        <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading...</div>
+                      ) : moduleEnrolledUsers.length === 0 ? (
+                        <div className="text-xs text-slate-500">No enrolled employees for this module yet.</div>
+                      ) : (
+                        <div className="max-h-44 overflow-auto space-y-1">
+                          {moduleEnrolledUsers.map((u) => (
+                            <div key={u.id} className="text-xs p-1.5 rounded bg-slate-50">
+                              <div className="text-slate-800">{u.fullname}</div>
+                              <div className="text-slate-500">{u.email} - {u.department || 'No Dept'}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
                   <button
                     type="submit"
-                    disabled={enrolling}
+                    disabled={enrolling || !selectedModuleId}
                     className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:col-start-2 sm:text-sm disabled:opacity-50"
                   >
                     {enrolling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Enroll User
+                    Enroll Selected
                   </button>
                   <button
                     type="button"

@@ -146,7 +146,7 @@ export function EmployeeLayout({
   }];
 
   return (
-    <div className={`app-theme-scope min-h-screen flex ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+    <div className={`app-theme-scope min-h-screen flex ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 dark:bg-slate-900 text-slate-900'}`}>
       {/* Sidebar */}
       <div className="hidden md:flex md:w-64 md:flex-col fixed inset-y-0 z-10 bg-slate-900 text-white">
         <div className="flex-1 flex flex-col min-h-0">
@@ -272,7 +272,7 @@ export function EmployeeLayout({
           </div>
         </div>
 
-        <main className={`flex-1 overflow-y-auto p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50'}`}>
+        <main className={`flex-1 overflow-y-auto p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50 dark:bg-slate-900'}`}>
           {children}
         </main>
       </div>

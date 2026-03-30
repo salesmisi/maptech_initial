@@ -300,7 +300,7 @@ export function InstructorNotifications() {
             onClick={() => setIsModalOpen(true)}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
           >
-            <Send className="h-4 w-4 mr-2" />
+            <Users className="h-4 w-4 mr-2" />
             Notify Employees
           </button>
         </div>
@@ -314,7 +314,7 @@ export function InstructorNotifications() {
           <div className="p-8 text-center text-slate-500 dark:text-slate-300">
             <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
             <p>No notifications yet</p>
-            <p className="text-sm mt-2">You'll receive notifications from admin and employees here</p>
+            <p className="text-sm mt-2">You'll receive notifications from employees here</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-200 dark:divide-slate-700">

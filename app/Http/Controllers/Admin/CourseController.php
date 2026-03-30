@@ -402,6 +402,69 @@ class CourseController extends Controller
     }
 
     /**
+     * List enrolled and not-yet-enrolled employees for a specific module.
+     * Enrollment is course-based, so this uses the module's course enrollments.
+     */
+    public function moduleEnrollmentLists(int $moduleId)
+    {
+        $module = Module::with('course:id,title,department')->findOrFail($moduleId);
+        $course = $module->course;
+
+        if (!$course) {
+            return response()->json(['message' => 'Course not found for module'], 404);
+        }
+
+        $enrolledUsers = $course->enrolledUsers()
+            ->select('users.id', 'users.fullname', 'users.email', 'users.department', 'users.role', 'users.status')
+            ->orderBy('users.fullname')
+            ->get()
+            ->map(function ($user) {
+                return [
+                    'id' => $user->id,
+                    'fullname' => $user->fullname,
+                    'email' => $user->email,
+                    'department' => $user->department,
+                    'role' => $user->role,
+                    'status' => $user->status,
+                ];
+            })
+            ->values();
+
+        $enrolledIds = $enrolledUsers->pluck('id')->all();
+
+        $notEnrolledQuery = User::query()
+            ->where('status', 'Active')
+            ->whereRaw('LOWER(role) = ?', ['employee'])
+            ->orderBy('fullname');
+
+        if (!empty($enrolledIds)) {
+            $notEnrolledQuery->whereNotIn('id', $enrolledIds);
+        }
+
+        // Prefer course department matching to keep admin choices relevant.
+        $courseDepartment = trim((string) ($course->department ?? ''));
+        if ($courseDepartment !== '') {
+            $notEnrolledQuery->whereRaw('LOWER(department) = ?', [strtolower($courseDepartment)]);
+        }
+
+        $notEnrolledUsers = $notEnrolledQuery
+            ->select('id', 'fullname', 'email', 'department', 'role', 'status')
+            ->get();
+
+        return response()->json([
+            'module' => [
+                'id' => $module->id,
+                'title' => $module->title,
+                'course_id' => $course->id,
+                'course_title' => $course->title,
+                'course_department' => $course->department,
+            ],
+            'not_enrolled_users' => $notEnrolledUsers,
+            'enrolled_users' => $enrolledUsers,
+        ]);
+    }
+
+    /**
      * Enroll a user into a course.
      */
     public function enroll(Request $request, string $id)
