@@ -65,7 +65,10 @@ return [
     |
     */
 
-    'timezone' => 'Asia/Manila',
+    'timezone' => env('APP_TIMEZONE', 'Asia/Manila'),
+
+    // Source timezone used to interpret raw DATETIME values before API UTC serialization.
+    'audit_log_storage_timezone' => env('AUDIT_LOG_STORAGE_TIMEZONE', 'Asia/Manila'),
 
     /*
     |--------------------------------------------------------------------------

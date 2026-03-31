@@ -7,6 +7,61 @@ use App\Models\Subdepartment;
 use App\Models\AuditLog;
 use Illuminate\Support\Carbon;
 
+if (!function_exists('maptech_audit_storage_timezone')) {
+    function maptech_audit_storage_timezone(): string
+    {
+        $tz = (string) config('app.audit_log_storage_timezone', 'Asia/Manila');
+        return $tz !== '' ? $tz : 'Asia/Manila';
+    }
+}
+
+if (!function_exists('maptech_parse_storage_datetime')) {
+    function maptech_parse_storage_datetime($value): ?Carbon
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        try {
+            if ($value instanceof Carbon) {
+                return $value->copy();
+            }
+
+            return Carbon::parse((string) $value, maptech_audit_storage_timezone());
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+}
+
+if (!function_exists('maptech_model_storage_datetime')) {
+    function maptech_model_storage_datetime($model, string $field): ?Carbon
+    {
+        if (!$model) {
+            return null;
+        }
+
+        $raw = null;
+        if (is_object($model) && method_exists($model, 'getRawOriginal')) {
+            $raw = $model->getRawOriginal($field);
+        }
+
+        if (($raw === null || $raw === '') && is_object($model) && isset($model->{$field})) {
+            $raw = $model->{$field};
+        }
+
+        return maptech_parse_storage_datetime($raw);
+    }
+}
+
+if (!function_exists('maptech_model_field_utc_iso')) {
+    function maptech_model_field_utc_iso($model, string $field): ?string
+    {
+        $dt = maptech_model_storage_datetime($model, $field);
+        return $dt ? $dt->utc()->toIso8601String() : null;
+    }
+}
+
 /*
 |--------------------------------------------------------------------------
 | DEPARTMENT ROUTES
@@ -213,24 +268,27 @@ Route::get('/me/audit-logs', function (Request $request) {
     // For each audit entry, attempt to attach the matching time_log (same logic as admin endpoint)
     $logs = $logs->map(function ($log) {
         $timeLog = null;
-        if ($log->created_at) {
-            $start = $log->created_at->copy()->subMinutes(2);
-            $end = $log->created_at->copy()->addMinutes(2);
+        $logAt = maptech_model_storage_datetime($log, 'created_at');
+        if ($logAt) {
+            $start = $logAt->copy()->subMinutes(2)->toDateTimeString();
+            $end = $logAt->copy()->addMinutes(2)->toDateTimeString();
             if ($log->action === 'login') {
                     $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
                     ->whereBetween('time_in', [$start, $end])
                         ->get();
-                    $timeLog = $candidates->sortBy(function ($tl) use ($log) {
-                        if (!$tl->time_in || !$log->created_at) return PHP_INT_MAX;
-                        return abs(Carbon::parse($tl->time_in)->diffInSeconds($log->created_at, false));
+                    $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
+                        $timeIn = maptech_model_storage_datetime($tl, 'time_in');
+                        if (!$timeIn || !$logAt) return PHP_INT_MAX;
+                        return abs($timeIn->diffInSeconds($logAt, false));
                     })->first();
             } elseif ($log->action === 'logout') {
                     $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
                     ->whereBetween('time_out', [$start, $end])
                         ->get();
-                    $timeLog = $candidates->sortBy(function ($tl) use ($log) {
-                        if (!$tl->time_out || !$log->created_at) return PHP_INT_MAX;
-                        return abs(Carbon::parse($tl->time_out)->diffInSeconds($log->created_at, false));
+                    $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
+                        $timeOut = maptech_model_storage_datetime($tl, 'time_out');
+                        if (!$timeOut || !$logAt) return PHP_INT_MAX;
+                        return abs($timeOut->diffInSeconds($logAt, false));
                     })->first();
             }
         }
@@ -245,12 +303,12 @@ Route::get('/me/audit-logs', function (Request $request) {
             'user_id' => $log->user_id,
             'action' => $log->action,
             'ip_address' => $log->ip_address,
-            'created_at' => optional($log->created_at)->setTimezone('UTC')->toIso8601String(),
-            'updated_at' => optional($log->updated_at)->setTimezone('UTC')->toIso8601String(),
+            'created_at' => maptech_model_field_utc_iso($log, 'created_at'),
+            'updated_at' => maptech_model_field_utc_iso($log, 'updated_at'),
             'time_log' => $log->time_log ? [
                 'id' => $log->time_log->id,
-                'time_in' => $log->time_log->time_in ? Carbon::parse($log->time_log->time_in)->setTimezone('UTC')->toIso8601String() : null,
-                'time_out' => $log->time_log->time_out ? Carbon::parse($log->time_log->time_out)->setTimezone('UTC')->toIso8601String() : null,
+                'time_in' => maptech_model_field_utc_iso($log->time_log, 'time_in'),
+                'time_out' => maptech_model_field_utc_iso($log->time_log, 'time_out'),
             ] : null,
         ];
     });
@@ -434,36 +492,39 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         // (for login -> match by nearby time_in; for logout -> match by nearby time_out).
         $logs = $logs->map(function ($log) {
             $timeLog = null;
-            if ($log->created_at) {
-                $start = $log->created_at->copy()->subMinutes(2);
-                $end = $log->created_at->copy()->addMinutes(2);
+            $logAt = maptech_model_storage_datetime($log, 'created_at');
+            if ($logAt) {
+                $start = $logAt->copy()->subMinutes(2)->toDateTimeString();
+                $end = $logAt->copy()->addMinutes(2)->toDateTimeString();
                 if ($log->action === 'login') {
                     $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
                         ->whereBetween('time_in', [$start, $end])
                         ->get();
-                    $timeLog = $candidates->sortBy(function ($tl) use ($log) {
-                        if (!$tl->time_in || !$log->created_at) return PHP_INT_MAX;
-                        return abs(Carbon::parse($tl->time_in)->diffInSeconds($log->created_at, false));
+                    $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
+                        $timeIn = maptech_model_storage_datetime($tl, 'time_in');
+                        if (!$timeIn || !$logAt) return PHP_INT_MAX;
+                        return abs($timeIn->diffInSeconds($logAt, false));
                     })->first();
                     if ($timeLog) {
                         $log->time_in = $timeLog->time_in;
                         $log->time_out = $timeLog->time_out;
                     } else {
-                        $log->time_in = $log->created_at;
+                        $log->time_in = $logAt;
                     }
                 } elseif ($log->action === 'logout') {
                     $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
                         ->whereBetween('time_out', [$start, $end])
                         ->get();
-                    $timeLog = $candidates->sortBy(function ($tl) use ($log) {
-                        if (!$tl->time_out || !$log->created_at) return PHP_INT_MAX;
-                        return abs(Carbon::parse($tl->time_out)->diffInSeconds($log->created_at, false));
+                    $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
+                        $timeOut = maptech_model_storage_datetime($tl, 'time_out');
+                        if (!$timeOut || !$logAt) return PHP_INT_MAX;
+                        return abs($timeOut->diffInSeconds($logAt, false));
                     })->first();
                     if ($timeLog) {
                         $log->time_in = $timeLog->time_in;
                         $log->time_out = $timeLog->time_out;
                     } else {
-                        $log->time_out = $log->created_at;
+                        $log->time_out = $logAt;
                     }
                 }
             }
@@ -503,7 +564,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 'user_id' => $log->user_id,
                 'action' => $log->action,
                 'ip_address' => $log->ip_address,
-                'created_at' => optional($log->created_at)->setTimezone('UTC')->toIso8601String(),
+                'created_at' => maptech_model_field_utc_iso($log, 'created_at'),
                 'user' => $log->user ? [
                     'id' => $log->user->id,
                     'fullname' => $log->user->fullname ?? ($log->user->fullName ?? ($log->user->name ?? null)),
@@ -513,8 +574,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 ] : null,
                 'time_log' => $log->time_log ? [
                     'id' => $log->time_log->id,
-                    'time_in' => $log->time_log->time_in ? Carbon::parse($log->time_log->time_in)->setTimezone('UTC')->toIso8601String() : null,
-                    'time_out' => $log->time_log->time_out ? Carbon::parse($log->time_log->time_out)->setTimezone('UTC')->toIso8601String() : null,
+                    'time_in' => maptech_model_field_utc_iso($log->time_log, 'time_in'),
+                    'time_out' => maptech_model_field_utc_iso($log->time_log, 'time_out'),
                 ] : null,
             ];
         });
