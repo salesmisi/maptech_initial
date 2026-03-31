@@ -95,9 +95,6 @@ export function AuditLogs() {
       setLoading(true);
       if (!_silent) setLoadError(null);
       let url = `${API}/audit-logs?page=${pageNum}&per_page=100`;
-      if (roleFilter !== "All") {
-        url += `&role=${encodeURIComponent(roleFilter.toLowerCase())}`;
-      }
       const res = await fetch(url, {
         credentials: "include",
         headers: {
@@ -132,7 +129,7 @@ export function AuditLogs() {
     } finally {
       setLoading(false);
     }
-  }, [API, roleFilter]);
+  }, [API]);
 
   const confirm = useConfirm();
   const { showConfirm } = confirm;
@@ -215,7 +212,11 @@ export function AuditLogs() {
   // Apply role/search filters
   const filteredSessions = sortSessions(
     sessions.filter((s) => {
-      if (roleFilter !== "All" && (s.user?.role || "") !== roleFilter) return false;
+      if (roleFilter !== "All") {
+        const userRole = (s.user?.role || "").trim().toLowerCase();
+        const selectedRole = roleFilter.trim().toLowerCase();
+        if (userRole !== selectedRole) return false;
+      }
       if (!search) return true;
       const q = search.toLowerCase();
       return (s.user?.fullname || "").toLowerCase().includes(q) || (s.user?.email || "").toLowerCase().includes(q);
