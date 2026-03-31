@@ -2,6 +2,8 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use App\Models\Department;
 use App\Models\Subdepartment;
 use App\Models\AuditLog;
@@ -458,6 +460,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             $query->where('user_id', $request->user_id);
         }
 
+        try {
+
         $logs = $query->get();
 
         // Add latest open login for every user (if not already present)
@@ -593,6 +597,73 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             'total' => $total,
             'per_page' => $perPage,
         ]);
+
+        } catch (\Throwable $e) {
+            Log::error('Admin audit logs endpoint failed; returning fallback payload', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            $fallbackQuery = DB::table('audit_logs as a')
+                ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
+                ->select([
+                    'a.id',
+                    'a.user_id',
+                    'a.action',
+                    'a.ip_address',
+                    'a.created_at',
+                    'u.id as user_id_ref',
+                    'u.fullname as user_fullname',
+                    'u.email as user_email',
+                    'u.role as user_role',
+                    'u.department as user_department',
+                ])
+                ->orderByDesc('a.created_at');
+
+            if ($roleFilter) {
+                $fallbackQuery->whereRaw('LOWER(u.role) = ?', [$roleFilter]);
+            }
+
+            if ($request->has('user_id')) {
+                $fallbackQuery->where('a.user_id', $request->user_id);
+            }
+
+            $perPage = 50;
+            $page = max(1, (int)$request->input('page', 1));
+            $fallbackTotal = (clone $fallbackQuery)->count('a.id');
+            $fallbackLogs = $fallbackQuery->skip(($page - 1) * $perPage)->take($perPage)->get();
+
+            $data = collect($fallbackLogs)->map(function ($log) {
+                $createdAt = maptech_parse_storage_datetime($log->created_at);
+                $hasUser = !empty($log->user_id_ref);
+
+                return [
+                    'id' => $log->id,
+                    'user_id' => $log->user_id,
+                    'action' => $log->action,
+                    'ip_address' => $log->ip_address,
+                    'created_at' => $createdAt ? $createdAt->utc()->toIso8601String() : null,
+                    'user' => $hasUser ? [
+                        'id' => $log->user_id_ref,
+                        'fullname' => $log->user_fullname,
+                        'email' => $log->user_email,
+                        'role' => $log->user_role,
+                        'department' => $log->user_department,
+                    ] : null,
+                    'time_log' => null,
+                ];
+            })->values();
+
+            return response()->json([
+                'data' => $data,
+                'current_page' => $page,
+                'last_page' => (int) ceil($fallbackTotal / $perPage),
+                'total' => $fallbackTotal,
+                'per_page' => $perPage,
+                'fallback' => true,
+            ]);
+        }
     });
     // Bulk delete audit logs by id
     Route::post('/audit-logs/bulk-delete', function (Request $request) {
