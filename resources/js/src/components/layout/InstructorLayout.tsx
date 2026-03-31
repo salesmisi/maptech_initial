@@ -129,7 +129,7 @@ export function InstructorLayout({
                     onClick={() => setShowPicPreview(true)}
                   />
                 ) : (
-                  <div className="inline-block h-9 w-9 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold">
+                  <div className="h-9 w-9 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold">
                     {(displayName?.charAt(0) ?? 'U').toUpperCase()}
                   </div>
                 )}

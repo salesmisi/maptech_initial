@@ -918,7 +918,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                             <p className="text-xs text-slate-400 italic">No lessons yet. Add one below.</p>
                           ) : (
                             <div className="space-y-2">
-                              {safeArray(lesson && mod.lessons ? mod.lessons : mod.lessons).map((lesson, li) => {
+                              {safeArray(mod.lessons).map((lesson, li) => {
                                 const isEditingThisLesson = editingLessonId === lesson.id;
                                 return (
                                   <div key={lesson.id} className="rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">

@@ -115,7 +115,7 @@ const initialCourses: Course[] = [
   description: 'OSHA guidelines and emergency procedures.',
   department: 'Operations',
   instructor: 'Prof. Ana Reyes',
-  status: 'Archived',
+  status: 'Inactive',
   enrolledCount: 210,
   modulesCount: 4,
   thumbnail: 'bg-red-500',

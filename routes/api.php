@@ -224,8 +224,8 @@ use App\Http\Controllers\Admin\QuizController as AdminQuizController;
 use App\Http\Controllers\AnalyticsController;
 
 // Test route for debugging
-Route::get('/test-auth', function () {
-    $user = request()->user();
+Route::get('/test-auth', function (Request $request) {
+    $user = $request->user();
     return response()->json([
         'message' => 'API is working',
         'timestamp' => Carbon::now()->utc()->toIso8601String(),

@@ -29,6 +29,8 @@ interface DashboardData {
   user: {
     id: number;
     name: string;
+    fullName?: string;
+    fullname?: string;
     email: string;
     department: string;
   };
@@ -171,8 +173,10 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
           courses: mappedCourses,
           total_courses: mappedCourses.length,
         });
+        return data;
       } catch (error) {
         console.error('Error loading dashboard:', error);
+        return null;
       } finally {
         setLoading(false);
       }
@@ -180,7 +184,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
     const handles: any = {};
     const runAsync = async () => {
-      await loadDashboard();
+      const dashboard = await loadDashboard();
       const initial = await loadNotifications();
       await loadQuizReminders();
       // initialize last unread count after initial load
@@ -188,8 +192,9 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       // Subscribe to realtime notifications channel (if Echo is available)
       try {
         const Echo = (window as any).Echo;
-        if (Echo && typeof Echo.private === 'function' && data?.user?.id) {
-          const notifChannel = Echo.private('notifications.' + data.user.id);
+        const dashboardUserId = dashboard?.user?.id;
+        if (Echo && typeof Echo.private === 'function' && dashboardUserId) {
+          const notifChannel = Echo.private('notifications.' + dashboardUserId);
           const createdHandler = (payload: any) => {
             const n = payload?.notification || payload;
             if (!n) return;
@@ -226,7 +231,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             // new notifications arrived
             const latest = await loadNotifications();
             const newOnes = (latest || []).filter((n: any) => !n.read).slice(0, count - lastUnreadRef.current);
-            newOnes.forEach(n => {
+            newOnes.forEach((n: any) => {
               pushToast(n.title, n.message, 'info', 6000);
             });
             lastUnreadRef.current = count;

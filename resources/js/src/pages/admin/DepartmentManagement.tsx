@@ -221,7 +221,7 @@ export default function DepartmentManagement() {
 
       setShowDeptModal(false);
       setEditing(null);
-      setDeptForm({ name: "", code: "", head: "", description: "" });
+      setDeptForm({ name: "", code: "", head: "", head_id: "", description: "" });
       await loadDepartments();
     } catch (err: any) {
       alert(err.message || "An error occurred");
@@ -439,7 +439,7 @@ export default function DepartmentManagement() {
                       code: dept.code,
                       head: dept.head,
                       head_id: dept.head_id || "",
-                      description: dept.description,
+                      description: dept.description || "",
                     });
                     setShowDeptModal(true);
                   }}

@@ -46,6 +46,16 @@ export function EmployeeNotifications() {
   const confirm = useConfirm();
   const { showConfirm } = confirm;
 
+  const fetchOptions = (method: 'GET' | 'POST', body?: unknown): RequestInit => ({
+    method,
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+
   useEffect(() => {
     fetchNotifications();
     fetchUnreadCount();

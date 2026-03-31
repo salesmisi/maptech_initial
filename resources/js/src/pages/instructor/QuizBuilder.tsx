@@ -433,7 +433,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
   };
 
   const handleDeleteQuestion = async (questionId: number) => {
-    showConfirm('Delete this question?', async () => {
+    showConfirm2('Delete this question?', async () => {
     setDeletingQuestionId(questionId);
     try {
       const token = await getXsrfToken();

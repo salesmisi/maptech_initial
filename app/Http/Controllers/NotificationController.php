@@ -40,15 +40,24 @@ class NotificationController extends Controller
      */
     public function markRead(Request $request, $id)
     {
-        $userId = Auth::id();
+        $user = $request->user() ?? Auth::user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
 
-        // Cache the unread count for a very short window to avoid repeated DB hits
-        // (frontend polls this endpoint frequently). TTL: 3 seconds.
-        $count = Cache::remember("user:{$userId}:notifications:unread_count", 3, function () use ($userId) {
-            return Notification::where('user_id', $userId)->whereNull('read_at')->count();
-        });
+        $notification = Notification::where('id', $id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        $notification->update(['read_at' => Carbon::now()->utc()]);
+
+        Cache::forget("user:{$user->id}:notifications:unread_count");
+        $count = Notification::where('user_id', $user->id)->whereNull('read_at')->count();
+        event(new NotificationCountUpdated($user->id, $count));
 
         return response()->json([
+            'message' => 'Notification marked as read',
+            'notification' => $notification,
             'count' => $count,
         ]);
     }
@@ -58,17 +67,18 @@ class NotificationController extends Controller
      */
     public function unreadCount(Request $request)
     {
-        $user = Auth::user();
+        $user = $request->user() ?? Auth::user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
 
-        $notification = Notification::where('id', $id)
-            ->where('user_id', $user->id)
-            ->firstOrFail();
-
-        $notification->update(['read_at' => Carbon::now()->utc()]);
+        $userId = (int) $user->id;
+        $count = Cache::remember("user:{$userId}:notifications:unread_count", 3, function () use ($userId) {
+            return Notification::where('user_id', $userId)->whereNull('read_at')->count();
+        });
 
         return response()->json([
-            'message' => 'Notification marked as read',
-            'notification' => $notification,
+            'count' => $count,
         ]);
     }
 
@@ -91,6 +101,22 @@ class NotificationController extends Controller
         return response()->json([
             'message' => 'All notifications marked as read',
         ]);
+    }
+
+    /**
+     * Backward-compatible alias used by API routes.
+     */
+    public function markAsRead(Request $request, $id)
+    {
+        return $this->markRead($request, $id);
+    }
+
+    /**
+     * Backward-compatible alias used by API routes.
+     */
+    public function markAllAsRead(Request $request)
+    {
+        return $this->readAll($request);
     }
 
     /**
@@ -253,7 +279,11 @@ class NotificationController extends Controller
             'type' => 'nullable|string|in:announcement,lesson_update,quiz_reminder',
         ]);
 
+        /** @var User|null $instructor */
         $instructor = Auth::user();
+        if (! $instructor) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
 
         $courseId = $request->input('course_id');
         $department = $request->input('department');

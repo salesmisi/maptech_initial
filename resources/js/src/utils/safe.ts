@@ -1,4 +1,4 @@
-export function safeArray<T>(v: any): T[] {
+export function safeArray<T = any>(v: any): T[] {
   return Array.isArray(v) ? v as T[] : [];
 }
 

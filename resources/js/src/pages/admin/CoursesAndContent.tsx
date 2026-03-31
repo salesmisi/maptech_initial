@@ -307,6 +307,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           description: 'Learn the basics of networking',
           department: 'IT',
           instructor: 'Admin',
+          instructor_id: null,
           status: 'Active' as const,
           modules_count: 2,
           enrolled_count: 0,
@@ -1597,7 +1598,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                             const term = enrollSearchTerm.toLowerCase();
                             const alreadyEnrolled = enrolledStudents.some(s => s.id === u.id);
                             return !alreadyEnrolled && (
-                              (u.fullName || u.name || '').toLowerCase().includes(term) ||
+                              (u.fullName || '').toLowerCase().includes(term) ||
                               u.email.toLowerCase().includes(term)
                             );
                           })
@@ -1608,7 +1609,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                               onClick={() => { handleEnrollStudent(u.id); setEnrollSearchTerm(''); }}
                               className="w-full text-left px-3 py-2 hover:bg-orange-50 border-b border-gray-100 last:border-0"
                             >
-                              <div className="text-sm font-medium text-gray-900">{u.fullName || u.name}</div>
+                              <div className="text-sm font-medium text-gray-900">{u.fullName}</div>
                               <div className="text-xs text-gray-500">{u.email} &middot; {u.department || 'No Dept'}</div>
                             </button>
                           ))}
@@ -1616,7 +1617,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                           const term = enrollSearchTerm.toLowerCase();
                           const alreadyEnrolled = enrolledStudents.some(s => s.id === u.id);
                           return !alreadyEnrolled && (
-                            (u.fullName || u.name || '').toLowerCase().includes(term) ||
+                            (u.fullName || '').toLowerCase().includes(term) ||
                             u.email.toLowerCase().includes(term)
                           );
                         }).length === 0 && (

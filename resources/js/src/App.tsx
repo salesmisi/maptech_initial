@@ -549,7 +549,7 @@ export function App() {
 
   return (
     <>
-      <LoginPage onLogin={handleLogin} />
+      <LoginPage onLogin={handleLogin} theme={theme} />
       {renderThemeToggle()}
     </>
   );

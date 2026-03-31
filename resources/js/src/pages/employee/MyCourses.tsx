@@ -28,6 +28,11 @@ interface Course {
   has_manual_unlock?: boolean;
 }
 
+interface Department {
+  id: number;
+  name: string;
+}
+
 interface MyCoursesProps {
   onNavigate: (page: string, courseId?: string) => void;
   globalSearch?: string;

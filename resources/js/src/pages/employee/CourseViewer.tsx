@@ -527,7 +527,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
               // YouTube player container; we'll initialize the YT player via JS API
               <YouTubePlayer contentUrl={content_url!} lessonId={currentLesson!.id} />
             ) : (
-              <video controls className="w-full h-full" src={content_url}>
+              <video controls className="w-full h-full" src={content_url || undefined}>
                 Your browser does not support the video tag.
               </video>
             )}
@@ -544,7 +544,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
             <Music className="h-20 w-20 text-slate-400 mb-4" />
             <h3 className="text-lg font-medium text-slate-700 mb-4">{title}</h3>
             <audio controls className="w-full max-w-md">
-              <source src={content_url} />
+              <source src={content_url || undefined} />
               Your browser does not support the audio element.
             </audio>
           </div>
@@ -557,7 +557,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
         <div className="space-y-4">
           {textBlock}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden" style={{ height: '70vh' }}>
-            <iframe src={content_url} className="w-full h-full" title={title} />
+            <iframe src={content_url || undefined} className="w-full h-full" title={title} />
           </div>
         </div>
       );
@@ -573,7 +573,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
             This file type is best viewed by downloading it.
           </p>
           <a
-            href={content_url}
+            href={content_url || undefined}
             download
             target="_blank"
             rel="noopener noreferrer"
@@ -583,7 +583,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
             Download File
           </a>
           <a
-            href={content_url}
+            href={content_url || undefined}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-3 text-sm text-green-600 hover:text-green-700"
@@ -1132,7 +1132,14 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
                 }
                 const total = quiz.length;
                 const scorePercent = total > 0 ? Math.round((correct / total) * 100) : 0;
-                setQuizResult({ score: correct, total });
+                const passPercentage = currentModule.quiz?.pass_percentage ?? 70;
+                setQuizResult({
+                  score: correct,
+                  total,
+                  percentage: scorePercent,
+                  passed: scorePercent >= passPercentage,
+                  pass_percentage: passPercentage,
+                });
 
                 // Persist the attempt to the backend
                 try {
@@ -1142,7 +1149,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
                     headers: {
                       'Content-Type': 'application/json',
                       'Accept': 'application/json',
-                      'X-XSRF-TOKEN': decodeURIComponent(getCookie('XSRF-TOKEN')),
+                      'X-XSRF-TOKEN': decodeURIComponent(getCookie('XSRF-TOKEN') || ''),
                     },
                     body: JSON.stringify({
                       score: scorePercent,
@@ -1193,7 +1200,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
                   )}
                 </div>
               );
-            })}
+            })()}
           </div>
         </div>
       </div>
