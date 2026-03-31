@@ -437,175 +437,21 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::delete('/questions/{questionId}/replies/{replyId}', [\App\Http\Controllers\QAController::class, 'destroyReply']);
     Route::post('/questions/{questionId}/replies/{replyId}/reactions', [\App\Http\Controllers\QAController::class, 'toggleReaction']);
 
-    // Audit Logs
+    // Audit Logs (stable query path)
     Route::get('/audit-logs', function (Request $request) {
-        // Get all audit logs as before
-        $query = AuditLog::with('user:id,fullname,email,role,department')
-            ->orderByDesc('created_at');
-
-        // Optional filters
         $roleFilter = null;
         if ($request->filled('role')) {
-            $roleFilter = strtolower($request->input('role'));
-            if (!in_array($roleFilter, ['admin', 'instructor', 'employee'])) {
+            $roleFilter = strtolower((string) $request->input('role'));
+            if (!in_array($roleFilter, ['admin', 'instructor', 'employee'], true)) {
                 return response()->json(['message' => 'Invalid role filter'], 422);
             }
-            // Filter audit logs by the user's role
-            $query->whereHas('user', function ($q) use ($roleFilter) {
-                $q->whereRaw('LOWER(role) = ?', [$roleFilter]);
-            });
         }
 
-        if ($request->has('user_id')) {
-            $query->where('user_id', $request->user_id);
-        }
+        $perPage = max(1, min(200, (int) $request->input('per_page', 50)));
+        $page = max(1, (int) $request->input('page', 1));
 
         try {
-
-        $logs = $query->get();
-
-        // Add latest open login for every user (if not already present)
-        // Respect the role filter when collecting user ids
-        $userQuery = \App\Models\User::query();
-        if ($roleFilter) {
-            $userQuery->whereRaw('LOWER(role) = ?', [$roleFilter]);
-        }
-        $userIds = $userQuery->pluck('id');
-        foreach ($userIds as $uid) {
-            $latestLogin = AuditLog::where('user_id', $uid)
-                ->where('action', 'login')
-                ->orderByDesc('created_at')
-                ->first();
-
-            $latestLogoutQuery = AuditLog::where('user_id', $uid)
-                ->where('action', 'logout');
-            if ($latestLogin && $latestLogin->created_at) {
-                $latestLogoutQuery->where('created_at', '>=', $latestLogin->created_at);
-            }
-            $latestLogout = $latestLogoutQuery->orderByDesc('created_at')->first();
-            if ($latestLogin && (!$latestLogout || $latestLogout->created_at < $latestLogin->created_at)) {
-                if (!$logs->contains('id', $latestLogin->id)) {
-                    $logs = $logs->concat([
-                        $latestLogin->load('user:id,fullname,email,role,department')
-                    ]);
-                }
-            }
-        }
-
-        // For each audit entry, attempt to attach the matching time_log
-        // (for login -> match by nearby time_in; for logout -> match by nearby time_out).
-        $logs = $logs->map(function ($log) {
-            $timeLog = null;
-            $logAt = maptech_model_storage_datetime($log, 'created_at');
-            if ($logAt) {
-                $start = $logAt->copy()->subMinutes(2)->toDateTimeString();
-                $end = $logAt->copy()->addMinutes(2)->toDateTimeString();
-                if ($log->action === 'login') {
-                    $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
-                        ->whereBetween('time_in', [$start, $end])
-                        ->get();
-                    $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
-                        $timeIn = maptech_model_storage_datetime($tl, 'time_in');
-                        if (!$timeIn || !$logAt) return PHP_INT_MAX;
-                        return abs($timeIn->diffInSeconds($logAt, false));
-                    })->first();
-                    if ($timeLog) {
-                        $log->time_in = $timeLog->time_in;
-                        $log->time_out = $timeLog->time_out;
-                    } else {
-                        $log->time_in = $logAt;
-                    }
-                } elseif ($log->action === 'logout') {
-                    $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
-                        ->whereBetween('time_out', [$start, $end])
-                        ->get();
-                    $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
-                        $timeOut = maptech_model_storage_datetime($tl, 'time_out');
-                        if (!$timeOut || !$logAt) return PHP_INT_MAX;
-                        return abs($timeOut->diffInSeconds($logAt, false));
-                    })->first();
-                    if ($timeLog) {
-                        $log->time_in = $timeLog->time_in;
-                        $log->time_out = $timeLog->time_out;
-                    } else {
-                        $log->time_out = $logAt;
-                    }
-                }
-            }
-            $log->time_log = $timeLog;
-            return $log;
-        });
-
-        // Sort logs by created_at desc
-        $logs = $logs->sortByDesc('created_at')->values();
-
-        // Normalize user payloads: ensure `user` exists and has `fullname` (handle camelCase `fullName` column in local DB)
-        $logs = $logs->map(function ($log) {
-            if (!$log->user && $log->user_id) {
-                $u = \App\Models\User::find($log->user_id);
-                if ($u) {
-                    $log->user = (object) [
-                        'id' => $u->id,
-                        'fullname' => $u->fullName ?? $u->fullname ?? $u->name ?? null,
-                        'email' => $u->email,
-                        'role' => $u->role,
-                        'department' => $u->department,
-                    ];
-                }
-            } else if ($log->user) {
-                // ensure fullname property exists even if returned as fullName
-                $user = $log->user;
-                $user->fullname = $user->fullname ?? ($user->fullName ?? ($user->name ?? null));
-                $log->user = $user;
-            }
-            return $log;
-        });
-
-        // Normalize output timestamps to ISO8601 UTC to keep frontend time rendering consistent.
-        $logs = $logs->map(function ($log) {
-            return [
-                'id' => $log->id,
-                'user_id' => $log->user_id,
-                'action' => $log->action,
-                'ip_address' => $log->ip_address,
-                'created_at' => maptech_model_field_utc_iso($log, 'created_at'),
-                'user' => $log->user ? [
-                    'id' => $log->user->id,
-                    'fullname' => $log->user->fullname ?? ($log->user->fullName ?? ($log->user->name ?? null)),
-                    'email' => $log->user->email,
-                    'role' => $log->user->role,
-                    'department' => $log->user->department,
-                ] : null,
-                'time_log' => $log->time_log ? [
-                    'id' => $log->time_log->id,
-                    'time_in' => maptech_model_field_utc_iso($log->time_log, 'time_in'),
-                    'time_out' => maptech_model_field_utc_iso($log->time_log, 'time_out'),
-                ] : null,
-            ];
-        });
-
-        // Paginate manually
-        $perPage = 50;
-        $page = max(1, (int)$request->input('page', 1));
-        $total = $logs->count();
-        $paged = $logs->slice(($page - 1) * $perPage, $perPage)->values();
-
-        return response()->json([
-            'data' => $paged,
-            'current_page' => $page,
-            'last_page' => ceil($total / $perPage),
-            'total' => $total,
-            'per_page' => $perPage,
-        ]);
-
-        } catch (\Throwable $e) {
-            Log::error('Admin audit logs endpoint failed; returning fallback payload', [
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-
-            $fallbackQuery = DB::table('audit_logs as a')
+            $query = DB::table('audit_logs as a')
                 ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
                 ->select([
                     'a.id',
@@ -613,43 +459,43 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                     'a.action',
                     'a.ip_address',
                     'a.created_at',
-                    'u.id as user_id_ref',
+                    'u.id as user_ref_id',
                     'u.fullname as user_fullname',
                     'u.email as user_email',
                     'u.role as user_role',
                     'u.department as user_department',
-                ])
-                ->orderByDesc('a.created_at');
+                ]);
 
             if ($roleFilter) {
-                $fallbackQuery->whereRaw('LOWER(u.role) = ?', [$roleFilter]);
+                $query->whereRaw('LOWER(u.role) = ?', [$roleFilter]);
             }
 
-            if ($request->has('user_id')) {
-                $fallbackQuery->where('a.user_id', $request->user_id);
+            if ($request->filled('user_id')) {
+                $query->where('a.user_id', (int) $request->input('user_id'));
             }
 
-            $perPage = 50;
-            $page = max(1, (int)$request->input('page', 1));
-            $fallbackTotal = (clone $fallbackQuery)->count('a.id');
-            $fallbackLogs = $fallbackQuery->skip(($page - 1) * $perPage)->take($perPage)->get();
+            $total = (clone $query)->count('a.id');
+            $rows = $query
+                ->orderByDesc('a.created_at')
+                ->forPage($page, $perPage)
+                ->get();
 
-            $data = collect($fallbackLogs)->map(function ($log) {
-                $createdAt = maptech_parse_storage_datetime($log->created_at);
-                $hasUser = !empty($log->user_id_ref);
+            $data = collect($rows)->map(function ($row) {
+                $createdAt = maptech_parse_storage_datetime($row->created_at);
+                $hasUser = !empty($row->user_ref_id);
 
                 return [
-                    'id' => $log->id,
-                    'user_id' => $log->user_id,
-                    'action' => $log->action,
-                    'ip_address' => $log->ip_address,
+                    'id' => $row->id,
+                    'user_id' => $row->user_id,
+                    'action' => $row->action,
+                    'ip_address' => $row->ip_address,
                     'created_at' => $createdAt ? $createdAt->utc()->toIso8601String() : null,
                     'user' => $hasUser ? [
-                        'id' => $log->user_id_ref,
-                        'fullname' => $log->user_fullname,
-                        'email' => $log->user_email,
-                        'role' => $log->user_role,
-                        'department' => $log->user_department,
+                        'id' => $row->user_ref_id,
+                        'fullname' => $row->user_fullname,
+                        'email' => $row->user_email,
+                        'role' => $row->user_role,
+                        'department' => $row->user_department,
                     ] : null,
                     'time_log' => null,
                 ];
@@ -658,11 +504,25 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             return response()->json([
                 'data' => $data,
                 'current_page' => $page,
-                'last_page' => (int) ceil($fallbackTotal / $perPage),
-                'total' => $fallbackTotal,
+                'last_page' => (int) ceil($total / $perPage),
+                'total' => $total,
                 'per_page' => $perPage,
-                'fallback' => true,
             ]);
+        } catch (\Throwable $e) {
+            Log::error('Admin audit logs stable query failed', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'data' => [],
+                'current_page' => $page,
+                'last_page' => 1,
+                'total' => 0,
+                'per_page' => $perPage,
+                'message' => 'Audit logs are temporarily unavailable.',
+            ], 200);
         }
     });
     // Bulk delete audit logs by id
