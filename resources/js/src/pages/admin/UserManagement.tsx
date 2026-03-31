@@ -292,7 +292,17 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
       setSubmitting(false);
       return;
     }
-    // Department selection removed from modal; do not enforce department here.
+    if (formData.role === 'Employee' && !formData.department) {
+      setFormError('Department is required for Employee role');
+      setSubmitting(false);
+      return;
+    }
+
+    if (formData.role === 'Employee' && !formData.subdepartment_id) {
+      setFormError('Subdepartment is required for Employee role');
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const xsrfToken = await getXsrfToken();
@@ -740,13 +750,15 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
 
                   {formRole === 'Employee' && formDepartment && (
                     <div>
-                      <label className="block text-sm font-medium text-slate-700">Subdepartment</label>
+                      <label className="block text-sm font-medium text-slate-700">
+                        Subdepartment <span className="text-red-500">*</span>
+                      </label>
                       <select
                         value={formSubdepartment}
                         onChange={(e) => setFormSubdepartment(e.target.value)}
                         className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                       >
-                        <option value="">Select subdepartment (optional)</option>
+                        <option value="">Select subdepartment</option>
                         {(departments.find(d => d.name === formDepartment)?.subdepartments || []).map(s => (
                           <option key={s.id} value={String(s.id)}>{s.name}</option>
                         ))}

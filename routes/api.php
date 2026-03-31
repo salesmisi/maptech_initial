@@ -18,6 +18,7 @@ Route::get('/departments', function () {
     return Department::with([
         'subdepartments.headUser:id,fullname',
         'subdepartments.employee:id,fullname',
+        'subdepartments.employees:id,fullname,email,department,subdepartment_id',
         'headUser:id,fullname'
     ])->get();
 });
@@ -28,7 +29,19 @@ Route::post('/departments', function (Request $request) {
     $request->validate([
         'name' => 'required|string|max:255',
         'code' => 'required|string|max:50|unique:departments,code',
+        'head_id' => 'nullable|exists:users,id',
     ]);
+
+    if ($request->filled('head_id')) {
+        $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
+        $headRole = strtolower((string) ($headUser?->role ?? ''));
+        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
+            return response()->json([
+                'message' => 'Department head must be an Admin or Instructor.',
+                'errors' => ['head_id' => ['Department head must be an Admin or Instructor.']]
+            ], 422);
+        }
+    }
 
     return Department::create([
         'name' => $request->name,
@@ -46,6 +59,23 @@ Route::post('/departments', function (Request $request) {
 Route::put('/departments/{id}', function (Request $request, $id) {
 
     $department = Department::findOrFail($id);
+
+    $request->validate([
+        'name' => 'required|string|max:255',
+        'code' => 'required|string|max:50',
+        'head_id' => 'nullable|exists:users,id',
+    ]);
+
+    if ($request->filled('head_id')) {
+        $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
+        $headRole = strtolower((string) ($headUser?->role ?? ''));
+        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
+            return response()->json([
+                'message' => 'Department head must be an Admin or Instructor.',
+                'errors' => ['head_id' => ['Department head must be an Admin or Instructor.']]
+            ], 422);
+        }
+    }
 
     $department->update([
         'name' => $request->name,
@@ -85,6 +115,17 @@ Route::post('/departments/{id}/subdepartments', function (Request $request, $id)
         'employee_id' => 'nullable|exists:users,id',
     ]);
 
+    if ($request->filled('head_id')) {
+        $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
+        $headRole = strtolower((string) ($headUser?->role ?? ''));
+        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
+            return response()->json([
+                'message' => 'Subdepartment head must be an Admin or Instructor.',
+                'errors' => ['head_id' => ['Subdepartment head must be an Admin or Instructor.']]
+            ], 422);
+        }
+    }
+
     $subdepartment = Subdepartment::create([
         'department_id' => $id,
         'name' => $request->name,
@@ -93,7 +134,7 @@ Route::post('/departments/{id}/subdepartments', function (Request $request, $id)
         'employee_id' => $request->employee_id,
     ]);
 
-    return $subdepartment->load(['headUser:id,fullname', 'employee:id,fullname']);
+    return $subdepartment->load(['headUser:id,fullname', 'employee:id,fullname', 'employees:id,fullname,email,department,subdepartment_id']);
 });
 
 // UPDATE SUBDEPARTMENT
@@ -107,13 +148,24 @@ Route::put('/subdepartments/{id}', function (Request $request, $id) {
         'employee_id' => 'nullable|exists:users,id',
     ]);
 
+    if ($request->filled('head_id')) {
+        $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
+        $headRole = strtolower((string) ($headUser?->role ?? ''));
+        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
+            return response()->json([
+                'message' => 'Subdepartment head must be an Admin or Instructor.',
+                'errors' => ['head_id' => ['Subdepartment head must be an Admin or Instructor.']]
+            ], 422);
+        }
+    }
+
     $subdepartment->update([
         'name' => $request->name,
         'head_id' => $request->head_id,
         'employee_id' => $request->employee_id,
     ]);
 
-    return $subdepartment->load(['headUser:id,fullname', 'employee:id,fullname']);
+    return $subdepartment->load(['headUser:id,fullname', 'employee:id,fullname', 'employees:id,fullname,email,department,subdepartment_id']);
 });
 
 // DELETE SUBDEPARTMENT
