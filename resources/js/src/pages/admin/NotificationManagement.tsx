@@ -85,16 +85,6 @@ export function NotificationManagement() {
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
-  const fetchOptions = (method: 'GET' | 'POST', body?: unknown): RequestInit => ({
-    method,
-    credentials: 'include',
-    headers: {
-      'Accept': 'application/json',
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-
   // Load notifications and sent history
   useEffect(() => {
     console.debug('NotificationManagement mounted', { formData });

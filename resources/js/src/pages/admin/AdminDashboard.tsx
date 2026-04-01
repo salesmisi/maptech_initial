@@ -182,7 +182,7 @@ export function AdminDashboard({ onNavigate }: Props) {
   const cleanedPopularCourses = popularCourses.map((course) => ({
     ...course,
     name: (course.name ?? '')
-      .replace(/(ΓÇª|Γçª|â€¦|…|Ã¢â‚¬Â¦|çª|Çª)/g, ' ')
+      .replace(/(ΓÇª|Γçª|â€¦|Ã¢â‚¬Â¦|çª|Çª|\u2026)/g, ' ')
       .replace(/[\u0000-\u001F\u007F\u0080-\u009F\u2028\u2029\uFFFD]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim(),
@@ -195,6 +195,7 @@ export function AdminDashboard({ onNavigate }: Props) {
   const completionSliceStroke = isDarkMode ? 'rgba(148, 163, 184, 0.5)' : 'rgba(100, 116, 139, 0.45)';
   const activeRingFill = isDarkMode ? 'rgba(226, 232, 240, 0.42)' : 'rgba(71, 85, 105, 0.28)';
   const trendActiveDotStroke = isDarkMode ? '#0b1220' : '#ffffff';
+  const popularCourseLabelWidth = 210;
   const chartTooltipClass = isDarkMode
     ? 'rounded-lg border border-slate-700/60 bg-slate-900/88 px-3 py-2 shadow-md backdrop-blur-sm'
     : 'rounded-lg border border-slate-200/90 bg-white/96 px-3 py-2 shadow-sm backdrop-blur-sm';
@@ -425,7 +426,6 @@ export function AdminDashboard({ onNavigate }: Props) {
                       data={completionStatus}
                       cx="50%"
                       cy="48%"
-                      activeIndex={completionHoverIndex}
                       activeShape={renderActiveCompletionSlice}
                       onMouseEnter={(_, index) => setCompletionHoverIndex(index)}
                       onMouseLeave={() => setCompletionHoverIndex(undefined)}
@@ -494,7 +494,7 @@ export function AdminDashboard({ onNavigate }: Props) {
         ) : (
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={popularCourses} layout="vertical">
+              <BarChart data={cleanedPopularCourses} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={chartGridColor} />
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
                 <YAxis
@@ -544,18 +544,14 @@ export function AdminDashboard({ onNavigate }: Props) {
               <thead className="bg-slate-50 dark:bg-slate-800/80">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                     User
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                     Action
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                     Target
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                     Time
                   </th>
@@ -620,7 +616,6 @@ export function AdminDashboard({ onNavigate }: Props) {
               </div>
               <div className="ml-3">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                   Create New Course
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -637,7 +632,6 @@ export function AdminDashboard({ onNavigate }: Props) {
               </div>
               <div className="ml-3">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                   Add Employee
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Register a new user</p>
@@ -651,7 +645,6 @@ export function AdminDashboard({ onNavigate }: Props) {
                 <Bell className="h-5 w-5 text-purple-700 dark:text-violet-300" />
               </div>
               <div className="ml-3">
-                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                   Send Notification
                 </p>

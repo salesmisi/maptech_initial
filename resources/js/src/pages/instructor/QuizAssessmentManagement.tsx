@@ -43,6 +43,18 @@ interface QuizSummary {
   created_at: string;
 }
 
+interface QuizQuestionOptionItem {
+  id: number;
+  option_text: string;
+  is_correct: boolean;
+}
+
+interface QuizQuestionItem {
+  id: number;
+  question_text: string;
+  options: QuizQuestionOptionItem[];
+}
+
 const DEPT_HEADER_COLORS: Record<string, string> = {
   IT: 'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/30 dark:border-blue-700/60 dark:text-blue-200',
   HR: 'bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-900/30 dark:border-purple-700/60 dark:text-purple-200',

@@ -251,7 +251,7 @@ export function ReportsAnalytics() {
             disabled={exporting}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-60">
             <Download className="h-4 w-4 mr-2" />
-            {exporting ? 'ExportingΓÇª' : 'Export Report'}
+            {exporting ? 'Exporting...' : 'Export Report'}
           </button>
         </div>
       </div>
@@ -263,7 +263,7 @@ export function ReportsAnalytics() {
             Overall Completion Status
           </h3>
           {loading ? (
-            <div className="h-80 flex items-center justify-center text-slate-400">LoadingΓÇª</div>
+            <div className="h-80 flex items-center justify-center text-slate-400">Loading...</div>
           ) : completionData.every((d) => d.value === 0) ? (
             <div className="h-80 flex items-center justify-center text-slate-400">No enrollment data yet</div>
           ) : (
@@ -275,7 +275,6 @@ export function ReportsAnalytics() {
                       data={completionData}
                       cx="50%"
                       cy="48%"
-                      activeIndex={completionHoverIndex}
                       activeShape={renderActiveCompletionSlice}
                       onMouseEnter={(_, index) => setCompletionHoverIndex(index)}
                       onMouseLeave={() => setCompletionHoverIndex(undefined)}
@@ -319,7 +318,7 @@ export function ReportsAnalytics() {
           </h3>
           <div className="h-80">
             {loading ? (
-              <div className="flex items-center justify-center h-full text-slate-400">LoadingΓÇª</div>
+              <div className="flex items-center justify-center h-full text-slate-400">Loading...</div>
             ) : monthlyTrends.length === 0 ? (
               <div className="flex items-center justify-center h-full text-slate-400">No trend data yet</div>
             ) : (
@@ -347,7 +346,7 @@ export function ReportsAnalytics() {
             Most Popular Courses
           </h3>
           {loading ? (
-            <div className="h-80 flex items-center justify-center text-slate-400">LoadingΓÇª</div>
+            <div className="h-80 flex items-center justify-center text-slate-400">Loading...</div>
           ) : popularCourses.length === 0 ? (
             <div className="h-80 flex items-center justify-center text-slate-400">No course enrollment data yet</div>
           ) : (
@@ -363,7 +362,7 @@ export function ReportsAnalytics() {
                     axisLine={false}
                     tickLine={false}
                     tick={{ fontSize: 12, fill: chartAxisTickColor }}
-                    tickFormatter={(v: string) => v.length > 22 ? v.slice(0, 22) + 'ΓÇª' : v}
+                    tickFormatter={(v: string) => v.length > 22 ? v.slice(0, 22) + '...' : v}
                   />
                   <Tooltip content={renderPopularCoursesTooltip} cursor={{ fill: 'rgba(46, 168, 95, 0.08)' }} />
                   <Bar

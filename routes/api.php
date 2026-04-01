@@ -3,17 +3,18 @@
 use App\Models\AuditLog;
 use App\Models\Department;
 use App\Models\Subdepartment;
+use App\Models\TimeLog;
+use App\Support\AuditDate;
+use App\Http\Controllers\LoginController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
-
 /*
-|--------------------------------------------------------------------------
-| DEPARTMENT ROUTES
-|--------------------------------------------------------------------------
+|-|--------------------------------------------------------------------------
+| AUTHENTICATION ROUTES
+|-|--------------------------------------------------------------------------
 */
-
-// GET ALL DEPARTMENTS (with subdepartments and head user)
 Route::get('/departments', function () {
     return Department::with([
         'subdepartments.headUser:id,fullname',
@@ -182,9 +183,6 @@ Route::delete('/subdepartments/{id}', function ($id) {
 |--------------------------------------------------------------------------
 */
 
-use App\Http\Controllers\LoginController;
-use Illuminate\Support\Facades\Log;
-
 // API Token Login (JWT-like)
 Route::post('/login', [LoginController::class, 'apiLogin']);
 
@@ -214,9 +212,9 @@ Route::get('/me/audit-logs', function (Request $request) {
 
         // Exact deterministic linkage for newly written rows.
         if ($log->action === 'login') {
-            $timeLog = \App\Models\TimeLog::where('login_audit_log_id', $log->id)->first();
+            $timeLog = TimeLog::where('login_audit_log_id', $log->id)->first();
         } elseif ($log->action === 'logout') {
-            $timeLog = \App\Models\TimeLog::where('logout_audit_log_id', $log->id)->first();
+            $timeLog = TimeLog::where('logout_audit_log_id', $log->id)->first();
         }
 
         // Legacy fallback: match by user + tight time window.
@@ -225,7 +223,7 @@ Route::get('/me/audit-logs', function (Request $request) {
             $start = $logAt->copy()->subMinutes(2)->toDateTimeString();
             $end = $logAt->copy()->addMinutes(2)->toDateTimeString();
             if ($log->action === 'login') {
-                $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
+                $candidates = TimeLog::where('user_id', $log->user_id)
                     ->whereBetween('time_in', [$start, $end])
                     ->get();
                 $timeLog = $candidates->sortBy(function ($tl) use ($log) {
@@ -236,7 +234,7 @@ Route::get('/me/audit-logs', function (Request $request) {
                     return abs(Carbon::parse($tl->time_in)->diffInSeconds($log->created_at, false));
                 })->first();
             } elseif ($log->action === 'logout') {
-                $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
+                $candidates = TimeLog::where('user_id', $log->user_id)
                     ->whereBetween('time_out', [$start, $end])
                     ->get();
                 $timeLog = $candidates->sortBy(function ($tl) use ($log) {
@@ -407,7 +405,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         $page = max(1, (int) $request->input('page', 1));
 
         try {
-            $query = DB::table('audit_logs as a')
+            $query = \Illuminate\Support\Facades\DB::table('audit_logs as a')
                 ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
                 ->select([
                     'a.id',
@@ -429,125 +427,42 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             if ($request->filled('user_id')) {
                 $query->where('a.user_id', (int) $request->input('user_id'));
             }
-            $latestLogout = $latestLogoutQuery->orderByDesc('created_at')->first();
-            if ($latestLogin && (! $latestLogout || $latestLogout->created_at < $latestLogin->created_at)) {
-                if (! $logs->contains('id', $latestLogin->id)) {
-                    $logs = $logs->concat([
-                        $latestLogin->load('user:id,fullname,email,role,department'),
-                    ]);
-                }
-            }
-        }
+            $paginator = $query
+                ->orderByDesc('a.created_at')
+                ->paginate($perPage, ['*'], 'page', $page);
 
-        // For each audit entry, attempt to attach the matching time_log
-        // (for login -> match by nearby time_in; for logout -> match by nearby time_out).
-        $logs = $logs->map(function ($log) {
-            $timeLog = null;
-            if ($log->created_at) {
-                $start = $log->created_at->copy()->subMinutes(2);
-                $end = $log->created_at->copy()->addMinutes(2);
-                if ($log->action === 'login') {
-                    $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
-                        ->whereBetween('time_in', [$start, $end])
-                        ->get();
-                    $timeLog = $candidates->sortBy(function ($tl) use ($log) {
-                        if (! $tl->time_in || ! $log->created_at) {
-                            return PHP_INT_MAX;
-                        }
-
-                        return abs(Carbon::parse($tl->time_in)->diffInSeconds($log->created_at, false));
-                    })->first();
-                    if ($timeLog) {
-                        $log->time_in = $timeLog->time_in;
-                        $log->time_out = $timeLog->time_out;
-                    } else {
-                        $log->time_in = $log->created_at;
-                    }
-                } elseif ($log->action === 'logout') {
-                    $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
-                        ->whereBetween('time_out', [$start, $end])
-                        ->get();
-                    $timeLog = $candidates->sortBy(function ($tl) use ($log) {
-                        if (! $tl->time_out || ! $log->created_at) {
-                            return PHP_INT_MAX;
-                        }
-
-                        return abs(Carbon::parse($tl->time_out)->diffInSeconds($log->created_at, false));
-                    })->first();
-                    if ($timeLog) {
-                        $log->time_in = $timeLog->time_in;
-                        $log->time_out = $timeLog->time_out;
-                    } else {
-                        $log->time_out = $log->created_at;
+            $data = collect($paginator->items())->map(function ($row) {
+                $createdAt = null;
+                if (!empty($row->created_at)) {
+                    try {
+                        $createdAt = Carbon::parse($row->created_at)->setTimezone('UTC')->toIso8601String();
+                    } catch (\Throwable $e) {
+                        $createdAt = (string) $row->created_at;
                     }
                 }
-            }
-            $log->time_log = $timeLog;
 
-            return $log;
-        });
-
-        // Sort logs by created_at desc
-        $logs = $logs->sortByDesc('created_at')->values();
-
-        // Normalize user payloads: ensure `user` exists and has `fullname` (handle camelCase `fullName` column in local DB)
-        $logs = $logs->map(function ($log) {
-            if (! $log->user && $log->user_id) {
-                $u = \App\Models\User::find($log->user_id);
-                if ($u) {
-                    $log->user = (object) [
-                        'id' => $u->id,
-                        'fullname' => $u->fullName ?? $u->fullname ?? $u->name ?? null,
-                        'email' => $u->email,
-                        'role' => $u->role,
-                        'department' => $u->department,
-                    ];
-                }
-            } elseif ($log->user) {
-                // ensure fullname property exists even if returned as fullName
-                $user = $log->user;
-                $user->fullname = $user->fullname ?? ($user->fullName ?? ($user->name ?? null));
-                $log->user = $user;
-            }
-
-            return $log;
-        });
-
-        // Normalize output timestamps to ISO8601 UTC to keep frontend time rendering consistent.
-        $logs = $logs->map(function ($log) {
-            return [
-                'id' => $log->id,
-                'user_id' => $log->user_id,
-                'action' => $log->action,
-                'ip_address' => $log->ip_address,
-                'created_at' => optional($log->created_at)->setTimezone('UTC')->toIso8601String(),
-                'user' => $log->user ? [
-                    'id' => $log->user->id,
-                    'fullname' => $log->user->fullname ?? ($log->user->fullName ?? ($log->user->name ?? null)),
-                    'email' => $log->user->email,
-                    'role' => $log->user->role,
-                    'department' => $log->user->department,
-                ] : null,
-                'time_log' => $log->time_log ? [
-                    'id' => $log->time_log->id,
-                    'time_in' => $log->time_log->time_in ? Carbon::parse($log->time_log->time_in)->setTimezone('UTC')->toIso8601String() : null,
-                    'time_out' => $log->time_log->time_out ? Carbon::parse($log->time_log->time_out)->setTimezone('UTC')->toIso8601String() : null,
-                ] : null,
-            ];
-        });
-
-        // Paginate manually
-        $perPage = 50;
-        $page = max(1, (int) $request->input('page', 1));
-        $total = $logs->count();
-        $paged = $logs->slice(($page - 1) * $perPage, $perPage)->values();
+                return [
+                    'id' => $row->id,
+                    'user_id' => $row->user_id,
+                    'action' => $row->action,
+                    'ip_address' => $row->ip_address,
+                    'created_at' => $createdAt,
+                    'user' => $row->user_ref_id ? [
+                        'id' => $row->user_ref_id,
+                        'fullname' => $row->user_fullname,
+                        'email' => $row->user_email,
+                        'role' => $row->user_role,
+                        'department' => $row->user_department,
+                    ] : null,
+                ];
+            })->values();
 
             return response()->json([
                 'data' => $data,
-                'current_page' => $page,
-                'last_page' => (int) ceil($total / $perPage),
-                'total' => $total,
-                'per_page' => $perPage,
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'total' => $paginator->total(),
+                'per_page' => $paginator->perPage(),
             ]);
         } catch (\Throwable $e) {
             Log::error('Admin audit logs stable query failed', [

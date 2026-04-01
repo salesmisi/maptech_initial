@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Mail, Lock, ArrowRight } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { BusinessFooter } from '../components/business/BusinessFooter';
 
 interface LoginPageProps {
@@ -20,6 +20,7 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [pageReady, setPageReady] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
   const [videoSrcIndex, setVideoSrcIndex] = useState(0);
   const [videoFailed, setVideoFailed] = useState(false);
@@ -171,6 +172,11 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
       });
     }
   }, [activeVideoSource, videoFailed]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setPageReady(true), 30);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const handleVideoError = () => {
     if (videoSrcIndex < loginVideoSources.length - 1) {

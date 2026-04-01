@@ -9,7 +9,7 @@ import { EmployeeLayout } from './components/layout/EmployeeLayout';
 
 // Admin Pages
 import { AdminDashboard } from './pages/admin/AdminDashboard';
-import DepartmentManagement from './pages/admin/DepartmentManagement';
+import DepartmentManagement from './pages/admin/DepartmentManagement.tsx';
 import { UserManagement } from './pages/admin/UserManagement';
 import { CoursesAndContent } from './pages/admin/CoursesAndContent';
 import { CourseContentEditor } from './pages/admin/CourseContentEditor';
@@ -544,6 +544,12 @@ export function App() {
             {currentPage === 'business-details' && <BusinessDetails />}
             {currentPage === 'feedbacks' && <AdminFeedback />}
             {currentPage === 'product-logos' && <ProductLogoManager />}
+            {currentPage === 'custom-field' && (
+              <CustomFieldBuilder
+                onNavigate={handleNavigate}
+                initialExpandedModuleId={selectedCustomModuleId}
+              />
+            )}
             {currentPage === 'settings' && <ProfileSettings />}
           </div>
         </AdminLayout>
