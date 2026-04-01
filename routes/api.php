@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Department;
 use App\Models\Subdepartment;
 use App\Models\AuditLog;
+use App\Support\AuditDate;
 use Illuminate\Support\Carbon;
 
 /*
@@ -215,7 +216,7 @@ Route::get('/me/audit-logs', function (Request $request) {
     // For each audit entry, attempt to attach the matching time_log (same logic as admin endpoint)
     $logs = $logs->map(function ($log) {
         $timeLog = null;
-        $logAt = maptech_model_storage_datetime($log, 'created_at');
+        $logAt = AuditDate::modelStorageDateTime($log, 'created_at');
         if ($logAt) {
             $start = $logAt->copy()->subMinutes(2)->toDateTimeString();
             $end = $logAt->copy()->addMinutes(2)->toDateTimeString();
@@ -224,7 +225,7 @@ Route::get('/me/audit-logs', function (Request $request) {
                     ->whereBetween('time_in', [$start, $end])
                         ->get();
                     $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
-                        $timeIn = maptech_model_storage_datetime($tl, 'time_in');
+                        $timeIn = AuditDate::modelStorageDateTime($tl, 'time_in');
                         if (!$timeIn || !$logAt) return PHP_INT_MAX;
                         return abs($timeIn->diffInSeconds($logAt, false));
                     })->first();
@@ -233,7 +234,7 @@ Route::get('/me/audit-logs', function (Request $request) {
                     ->whereBetween('time_out', [$start, $end])
                         ->get();
                     $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
-                        $timeOut = maptech_model_storage_datetime($tl, 'time_out');
+                        $timeOut = AuditDate::modelStorageDateTime($tl, 'time_out');
                         if (!$timeOut || !$logAt) return PHP_INT_MAX;
                         return abs($timeOut->diffInSeconds($logAt, false));
                     })->first();
@@ -250,12 +251,12 @@ Route::get('/me/audit-logs', function (Request $request) {
             'user_id' => $log->user_id,
             'action' => $log->action,
             'ip_address' => $log->ip_address,
-            'created_at' => maptech_model_field_utc_iso($log, 'created_at'),
-            'updated_at' => maptech_model_field_utc_iso($log, 'updated_at'),
+            'created_at' => AuditDate::modelFieldUtcIso($log, 'created_at'),
+            'updated_at' => AuditDate::modelFieldUtcIso($log, 'updated_at'),
             'time_log' => $log->time_log ? [
                 'id' => $log->time_log->id,
-                'time_in' => maptech_model_field_utc_iso($log->time_log, 'time_in'),
-                'time_out' => maptech_model_field_utc_iso($log->time_log, 'time_out'),
+                'time_in' => AuditDate::modelFieldUtcIso($log->time_log, 'time_in'),
+                'time_out' => AuditDate::modelFieldUtcIso($log->time_log, 'time_out'),
             ] : null,
         ];
     });
@@ -426,7 +427,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 ->get();
 
             $data = collect($rows)->map(function ($row) {
-                $createdAt = maptech_parse_storage_datetime($row->created_at);
+                $createdAt = AuditDate::parseStorageDateTime($row->created_at);
                 $hasUser = !empty($row->user_ref_id);
 
                 return [

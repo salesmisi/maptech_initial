@@ -11,6 +11,9 @@ class TimeLog extends Model
 
     protected $table = 'time_logs';
 
+    // Keep offset when persisting dates so timestamptz stores the correct instant.
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'user_id',
         'time_in',
