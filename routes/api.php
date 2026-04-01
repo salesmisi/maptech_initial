@@ -368,6 +368,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::post('/modules/{moduleId}/lessons', [AdminCourseController::class, 'addLesson']);
     Route::post('/modules/{moduleId}/lessons/{lessonId}', [AdminCourseController::class, 'updateLesson']);
     Route::delete('/modules/{moduleId}/lessons/{lessonId}', [AdminCourseController::class, 'deleteLesson']);
+    Route::post('/modules/{moduleId}/lessons/reorder', [AdminCourseController::class, 'reorderLessons']);
 
     // Quiz Management
     Route::get('/quizzes', [AdminQuizController::class, 'index']);
@@ -556,6 +557,40 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::get('/feedbacks/{id}/replies', [\App\Http\Controllers\Admin\FeedbackReplyController::class, 'index']);
     Route::post('/feedbacks/{id}/replies', [\App\Http\Controllers\Admin\FeedbackReplyController::class, 'store']);
     Route::delete('/feedbacks/replies/{id}', [\App\Http\Controllers\Admin\FeedbackReplyController::class, 'destroy']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | CUSTOM FIELD MODULE SYSTEM ROUTES
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('custom-modules')->group(function () {
+        // Module CRUD
+        Route::get('/', [\App\Http\Controllers\Admin\CustomModuleController::class, 'index']);
+        Route::post('/', [\App\Http\Controllers\Admin\CustomModuleController::class, 'store']);
+        Route::get('/categories', [\App\Http\Controllers\Admin\CustomModuleController::class, 'categories']);
+        Route::get('/tags', [\App\Http\Controllers\Admin\CustomModuleController::class, 'tags']);
+        Route::post('/reorder', [\App\Http\Controllers\Admin\CustomModuleController::class, 'reorder']);
+        Route::get('/{id}', [\App\Http\Controllers\Admin\CustomModuleController::class, 'show']);
+        Route::put('/{id}', [\App\Http\Controllers\Admin\CustomModuleController::class, 'update']);
+        Route::delete('/{id}', [\App\Http\Controllers\Admin\CustomModuleController::class, 'destroy']);
+        Route::post('/{id}/toggle-publish', [\App\Http\Controllers\Admin\CustomModuleController::class, 'togglePublish']);
+        Route::get('/{id}/versions', [\App\Http\Controllers\Admin\CustomModuleController::class, 'versions']);
+        Route::get('/{id}/available-courses', [\App\Http\Controllers\Admin\CustomModuleController::class, 'availableCourses']);
+        Route::post('/{id}/push-to-course', [\App\Http\Controllers\Admin\CustomModuleController::class, 'pushToCourse']);
+        Route::post('/{id}/push-to-courses', [\App\Http\Controllers\Admin\CustomModuleController::class, 'pushToCourses']);
+        // Push to users (Instructors & Employees)
+        Route::get('/{id}/available-users', [\App\Http\Controllers\Admin\CustomModuleController::class, 'availableUsers']);
+        Route::post('/{id}/push-to-users', [\App\Http\Controllers\Admin\CustomModuleController::class, 'pushToUsers']);
+
+        // Lesson management within a module
+        Route::get('/{moduleId}/lessons', [\App\Http\Controllers\Admin\CustomLessonController::class, 'index']);
+        Route::post('/{moduleId}/lessons', [\App\Http\Controllers\Admin\CustomLessonController::class, 'store']);
+        Route::post('/{moduleId}/lessons/reorder', [\App\Http\Controllers\Admin\CustomLessonController::class, 'reorder']);
+        Route::get('/{moduleId}/lessons/{lessonId}', [\App\Http\Controllers\Admin\CustomLessonController::class, 'show']);
+        Route::put('/{moduleId}/lessons/{lessonId}', [\App\Http\Controllers\Admin\CustomLessonController::class, 'update']);
+        Route::delete('/{moduleId}/lessons/{lessonId}', [\App\Http\Controllers\Admin\CustomLessonController::class, 'destroy']);
+        Route::get('/{moduleId}/lessons/{lessonId}/content', [\App\Http\Controllers\Admin\CustomLessonController::class, 'content']);
+    });
 });
 
 // Public (authenticated) endpoint to record lesson events (play/pause/progress)
@@ -749,6 +784,24 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     });
     // Instructor access to feedback listing (uses same controller logic)
     Route::get('/feedbacks', [\App\Http\Controllers\Admin\FeedbackController::class, 'index']);
+
+    // Custom Modules (read-only access for instructors)
+    Route::get('/custom-modules', function (\Illuminate\Http\Request $request) {
+        // Instructors can only view published modules
+        return \App\Models\CustomModule::with(['creator:id,fullname,email', 'lessons'])
+            ->where('status', 'published')
+            ->orderBy('order')
+            ->get();
+    });
+    Route::get('/custom-modules/{id}', function (\Illuminate\Http\Request $request, int $id) {
+        return \App\Models\CustomModule::with(['creator:id,fullname,email', 'lessons'])
+            ->where('status', 'published')
+            ->findOrFail($id);
+    });
+
+    // Custom Module assignment to department
+    Route::post('/custom-modules/{id}/push-to-department', [\App\Http\Controllers\Instructor\CustomModuleController::class, 'pushToDepartment']);
+    Route::get('/custom-modules/{id}/department-employees', [\App\Http\Controllers\Instructor\CustomModuleController::class, 'getDepartmentEmployees']);
 });
 
 
@@ -826,6 +879,10 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
         Route::post('/notify-instructor', [\App\Http\Controllers\NotificationController::class, 'employeeNotifyInstructor']);
         Route::post('/report-admin', [\App\Http\Controllers\NotificationController::class, 'employeeReportToAdmin']);
     });
+
+    // Custom Modules (assigned to employee)
+    Route::get('/custom-modules', [\App\Http\Controllers\Employee\CustomModuleController::class, 'assignedModules']);
+    Route::get('/custom-modules/{id}', [\App\Http\Controllers\Employee\CustomModuleController::class, 'show']);
 });
 
 // Q&A routes are now defined inside each role's route group above

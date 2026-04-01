@@ -11,6 +11,8 @@ import {
   FileText,
   X,
   Trash,
+  GraduationCap,
+  Users,
 } from 'lucide-react';
 
 const API_BASE = '/api';
@@ -30,6 +32,22 @@ interface ModuleInput {
   id: number;
   title: string;
   file: File | null;
+}
+
+interface CustomModule {
+  id: number;
+  title: string;
+  description: string | null;
+  category: string | null;
+  tags: string[];
+  status: 'draft' | 'published' | 'unpublished';
+  lessons_count: number;
+  version: number;
+  creator: {
+    id: number;
+    fullname: string;
+  } | null;
+  created_at: string;
 }
 
 interface Course {
@@ -68,6 +86,7 @@ let moduleCounter = 0;
 
 export function InstructorCourseManagement({ onNavigate }: Props) {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [customModules, setCustomModules] = useState<CustomModule[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
@@ -85,6 +104,14 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [unlocking, setUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
 
+  // Push to department modal state
+  const [pushDeptModalOpen, setPushDeptModalOpen] = useState(false);
+  const [pushModuleId, setPushModuleId] = useState<number | null>(null);
+  const [deptEmployees, setDeptEmployees] = useState<any[]>([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [pushing, setPushing] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+
   const loadCourses = async () => {
     try {
       const res = await fetch(`${API_BASE}/instructor/courses`, {
@@ -101,6 +128,103 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     }
   };
 
+  const loadCustomModules = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/instructor/custom-modules`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCustomModules(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.error('Failed to load custom modules:', e);
+    }
+  };
+
+  const openPushToDeptModal = async (moduleId: number) => {
+    setPushModuleId(moduleId);
+    setPushError(null);
+    setPushing(false);
+    setDeptEmployees([]);
+    setLoadingEmployees(true);
+    setPushDeptModalOpen(true);
+
+    try {
+      const token = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/instructor/custom-modules/${moduleId}/department-employees`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'X-XSRF-TOKEN': token,
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.message) {
+          // Instructor might not have a department assigned
+          setPushError(data.message);
+        }
+        setDeptEmployees(data.employees || []);
+
+        // Show helpful message if no employees found
+        if (!data.message && (!data.employees || data.employees.length === 0)) {
+          setPushError('No employees found in your department. Please contact your administrator to add employees.');
+        }
+      } else {
+        const errorData = await res.json().catch(() => ({ message: 'Failed to load department employees' }));
+        setPushError(errorData.message || 'Failed to load department employees');
+      }
+    } catch (e: any) {
+      console.error('Failed to load employees:', e);
+      setPushError(e.message || 'Network error: Failed to connect to server');
+    } finally {
+      setLoadingEmployees(false);
+    }
+  };
+
+  const handlePushToDepartment = async () => {
+    if (!pushModuleId) return;
+
+    setPushing(true);
+    setPushError(null);
+
+    try {
+      const token = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/instructor/custom-modules/${pushModuleId}/push-to-department`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-XSRF-TOKEN': token,
+        },
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        pushToast('Success', data.message || 'Module pushed to department successfully', 'success');
+        setPushDeptModalOpen(false);
+        setPushModuleId(null);
+        setDeptEmployees([]);
+        setLoadingEmployees(false);
+      } else {
+        setPushError(data.message || 'Failed to push module');
+        pushToast('Error', data.message || 'Failed to push module', 'error');
+      }
+    } catch (e: any) {
+      console.error('Push error:', e);
+      const msg = e.message || 'An error occurred';
+      setPushError(msg);
+      pushToast('Error', msg, 'error');
+    } finally {
+      setPushing(false);
+    }
+  };
+
   const openCourseUnlockModal = (courseId: string) => {
     setCourseUnlockTargetId(courseId);
     setUnlockDurationMinutes(1440);
@@ -112,7 +236,10 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const confirm = useConfirm();
   const { showConfirm } = confirm;
 
-  useEffect(() => { loadCourses(); }, []);
+  useEffect(() => {
+    loadCourses();
+    loadCustomModules();
+  }, []);
 
   // Refresh courses list when a module is added in the CourseDetail page
   useEffect(() => {
@@ -317,6 +444,11 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     return matchSearch && matchStatus;
   });
 
+  const filteredCustomModules = customModules.filter((m) => {
+    const matchSearch = m.title.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchSearch;
+  });
+
   return (
     <div className="space-y-6">
 
@@ -361,12 +493,13 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : filtered.length === 0 && filteredCustomModules.length === 0 ? (
         <div className="text-center py-16">
           <BookOpen className="mx-auto h-12 w-12 text-slate-400 dark:text-slate-500" />
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-300">No courses found.</p>
         </div>
       ) : (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((course) => {
             const notStarted = course.start_date && new Date(course.start_date) > new Date();
@@ -477,7 +610,61 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
             </div>
             );
           })}
+
+          {/* Custom Modules Cards */}
+          {filteredCustomModules.map((module) => (
+            <div key={`custom-${module.id}`} className="rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600">
+              {/* Custom Module Header */}
+              <div className="h-32 bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-500 dark:to-indigo-500 relative flex items-center justify-center">
+                <GraduationCap className="h-10 w-10 text-white opacity-60" />
+                <span className="absolute top-3 left-3 text-xs font-semibold px-2 py-0.5 rounded-full bg-white/90 dark:bg-slate-800/90 text-purple-700 dark:text-purple-300">
+                  Custom Module
+                </span>
+              </div>
+
+              <div className="p-5 flex-1 flex flex-col">
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-50 line-clamp-1 mb-1">{module.title}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-200 line-clamp-2 mb-3">{module.description || 'No description'}</p>
+
+                <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-200 mb-4">
+                  <div className="flex items-center gap-1">
+                    <FileText className="h-4 w-4" />
+                    {module.lessons_count} Lessons
+                  </div>
+                  <div className="flex items-center gap-1 text-xs">
+                    v{module.version}
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <span className="text-xs font-medium text-slate-400 dark:text-slate-200">{module.category || 'Uncategorized'}</span>
+                </div>
+
+                {module.creator && (
+                  <p className="text-xs text-slate-500 dark:text-slate-300 mb-3">
+                    Created by: {module.creator.fullname}
+                  </p>
+                )}
+
+                <div className="mt-auto pt-3 border-t border-slate-100 space-y-2">
+                  <button
+                    onClick={() => onNavigate?.('custom-module-detail', String(module.id))}
+                    className="w-full text-sm font-medium text-purple-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-purple-200 text-left"
+                  >
+                    View Content &rarr;
+                  </button>
+                  <button
+                    onClick={() => openPushToDeptModal(module.id)}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors text-sm font-medium"
+                  >
+                    <Users className="h-4 w-4" />
+                    Push to My Department
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
+        </>
       )}
 
       {/* Create / Edit Modal */}
@@ -710,6 +897,88 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
           </div>,
           document.body
         )}
+
+        {/* Push to Department Modal */}
+        {pushDeptModalOpen && createPortal(
+          <div
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50"
+            onClick={(e) => { if (e.target === e.currentTarget) { setPushDeptModalOpen(false); setPushModuleId(null); setDeptEmployees([]); setLoadingEmployees(false); } }}
+          >
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Push to Department</h3>
+              </div>
+
+              <div className="p-6">
+                <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+                  This module will be pushed to all employees (both active and inactive) in your department. They will receive a notification and can access it in their dashboard.
+                </p>
+
+                {pushError && (
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm rounded px-3 py-2 mb-3">
+                    {pushError}
+                  </div>
+                )}
+
+                {deptEmployees.length > 0 ? (
+                  <div className="mb-4">
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                      {deptEmployees.length} employee{deptEmployees.length > 1 ? 's' : ''} will receive this module:
+                    </p>
+                    <div className="max-h-48 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-md">
+                      {deptEmployees.map((emp: any) => (
+                        <div key={emp.id} className="px-3 py-2 text-sm border-b border-slate-100 dark:border-slate-700 last:border-b-0">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-slate-900 dark:text-slate-100">{emp.fullname}</span>
+                                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                  emp.status === 'Active'
+                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                                }`}>
+                                  {emp.status}
+                                </span>
+                              </div>
+                              <div className="text-xs text-slate-500 dark:text-slate-400">{emp.email}</div>
+                            </div>
+                            {emp.is_pushed && (
+                              <span className="text-xs text-green-600 dark:text-green-400 font-medium ml-2">Already pushed</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  !pushError && loadingEmployees && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                      Loading employees...
+                    </p>
+                  )
+                )}
+
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => { setPushDeptModalOpen(false); setPushModuleId(null); setDeptEmployees([]); setLoadingEmployees(false); }}
+                    className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePushToDepartment}
+                    disabled={pushing || deptEmployees.length === 0}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {pushing ? 'Pushing...' : 'Push to Department'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
         {confirm.ConfirmModalRenderer()}
     </div>
   );

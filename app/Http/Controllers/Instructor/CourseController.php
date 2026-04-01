@@ -518,8 +518,8 @@ $module = $course->modules()->create($data);
         $request->validate([
             'title'        => 'required|string|max:255',
             'text_content' => 'nullable|string',
-            // Allow large video files (up to ~2 GB)
-            'content'      => 'nullable|file|max:2048000',
+            // Allow large video files (up to ~5 GB)
+            'content'      => 'nullable|file|max:5242880',
             'content_url'  => 'nullable|url|max:2000',
             'type'         => 'nullable|in:Video,Document,Text',
             'status'       => 'nullable|in:Published,Draft',
@@ -628,7 +628,8 @@ $module = $course->modules()->create($data);
         $request->validate([
             'title'        => 'sometimes|string|max:255',
             'text_content' => 'nullable|string',
-            'content'      => 'nullable|file|max:102400',
+            // Allow large video files (up to ~5 GB)
+            'content'      => 'nullable|file|max:5242880',
         ]);
 
         $lesson = $module->lessons()->findOrFail($lessonId);
