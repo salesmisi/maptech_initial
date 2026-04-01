@@ -69,6 +69,7 @@ export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(true);
+  const [logoutPhase, setLogoutPhase] = useState<'idle' | 'covering' | 'revealing'>('idle');
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
 
@@ -346,6 +347,9 @@ export function App() {
   // HANDLE LOGOUT
   // =========================
   const handleLogout = async () => {
+    if (logoutPhase !== 'idle') return;
+    setLogoutPhase('covering');
+
     try {
       // Get CSRF token
       await fetch('/sanctum/csrf-cookie', {
@@ -367,9 +371,50 @@ export function App() {
       console.error('Logout failed:', error);
     }
 
+    // Always clear client-side auth/session artifacts, even if server logout fails.
+    try {
+      localStorage.removeItem('token');
+      localStorage.removeItem('maptech_user_name');
+      ['admin', 'instructor', 'employee'].forEach((role) => {
+        localStorage.removeItem(`maptech_courseId_${role}`);
+        localStorage.removeItem(`maptech_quizId_${role}`);
+      });
+      sessionStorage.removeItem('last_time_log');
+
+      // Remove deep-link state so a fresh login starts from default page.
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    } catch (err) {
+      // Ignore storage errors (private mode, quota, etc.).
+    }
+
+    // Let the cover animation complete before switching to login.
+    await new Promise((resolve) => window.setTimeout(resolve, 260));
+
     setUser(null);
     setCurrentPage('dashboard');
+    setSelectedCourseId(null);
+    setGlobalSearch('');
+
+    // Reveal login screen smoothly.
+    setLogoutPhase('revealing');
+    window.setTimeout(() => {
+      setLogoutPhase('idle');
+    }, 180);
   };
+
+  const logoutOverlay = (
+    <div
+      className={`ui-screen-wipe ui-screen-wipe--logout ${theme === 'dark' ? 'is-dark' : 'is-light'} ${logoutPhase === 'covering' ? 'is-covering' : ''} ${logoutPhase === 'revealing' ? 'is-revealing' : ''}`}
+      aria-hidden="true"
+    >
+      <div className="ui-screen-wipe__panel">
+        <span className="ui-screen-wipe__spinner" />
+        <span className="ui-screen-wipe__text">Signing out</span>
+      </div>
+    </div>
+  );
 
   const handleNavigate = (page: string, courseId?: string, quizId?: number) => {
     setCurrentPage(page);
@@ -406,6 +451,7 @@ export function App() {
       <>
         <LoadingState message="Loading app" size="lg" className="min-h-screen bg-slate-50 dark:bg-slate-900" />
         {renderThemeToggle()}
+        {logoutOverlay}
       </>
     );
   }
@@ -416,6 +462,7 @@ export function App() {
       <>
         <YTDebug />
         {renderThemeToggle()}
+        {logoutOverlay}
       </>
     );
   }
@@ -428,6 +475,7 @@ export function App() {
       <>
         <LoginPage onLogin={handleLogin} theme={theme} />
         {renderThemeToggle()}
+        {logoutOverlay}
       </>
     );
   }
@@ -468,6 +516,7 @@ export function App() {
             {currentPage === 'settings' && <ProfileSettings />}
           </div>
         </AdminLayout>
+        {logoutOverlay}
       </>
     );
   }
@@ -505,6 +554,7 @@ export function App() {
             {currentPage === 'settings' && <ProfileSettings />}
           </div>
         </InstructorLayout>
+        {logoutOverlay}
       </>
     );
   }
@@ -554,6 +604,7 @@ export function App() {
             {currentPage === 'settings' && <ProfileSettings />}
           </div>
         </EmployeeLayout>
+        {logoutOverlay}
       </>
     );
   }
@@ -562,6 +613,7 @@ export function App() {
     <>
       <LoginPage onLogin={handleLogin} theme={theme} />
       {renderThemeToggle()}
+      {logoutOverlay}
     </>
   );
 }

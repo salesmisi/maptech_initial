@@ -174,18 +174,23 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
 
   return (
     <div className="relative min-h-screen overflow-hidden flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div
+        className="absolute inset-0 bg-slate-950"
+        aria-hidden="true"
+      />
+
       {!videoFailed && (
         <video
           key={activeVideoSource}
           ref={videoRef}
-          className="absolute inset-0 h-full w-full object-cover"
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${videoReady ? 'opacity-100' : 'opacity-0'}`}
           src={activeVideoSource}
           autoPlay
           muted
           loop
           playsInline
           preload="auto"
-          poster="/assets/pasted-image.jpg"
+          onLoadStart={() => setVideoReady(false)}
           onLoadedData={() => setVideoReady(true)}
           onCanPlay={() => setVideoReady(true)}
           onError={handleVideoError}
