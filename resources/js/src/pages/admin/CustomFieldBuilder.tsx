@@ -498,7 +498,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   };
 
   // Save lesson
-  const saveLesson = async () => {
+  const saveLesson = async (keepModalOpen = false) => {
     if (!lessonForm.title.trim() || !targetModuleId) return;
 
     try {
@@ -536,9 +536,23 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
       });
 
       if (response.ok) {
-        setShowLessonModal(false);
         fetchModules();
         pushToast('Success', editingLesson ? 'Lesson updated successfully' : 'Lesson created successfully', 'success');
+
+        if (keepModalOpen && !editingLesson) {
+          // Reset form for adding another lesson
+          setLessonForm({
+            title: '',
+            description: '',
+            content_type: 'text',
+            text_content: '',
+            content_url: '',
+            status: 'draft',
+          });
+          setContentFile(null);
+        } else {
+          setShowLessonModal(false);
+        }
       } else {
         const data = await response.json();
         pushToast('Error', data.message || 'Error saving lesson', 'error');
@@ -902,7 +916,12 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                 <div className="border-t border-gray-200 dark:border-slate-700">
                   <div className="p-4 bg-gray-50 dark:bg-slate-800/50">
                     <div className="flex items-center justify-between mb-4">
-                      <h4 className="font-medium text-gray-900 dark:text-white">Lessons</h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-gray-900 dark:text-white">Lessons</h4>
+                        <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded-full">
+                          {module.lessons?.length || 0}
+                        </span>
+                      </div>
                       <button
                         onClick={() => openCreateLesson(module.id)}
                         className="inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
@@ -950,9 +969,11 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                         ))}
                       </div>
                     ) : (
-                      <p className="text-center py-4 text-gray-500 dark:text-gray-400">
-                        No lessons yet. Add your first lesson to get started.
-                      </p>
+                      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <AcademicCapIcon className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                        <p className="font-medium mb-1">No lessons yet</p>
+                        <p className="text-sm">Click "Add Lesson" above to create your first lesson. You can add as many lessons as you need!</p>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1140,7 +1161,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-2">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                   {editingLesson ? 'Edit Lesson' : 'Add New Lesson'}
                 </h2>
@@ -1151,6 +1172,12 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                   <XMarkIcon className="w-5 h-5" />
                 </button>
               </div>
+
+              {!editingLesson && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                  💡 You can add multiple lessons to this module. Click "Save & Add Another" to add more lessons quickly.
+                </p>
+              )}
 
               <div className="space-y-4">
                 {/* Title */}
@@ -1290,12 +1317,21 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                 >
                   Cancel
                 </button>
+                {!editingLesson && (
+                  <button
+                    onClick={() => saveLesson(true)}
+                    disabled={savingLesson || !lessonForm.title.trim()}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg font-medium transition-colors"
+                  >
+                    {savingLesson ? 'Saving...' : 'Save & Add Another'}
+                  </button>
+                )}
                 <button
-                  onClick={saveLesson}
+                  onClick={() => saveLesson(false)}
                   disabled={savingLesson || !lessonForm.title.trim()}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
                 >
-                  {savingLesson ? 'Saving...' : editingLesson ? 'Update' : 'Add'}
+                  {savingLesson ? 'Saving...' : editingLesson ? 'Update' : 'Save'}
                 </button>
               </div>
             </div>

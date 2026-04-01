@@ -38,6 +38,7 @@ import { EmployeeDashboard } from './pages/employee/EmployeeDashboard';
 import { MyCourses } from './pages/employee/MyCourses';
 import { CourseEnrollDetail } from './pages/employee/CourseEnrollDetail';
 import { CourseViewer } from './pages/employee/CourseViewer';
+import { CustomModuleViewer } from './pages/employee/CustomModuleViewer';
 import { MyProgress } from './pages/employee/MyProgress';
 import { MyCertificates } from './pages/employee/MyCertificates';
 import { QAModule } from './pages/employee/QAModule';
@@ -383,10 +384,10 @@ export function App() {
 
     updateUrlRouteState(page, courseId);
 
-    // Handle custom module ID for custom-field page
-    if (page === 'custom-field' && typeof quizIdOrModuleId === 'number') {
+    // Handle custom module ID for custom-field page and custom-module-viewer
+    if ((page === 'custom-field' || page === 'custom-module-viewer') && typeof quizIdOrModuleId === 'number') {
       setSelectedCustomModuleId(quizIdOrModuleId);
-    } else if (page !== 'custom-field') {
+    } else if (page !== 'custom-field' && page !== 'custom-module-viewer') {
       setSelectedCustomModuleId(null);
     }
 
@@ -554,6 +555,12 @@ export function App() {
               courseId={selectedCourseId || undefined}
               onBack={() => handleNavigate('my-courses')}
               onViewCertificates={() => handleNavigate('certificates')}
+            />
+          )}
+          {currentPage === 'custom-module-viewer' && selectedCustomModuleId && (
+            <CustomModuleViewer
+              moduleId={selectedCustomModuleId}
+              onBack={() => handleNavigate('dashboard')}
             />
           )}
           {currentPage === 'progress' && <MyProgress />}

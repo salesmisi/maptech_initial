@@ -108,6 +108,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [pushDeptModalOpen, setPushDeptModalOpen] = useState(false);
   const [pushModuleId, setPushModuleId] = useState<number | null>(null);
   const [deptEmployees, setDeptEmployees] = useState<any[]>([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
 
@@ -146,6 +147,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setPushModuleId(moduleId);
     setPushError(null);
     setPushing(false);
+    setDeptEmployees([]);
+    setLoadingEmployees(true);
     setPushDeptModalOpen(true);
 
     try {
@@ -165,6 +168,11 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
           setPushError(data.message);
         }
         setDeptEmployees(data.employees || []);
+
+        // Show helpful message if no employees found
+        if (!data.message && (!data.employees || data.employees.length === 0)) {
+          setPushError('No employees found in your department. Please contact your administrator to add employees.');
+        }
       } else {
         const errorData = await res.json().catch(() => ({ message: 'Failed to load department employees' }));
         setPushError(errorData.message || 'Failed to load department employees');
@@ -172,6 +180,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     } catch (e: any) {
       console.error('Failed to load employees:', e);
       setPushError(e.message || 'Network error: Failed to connect to server');
+    } finally {
+      setLoadingEmployees(false);
     }
   };
 
@@ -200,6 +210,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         setPushDeptModalOpen(false);
         setPushModuleId(null);
         setDeptEmployees([]);
+        setLoadingEmployees(false);
       } else {
         setPushError(data.message || 'Failed to push module');
         pushToast('Error', data.message || 'Failed to push module', 'error');
@@ -891,7 +902,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         {pushDeptModalOpen && createPortal(
           <div
             className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50"
-            onClick={(e) => { if (e.target === e.currentTarget) { setPushDeptModalOpen(false); setPushModuleId(null); } }}
+            onClick={(e) => { if (e.target === e.currentTarget) { setPushDeptModalOpen(false); setPushModuleId(null); setDeptEmployees([]); setLoadingEmployees(false); } }}
           >
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
               <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
@@ -940,14 +951,16 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                    {pushError ? '' : 'Loading employees...'}
-                  </p>
+                  !pushError && loadingEmployees && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                      Loading employees...
+                    </p>
+                  )
                 )}
 
                 <div className="flex gap-3 justify-end">
                   <button
-                    onClick={() => { setPushDeptModalOpen(false); setPushModuleId(null); setDeptEmployees([]); }}
+                    onClick={() => { setPushDeptModalOpen(false); setPushModuleId(null); setDeptEmployees([]); setLoadingEmployees(false); }}
                     className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                   >
                     Cancel

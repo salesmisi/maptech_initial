@@ -34,7 +34,7 @@ class CustomModuleController extends Controller
             $successCount = 0;
 
             // Get all employees in the instructor's department (both active and inactive)
-            $employees = User::where('role', 'Employee')
+            $employees = User::where('role', 'employee') // role is stored lowercase in database
                 ->where('department', $instructor->department)
                 ->get();
 
@@ -126,7 +126,7 @@ class CustomModuleController extends Controller
         $customModule = CustomModule::findOrFail($id);
 
         // Get all employees in the instructor's department (both active and inactive)
-        $employees = User::where('role', 'Employee')
+        $employees = User::where('role', 'employee') // role is stored lowercase in database
             ->where('department', $instructor->department)
             ->select('id', 'fullname', 'email', 'department', 'status')
             ->orderBy('fullname')

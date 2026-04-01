@@ -891,19 +891,9 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
         Route::post('/report-admin', [\App\Http\Controllers\NotificationController::class, 'employeeReportToAdmin']);
     });
 
-    // Custom Modules (read-only access for employees)
-    Route::get('/custom-modules', function (\Illuminate\Http\Request $request) {
-        // Employees can only view published modules
-        return \App\Models\CustomModule::with(['creator:id,fullname,email', 'lessons'])
-            ->where('status', 'published')
-            ->orderBy('order')
-            ->get();
-    });
-    Route::get('/custom-modules/{id}', function (\Illuminate\Http\Request $request, int $id) {
-        return \App\Models\CustomModule::with(['creator:id,fullname,email', 'lessons'])
-            ->where('status', 'published')
-            ->findOrFail($id);
-    });
+    // Custom Modules (assigned to employee)
+    Route::get('/custom-modules', [\App\Http\Controllers\Employee\CustomModuleController::class, 'assignedModules']);
+    Route::get('/custom-modules/{id}', [\App\Http\Controllers\Employee\CustomModuleController::class, 'show']);
 });
 
 // Q&A routes are now defined inside each role's route group above
