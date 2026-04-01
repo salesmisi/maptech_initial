@@ -235,7 +235,7 @@ export function EmployeeLayout({
           </div>
           <div className="flex-shrink-0 flex border-t border-slate-800 p-4">
             <div className="flex-shrink-0 w-full group block">
-              <div className={`flex items-center ${isSidebarCompact ? 'justify-center' : ''}`}>
+              <div className={isSidebarCompact ? 'flex flex-col items-center gap-3' : 'flex items-center'}>
                 <div className="h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
                   {(displayName?.charAt(0) ?? 'E').toUpperCase()}
                 </div>
@@ -247,7 +247,7 @@ export function EmployeeLayout({
                 )}
                 <button
                   onClick={onLogout}
-                  className={`${isSidebarCompact ? 'absolute bottom-4 right-4' : 'ml-auto'} text-slate-400 hover:text-white`}
+                  className={`${isSidebarCompact ? '' : 'ml-auto'} text-slate-400 hover:text-white`}
                   title="Logout">
 
                   <LogOut className="h-5 w-5" />

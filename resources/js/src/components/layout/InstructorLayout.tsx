@@ -170,7 +170,7 @@ export function InstructorLayout({
           </div>
           <div className="flex-shrink-0 flex border-t border-slate-800 p-4">
             <div className="flex-shrink-0 w-full group block">
-              <div className={`flex items-center ${isSidebarCompact ? 'justify-center' : ''}`}>
+              <div className={isSidebarCompact ? 'flex flex-col items-center gap-3' : 'flex items-center'}>
                 {user.profile_picture ? (
                   <img
                     src={user.profile_picture}
@@ -193,7 +193,7 @@ export function InstructorLayout({
                 )}
                 <button
                   onClick={onLogout}
-                  className={`${isSidebarCompact ? 'absolute bottom-4 right-4' : 'ml-auto'} text-slate-400 hover:text-white`}
+                  className={`${isSidebarCompact ? '' : 'ml-auto'} text-slate-400 hover:text-white`}
                   title="Logout">
 
                   <LogOut className="h-5 w-5" />
