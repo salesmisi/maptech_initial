@@ -163,7 +163,6 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [savingModule, setSavingModule] = useState(false);
-  const [redirecting, setRedirecting] = useState(false);
   const [tagInput, setTagInput] = useState('');
 
   // Lesson modal state
@@ -388,16 +387,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
         fetchFilters();
 
         if (!editingModule) {
-          // New module created - show success and redirect to Courses and Content
-          pushToast('Success', 'Custom field successfully created. Redirecting to Courses and Content...', 'success');
-          setRedirecting(true);
-          // Brief delay to show the success message before redirecting
-          setTimeout(() => {
-            if (onNavigate) {
-              onNavigate('courses');
-            }
-            setRedirecting(false);
-          }, 1500);
+          pushToast('Success', 'Custom field successfully created.', 'success');
         } else {
           pushToast('Success', 'Module updated successfully', 'success');
         }
@@ -684,18 +674,6 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900 p-6">
       <ConfirmModalRenderer />
-
-      {/* Redirecting Overlay */}
-      {redirecting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-8 flex flex-col items-center gap-4 shadow-2xl">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
-            <p className="text-lg font-medium text-gray-900 dark:text-white">
-              Redirecting to Courses and Content...
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Header */}
       <div className="mb-8">

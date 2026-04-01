@@ -10,11 +10,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+
 /*
-|-|--------------------------------------------------------------------------
-| AUTHENTICATION ROUTES
-|-|--------------------------------------------------------------------------
+|--------------------------------------------------------------------------
+| DEPARTMENT ROUTES
+|--------------------------------------------------------------------------
 */
+
 Route::get('/departments', function () {
     return Department::with([
         'subdepartments.headUser:id,fullname',
