@@ -172,7 +172,7 @@ export function EmployeeLayout({
                   <button
                     key={item.id}
                     onClick={() => onNavigate(item.id)}
-                    className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md w-full transition-colors ${isActive ? 'bg-green-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                    className={`sidebar-nav-item group flex items-center px-2 py-2 text-sm font-medium rounded-md w-full transition-colors ${isActive ? 'is-active bg-green-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
 
                     <Icon
                       className={`mr-3 flex-shrink-0 h-5 w-5 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'}`} />

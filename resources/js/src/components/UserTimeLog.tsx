@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import useConfirm from '../hooks/useConfirm';
 import { RefreshCw, Clock, LogOut } from "lucide-react";
+import { LoadingState } from './ui/LoadingState';
 
 interface TimeLogEntry {
   id: number;
@@ -370,7 +371,7 @@ export function UserTimeLog() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-100 dark:bg-slate-900/60 dark:divide-slate-700">
             {loading ? (
-              <tr><td colSpan={userRole === 'Admin' ? 5 : 4} className="px-4 py-6 text-center text-gray-400 dark:text-slate-300">Loading...</td></tr>
+              <tr><td colSpan={userRole === 'Admin' ? 5 : 4} className="px-4 py-6 text-center text-gray-400 dark:text-slate-300"><LoadingState message="Loading time logs" size="sm" className="py-2" /></td></tr>
             ) : sessions.length === 0 ? (
               <tr><td colSpan={userRole === 'Admin' ? 5 : 4} className="px-4 py-6 text-center text-gray-400 dark:text-slate-300">No time logs found.</td></tr>
             ) : (

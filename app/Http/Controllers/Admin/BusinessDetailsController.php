@@ -18,7 +18,7 @@ class BusinessDetailsController extends Controller
         }
 
         if (! preg_match('/^https?:\/\//i', $value)) {
-            $value = 'https://' . $value;
+            $value = 'https://'.$value;
         }
 
         return $value;

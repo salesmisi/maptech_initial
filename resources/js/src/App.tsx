@@ -46,6 +46,7 @@ import { EmployeeNotifications } from './pages/employee/EmployeeNotifications';
 import { ProfileSettings } from './pages/shared/ProfileSettings';
 import { YTDebug } from './pages/debug/YTDebug';
 import { resolveImageUrl } from './utils/safe';
+import { LoadingState } from './components/ui/LoadingState';
 
 interface User {
   id?: number;
@@ -403,9 +404,7 @@ export function App() {
   if (isLoading) {
     return (
       <>
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-          <div className="text-slate-600">Loading...</div>
-        </div>
+        <LoadingState message="Loading app" size="lg" className="min-h-screen bg-slate-50 dark:bg-slate-900" />
         {renderThemeToggle()}
       </>
     );
@@ -437,6 +436,8 @@ export function App() {
   // ADMIN
   // =========================
   if (user.role === 'admin') {
+    const transitionKey = `${currentPage}:${selectedCourseId ?? ''}`;
+
     return (
       <>
         <AdminLayout
@@ -450,20 +451,22 @@ export function App() {
           onGlobalSearch={setGlobalSearch}
           onGlobalSearchSubmit={handleGlobalSearchSubmit}
         >
-          {currentPage === 'dashboard' && <AdminDashboard onNavigate={handleNavigate} />}
-          {currentPage === 'departments' && <DepartmentManagement />}
-          {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
-          {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
-          {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
-          {currentPage === 'enrollments' && <EnrollmentManagement />}
-          {currentPage === 'reports' && <ReportsAnalytics />}
-          {currentPage === 'notifications' && <NotificationManagement />}
-          {currentPage === 'qa' && <AdminQADiscussion userId={user.id} />}
-          {currentPage === 'audit-logs' && <AuditLogs />}
-          {currentPage === 'business-details' && <BusinessDetails />}
-          {currentPage === 'feedbacks' && <AdminFeedback />}
-          {currentPage === 'product-logos' && <ProductLogoManager />}
-          {currentPage === 'settings' && <ProfileSettings />}
+          <div key={transitionKey} className="page-open-transition">
+            {currentPage === 'dashboard' && <AdminDashboard onNavigate={handleNavigate} />}
+            {currentPage === 'departments' && <DepartmentManagement />}
+            {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
+            {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
+            {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
+            {currentPage === 'enrollments' && <EnrollmentManagement />}
+            {currentPage === 'reports' && <ReportsAnalytics />}
+            {currentPage === 'notifications' && <NotificationManagement />}
+            {currentPage === 'qa' && <AdminQADiscussion userId={user.id} />}
+            {currentPage === 'audit-logs' && <AuditLogs />}
+            {currentPage === 'business-details' && <BusinessDetails />}
+            {currentPage === 'feedbacks' && <AdminFeedback />}
+            {currentPage === 'product-logos' && <ProductLogoManager />}
+            {currentPage === 'settings' && <ProfileSettings />}
+          </div>
         </AdminLayout>
       </>
     );
@@ -473,6 +476,8 @@ export function App() {
   // INSTRUCTOR
   // =========================
   if (user.role === 'instructor') {
+    const transitionKey = `${currentPage}:${selectedCourseId ?? ''}`;
+
     return (
       <>
         <InstructorLayout
@@ -486,17 +491,19 @@ export function App() {
           onGlobalSearch={setGlobalSearch}
           onGlobalSearchSubmit={handleGlobalSearchSubmit}
         >
-          {currentPage === 'dashboard' && <InstructorDashboard />}
-          {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
-          {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} />}
-          {currentPage === 'quiz-management' && <QuizAssessmentManagement />}
-          {currentPage === 'lessons' && <LessonVideoUpload />}
-          {currentPage === 'quizzes' && <QuizAssessmentManagement />}
-          {currentPage === 'evaluation' && <QuizEvaluation />}
-          {currentPage === 'qa-discussion' && <InstructorQADiscussion userId={user.id} />}
-          {currentPage === 'notifications' && <InstructorNotifications />}
-          {currentPage === 'feedbacks' && <InstructorFeedback />}
-          {currentPage === 'settings' && <ProfileSettings />}
+          <div key={transitionKey} className="page-open-transition">
+            {currentPage === 'dashboard' && <InstructorDashboard />}
+            {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
+            {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} />}
+            {currentPage === 'quiz-management' && <QuizAssessmentManagement />}
+            {currentPage === 'lessons' && <LessonVideoUpload />}
+            {currentPage === 'quizzes' && <QuizAssessmentManagement />}
+            {currentPage === 'evaluation' && <QuizEvaluation />}
+            {currentPage === 'qa-discussion' && <InstructorQADiscussion userId={user.id} />}
+            {currentPage === 'notifications' && <InstructorNotifications />}
+            {currentPage === 'feedbacks' && <InstructorFeedback />}
+            {currentPage === 'settings' && <ProfileSettings />}
+          </div>
         </InstructorLayout>
       </>
     );
@@ -506,6 +513,8 @@ export function App() {
   // EMPLOYEE
   // =========================
   if (user.role === 'employee') {
+    const transitionKey = `${currentPage}:${selectedCourseId ?? ''}`;
+
     return (
       <>
         <EmployeeLayout
@@ -519,29 +528,31 @@ export function App() {
           onGlobalSearch={setGlobalSearch}
           onGlobalSearchSubmit={handleGlobalSearchSubmit}
         >
-          {currentPage === 'dashboard' && <EmployeeDashboard onNavigate={handleNavigate} />}
-          {currentPage === 'my-courses' && (
-            <MyCourses onNavigate={handleNavigate} globalSearch={globalSearch} />
-          )}
-          {currentPage === 'course-enroll' && (
-            <CourseEnrollDetail
-              courseId={selectedCourseId || ''}
-              onNavigate={handleNavigate}
-              onBack={() => handleNavigate('my-courses')}
-            />
-          )}
-          {currentPage === 'course-viewer' && (
-            <CourseViewer
-              courseId={selectedCourseId || undefined}
-              onBack={() => handleNavigate('my-courses')}
-            />
-          )}
-          {currentPage === 'progress' && <MyProgress />}
-          {currentPage === 'certificates' && <MyCertificates />}
-          {currentPage === 'qa' && <QAModule userId={user.id} />}
-          {currentPage === 'feedback' && <MyFeedback />}
-          {currentPage === 'notifications' && <EmployeeNotifications />}
-          {currentPage === 'settings' && <ProfileSettings />}
+          <div key={transitionKey} className="page-open-transition">
+            {currentPage === 'dashboard' && <EmployeeDashboard onNavigate={handleNavigate} />}
+            {currentPage === 'my-courses' && (
+              <MyCourses onNavigate={handleNavigate} globalSearch={globalSearch} />
+            )}
+            {currentPage === 'course-enroll' && (
+              <CourseEnrollDetail
+                courseId={selectedCourseId || ''}
+                onNavigate={handleNavigate}
+                onBack={() => handleNavigate('my-courses')}
+              />
+            )}
+            {currentPage === 'course-viewer' && (
+              <CourseViewer
+                courseId={selectedCourseId || undefined}
+                onBack={() => handleNavigate('my-courses')}
+              />
+            )}
+            {currentPage === 'progress' && <MyProgress />}
+            {currentPage === 'certificates' && <MyCertificates />}
+            {currentPage === 'qa' && <QAModule userId={user.id} />}
+            {currentPage === 'feedback' && <MyFeedback />}
+            {currentPage === 'notifications' && <EmployeeNotifications />}
+            {currentPage === 'settings' && <ProfileSettings />}
+          </div>
         </EmployeeLayout>
       </>
     );

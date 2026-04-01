@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Bell } from 'lucide-react';
+import { LoadingState } from './ui/LoadingState';
 
 export type NotificationBellRole = 'Admin' | 'Instructor' | 'Employee';
 
@@ -194,7 +195,9 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
           </div>
           <div className="max-h-80 overflow-y-auto">
             {loading && (
-              <div className="px-3 py-4 text-xs text-slate-500">Loading notifications...</div>
+              <div className="px-3 py-4">
+                <LoadingState message="Loading notifications" size="sm" inline />
+              </div>
             )}
             {!loading && items.length === 0 && (
               <div className="px-3 py-4 text-xs text-slate-500">No notifications yet.</div>

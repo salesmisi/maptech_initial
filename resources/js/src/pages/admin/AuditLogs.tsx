@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import useConfirm from '../../hooks/useConfirm';
 import usePrompt from '../../hooks/usePrompt';
 import { LogIn, LogOut, Search, ChevronLeft, ChevronRight, Filter, Users, GraduationCap, Shield, Clock, RefreshCw } from "lucide-react";
+import { LoadingState } from '../../components/ui/LoadingState';
 
 interface AuditUser {
   id: number;
@@ -488,7 +489,7 @@ export function AuditLogs() {
             </div>
             <div>
               {modalLoading ? (
-                <div className="text-center text-gray-500">Loading...</div>
+                <LoadingState message="Loading time logs" />
               ) : modalTimeLogs.length === 0 ? (
                 <div className="text-center text-gray-500">No time logs for this user.</div>
               ) : (
@@ -784,7 +785,7 @@ export function AuditLogs() {
               <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
                 <tr>
                   <td colSpan={12} className="px-6 py-8 text-center text-gray-400 dark:text-slate-500">
-                    Loading...
+                    <LoadingState message="Loading audit logs" size="sm" className="py-2" />
                   </td>
                 </tr>
               </tbody>

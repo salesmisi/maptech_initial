@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X } from 'lucide-react';
 import { safeArray } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 interface Notification {
   id: number;
@@ -414,7 +415,7 @@ export function NotificationManagement() {
       {activeTab === 'received' && (
         <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-slate-500">Loading...</div>
+            <LoadingState message="Loading notifications" className="p-8" />
           ) : safeArray(notifications).length === 0 ? (
             <div className="p-8 text-center text-slate-500">
               <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300" />

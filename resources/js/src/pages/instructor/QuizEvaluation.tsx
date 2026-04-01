@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock3, Search, XCircle } from 'lucide-react';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 const API_BASE = '/api';
 
@@ -127,7 +128,9 @@ export function QuizEvaluation() {
       </div>
 
       {loading ? (
-        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-slate-500">Loading results...</div>
+        <div className="rounded-lg border border-slate-200 bg-white p-8">
+          <LoadingState message="Loading results" />
+        </div>
       ) : error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700 text-sm flex items-center gap-2">
           <AlertCircle className="h-4 w-4" />

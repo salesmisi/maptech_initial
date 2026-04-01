@@ -2,6 +2,7 @@
 import useConfirm from '../../hooks/useConfirm';
 import { Star, Plus, Edit2, Trash2, X } from 'lucide-react';
 import { safeArray } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 const API = '/api/employee';
 
@@ -254,7 +255,7 @@ export function MyFeedback() {
     });
   };
 
-  if (loading) return <div className="p-6 text-slate-500">Loading...</div>;
+  if (loading) return <LoadingState message="Loading feedback" className="p-6" />;
 
   return (
     <div className="space-y-6">

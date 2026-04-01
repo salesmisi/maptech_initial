@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import useConfirm from '../hooks/useConfirm';
 import { safeArray } from '../utils/safe';
+import { LoadingState } from './ui/LoadingState';
 
 interface Question {
   id: number;
@@ -140,7 +141,7 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
       </div>
 
       {loading ? (
-        <div className="p-6 text-slate-500 dark:text-slate-400">Loading...</div>
+        <LoadingState message="Loading questions" className="p-6" />
       ) : (
         <div className="space-y-4">
           {/* Ask new question — employees only when lesson selected */}

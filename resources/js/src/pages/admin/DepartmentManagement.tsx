@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect } from "react";
 import { safeArray } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
 import {
   Plus,
   Pencil,
@@ -321,13 +322,13 @@ export default function DepartmentManagement() {
   };
 
   // ================= RENDER =================
-  if (loading) return <div className="p-6 text-slate-600 dark:text-slate-300">Loading...</div>;
+  if (loading) return <LoadingState message="Loading departments" className="p-6" />;
   if (error) return <div className="p-6 text-red-600">{error}</div>;
 
   return (
     <div className="p-6 text-slate-900 dark:text-slate-100">
       {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="department-toolbar-animate flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
           Department Management
         </h1>
@@ -338,7 +339,7 @@ export default function DepartmentManagement() {
             setDeptForm({ name: "", code: "", head: "", head_id: "", description: "" });
             setShowDeptModal(true);
           }}
-          className="flex items-center px-4 py-2 bg-emerald-500 text-slate-950 font-semibold rounded-lg hover:bg-emerald-400 transition-colors"
+          className="department-cta-button flex items-center px-4 py-2 bg-emerald-500 text-slate-950 font-semibold rounded-lg hover:bg-emerald-400 transition-colors"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add Department
@@ -347,8 +348,12 @@ export default function DepartmentManagement() {
 
       {/* GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {departments.map((dept) => (
-          <div key={dept.id} className="bg-white border border-slate-200 rounded-xl shadow p-5 dark:bg-slate-900/80 dark:border-slate-700/80 dark:shadow-[0_10px_30px_rgba(2,6,23,0.35)]">
+        {departments.map((dept, deptIndex) => (
+          <div
+            key={dept.id}
+            className="department-card group bg-white border border-slate-200 rounded-xl shadow p-5 dark:bg-slate-900/80 dark:border-slate-700/80 dark:shadow-[0_10px_30px_rgba(2,6,23,0.35)]"
+            style={{ animationDelay: `${Math.min(deptIndex * 55, 440)}ms` }}
+          >
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-emerald-500/20 rounded-lg border border-emerald-500/30">
@@ -377,10 +382,11 @@ export default function DepartmentManagement() {
               <div className="mb-3">
                 <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-medium">Subdepartments:</p>
                 <div className="space-y-2">
-                {safeArray(dept.subdepartments).map((sub) => (
+                {safeArray(dept.subdepartments).map((sub, subIndex) => (
                   <div
                     key={sub.id}
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs group dark:bg-slate-800/90 dark:border-slate-700"
+                    className="department-sub-item px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs group dark:bg-slate-800/90 dark:border-slate-700"
+                    style={{ animationDelay: `${Math.min(subIndex * 35, 245)}ms` }}
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-sky-700 dark:text-sky-300">{sub.name}</span>
@@ -395,7 +401,7 @@ export default function DepartmentManagement() {
                             });
                             setShowSubModal(true);
                           }}
-                          className="w-3 h-3 cursor-pointer text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                          className="department-action-icon w-3 h-3 cursor-pointer text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
                         />
                         <X
                           onClick={() => {
@@ -403,7 +409,7 @@ export default function DepartmentManagement() {
                             setSelectedSubName(sub.name);
                             setShowDeleteSubModal(true);
                           }}
-                          className="w-3 h-3 cursor-pointer text-slate-500 hover:text-rose-500 dark:text-slate-400 dark:hover:text-rose-400"
+                          className="department-action-icon w-3 h-3 cursor-pointer text-slate-500 hover:text-rose-500 dark:text-slate-400 dark:hover:text-rose-400"
                         />
                       </div>
                     </div>
@@ -426,7 +432,7 @@ export default function DepartmentManagement() {
                     setEditingSub(null);
                     setShowSubModal(true);
                   }}
-                  className="text-emerald-700 text-xs font-medium hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+                  className="department-sub-cta text-emerald-700 text-xs font-medium hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
                 >
                   + Sub
                 </button>
@@ -443,7 +449,7 @@ export default function DepartmentManagement() {
                     });
                     setShowDeptModal(true);
                   }}
-                  className="w-4 h-4 cursor-pointer text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                  className="department-action-icon w-4 h-4 cursor-pointer text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
                 />
 
                 <Trash2
@@ -451,7 +457,7 @@ export default function DepartmentManagement() {
                     setSelectedDeptId(dept.id);
                     setShowDeleteModal(true);
                   }}
-                  className="w-4 h-4 cursor-pointer text-slate-500 hover:text-rose-500 dark:text-slate-400 dark:hover:text-rose-400"
+                  className="department-action-icon w-4 h-4 cursor-pointer text-slate-500 hover:text-rose-500 dark:text-slate-400 dark:hover:text-rose-400"
                 />
               </div>
             </div>

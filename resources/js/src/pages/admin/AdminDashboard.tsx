@@ -26,6 +26,7 @@ import {
   Bar,
   Legend } from
 'recharts';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 const ANALYTICS_COLORS = ['#22c55e', '#eab308', '#94a3b8'];
 const RANGE_OPTIONS = [
@@ -292,7 +293,7 @@ export function AdminDashboard({ onNavigate }: Props) {
           </div>
           <div className="h-80">
             {reportsLoading ? (
-              <div className="h-full flex items-center justify-center text-slate-400">Loading…</div>
+              <LoadingState message="Loading analytics" className="h-full" />
             ) : completionStatus.every((d) => d.value === 0) ? (
               <div className="h-full flex items-center justify-center text-slate-400">No enrollment data yet</div>
             ) : (
@@ -326,7 +327,7 @@ export function AdminDashboard({ onNavigate }: Props) {
           </h3>
           <div className="h-80">
             {reportsLoading ? (
-              <div className="flex items-center justify-center h-full text-slate-400">Loading…</div>
+              <LoadingState message="Loading trends" className="h-full" />
             ) : monthlyTrends.length === 0 ? (
               <div className="flex items-center justify-center h-full text-slate-400">No trend data yet</div>
             ) : (
@@ -351,7 +352,7 @@ export function AdminDashboard({ onNavigate }: Props) {
           Most Popular Courses
         </h3>
         {reportsLoading ? (
-          <div className="h-80 flex items-center justify-center text-slate-400">Loading…</div>
+          <LoadingState message="Loading courses" className="h-80" />
         ) : popularCourses.length === 0 ? (
           <div className="h-80 flex items-center justify-center text-slate-400">No course enrollment data yet</div>
         ) : (
@@ -412,7 +413,7 @@ export function AdminDashboard({ onNavigate }: Props) {
                 {loading ? (
                   <tr>
                     <td colSpan={4} className="px-6 py-8 text-center text-sm text-slate-400 dark:text-slate-500">
-                      Loading…
+                      <LoadingState message="Loading activity" size="sm" className="py-2" />
                     </td>
                   </tr>
                 ) : recentActivity.length === 0 ? (
@@ -532,7 +533,7 @@ export function AdminDashboard({ onNavigate }: Props) {
                 <tbody className="bg-white divide-y divide-slate-200">
                   {activityLoading ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-400">Loading…</td>
+                      <td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-400"><LoadingState message="Loading activity" size="sm" className="py-2" /></td>
                     </tr>
                   ) : allActivity.length === 0 ? (
                     <tr>

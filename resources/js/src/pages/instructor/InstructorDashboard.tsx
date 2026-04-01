@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '../../components/ToastProvider';
+import { LoadingState } from '../../components/ui/LoadingState';
 // icons removed — not used in this component
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 import { UserTimeLog } from '../../components/UserTimeLog';
@@ -100,7 +101,7 @@ export function InstructorDashboard() {
 
   return (
     <div className="space-y-6">
-      {loading && <div className="text-center py-8 text-slate-400">Loading dashboard...</div>}
+      {loading && <LoadingState message="Loading dashboard" />}
       {!loading && (
         <>
         {/* Page Header */}

@@ -16,6 +16,7 @@ import {
   CameraIcon,
 } from '@heroicons/react/24/outline';
 import { safeArray } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 interface Course {
   id: number;
@@ -848,9 +849,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   if (loading) {
     return (
       <div className="p-6">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-          <h3 className="text-blue-800 font-medium">Loading Courses...</h3>
-          <p className="text-blue-600 mt-1">Please wait while we fetch your course data.</p>
+        <div className="bg-white border border-slate-200 rounded-lg p-4 mb-4">
+          <LoadingState message="Loading courses" />
         </div>
         <div className="animate-pulse">
           <div className="h-8 bg-gray-200 rounded mb-4"></div>
@@ -948,7 +948,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       </div>
 
       {/* Search and Filter */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+      <div className="course-toolbar-animate flex flex-col sm:flex-row gap-4 mb-6">
         <div className="flex-1 relative">
           <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-3 text-gray-400 dark:text-slate-400" />
           <input
@@ -973,8 +973,12 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
       {/* Courses Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredCourses.map((course) => (
-          <div key={course.id} className="relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)]">
+        {filteredCourses.map((course, index) => (
+          <div
+            key={course.id}
+            className="course-management-card group relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)]"
+            style={{ animationDelay: `${Math.min(index * 45, 360)}ms` }}
+          >
             {/* Course Icon */}
             <div className="h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-teal-500 rounded-t-xl flex items-center justify-center">
               <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md">
@@ -1000,21 +1004,21 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 <div className="flex space-x-1">
                   <button
                     onClick={() => onNavigate?.('course-detail', String(course.id))}
-                    className="p-1.5 rounded-md text-gray-600 hover:text-blue-700 hover:bg-blue-50 dark:text-slate-300 dark:hover:text-sky-300 dark:hover:bg-slate-800"
+                    className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-blue-700 hover:bg-blue-50 dark:text-slate-300 dark:hover:text-sky-300 dark:hover:bg-slate-800"
                     title="Manage Content"
                   >
                     <EyeIcon className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleEditCourse(course)}
-                    className="p-1.5 rounded-md text-gray-600 hover:text-amber-700 hover:bg-amber-50 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800"
+                    className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-amber-700 hover:bg-amber-50 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800"
                     title="Edit"
                   >
                     <PencilIcon className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteCourse(course)}
-                    className="p-1.5 rounded-md text-gray-600 hover:text-rose-700 hover:bg-rose-50 dark:text-slate-300 dark:hover:text-rose-300 dark:hover:bg-slate-800"
+                    className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-rose-700 hover:bg-rose-50 dark:text-slate-300 dark:hover:text-rose-300 dark:hover:bg-slate-800"
                     title="Delete"
                   >
                     <TrashIcon className="h-4 w-4" />
@@ -1063,7 +1067,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               {/* Manage Content Button */}
               <button
                 onClick={() => onNavigate?.('course-detail', String(course.id))}
-                className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                className="course-manage-button w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
               >
                 Manage Content →
               </button>
@@ -1164,7 +1168,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   </div>
 
                   {loadingModules ? (
-                    <div className="text-center py-8 text-gray-500">Loading modules...</div>
+                    <LoadingState message="Loading modules" />
                   ) : courseModules.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">No modules yet. Add one above.</div>
                   ) : (

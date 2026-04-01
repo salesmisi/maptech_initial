@@ -161,7 +161,7 @@ export function AdminLayout({
                   <button
                     key={item.id}
                     onClick={() => onNavigate(item.id)}
-                    className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg w-full transition-colors ${isActive ? 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}>
+                    className={`sidebar-nav-item group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg w-full transition-colors ${isActive ? 'is-active bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}>
 
                     <Icon
                       className={`mr-3 flex-shrink-0 h-5 w-5 ${isActive ? 'text-emerald-300' : 'text-slate-400 group-hover:text-slate-200'}`} />
