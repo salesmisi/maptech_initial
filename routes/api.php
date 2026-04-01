@@ -580,6 +580,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         Route::post('/', [\App\Http\Controllers\Admin\CustomModuleController::class, 'store']);
         Route::get('/categories', [\App\Http\Controllers\Admin\CustomModuleController::class, 'categories']);
         Route::get('/tags', [\App\Http\Controllers\Admin\CustomModuleController::class, 'tags']);
+        Route::get('/ui-components', [\App\Http\Controllers\Admin\CustomModuleController::class, 'uiComponents']);
         Route::post('/reorder', [\App\Http\Controllers\Admin\CustomModuleController::class, 'reorder']);
         Route::get('/{id}', [\App\Http\Controllers\Admin\CustomModuleController::class, 'show']);
         Route::put('/{id}', [\App\Http\Controllers\Admin\CustomModuleController::class, 'update']);

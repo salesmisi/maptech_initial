@@ -17,10 +17,98 @@ import {
   ImagePlus,
   Moon,
   Sun,
-  Blocks
+  Blocks,
+  Clipboard,
+  Calendar,
+  FileText,
+  Briefcase,
+  FolderOpen,
+  Target,
+  CheckSquare,
+  Database,
+  TrendingUp,
+  Activity,
+  Package,
+  ShoppingCart,
+  DollarSign,
+  PieChart,
+  BarChart2,
+  Clock,
+  AlertCircle,
+  Info,
+  HelpCircle,
+  Star,
+  Tag,
+  Filter,
+  Grid,
+  List,
+  Layout,
+  Layers,
+  Home,
+  Folder,
+  File,
+  Upload,
+  Download,
+  Share2,
+  Link2,
+  LucideIcon
 } from 'lucide-react';
 import { NotificationBell } from '../NotificationBell';
 import { useBusinessDetails } from '../../hooks/useBusinessDetails';
+
+// Icon mapping for dynamic icon rendering
+const iconMap: Record<string, LucideIcon> = {
+  LayoutDashboard,
+  Users,
+  BookOpen,
+  Building2,
+  UserPlus,
+  BarChart3,
+  Bell,
+  MessageCircle,
+  Settings,
+  ClipboardList,
+  ImagePlus,
+  Blocks,
+  Clipboard,
+  Calendar,
+  FileText,
+  Briefcase,
+  FolderOpen,
+  Target,
+  CheckSquare,
+  Database,
+  TrendingUp,
+  Activity,
+  Package,
+  ShoppingCart,
+  DollarSign,
+  PieChart,
+  BarChart2,
+  Clock,
+  AlertCircle,
+  Info,
+  HelpCircle,
+  Star,
+  Tag,
+  Filter,
+  Grid,
+  List,
+  Layout,
+  Layers,
+  Home,
+  Folder,
+  File,
+  Upload,
+  Download,
+  Share2,
+  Link2,
+};
+
+// Helper to get icon by name
+const getIconByName = (name: string): LucideIcon => {
+  return iconMap[name] || Blocks;
+};
 interface AdminLayoutProps {
   children: React.ReactNode;
   currentPage: string;
@@ -53,6 +141,7 @@ export function AdminLayout({
 }: AdminLayoutProps) {
   const [showPicPreview, setShowPicPreview] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(user?.fullName ?? user?.fullname ?? user?.name ?? null);
+  const [customNavItems, setCustomNavItems] = useState<any[]>([]);
   const isDark = theme === 'dark';
   const businessDetails = useBusinessDetails();
 
@@ -74,6 +163,27 @@ export function AdminLayout({
     })();
     return () => { mounted = false; };
   }, [displayName]);
+
+  // Load custom UI component modules
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/custom-modules/ui-components', {
+          credentials: 'include',
+          headers: { Accept: 'application/json' }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (mounted) {
+          setCustomNavItems(data);
+        }
+      } catch (e) {
+        console.error('Failed to load custom navigation items:', e);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
   const navItems = [
   {
     id: 'dashboard',
@@ -141,6 +251,18 @@ export function AdminLayout({
     icon: Building2
   }];
 
+  // Merge custom UI component modules into navigation
+  const allNavItems = [
+    ...navItems.slice(0, 5), // Dashboard to Custom Field Builder
+    ...customNavItems.map((item: any) => ({
+      id: item.route_path,
+      label: item.title,
+      icon: getIconByName(item.icon_name),
+      isCustom: true,
+    })),
+    ...navItems.slice(5), // Rest of the items (Q&A onwards)
+  ];
+
   return (
     <div className={`app-theme-scope min-h-screen flex ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 dark:bg-slate-900 text-slate-900'}`}>
       {/* Sidebar (fixed on all viewports to avoid layout shift when zooming) */}
@@ -159,7 +281,7 @@ export function AdminLayout({
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
             <nav className="mt-5 flex-1 px-2 space-y-1">
-              {navItems.map((item) => {
+              {allNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = currentPage === item.id || (item.id === 'courses' && currentPage === 'course-detail');
                 return (
