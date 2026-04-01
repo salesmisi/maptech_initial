@@ -119,6 +119,7 @@ export function ReportsAnalytics() {
   const chartLegendColor = isDarkMode ? '#b8c2d1' : '#475569';
   const completionSliceStroke = isDarkMode ? 'rgba(148, 163, 184, 0.5)' : 'rgba(100, 116, 139, 0.45)';
   const activeRingFill = isDarkMode ? 'rgba(226, 232, 240, 0.42)' : 'rgba(71, 85, 105, 0.28)';
+  const trendActiveDotStroke = isDarkMode ? '#0b1220' : '#ffffff';
   const chartTooltipClass = isDarkMode
     ? 'rounded-lg border border-slate-700/60 bg-slate-900/88 px-3 py-2 shadow-md backdrop-blur-sm'
     : 'rounded-lg border border-slate-200/90 bg-white/96 px-3 py-2 shadow-sm backdrop-blur-sm';
@@ -329,11 +330,11 @@ export function ReportsAnalytics() {
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
                   <Tooltip
                     content={renderTrendsTooltip}
-                    cursor={{ stroke: 'rgba(148, 163, 184, 0.35)', strokeWidth: 1 }}
+                    cursor={false}
                   />
                   <Legend wrapperStyle={{ color: chartLegendColor, fontSize: '12px', paddingTop: '8px' }} />
-                  <Line type="monotone" dataKey="enrollments" stroke="#2db768" strokeWidth={2} dot={{ r: 2.5 }} />
-                  <Line type="monotone" dataKey="completions" stroke="#5b8def" strokeWidth={2} dot={{ r: 2.5 }} />
+                  <Line type="monotone" dataKey="enrollments" stroke="#2db768" strokeWidth={2} dot={{ r: 2.5 }} activeDot={{ r: 5, stroke: trendActiveDotStroke, strokeWidth: 2 }} />
+                  <Line type="monotone" dataKey="completions" stroke="#5b8def" strokeWidth={2} dot={{ r: 2.5 }} activeDot={{ r: 5, stroke: trendActiveDotStroke, strokeWidth: 2 }} />
                 </LineChart>
               </ResponsiveContainer>
             )}

@@ -141,12 +141,23 @@ html.dark .shadow-lg {
 		transform: translateY(-6px);
 	}
 
+	html.dark .course-management-card:hover {
+		background-color: rgba(15, 23, 42, 0.94);
+		border-color: rgba(45, 183, 104, 0.5);
+		box-shadow: 0 22px 42px rgba(2, 6, 23, 0.56), 0 0 0 1px rgba(45, 183, 104, 0.18);
+	}
+
 	.course-card-icon-btn {
 		transition: transform 180ms ease, background-color 180ms ease, color 180ms ease;
 	}
 
 	.course-card-icon-btn:hover {
 		transform: translateY(-1px) scale(1.05);
+	}
+
+	html.dark .course-card-icon-btn:hover {
+		background-color: rgba(30, 41, 59, 0.95);
+		box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.24);
 	}
 
 	.course-manage-button {
@@ -156,6 +167,11 @@ html.dark .shadow-lg {
 	.course-manage-button:hover {
 		transform: translateY(-1px);
 		box-shadow: 0 10px 22px rgba(22, 163, 74, 0.28);
+	}
+
+	html.dark .course-manage-button:hover {
+		background-color: #1db152;
+		box-shadow: 0 12px 24px rgba(16, 185, 129, 0.38);
 	}
 
 	@keyframes course-toolbar-open {
