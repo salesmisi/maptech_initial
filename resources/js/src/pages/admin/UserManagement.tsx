@@ -11,6 +11,7 @@ import {
   Loader2,
   Camera
 } from 'lucide-react';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 import { safeArray, resolveImageUrl } from '../../utils/safe';
 
@@ -368,10 +369,11 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-12">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-500 dark:text-emerald-400" />
-        <span className="ml-2 text-slate-600 dark:text-slate-300">Loading users...</span>
-      </div>
+      <LoadingState
+        message="Loading users"
+        size="lg"
+        className="min-h-[40vh]"
+      />
     );
   }
 

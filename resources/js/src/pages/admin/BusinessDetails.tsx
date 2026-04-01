@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Building2, ImagePlus, Save, Trash2, CheckCircle, AlertCircle, Mail, Phone, Smartphone, Globe, MapPin } from 'lucide-react';
 import { resolveImageUrl } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 interface BusinessDetailsResponse {
   company_name: string;
@@ -169,10 +170,7 @@ export function BusinessDetails() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-        <span className="ml-3 text-slate-600">Loading business details...</span>
-      </div>
+      <LoadingState message="Loading business details" size="lg" className="min-h-[40vh]" />
     );
   }
 

@@ -13,6 +13,7 @@ import {
   EyeOff,
   PenTool,
 } from 'lucide-react';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 const API_BASE = '/api';
 
@@ -238,10 +239,7 @@ export function ProfileSettings() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-        <span className="ml-3 text-slate-600">Loading profile...</span>
-      </div>
+      <LoadingState message="Loading profile" size="lg" className="min-h-[40vh]" />
     );
   }
 
