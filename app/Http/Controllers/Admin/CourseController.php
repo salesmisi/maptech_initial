@@ -611,8 +611,8 @@ class CourseController extends Controller
         $request->validate([
             'title'        => 'required|string|max:255',
             'text_content' => 'nullable|string',
-            // Allow large video files (up to ~2 GB)
-            'content'      => 'nullable|file|max:2048000',
+            // Allow large video files (up to ~5 GB)
+            'content'      => 'nullable|file|max:5242880',
             'content_url'  => 'nullable|url|max:2000',
             'type'         => 'nullable|in:Video,Document,Text',
             'status'       => 'nullable|in:Published,Draft',
@@ -692,7 +692,8 @@ class CourseController extends Controller
         $request->validate([
             'title'        => 'sometimes|string|max:255',
             'text_content' => 'nullable|string',
-            'content'      => 'nullable|file|max:102400',
+            // Allow large video files (up to ~5 GB)
+            'content'      => 'nullable|file|max:5242880',
         ]);
 
         if ($request->has('title')) $lesson->title = $request->input('title');
@@ -727,6 +728,25 @@ class CourseController extends Controller
         }
 
         return response()->json(['message' => 'Modules reordered']);
+    }
+
+    /**
+     * Reorder lessons within a module.
+     */
+    public function reorderLessons(Request $request, int $moduleId)
+    {
+        $module = Module::findOrFail($moduleId);
+
+        $request->validate([
+            'order'   => 'required|array',
+            'order.*' => 'integer|exists:lessons,id',
+        ]);
+
+        foreach ($request->input('order') as $index => $lessonId) {
+            $module->lessons()->where('id', $lessonId)->update(['order' => $index + 1]);
+        }
+
+        return response()->json(['message' => 'Lessons reordered']);
     }
 
     /**

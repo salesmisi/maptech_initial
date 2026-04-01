@@ -84,10 +84,27 @@ interface UserOption {
   role: string;
 }
 
-export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, courseId?: string) => void }) {
+interface CustomModule {
+  id: number;
+  title: string;
+  description: string | null;
+  category: string | null;
+  tags: string[];
+  status: 'draft' | 'published' | 'unpublished';
+  lessons_count: number;
+  version: number;
+  creator: {
+    id: number;
+    fullname: string;
+  } | null;
+  created_at: string;
+}
+
+export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, courseId?: string, customModuleId?: number) => void }) {
   const confirm = useConfirm();
   const { showConfirm } = confirm;
   const [courses, setCourses] = useState<Course[]>([]);
+  const [customModules, setCustomModules] = useState<CustomModule[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -189,7 +206,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       console.log('CoursesAndContent: Component mounting');
 
       try {
-        await loadCourses();
+        await Promise.all([loadCourses(), loadCustomModules()]);
       } catch (err) {
         console.error('CoursesAndContent: Init error:', err);
         if (mounted) {
@@ -211,6 +228,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     const handler = (e: any) => {
       try {
         loadCourses();
+        loadCustomModules();
       } catch (err) {
         // ignore
       }
@@ -315,6 +333,29 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     } finally {
       setLoading(false);
       console.log('CoursesAndContent: Load courses completed');
+    }
+  };
+
+  // Load custom modules from Custom Field Builder
+  const loadCustomModules = async () => {
+    try {
+      console.log('CoursesAndContent: Loading custom modules');
+      const response = await fetch('/api/admin/custom-modules?status=published', {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('CoursesAndContent: Received custom modules:', data);
+        setCustomModules(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error('CoursesAndContent: Failed to load custom modules:', err);
+      // Don't set error - custom modules are optional
     }
   };
 
@@ -834,6 +875,22 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     return matchesSearch && matchesStatus;
   });
 
+  // Filter custom modules based on search term and status
+  const filteredCustomModules = customModules.filter(module => {
+    const matchesSearch = module.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (module.category || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (module.creator?.fullname || '').toLowerCase().includes(searchTerm.toLowerCase());
+    // Map custom module status to course status for filtering
+    const moduleStatusMap: Record<string, string> = {
+      'published': 'active',
+      'draft': 'draft',
+      'unpublished': 'inactive'
+    };
+    const mappedStatus = moduleStatusMap[module.status] || 'draft';
+    const matchesStatus = statusFilter === 'all' || mappedStatus === statusFilter.toLowerCase();
+    return matchesSearch && matchesStatus;
+  });
+
   const getStatusBadge = (status: string) => {
     const badges = {
       Active: 'bg-green-100 text-green-800 dark:bg-emerald-500/20 dark:text-emerald-300',
@@ -999,9 +1056,16 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <button
                     onClick={() => onNavigate?.('course-detail', String(course.id))}
                     className="p-1.5 rounded-md text-gray-600 hover:text-blue-700 hover:bg-blue-50 dark:text-slate-300 dark:hover:text-sky-300 dark:hover:bg-slate-800"
-                    title="Manage Content"
+                    title="View Course Details"
                   >
                     <EyeIcon className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => onNavigate?.('course-content-editor', String(course.id))}
+                    className="p-1.5 rounded-md text-gray-600 hover:text-green-700 hover:bg-green-50 dark:text-slate-300 dark:hover:text-green-300 dark:hover:bg-slate-800"
+                    title="Edit Modules & Lessons"
+                  >
+                    <DocumentPlusIcon className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleEditCourse(course)}
@@ -1060,8 +1124,99 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
               {/* Manage Content Button */}
               <button
-                onClick={() => onNavigate?.('course-detail', String(course.id))}
+                onClick={() => onNavigate?.('course-content-editor', String(course.id))}
                 className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
+              >
+                Manage Content →
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {/* Custom Modules Cards */}
+        {filteredCustomModules.map((module) => (
+          <div key={`custom-${module.id}`} className="relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)]">
+            {/* Custom Module Icon */}
+            <div className="h-28 bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-500 dark:to-indigo-500 rounded-t-xl flex items-center justify-center relative">
+              {/* Custom Module Badge */}
+              <div className="absolute top-2 left-2 px-2 py-0.5 bg-white/90 dark:bg-slate-800/90 rounded-full text-xs font-medium text-purple-700 dark:text-purple-300">
+                Custom Module
+              </div>
+              <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md">
+                {module.creator ? (
+                  <span className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+                    {module.creator.fullname.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </span>
+                ) : (
+                  <AcademicCapIcon className="h-8 w-8 text-purple-700 dark:text-purple-300" />
+                )}
+              </div>
+            </div>
+
+            {/* Custom Module Content */}
+            <div className="p-5">
+              {/* Status Badge */}
+              <div className="flex justify-between items-start mb-3">
+                <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
+                  module.status === 'published'
+                    ? 'bg-green-100 text-green-800 dark:bg-emerald-500/20 dark:text-emerald-300'
+                    : module.status === 'draft'
+                    ? 'bg-yellow-100 text-yellow-800 dark:bg-amber-500/20 dark:text-amber-300'
+                    : 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-200'
+                }`}>
+                  {module.status}
+                </span>
+                <div className="flex space-x-1">
+                  <button
+                    onClick={() => onNavigate?.('custom-field', undefined, module.id)}
+                    className="p-1.5 rounded-md text-gray-600 hover:text-blue-700 hover:bg-blue-50 dark:text-slate-300 dark:hover:text-sky-300 dark:hover:bg-slate-800"
+                    title="View Module Details"
+                  >
+                    <EyeIcon className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => onNavigate?.('custom-field', undefined, module.id)}
+                    className="p-1.5 rounded-md text-gray-600 hover:text-amber-700 hover:bg-amber-50 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800"
+                    title="Edit Module"
+                  >
+                    <PencilIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Module Title */}
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2 leading-tight">{module.title}</h3>
+
+              {/* Stats */}
+              <div className="flex items-center text-sm text-gray-600 dark:text-slate-300 mb-4 space-x-4">
+                <div className="flex items-center">
+                  <AcademicCapIcon className="h-4 w-4 mr-1" />
+                  {module.lessons_count} Lessons
+                </div>
+                <div className="flex items-center text-xs text-gray-500">
+                  v{module.version}
+                </div>
+              </div>
+
+              {/* Category and Creator */}
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-500/20 border border-gray-200 dark:border-slate-600 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">
+                    {module.creator
+                      ? module.creator.fullname.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+                      : '?'}
+                  </span>
+                </div>
+                <div className="text-sm text-gray-600 dark:text-slate-300">
+                  <div className="font-medium text-gray-700 dark:text-slate-200">{module.category || 'Uncategorized'}</div>
+                  <div>{module.creator?.fullname || 'Unknown'}</div>
+                </div>
+              </div>
+
+              {/* Manage Content Button */}
+              <button
+                onClick={() => onNavigate?.('custom-field', undefined, module.id)}
+                className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition-colors font-medium"
               >
                 Manage Content →
               </button>
@@ -1071,7 +1226,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       </div>
 
       {/* Empty State */}
-      {filteredCourses.length === 0 && (
+      {filteredCourses.length === 0 && filteredCustomModules.length === 0 && (
         <div className="text-center py-12">
           <AcademicCapIcon className="h-12 w-12 text-gray-400 dark:text-slate-500 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-slate-100 mb-2">No courses found</h3>

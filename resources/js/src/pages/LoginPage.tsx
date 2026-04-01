@@ -62,10 +62,16 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
       // ✅ 1. Get CSRF cookie
       await fetch('/sanctum/csrf-cookie', {
         credentials: 'include',
+      }).catch((err) => {
+        throw new Error('Cannot connect to server. Please ensure the server is running.');
       });
 
       // ✅ 2. Extract XSRF token from cookie
       const xsrfToken = getCookie('XSRF-TOKEN');
+
+      if (!xsrfToken) {
+        throw new Error('Unable to get security token. Please refresh the page and try again.');
+      }
 
       // ✅ 3. Login request WITH X-XSRF-TOKEN header
       const response = await fetch('/login', {
@@ -81,6 +87,8 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
           email,
           password,
         }),
+      }).catch((err) => {
+        throw new Error('Network error: Cannot connect to server.');
       });
 
       if (!response.ok) {

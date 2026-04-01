@@ -12,6 +12,7 @@ import { AdminDashboard } from './pages/admin/AdminDashboard';
 import DepartmentManagement from './pages/admin/DepartmentManagement';
 import { UserManagement } from './pages/admin/UserManagement';
 import { CoursesAndContent } from './pages/admin/CoursesAndContent';
+import { CourseContentEditor } from './pages/admin/CourseContentEditor';
 import { EnrollmentManagement } from './pages/admin/EnrollmentManagement';
 import { ReportsAnalytics } from './pages/admin/ReportsAnalytics';
 import { NotificationManagement } from './pages/admin/NotificationManagement';
@@ -19,6 +20,7 @@ import { AuditLogs } from './pages/admin/AuditLogs';
 import { AdminFeedback } from './pages/admin/AdminFeedback';
 import { BusinessDetails } from './pages/admin/BusinessDetails';
 import { ProductLogoManager } from './pages/admin/ProductLogoManager';
+import { CustomFieldBuilder } from './pages/admin/CustomFieldBuilder';
 
 // Instructor Pages
 import { InstructorDashboard } from './pages/instructor/InstructorDashboard';
@@ -68,6 +70,7 @@ export function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [selectedCustomModuleId, setSelectedCustomModuleId] = useState<number | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
 
   const matches = (value: string | null | undefined, query: string) =>
@@ -360,7 +363,7 @@ export function App() {
     setCurrentPage('dashboard');
   };
 
-  const handleNavigate = (page: string, courseId?: string, quizId?: number) => {
+  const handleNavigate = (page: string, courseId?: string, quizIdOrModuleId?: number) => {
     setCurrentPage(page);
     if (user) {
       localStorage.setItem(`maptech_page_${user.role}`, page);
@@ -380,9 +383,16 @@ export function App() {
 
     updateUrlRouteState(page, courseId);
 
-    if (typeof quizId !== 'undefined') {
+    // Handle custom module ID for custom-field page
+    if (page === 'custom-field' && typeof quizIdOrModuleId === 'number') {
+      setSelectedCustomModuleId(quizIdOrModuleId);
+    } else if (page !== 'custom-field') {
+      setSelectedCustomModuleId(null);
+    }
+
+    if (typeof quizIdOrModuleId !== 'undefined' && page !== 'custom-field') {
       if (user) {
-        try { localStorage.setItem(`maptech_quizId_${user.role}`, String(quizId ?? '')); } catch (e) { /* ignore */ }
+        try { localStorage.setItem(`maptech_quizId_${user.role}`, String(quizIdOrModuleId ?? '')); } catch (e) { /* ignore */ }
       }
     }
   };
@@ -461,7 +471,9 @@ export function App() {
           {currentPage === 'departments' && <DepartmentManagement />}
           {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
           {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
+          {currentPage === 'custom-field' && <CustomFieldBuilder onNavigate={handleNavigate} initialExpandedModuleId={selectedCustomModuleId} />}
           {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
+          {currentPage === 'course-content-editor' && <CourseContentEditor courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} />}
           {currentPage === 'enrollments' && <EnrollmentManagement />}
           {currentPage === 'reports' && <ReportsAnalytics />}
           {currentPage === 'notifications' && <NotificationManagement />}

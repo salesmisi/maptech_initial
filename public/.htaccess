@@ -23,3 +23,17 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# PHP Configuration for Large File Uploads (Videos)
+<IfModule mod_php.c>
+    php_value upload_max_filesize 5120M
+    php_value post_max_size 5120M
+    php_value max_execution_time 600
+    php_value max_input_time 600
+    php_value memory_limit 512M
+</IfModule>
+
+# For PHP-FPM (if mod_php is not available)
+<IfModule mod_fcgid.c>
+    FcgidMaxRequestLen 5368709120
+</IfModule>

@@ -69,4 +69,12 @@ class Lesson extends Model
     {
         return $this->belongsTo(Module::class);
     }
+
+    /**
+     * Get the custom lesson this lesson is synced from (if any).
+     */
+    public function customLesson()
+    {
+        return $this->belongsTo(CustomLesson::class, 'custom_lesson_id');
+    }
 }
