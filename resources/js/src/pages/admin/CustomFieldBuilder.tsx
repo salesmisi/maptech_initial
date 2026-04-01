@@ -371,7 +371,173 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
     }));
   };
 
+  // Auto-suggest icon based on title keywords
+  const suggestIconFromTitle = (title: string): string => {
+    const lowerTitle = title.toLowerCase();
+
+    // Icon suggestions based on keywords
+    const iconKeywords: Record<string, string[]> = {
+      // Celebrations & Events
+      'Cake': ['birthday', 'bday', 'anniversary', 'celebration', 'party'],
+      'Gift': ['gift', 'present', 'reward', 'bonus', 'prize'],
+      'PartyPopper': ['party', 'celebrate', 'celebration', 'event', 'fest'],
+      'Heart': ['love', 'favorite', 'like', 'heart', 'wellness', 'health'],
+      'Award': ['award', 'achievement', 'recognition', 'honor'],
+      'Trophy': ['trophy', 'winner', 'champion', 'competition', 'contest'],
+      'Medal': ['medal', 'badge', 'certificate', 'honor'],
+      'Star': ['star', 'rating', 'review', 'featured', 'top', 'best'],
+      'Smile': ['employee', 'staff', 'team', 'people', 'happy', 'satisfaction'],
+
+      // Work & Business
+      'Briefcase': ['work', 'job', 'career', 'business', 'professional'],
+      'Building2': ['office', 'company', 'organization', 'corporate', 'department'],
+      'Users': ['team', 'group', 'members', 'staff', 'employees'],
+      'Target': ['goal', 'target', 'objective', 'kpi', 'performance'],
+      'TrendingUp': ['growth', 'progress', 'trend', 'increase', 'sales'],
+      'BarChart3': ['report', 'analytics', 'statistics', 'data', 'chart'],
+      'PieChart': ['breakdown', 'distribution', 'percentage', 'share'],
+
+      // Time & Schedule
+      'Calendar': ['calendar', 'schedule', 'date', 'event', 'meeting', 'appointment'],
+      'Clock': ['time', 'hours', 'schedule', 'deadline', 'timer', 'attendance'],
+
+      // Communication
+      'Bell': ['notification', 'alert', 'reminder', 'announce'],
+      'Megaphone': ['announcement', 'news', 'broadcast', 'memo'],
+      'MessageCircle': ['message', 'chat', 'comment', 'feedback', 'communication'],
+      'Mail': ['email', 'mail', 'letter', 'inbox', 'correspondence'],
+      'Phone': ['phone', 'call', 'contact', 'telephone'],
+
+      // Documents & Files
+      'FileText': ['document', 'file', 'report', 'form', 'paper'],
+      'Clipboard': ['checklist', 'list', 'task', 'todo', 'form'],
+      'ClipboardList': ['inventory', 'checklist', 'audit', 'inspection'],
+      'FolderOpen': ['folder', 'directory', 'archive', 'records'],
+      'BookOpen': ['book', 'manual', 'guide', 'training', 'learning', 'course'],
+
+      // Finance & Money
+      'DollarSign': ['salary', 'payment', 'money', 'finance', 'budget', 'cost'],
+      'CreditCard': ['payment', 'card', 'billing', 'transaction'],
+      'Wallet': ['expense', 'reimbursement', 'allowance', 'wallet'],
+      'Receipt': ['receipt', 'invoice', 'bill', 'expense'],
+
+      // Travel & Location
+      'Car': ['vehicle', 'car', 'transport', 'travel', 'parking'],
+      'Plane': ['travel', 'flight', 'trip', 'vacation', 'leave'],
+      'MapPin': ['location', 'address', 'place', 'branch', 'site'],
+      'Map': ['map', 'direction', 'route', 'navigation'],
+
+      // Food & Breaks
+      'Coffee': ['break', 'coffee', '休憩', 'lunch', 'snack'],
+      'Utensils': ['food', 'meal', 'lunch', 'canteen', 'cafeteria', 'dining'],
+
+      // Security & Access
+      'Shield': ['security', 'safety', 'protection', 'compliance'],
+      'Lock': ['password', 'access', 'private', 'confidential', 'secure'],
+      'Key': ['key', 'access', 'permission', 'credential'],
+
+      // Ideas & Innovation
+      'Lightbulb': ['idea', 'suggestion', 'innovation', 'creative'],
+      'Rocket': ['launch', 'startup', 'initiative', 'project'],
+      'Zap': ['quick', 'fast', 'urgent', 'priority', 'action'],
+
+      // Media & Content
+      'Image': ['photo', 'image', 'picture', 'gallery'],
+      'Camera': ['camera', 'photo', 'snapshot', 'picture'],
+      'Video': ['video', 'recording', 'movie', 'media'],
+      'Music': ['music', 'audio', 'sound', 'podcast'],
+
+      // Technology
+      'Monitor': ['computer', 'desktop', 'workstation', 'it'],
+      'Laptop': ['laptop', 'notebook', 'portable'],
+      'Smartphone': ['mobile', 'phone', 'app'],
+      'Globe': ['website', 'web', 'internet', 'online', 'global'],
+      'Cloud': ['cloud', 'storage', 'backup', 'sync'],
+      'Wifi': ['wifi', 'network', 'internet', 'connection'],
+
+      // Weather & Environment
+      'Umbrella': ['weather', 'rain', 'umbrella', 'outdoor'],
+
+      // Status & Info
+      'Info': ['info', 'information', 'about', 'help', 'faq'],
+      'AlertCircle': ['warning', 'alert', 'urgent', 'important', 'critical'],
+      'HelpCircle': ['help', 'support', 'faq', 'question'],
+      'CheckSquare': ['complete', 'done', 'approved', 'verified', 'check'],
+      'ThumbsUp': ['approve', 'like', 'feedback', 'positive'],
+
+      // Misc
+      'Home': ['home', 'dashboard', 'main', 'welcome'],
+      'Settings': ['setting', 'config', 'preference', 'option'],
+      'Tag': ['tag', 'label', 'category', 'type'],
+      'Flag': ['flag', 'milestone', 'important', 'mark'],
+      'Bookmark': ['bookmark', 'save', 'favorite', 'saved'],
+      'Activity': ['activity', 'log', 'history', 'action'],
+      'Database': ['database', 'data', 'storage', 'repository'],
+      'Package': ['package', 'product', 'item', 'inventory'],
+      'ShoppingCart': ['shop', 'purchase', 'order', 'buy'],
+    };
+
+    // Search for matching keywords
+    for (const [iconName, keywords] of Object.entries(iconKeywords)) {
+      for (const keyword of keywords) {
+        if (lowerTitle.includes(keyword)) {
+          return iconName;
+        }
+      }
+    }
+
+    // Default icon if no match found
+    return 'Blocks';
+  };
+
   // Save module
+  // Auto-generate page content HTML for custom UI components
+  const generatePageContent = (title: string, description: string, iconName: string) => {
+    const safeTitle = title || 'Custom Module';
+    const safeDescription = description || 'This is your custom module page.';
+
+    return `<div class="space-y-6">
+  <div class="bg-gradient-to-r from-purple-500 to-indigo-600 p-6 rounded-lg text-white">
+    <h2 class="text-2xl font-bold mb-2">${safeTitle}</h2>
+    <p class="text-purple-100">${safeDescription}</p>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Quick Stats</h3>
+        <span class="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300 px-3 py-1 rounded-full text-sm font-medium">New</span>
+      </div>
+      <p class="text-gray-600 dark:text-gray-400">View your module statistics here</p>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Activity</h3>
+        <span class="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 px-3 py-1 rounded-full text-sm font-medium">Live</span>
+      </div>
+      <p class="text-gray-600 dark:text-gray-400">Track recent activities and updates</p>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Actions</h3>
+        <span class="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 px-3 py-1 rounded-full text-sm font-medium">Ready</span>
+      </div>
+      <p class="text-gray-600 dark:text-gray-400">Perform quick actions from here</p>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+    <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">${safeTitle} Content</h3>
+    <p class="text-gray-600 dark:text-gray-400 mb-4">
+      Welcome to your custom ${safeTitle.toLowerCase()} module. You can customize this page by editing the module in the Custom Field Builder.
+    </p>
+    <!-- BUTTONS_PLACEHOLDER -->
+  </div>
+</div>`;
+  };
+
   const saveModule = async () => {
     // Validation based on module type
     if (moduleForm.module_type === 'learning' && !moduleForm.title.trim()) {
@@ -381,7 +547,17 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
 
     // Validation for UI component modules
     if (moduleForm.module_type === 'ui_component') {
-      if (!moduleForm.icon_name || !moduleForm.icon_name.trim()) {
+      // For custom modules, require both title and icon_name
+      if (isCustomModule) {
+        if (!moduleForm.title || !moduleForm.title.trim()) {
+          pushToast('Error', 'Title is required for custom UI components', 'error');
+          return;
+        }
+        if (!moduleForm.icon_name || !moduleForm.icon_name.trim()) {
+          pushToast('Error', 'Icon name is required for custom UI components', 'error');
+          return;
+        }
+      } else if (!moduleForm.icon_name || !moduleForm.icon_name.trim()) {
         pushToast('Error', 'Please select a module type or enter an icon name', 'error');
         return;
       }
@@ -406,6 +582,21 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
       if (!submissionData.title || !submissionData.title.trim()) {
         pushToast('Error', 'Title is required. Please provide a valid icon name or title.', 'error');
         return;
+      }
+
+      // Auto-generate page content if it's a custom module (isCustomModule) and no content exists
+      if (isCustomModule && (!submissionData.component_config.pageContent || !submissionData.component_config.pageContent.trim())) {
+        // Set default buttons if not already set
+        if (!submissionData.component_config.buttons) {
+          submissionData.component_config.buttons = [
+            { label: 'Get Started', url: '', style: 'primary', visible: true },
+            { label: 'Learn More', url: '', style: 'secondary', visible: true }
+          ];
+        }
+        submissionData.component_config = {
+          ...submissionData.component_config,
+          pageContent: generatePageContent(submissionData.title, submissionData.description, submissionData.icon_name)
+        };
       }
 
       // Use submission data for the rest of the function
@@ -469,6 +660,11 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
         fetchModules();
         fetchFilters();
 
+        // Dispatch event to refresh sidebar if this is a UI component
+        if (moduleData.module_type === 'ui_component') {
+          window.dispatchEvent(new CustomEvent('ui-component-changed'));
+        }
+
         if (!editingModule) {
           // New module created - show success and redirect to Courses and Content
           pushToast('Success', 'Custom field successfully created. Redirecting to Courses and Content...', 'success');
@@ -482,6 +678,10 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
           }, 1500);
         } else {
           pushToast('Success', 'Module updated successfully', 'success');
+          // Also dispatch for updates
+          if (moduleData.module_type === 'ui_component') {
+            window.dispatchEvent(new CustomEvent('ui-component-changed'));
+          }
         }
       } else {
         const data = await response.json();
@@ -511,6 +711,10 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
           if (response.ok) {
             fetchModules();
             pushToast('Deleted', 'Module deleted successfully', 'info');
+            // Dispatch event to refresh sidebar if this was a UI component
+            if (module.module_type === 'ui_component') {
+              window.dispatchEvent(new CustomEvent('ui-component-changed'));
+            }
           } else {
             const data = await response.json();
             pushToast('Error', data.message || 'Error deleting module', 'error');
@@ -541,6 +745,10 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
 
       if (response.ok) {
         fetchModules();
+        // Dispatch event to refresh sidebar if this is a UI component
+        if (module.module_type === 'ui_component') {
+          window.dispatchEvent(new CustomEvent('ui-component-changed'));
+        }
       }
     } catch (error) {
       console.error('Error toggling publish:', error);
@@ -1189,15 +1397,106 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Icon Name *
                     </label>
-                    <input
-                      type="text"
-                      value={moduleForm.icon_name}
-                      onChange={(e) => setModuleForm((prev) => ({ ...prev, icon_name: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                      placeholder="e.g., Calendar, Bell, BarChart3, ClipboardCheck"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={moduleForm.icon_name}
+                        onChange={(e) => setModuleForm((prev) => ({ ...prev, icon_name: e.target.value }))}
+                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                        placeholder="e.g., Cake, Gift, Calendar, Bell"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const suggested = suggestIconFromTitle(moduleForm.title);
+                          setModuleForm((prev) => ({ ...prev, icon_name: suggested }));
+                        }}
+                        className="px-3 py-2 bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-lg text-sm font-medium transition-colors"
+                        title="Auto-suggest icon from title"
+                      >
+                        Auto
+                      </button>
+                    </div>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      Lucide icon name (e.g., Calendar, Bell, BarChart3, Users, Settings)
+                      Click "Auto" to suggest an icon based on the title, or enter manually (e.g., Cake, Gift, Calendar)
+                    </p>
+                  </div>
+                )}
+
+                {/* Button Configuration - Only for editing UI components */}
+                {moduleForm.module_type === 'ui_component' && editingModule && (
+                  <div className="border-t border-gray-200 dark:border-slate-700 pt-4 mt-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                      Page Buttons
+                    </label>
+                    <div className="space-y-3">
+                      {(moduleForm.component_config?.buttons || [
+                        { label: 'Get Started', url: '', style: 'primary', visible: true },
+                        { label: 'Learn More', url: '', style: 'secondary', visible: true }
+                      ]).map((btn: any, idx: number) => (
+                        <div key={idx} className="bg-gray-50 dark:bg-slate-700/50 p-3 rounded-lg">
+                          <div className="flex items-center gap-2 mb-2">
+                            <input
+                              type="checkbox"
+                              checked={btn.visible !== false}
+                              onChange={(e) => {
+                                const buttons = [...(moduleForm.component_config?.buttons || [
+                                  { label: 'Get Started', url: '', style: 'primary', visible: true },
+                                  { label: 'Learn More', url: '', style: 'secondary', visible: true }
+                                ])];
+                                buttons[idx] = { ...buttons[idx], visible: e.target.checked };
+                                setModuleForm((prev) => ({
+                                  ...prev,
+                                  component_config: { ...prev.component_config, buttons }
+                                }));
+                              }}
+                              className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                            />
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Button {idx + 1} {idx === 0 ? '(Primary)' : '(Secondary)'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              value={btn.label || ''}
+                              onChange={(e) => {
+                                const buttons = [...(moduleForm.component_config?.buttons || [
+                                  { label: 'Get Started', url: '', style: 'primary', visible: true },
+                                  { label: 'Learn More', url: '', style: 'secondary', visible: true }
+                                ])];
+                                buttons[idx] = { ...buttons[idx], label: e.target.value };
+                                setModuleForm((prev) => ({
+                                  ...prev,
+                                  component_config: { ...prev.component_config, buttons }
+                                }));
+                              }}
+                              className="px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                              placeholder="Button text"
+                            />
+                            <input
+                              type="text"
+                              value={btn.url || ''}
+                              onChange={(e) => {
+                                const buttons = [...(moduleForm.component_config?.buttons || [
+                                  { label: 'Get Started', url: '', style: 'primary', visible: true },
+                                  { label: 'Learn More', url: '', style: 'secondary', visible: true }
+                                ])];
+                                buttons[idx] = { ...buttons[idx], url: e.target.value };
+                                setModuleForm((prev) => ({
+                                  ...prev,
+                                  component_config: { ...prev.component_config, buttons }
+                                }));
+                              }}
+                              className="px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                              placeholder="URL (optional)"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                      Customize the buttons shown on the module page. Uncheck to hide a button.
                     </p>
                   </div>
                 )}
@@ -1459,28 +1758,36 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                           <input
                             type="text"
                             value={moduleForm.title}
-                            onChange={(e) => setModuleForm((prev) => ({ ...prev, title: e.target.value }))}
+                            onChange={(e) => {
+                              const newTitle = e.target.value;
+                              const suggestedIcon = suggestIconFromTitle(newTitle);
+                              setModuleForm((prev) => ({
+                                ...prev,
+                                title: newTitle,
+                                icon_name: suggestedIcon // Auto-suggest icon based on title
+                              }));
+                            }}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                            placeholder="e.g., Task Dashboard, Project Tracker"
+                            placeholder="e.g., Birthday, Task Dashboard, Calendar"
                           />
                           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            The display name for your UI component
+                            The display name - icon will be auto-suggested based on this
                           </p>
                         </div>
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Icon Name *
+                            Icon Name * <span className="text-purple-600 dark:text-purple-400 font-normal">(auto-suggested)</span>
                           </label>
                           <input
                             type="text"
                             value={moduleForm.icon_name}
                             onChange={(e) => setModuleForm((prev) => ({ ...prev, icon_name: e.target.value }))}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                            placeholder="e.g., Clipboard, Calendar, FileText, Briefcase"
+                            placeholder="e.g., Cake, Gift, Calendar, Bell"
                           />
                           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            Lucide icon name (e.g., Clipboard, Calendar, FileText, Briefcase)
+                            Icon is auto-suggested from title. You can change it manually if needed.
                           </p>
                         </div>
 
@@ -1497,22 +1804,14 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                           />
                         </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Page Content (HTML)
-                          </label>
-                          <textarea
-                            value={moduleForm.component_config.pageContent || ''}
-                            onChange={(e) => setModuleForm((prev) => ({
-                              ...prev,
-                              component_config: { ...prev.component_config, pageContent: e.target.value }
-                            }))}
-                            rows={8}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                            placeholder="Enter HTML content for this page..."
-                          />
-                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            You can use HTML to create your custom UI. This content will be displayed on the module page.
+                        {/* Auto-generated page content preview */}
+                        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                          <p className="text-sm text-purple-800 dark:text-purple-200">
+                            <span className="font-medium">✓ Page content will be auto-generated</span>
+                            <br />
+                            <span className="text-xs text-purple-600 dark:text-purple-400">
+                              A professional page layout will be created based on your title and description.
+                            </span>
                           </p>
                         </div>
                       </>

@@ -172,6 +172,7 @@ class CustomModule extends Model
             'lessons_snapshot' => $lessonsSnapshot,
             'changes' => $changes,
             'created_by' => $userId,
+            'created_at' => now(),
         ]);
     }
 

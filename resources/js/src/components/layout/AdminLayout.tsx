@@ -51,6 +51,71 @@ import {
   Download,
   Share2,
   Link2,
+  Cake,
+  Gift,
+  PartyPopper,
+  Heart,
+  Award,
+  Trophy,
+  Medal,
+  Smile,
+  ThumbsUp,
+  Coffee,
+  Utensils,
+  Car,
+  Plane,
+  Map,
+  MapPin,
+  Phone,
+  Mail,
+  Send,
+  Inbox,
+  Archive,
+  Trash2,
+  Edit,
+  Eye,
+  Lock,
+  Unlock,
+  Key,
+  Shield,
+  Zap,
+  Lightbulb,
+  Rocket,
+  Flag,
+  Bookmark,
+  Hash,
+  AtSign,
+  Percent,
+  DollarSign as Dollar,
+  CreditCard,
+  Wallet,
+  Receipt,
+  FileCheck,
+  FilePlus,
+  FileWarning,
+  Megaphone,
+  Volume2,
+  Music,
+  Image,
+  Camera,
+  Film,
+  Mic,
+  Headphones,
+  Monitor,
+  Smartphone,
+  Tablet,
+  Laptop,
+  Printer,
+  Wifi,
+  Globe,
+  Cloud,
+  Sun as SunIcon,
+  CloudRain,
+  Snowflake,
+  Thermometer,
+  Droplet,
+  Wind,
+  Umbrella,
   LucideIcon
 } from 'lucide-react';
 import { NotificationBell } from '../NotificationBell';
@@ -103,6 +168,76 @@ const iconMap: Record<string, LucideIcon> = {
   Download,
   Share2,
   Link2,
+  // Celebration & Events
+  Cake,
+  Gift,
+  PartyPopper,
+  Heart,
+  Award,
+  Trophy,
+  Medal,
+  Smile,
+  ThumbsUp,
+  // Food & Lifestyle
+  Coffee,
+  Utensils,
+  // Travel
+  Car,
+  Plane,
+  Map,
+  MapPin,
+  // Communication
+  Phone,
+  Mail,
+  Send,
+  Inbox,
+  Archive,
+  // Actions
+  Trash2,
+  Edit,
+  Eye,
+  Lock,
+  Unlock,
+  Key,
+  Shield,
+  // Ideas & Progress
+  Zap,
+  Lightbulb,
+  Rocket,
+  Flag,
+  Bookmark,
+  // Symbols
+  Hash,
+  AtSign,
+  Percent,
+  // Finance
+  CreditCard,
+  Wallet,
+  Receipt,
+  // Files
+  FileCheck,
+  FilePlus,
+  FileWarning,
+  // Media
+  Megaphone,
+  Volume2,
+  Music,
+  Image,
+  Camera,
+  Film,
+  Mic,
+  Headphones,
+  // Devices
+  Monitor,
+  Smartphone,
+  Tablet,
+  Laptop,
+  Printer,
+  Wifi,
+  Globe,
+  Cloud,
+  // Weather
+  Umbrella,
 };
 
 // Helper to get icon by name
@@ -165,24 +300,33 @@ export function AdminLayout({
   }, [displayName]);
 
   // Load custom UI component modules
+  const loadCustomNavItems = async () => {
+    try {
+      const res = await fetch('/api/admin/custom-modules/ui-components', {
+        credentials: 'include',
+        headers: { Accept: 'application/json' }
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setCustomNavItems(data);
+    } catch (e) {
+      console.error('Failed to load custom navigation items:', e);
+    }
+  };
+
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch('/api/admin/custom-modules/ui-components', {
-          credentials: 'include',
-          headers: { Accept: 'application/json' }
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (mounted) {
-          setCustomNavItems(data);
-        }
-      } catch (e) {
-        console.error('Failed to load custom navigation items:', e);
-      }
-    })();
-    return () => { mounted = false; };
+    loadCustomNavItems();
+  }, []);
+
+  // Listen for UI component changes (create, update, delete)
+  useEffect(() => {
+    const handleUIComponentChange = () => {
+      loadCustomNavItems();
+    };
+    window.addEventListener('ui-component-changed', handleUIComponentChange);
+    return () => {
+      window.removeEventListener('ui-component-changed', handleUIComponentChange);
+    };
   }, []);
   const navItems = [
   {

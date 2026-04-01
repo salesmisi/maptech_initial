@@ -73,6 +73,60 @@ export function CustomModulePage({ routePath }: CustomModulePageProps) {
   // Check if custom page content is provided
   const hasCustomContent = module.component_config?.pageContent && module.component_config.pageContent.trim() !== '';
 
+  // Get buttons from config (with defaults)
+  const buttons = module.component_config?.buttons || [
+    { label: 'Get Started', url: '', style: 'primary', visible: true },
+    { label: 'Learn More', url: '', style: 'secondary', visible: true }
+  ];
+
+  // Filter visible buttons
+  const visibleButtons = buttons.filter((btn: any) => btn.visible !== false);
+
+  // Generate button HTML for injection
+  const generateButtonsHtml = () => {
+    if (visibleButtons.length === 0) return '';
+
+    return `<div class="flex gap-3">
+      ${visibleButtons.map((btn: any) => {
+        const isPrimary = btn.style === 'primary';
+        const buttonClass = isPrimary
+          ? 'px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors'
+          : 'px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg font-medium transition-colors';
+
+        if (btn.url) {
+          return `<a href="${btn.url}" class="${buttonClass}" target="_blank" rel="noopener noreferrer">${btn.label}</a>`;
+        }
+        return `<button class="${buttonClass}">${btn.label}</button>`;
+      }).join('')}
+    </div>`;
+  };
+
+  // Process page content to replace button placeholder or append buttons
+  const processPageContent = (content: string) => {
+    const buttonsHtml = generateButtonsHtml();
+
+    // Check if content has button placeholder
+    if (content.includes('<!-- BUTTONS_PLACEHOLDER -->')) {
+      return content.replace('<!-- BUTTONS_PLACEHOLDER -->', buttonsHtml);
+    }
+
+    // If no placeholder, check if content already has buttons (legacy content)
+    // Don't add buttons if the content already has them
+    if (content.includes('Get Started') || content.includes('Learn More')) {
+      // Replace existing button div with configured buttons
+      const buttonDivRegex = /<div class="flex gap-3">[\s\S]*?<\/button>\s*<\/div>/;
+      if (buttonDivRegex.test(content)) {
+        return content.replace(buttonDivRegex, buttonsHtml);
+      }
+    }
+
+    return content;
+  };
+
+  const processedContent = hasCustomContent
+    ? processPageContent(module.component_config.pageContent)
+    : '';
+
   return (
     <div className="space-y-6">
       <div>
@@ -83,10 +137,10 @@ export function CustomModulePage({ routePath }: CustomModulePageProps) {
       </div>
 
       {hasCustomContent ? (
-        /* Render custom HTML content */
+        /* Render custom HTML content with processed buttons */
         <div
           className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6 custom-module-content"
-          dangerouslySetInnerHTML={{ __html: module.component_config.pageContent }}
+          dangerouslySetInnerHTML={{ __html: processedContent }}
         />
       ) : (
         /* Default placeholder UI */
