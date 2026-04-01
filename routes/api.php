@@ -216,8 +216,17 @@ Route::get('/me/audit-logs', function (Request $request) {
     // For each audit entry, attempt to attach the matching time_log (same logic as admin endpoint)
     $logs = $logs->map(function ($log) {
         $timeLog = null;
+
+        // Exact deterministic linkage for newly written rows.
+        if ($log->action === 'login') {
+            $timeLog = \App\Models\TimeLog::where('login_audit_log_id', $log->id)->first();
+        } elseif ($log->action === 'logout') {
+            $timeLog = \App\Models\TimeLog::where('logout_audit_log_id', $log->id)->first();
+        }
+
+        // Legacy fallback: match by user + tight time window.
         $logAt = AuditDate::modelStorageDateTime($log, 'created_at');
-        if ($logAt) {
+        if (!$timeLog && $logAt) {
             $start = $logAt->copy()->subMinutes(2)->toDateTimeString();
             $end = $logAt->copy()->addMinutes(2)->toDateTimeString();
             if ($log->action === 'login') {
@@ -426,9 +435,34 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 ->forPage($page, $perPage)
                 ->get();
 
-            $data = collect($rows)->map(function ($row) {
+            $auditIds = collect($rows)->pluck('id')->filter()->values();
+            $timeLogByLoginAudit = collect();
+            $timeLogByLogoutAudit = collect();
+
+            if ($auditIds->isNotEmpty()) {
+                $linkedTimeLogs = \App\Models\TimeLog::whereIn('login_audit_log_id', $auditIds)
+                    ->orWhereIn('logout_audit_log_id', $auditIds)
+                    ->get();
+
+                $timeLogByLoginAudit = $linkedTimeLogs
+                    ->filter(fn ($tl) => !empty($tl->login_audit_log_id))
+                    ->keyBy('login_audit_log_id');
+
+                $timeLogByLogoutAudit = $linkedTimeLogs
+                    ->filter(fn ($tl) => !empty($tl->logout_audit_log_id))
+                    ->keyBy('logout_audit_log_id');
+            }
+
+            $data = collect($rows)->map(function ($row) use ($timeLogByLoginAudit, $timeLogByLogoutAudit) {
                 $createdAt = AuditDate::parseStorageDateTime($row->created_at);
                 $hasUser = !empty($row->user_ref_id);
+                $timeLog = null;
+
+                if ($row->action === 'login') {
+                    $timeLog = $timeLogByLoginAudit->get($row->id);
+                } elseif ($row->action === 'logout') {
+                    $timeLog = $timeLogByLogoutAudit->get($row->id);
+                }
 
                 return [
                     'id' => $row->id,
@@ -443,7 +477,11 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                         'role' => $row->user_role,
                         'department' => $row->user_department,
                     ] : null,
-                    'time_log' => null,
+                    'time_log' => $timeLog ? [
+                        'id' => $timeLog->id,
+                        'time_in' => AuditDate::modelFieldUtcIso($timeLog, 'time_in'),
+                        'time_out' => AuditDate::modelFieldUtcIso($timeLog, 'time_out'),
+                    ] : null,
                 ];
             })->values();
 
