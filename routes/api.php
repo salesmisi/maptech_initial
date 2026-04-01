@@ -878,7 +878,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // Record an audit log for profile updates (non-fatal if DB/table missing)
         try {
-            $ts = \Illuminate\Support\Carbon::now()->utc();
+            $ts = \Illuminate\Support\Carbon::now('UTC')->toIso8601String();
             $log = \App\Models\AuditLog::create([
                 'user_id' => $user->id,
                 'action' => 'profile_updated',
