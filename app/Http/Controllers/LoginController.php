@@ -66,7 +66,12 @@ class LoginController extends Controller
                 // Broadcast the audit log so admins receive realtime updates
                 event(new AuditLogCreated($log));
             } catch (\Exception $e) {
-                Log::warning('Failed to create AuditLog on login', ['error' => $e->getMessage()]);
+                Log::error('Failed to create AuditLog on login', [
+                    'error' => $e->getMessage(),
+                    'user_id' => $user->id,
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]);
             }
         }
 
@@ -157,7 +162,12 @@ class LoginController extends Controller
                 // Broadcast the audit log so admins receive realtime updates
                 event(new AuditLogCreated($log));
             } catch (\Exception $e) {
-                Log::warning('Failed to create AuditLog on apiLogin', ['error' => $e->getMessage()]);
+                Log::error('Failed to create AuditLog on apiLogin', [
+                    'error' => $e->getMessage(),
+                    'user_id' => $user->id,
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]);
             }
         }
 
@@ -224,7 +234,12 @@ class LoginController extends Controller
                     ]);
                     event(new AuditLogCreated($log));
                 } catch (\Exception $e) {
-                    Log::warning('Failed to create AuditLog on logout', ['error' => $e->getMessage()]);
+                    Log::error('Failed to create AuditLog on logout', [
+                        'error' => $e->getMessage(),
+                        'user_id' => $user->id,
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                    ]);
                 }
             }
 
