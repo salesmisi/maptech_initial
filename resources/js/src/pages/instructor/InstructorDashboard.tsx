@@ -99,21 +99,21 @@ export function InstructorDashboard() {
   }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {loading && <div className="text-center py-8 text-slate-400">Loading dashboard...</div>}
       {!loading && (
         <>
         {/* Page Header */}
-        <div className="flex justify-between items-center mb-4">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Instructor Dashboard</h1>
+            <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Instructor Dashboard</h1>
             <p className="text-sm text-slate-500 mt-1">Welcome back</p>
           </div>
-          <div className="text-sm text-slate-500">Last updated: Today</div>
+          <div className="self-start text-xs text-slate-500 sm:self-auto sm:text-sm">Last updated: Today</div>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div className="bg-white rounded shadow p-4 flex flex-col items-start">
             <span className="text-slate-500 text-xs mb-1">Pending Reviews</span>
             <span className="text-2xl font-bold text-blue-600">{pendingEvaluations.length}</span>
@@ -137,8 +137,8 @@ export function InstructorDashboard() {
         </div>
 
         {/* Pending Quiz Evaluations */}
-        <div className="bg-white rounded shadow p-4 mb-6">
-          <div className="flex items-center justify-between mb-2">
+        <div className="mb-6 rounded bg-white p-4 shadow sm:p-5">
+          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span className="font-semibold">Pending Quiz Evaluations <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded ml-2">{pendingEvaluations.length} pending</span></span>
             <a href="#" className="text-blue-600 text-xs">View All</a>
           </div>
@@ -171,7 +171,7 @@ export function InstructorDashboard() {
         </div>
 
         {/* Trends and Course Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
           {/* Student Performance Trends */}
           <div className="bg-white rounded shadow p-4">
             <div className="font-semibold mb-2">Student Performance Trends</div>
@@ -209,14 +209,14 @@ export function InstructorDashboard() {
         </div>
 
         {/* Recent Student Questions */}
-        <div className="bg-white rounded shadow p-4">
-          <div className="flex items-center justify-between mb-2">
+        <div className="rounded bg-white p-4 shadow sm:p-5">
+          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span className="font-semibold">Recent Student Questions</span>
             <a href="#" className="text-blue-600 text-xs">View All Q&amp;A</a>
           </div>
           <ul>
             {recentQuestions.map((q) => (
-              <li key={q.id} className="py-2 border-b last:border-b-0 flex items-center">
+              <li key={q.id} className="flex flex-col gap-2 border-b py-2 last:border-b-0 sm:flex-row sm:items-center">
                 <span className="bg-slate-200 rounded-full w-7 h-7 flex items-center justify-center font-bold text-slate-600 mr-3">
                   {q.student?.[0] || '?'}
                 </span>
@@ -224,7 +224,7 @@ export function InstructorDashboard() {
                   <span className="font-medium">{q.student}</span> in <span className="text-slate-500">{q.course}</span>
                   <div className="text-slate-600 text-sm mt-0.5">{q.question}</div>
                 </div>
-                <span className="text-xs text-slate-400 ml-2">{q.time}</span>
+                <span className="text-xs text-slate-400 sm:ml-2">{q.time}</span>
               </li>
             ))}
           </ul>

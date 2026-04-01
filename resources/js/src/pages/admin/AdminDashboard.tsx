@@ -78,6 +78,7 @@ export function AdminDashboard({ onNavigate }: Props) {
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [allActivity, setAllActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 640 : false));
 
   const openAllActivity = () => {
     setShowActivityModal(true);
@@ -159,6 +160,14 @@ export function AdminDashboard({ onNavigate }: Props) {
     };
   }, [analyticsRange]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const completionStatus = reportData?.completion_status ?? [];
   const monthlyTrends = reportData?.monthly_trends ?? [];
   const popularCourses = reportData?.popular_courses ?? [];
@@ -173,28 +182,28 @@ export function AdminDashboard({ onNavigate }: Props) {
   const recentActivity = stats?.recent_activity ?? [];
   const currentRangeLabel = RANGE_OPTIONS.find((o) => o.months === analyticsRange)?.label ?? 'Last 6 Months';
   const popularCourseLabelWidth = Math.min(
-    520,
+    isMobile ? 120 : 520,
     Math.max(
-      240,
-      cleanedPopularCourses.reduce((max, course) => Math.max(max, (course.name ?? '').length), 0) * 10
+      isMobile ? 100 : 240,
+      cleanedPopularCourses.reduce((max, course) => Math.max(max, (course.name ?? '').length), 0) * (isMobile ? 6 : 10)
     )
   );
 
   return (
     <>
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-slate-900">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
           Dashboard Overview
         </h1>
-        <div className="text-sm text-slate-500">
+        <div className="self-start text-xs text-slate-500 sm:self-auto sm:text-sm">
           {lastUpdated ? `Last updated: Today, ${lastUpdated}` : 'Loading…'}
         </div>
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-500">
@@ -215,7 +224,7 @@ export function AdminDashboard({ onNavigate }: Props) {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-500">
@@ -234,7 +243,7 @@ export function AdminDashboard({ onNavigate }: Props) {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-500">
@@ -253,7 +262,7 @@ export function AdminDashboard({ onNavigate }: Props) {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-500">
@@ -274,21 +283,21 @@ export function AdminDashboard({ onNavigate }: Props) {
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
-          <div className="flex items-center justify-between mb-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 sm:gap-6">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-lg font-semibold text-slate-900">
               Overall Completion Status
             </h3>
             <div className="relative">
               <button
                 onClick={() => setShowRangeMenu((v) => !v)}
-                className="inline-flex items-center px-3 py-2 border border-slate-300 rounded-md text-sm font-medium text-slate-700 bg-white hover:bg-slate-50">
-                <Calendar className="h-4 w-4 mr-2" />
+                className="inline-flex w-full items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:w-auto sm:justify-start">
+                <Calendar className="mr-2 h-4 w-4" />
                 {currentRangeLabel}
               </button>
               {showRangeMenu && (
-                <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-md shadow-lg z-20">
+                <div className="absolute right-0 z-20 mt-1 w-full min-w-44 rounded-md border border-slate-200 bg-white shadow-lg sm:w-44">
                   {RANGE_OPTIONS.map((opt) => (
                     <button
                       key={opt.months}
@@ -304,7 +313,7 @@ export function AdminDashboard({ onNavigate }: Props) {
               )}
             </div>
           </div>
-          <div className="h-80">
+          <div className="h-72 sm:h-80">
             {reportsLoading ? (
               <div className="h-full flex items-center justify-center text-slate-400">Loading…</div>
             ) : completionStatus.every((d) => d.value === 0) ? (
@@ -334,11 +343,11 @@ export function AdminDashboard({ onNavigate }: Props) {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">
             Enrollment vs Completion Trends
           </h3>
-          <div className="h-80">
+          <div className="h-72 sm:h-80">
             {reportsLoading ? (
               <div className="flex items-center justify-center h-full text-slate-400">Loading…</div>
             ) : monthlyTrends.length === 0 ? (
@@ -360,7 +369,7 @@ export function AdminDashboard({ onNavigate }: Props) {
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+      <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">
           Most Popular Courses
         </h3>
@@ -369,7 +378,7 @@ export function AdminDashboard({ onNavigate }: Props) {
         ) : popularCourses.length === 0 ? (
           <div className="h-80 flex items-center justify-center text-slate-400">No course enrollment data yet</div>
         ) : (
-          <div className="h-80">
+          <div className="h-72 sm:h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={cleanedPopularCourses} layout="vertical" margin={{ top: 8, right: 12, bottom: 8, left: 12 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
@@ -396,10 +405,10 @@ export function AdminDashboard({ onNavigate }: Props) {
       </div>
 
       {/* Bottom Section: Activity & Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 sm:gap-6">
         {/* Recent Activity */}
         <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
-          <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+          <div className="border-b border-slate-100 p-4 dark:border-slate-700 sm:p-6">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
               Recent Activity
             </h3>
@@ -408,16 +417,16 @@ export function AdminDashboard({ onNavigate }: Props) {
             <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
               <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">
                     User
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">
                     Action
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">
                     Target
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">
                     Time
                   </th>
                 </tr>
@@ -425,13 +434,13 @@ export function AdminDashboard({ onNavigate }: Props) {
               <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
                 {loading ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-sm text-slate-400 dark:text-slate-300">
+                    <td colSpan={4} className="px-3 py-8 text-center text-sm text-slate-400 dark:text-slate-300 sm:px-6">
                       Loading…
                     </td>
                   </tr>
                 ) : recentActivity.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-sm text-slate-400 dark:text-slate-300">
+                    <td colSpan={4} className="px-3 py-8 text-center text-sm text-slate-400 dark:text-slate-300 sm:px-6">
                       No activity yet
                     </td>
                   </tr>
@@ -440,16 +449,16 @@ export function AdminDashboard({ onNavigate }: Props) {
                     <tr
                       key={activity.id}
                       className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
+                      <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-slate-900 dark:text-slate-100 sm:px-6">
                         {activity.user}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 dark:text-slate-200 sm:px-6">
                         {activity.action}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 dark:text-slate-200 sm:px-6">
                         {activity.target}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500 dark:text-slate-300 sm:px-6">
                         {activity.time}
                       </td>
                     </tr>
@@ -468,7 +477,7 @@ export function AdminDashboard({ onNavigate }: Props) {
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+        <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">
             Quick Actions
           </h3>
@@ -524,8 +533,8 @@ export function AdminDashboard({ onNavigate }: Props) {
       {/* View All Activity Modal */}
       {showActivityModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-3xl mx-4 flex flex-col max-h-[80vh] border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+          <div className="mx-2 flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 sm:mx-4">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 dark:border-slate-700 sm:px-6">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">All Activity</h2>
               <button
                 onClick={() => setShowActivityModal(false)}
@@ -537,35 +546,35 @@ export function AdminDashboard({ onNavigate }: Props) {
               <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
                 <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">User</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Action</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Target</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Time</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">User</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Action</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Target</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Time</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
                   {activityLoading ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-400 dark:text-slate-300">Loading…</td>
+                      <td colSpan={4} className="px-3 py-10 text-center text-sm text-slate-400 dark:text-slate-300 sm:px-6">Loading…</td>
                     </tr>
                   ) : allActivity.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-400 dark:text-slate-300">No activity found</td>
+                      <td colSpan={4} className="px-3 py-10 text-center text-sm text-slate-400 dark:text-slate-300 sm:px-6">No activity found</td>
                     </tr>
                   ) : (
                     allActivity.map((item) => (
                       <tr key={item.id} className="hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">{item.user}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">{item.action}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">{item.target}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">{item.time}</td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-slate-900 dark:text-slate-100 sm:px-6">{item.user}</td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 dark:text-slate-200 sm:px-6">{item.action}</td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 dark:text-slate-200 sm:px-6">{item.target}</td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500 dark:text-slate-300 sm:px-6">{item.time}</td>
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
             </div>
-            <div className="px-6 py-3 border-t border-slate-100 dark:border-slate-700 text-right">
+            <div className="border-t border-slate-100 px-4 py-3 text-right dark:border-slate-700 sm:px-6">
               <button
                 onClick={() => setShowActivityModal(false)}
                 className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
