@@ -534,7 +534,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
       {/* Add/Edit Modal - Using Portal to render at body level */}
       {isModalOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50" onClick={(e) => { if (e.target === e.currentTarget) handleCloseModal(); }}>
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="course-editor-modal bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="text-lg font-semibold text-slate-900">
                 {editingCourse ? 'Edit Course' : 'Create New Course'}

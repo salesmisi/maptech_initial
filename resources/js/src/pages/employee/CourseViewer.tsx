@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   CheckCircle,
@@ -11,10 +11,11 @@ import {
   BookOpen,
   Loader,
   Lock,
-  AlertCircle,
   HelpCircle,
   ChevronDown,
   ChevronUp,
+  Trophy,
+  X,
 } from 'lucide-react';
 import { sanitizeHtml } from '../../components/RichTextEditor';
 import YouTubePlayer from '../../components/YouTubePlayer';
@@ -132,9 +133,10 @@ interface CourseData {
 interface CourseViewerProps {
   courseId?: string;
   onBack?: () => void;
+  onViewCertificates?: () => void;
 }
 
-export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
+export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseViewerProps) {
   const [course, setCourse] = useState<CourseData | null>(null);
   const [modules, setModules] = useState<ModuleData[]>([]);
   const [currentModule, setCurrentModule] = useState<ModuleData | null>(null);
@@ -155,6 +157,74 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
   const [quizAttempts, setQuizAttempts] = useState<QuizAttemptRecord[]>([]);
   const [selectedSentence, setSelectedSentence] = useState('');
   const [selectedSentenceDefinition, setSelectedSentenceDefinition] = useState('');
+  const [, setViewedLessons] = useState<Set<number>>(new Set());
+  const [, setViewedModules] = useState<Set<number>>(new Set());
+  const [showCompletionPopup, setShowCompletionPopup] = useState(false);
+
+  const viewedLessonStorageKey = userId && courseId ? `maptech_viewed_lessons_${userId}_${courseId}` : null;
+  const viewedModuleStorageKey = userId && courseId ? `maptech_viewed_modules_${userId}_${courseId}` : null;
+  const congratulatedStorageKey = userId && courseId ? `maptech_congrats_course_${userId}_${courseId}` : null;
+
+  const parseNumberArray = (raw: string | null): number[] => {
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value));
+    } catch (e) {
+      return [];
+    }
+  };
+
+  function markModuleViewed(moduleId: number) {
+    setViewedModules((prev) => {
+      if (prev.has(moduleId)) return prev;
+      const next = new Set(prev);
+      next.add(moduleId);
+      if (viewedModuleStorageKey) {
+        try {
+          localStorage.setItem(viewedModuleStorageKey, JSON.stringify(Array.from(next)));
+        } catch (e) {
+          // ignore localStorage write errors
+        }
+      }
+      return next;
+    });
+  }
+
+  function markLessonViewed(lessonId: number) {
+    setViewedLessons((prev) => {
+      if (prev.has(lessonId)) return prev;
+      const next = new Set(prev);
+      next.add(lessonId);
+      if (viewedLessonStorageKey) {
+        try {
+          localStorage.setItem(viewedLessonStorageKey, JSON.stringify(Array.from(next)));
+        } catch (e) {
+          // ignore localStorage write errors
+        }
+      }
+      return next;
+    });
+  }
+
+  useEffect(() => {
+    setViewedLessons(new Set());
+    setViewedModules(new Set());
+    setShowCompletionPopup(false);
+  }, [courseId]);
+
+  useEffect(() => {
+    if (!viewedLessonStorageKey || !viewedModuleStorageKey) return;
+
+    const savedLessonIds = parseNumberArray(localStorage.getItem(viewedLessonStorageKey));
+    const savedModuleIds = parseNumberArray(localStorage.getItem(viewedModuleStorageKey));
+
+    setViewedLessons((prev) => new Set([...Array.from(prev), ...savedLessonIds]));
+    setViewedModules((prev) => new Set([...Array.from(prev), ...savedModuleIds]));
+  }, [viewedLessonStorageKey, viewedModuleStorageKey]);
 
   const loadCourse = async () => {
     try {
@@ -334,6 +404,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
 
   const selectModule = (mod: ModuleData) => {
     if (!mod.is_unlocked) return;
+    markModuleViewed(mod.id);
     setCurrentModule(mod);
     setExpandedModules(prev => new Set(prev).add(mod.id));
     const lessons = safeArray<LessonData>(mod.lessons);
@@ -343,6 +414,8 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
 
   const selectLesson = (mod: ModuleData, lesson: LessonData) => {
     if (!mod.is_unlocked) return;
+    markModuleViewed(mod.id);
+    markLessonViewed(lesson.id);
     setCurrentModule(mod);
     setCurrentLesson(lesson);
     setShowQuiz(false);
@@ -350,6 +423,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
 
   const selectQuiz = (mod: ModuleData) => {
     if (!mod.is_unlocked) return;
+    markModuleViewed(mod.id);
     setCurrentModule(mod);
     setCurrentLesson(null);
     setShowQuiz(true);
@@ -490,6 +564,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     }
 
     const { file_type, content_url, title } = currentLesson;
+    const lessonContentUrl = content_url ?? undefined;
 
     const textBlock = hasText ? (
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-4">
@@ -525,7 +600,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
           <div className="aspect-video bg-slate-900 rounded-xl overflow-hidden">
             {isYouTube ? (
               // YouTube player container; we'll initialize the YT player via JS API
-              <YouTubePlayer contentUrl={content_url!} lessonId={currentLesson!.id} />
+              <YouTubePlayer contentUrl={lessonContentUrl || ''} lessonId={currentLesson!.id} />
             ) : (
               <video controls className="w-full h-full" src={content_url || undefined}>
                 Your browser does not support the video tag.
@@ -557,7 +632,7 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
         <div className="space-y-4">
           {textBlock}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden" style={{ height: '70vh' }}>
-            <iframe src={content_url || undefined} className="w-full h-full" title={title} />
+            <iframe src={content_url} className="w-full h-full" title={title} />
           </div>
         </div>
       );
@@ -702,18 +777,27 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
           <div className="flex justify-center gap-3">
             {quizResult.passed ? (
               <>
-                <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                <div>
-                  <p className="text-sm text-green-700 font-medium">Next module is now unlocked!</p>
-                  {currentModuleIndex < modules.length - 1 && modules[currentModuleIndex + 1]?.is_unlocked && (
-                    <button
-                      onClick={() => selectModule(modules[currentModuleIndex + 1])}
-                      className="mt-3 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg flex items-center gap-2 transition-colors"
-                    >
-                      Proceed to Next Module <ArrowRight className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
+                {isLastModule ? (
+                  <div className="text-center">
+                    <p className="text-sm text-green-700 font-medium">Final assessment passed.</p>
+                    <p className="text-xs text-slate-600 mt-1">Click <strong>Finish Course</strong> on the lower-right navigation button to complete this course.</p>
+                  </div>
+                ) : (
+                  <>
+                    <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-green-700 font-medium">Next module is now unlocked!</p>
+                      {currentModuleIndex < modules.length - 1 && modules[currentModuleIndex + 1]?.is_unlocked && (
+                        <button
+                          onClick={() => selectModule(modules[currentModuleIndex + 1])}
+                          className="mt-3 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg flex items-center gap-2 transition-colors"
+                        >
+                          Proceed to Next Module <ArrowRight className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
               </>
             ) : (
               <div className="text-center">
@@ -797,15 +881,20 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     if (showQuiz) {
       // Go back to last lesson in current module
       if (moduleLessons.length > 0) {
-        setCurrentLesson(moduleLessons[moduleLessons.length - 1]);
+        const previousLesson = moduleLessons[moduleLessons.length - 1];
+        setCurrentLesson(previousLesson);
+        markLessonViewed(previousLesson.id);
         setShowQuiz(false);
       }
     } else if (currentLessonIndex > 0) {
-      setCurrentLesson(moduleLessons[currentLessonIndex - 1]);
+      const previousLesson = moduleLessons[currentLessonIndex - 1];
+      setCurrentLesson(previousLesson);
+      markLessonViewed(previousLesson.id);
     } else if (currentModuleIndex > 0) {
       // Go to previous module's last item
       const prevMod = modules[currentModuleIndex - 1];
       if (prevMod.is_unlocked) {
+        markModuleViewed(prevMod.id);
         setCurrentModule(prevMod);
         setExpandedModules(prev => new Set(prev).add(prevMod.id));
         const prevLessons = prevMod.lessons ?? [];
@@ -813,7 +902,9 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
           setCurrentLesson(null);
           setShowQuiz(true);
         } else if (prevLessons.length > 0) {
-          setCurrentLesson(prevLessons[prevLessons.length - 1]);
+          const previousLesson = prevLessons[prevLessons.length - 1];
+          setCurrentLesson(previousLesson);
+          markLessonViewed(previousLesson.id);
           setShowQuiz(false);
         }
       }
@@ -822,7 +913,9 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
 
   const goToNext = () => {
     if (currentLesson && currentLessonIndex < moduleLessons.length - 1) {
-      setCurrentLesson(moduleLessons[currentLessonIndex + 1]);
+      const nextLesson = moduleLessons[currentLessonIndex + 1];
+      setCurrentLesson(nextLesson);
+      markLessonViewed(nextLesson.id);
     } else if (currentLesson && currentModule?.quiz && !showQuiz) {
       // Go to quiz
       setCurrentLesson(null);
@@ -836,6 +929,17 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     }
   };
 
+  const openCompletionPopup = () => {
+    setShowCompletionPopup(true);
+    if (congratulatedStorageKey) {
+      try {
+        localStorage.setItem(congratulatedStorageKey, '1');
+      } catch (e) {
+        // ignore localStorage write errors
+      }
+    }
+  };
+
   const canGoPrevious = showQuiz || currentLessonIndex > 0 || currentModuleIndex > 0;
   const canGoNext = (() => {
     if (currentLesson && currentLessonIndex < moduleLessons.length - 1) return true;
@@ -843,6 +947,9 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
     const nextMod = currentModuleIndex < modules.length - 1 ? modules[currentModuleIndex + 1] : null;
     return !!(nextMod && nextMod.is_unlocked);
   })();
+  const isLastModule = currentModuleIndex >= 0 && currentModuleIndex === modules.length - 1;
+  const isFinalQuizReadyToFinish =
+    isLastModule && showQuiz && quizState === 'submitted' && showResultRevealed && !!quizResult?.passed;
 
   if (loading) {
     return (
@@ -883,6 +990,55 @@ export function CourseViewer({ courseId, onBack }: CourseViewerProps) {
 
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)] -m-6">
+      {showCompletionPopup && (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+            onClick={() => setShowCompletionPopup(false)}
+            aria-hidden="true"
+          />
+          <div className="relative w-full max-w-md rounded-2xl border border-emerald-300/30 bg-slate-900/95 p-6 text-slate-100 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setShowCompletionPopup(false)}
+              className="absolute right-3 top-3 rounded-md p-1 text-slate-300 hover:bg-white/10 hover:text-white"
+              aria-label="Close congratulation popup"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/20 ring-1 ring-emerald-300/40">
+              <Trophy className="h-7 w-7 text-emerald-300" />
+            </div>
+
+            <h3 className="text-center text-2xl font-bold text-white">Congratulations!</h3>
+            <p className="mt-3 text-center text-sm text-slate-200">
+              You successfully completed <span className="font-semibold text-emerald-300">{course.title}</span>.
+            </p>
+            <p className="mt-2 text-center text-xs text-slate-400">
+              You can now view and download your certificate from the certificates page.
+            </p>
+
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCompletionPopup(false);
+                  if (onViewCertificates) {
+                    onViewCertificates();
+                    return;
+                  }
+                  window.location.assign(`${window.location.pathname}?page=certificates`);
+                }}
+                className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                View Certificates
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center shrink-0">
         <div>

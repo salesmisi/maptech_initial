@@ -11,6 +11,7 @@ use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\QuizAttempt;
 use App\Models\Department;
+use App\Models\Subdepartment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -27,6 +28,16 @@ class UserController extends Controller
     {
         $query = User::query();
 
+        // Search by name/email
+        if ($request->filled('q')) {
+            $term = strtolower(trim((string) $request->input('q')));
+            $like = '%' . $term . '%';
+            $query->where(function ($q) use ($like) {
+                $q->whereRaw('LOWER(fullname) LIKE ?', [$like])
+                  ->orWhereRaw('LOWER(email) LIKE ?', [$like]);
+            });
+        }
+
         // Filter by role (stored lowercase in DB; PostgreSQL is case-sensitive)
         if ($request->has('role')) {
             $query->where('role', strtolower($request->role));
@@ -40,6 +51,11 @@ class UserController extends Controller
         // Filter by status
         if ($request->has('status')) {
             $query->where('status', $request->status);
+        }
+
+        // Filter by employee subdepartment
+        if ($request->filled('subdepartment_id')) {
+            $query->where('subdepartment_id', (int) $request->input('subdepartment_id'));
         }
 
         $users = $query->select([
@@ -67,12 +83,33 @@ class UserController extends Controller
             'status' => ['nullable', Rule::in(['Active', 'Inactive'])],
         ]);
 
-        // Require department for Employees
-        if ($validated['role'] === 'Employee' && empty($validated['department'])) {
+        $role = strtolower((string) ($validated['role'] ?? ''));
+
+        // Require both department and subdepartment for employees
+        if ($role === 'employee' && empty($validated['department'])) {
             return response()->json([
                 'message' => 'Department is required for Employee role.',
                 'errors' => ['department' => ['Department is required for Employee role.']]
             ], 422);
+        }
+
+        if ($role === 'employee' && empty($validated['subdepartment_id'])) {
+            return response()->json([
+                'message' => 'Subdepartment is required for Employee role.',
+                'errors' => ['subdepartment_id' => ['Subdepartment is required for Employee role.']]
+            ], 422);
+        }
+
+        if ($role === 'employee' && !empty($validated['subdepartment_id']) && !empty($validated['department'])) {
+            $sub = Subdepartment::with('department')->find((int) $validated['subdepartment_id']);
+            $deptName = $sub?->department?->name;
+
+            if (!$deptName || strcasecmp((string) $deptName, (string) $validated['department']) !== 0) {
+                return response()->json([
+                    'message' => 'Selected subdepartment does not belong to the chosen department.',
+                    'errors' => ['subdepartment_id' => ['Selected subdepartment does not belong to the chosen department.']]
+                ], 422);
+            }
         }
 
         // Create user; store into lowercase `fullname` column used by this schema.
@@ -133,13 +170,40 @@ class UserController extends Controller
             'status' => ['sometimes', Rule::in(['Active', 'Inactive'])],
         ]);
 
-        // Require department for Employees
-        $newRole = $validated['role'] ?? $user->role;
-        if ($newRole === 'Employee' && isset($validated['department']) && empty($validated['department'])) {
+        // Build effective values after this update for cross-field validation
+        $effectiveRole = strtolower((string) ($validated['role'] ?? $user->role));
+        $effectiveDepartment = array_key_exists('department', $validated)
+            ? $validated['department']
+            : $user->department;
+        $effectiveSubdepartmentId = array_key_exists('subdepartment_id', $validated)
+            ? $validated['subdepartment_id']
+            : $user->subdepartment_id;
+
+        // Require both department and subdepartment for employees
+        if ($effectiveRole === 'employee' && empty($effectiveDepartment)) {
             return response()->json([
                 'message' => 'Department is required for Employee role.',
                 'errors' => ['department' => ['Department is required for Employee role.']]
             ], 422);
+        }
+
+        if ($effectiveRole === 'employee' && empty($effectiveSubdepartmentId)) {
+            return response()->json([
+                'message' => 'Subdepartment is required for Employee role.',
+                'errors' => ['subdepartment_id' => ['Subdepartment is required for Employee role.']]
+            ], 422);
+        }
+
+        if ($effectiveRole === 'employee' && !empty($effectiveSubdepartmentId) && !empty($effectiveDepartment)) {
+            $sub = Subdepartment::with('department')->find((int) $effectiveSubdepartmentId);
+            $deptName = $sub?->department?->name;
+
+            if (!$deptName || strcasecmp((string) $deptName, (string) $effectiveDepartment) !== 0) {
+                return response()->json([
+                    'message' => 'Selected subdepartment does not belong to the chosen department.',
+                    'errors' => ['subdepartment_id' => ['Selected subdepartment does not belong to the chosen department.']]
+                ], 422);
+            }
         }
 
         // Map fullName to fullname for fillable
@@ -151,10 +215,7 @@ class UserController extends Controller
         $user->fill($validated);
         $user->save();
 
-        $user->save();
-
         // For instructors, sync subdepartments and handle department head
-        $effectiveRole = strtolower($validated['role'] ?? $user->role);
         if ($effectiveRole === 'instructor') {
             if ($request->has('subdepartment_ids')) {
                 $user->subdepartments()->sync($request->input('subdepartment_ids', []));
@@ -202,7 +263,7 @@ class UserController extends Controller
                 'message' => 'User deleted successfully'
             ]);
         } catch (\Exception $e) {
-            \Log::error('Failed to delete user', [
+            Log::error('Failed to delete user', [
                 'user_id' => $id,
                 'error' => $e->getMessage(),
             ]);
@@ -226,7 +287,9 @@ class UserController extends Controller
         $ids = $data['ids'];
 
         try {
+            /** @var \Illuminate\Database\Eloquent\Collection<int, User> $usersToDelete */
             $usersToDelete = User::whereIn('id', $ids)->get();
+            /** @var User $u */
             foreach ($usersToDelete as $u) {
                 $u->tokens()->delete();
                 $u->delete();
@@ -360,7 +423,18 @@ class UserController extends Controller
             ->orderByRaw('COUNT(enrollments.id) DESC')
             ->limit(10)
             ->get()
-            ->map(fn($r) => ['name' => $r->name, 'students' => (int) $r->students])
+            ->map(function ($r) {
+                $name = (string) ($r->name ?? '');
+                // Remove mojibake ellipsis variants and replacement/control chars, then normalize whitespace.
+                $name = preg_replace('/(ΓÇª|Γçª|â€¦|…|Ã¢â‚¬Â¦|çª|Çª)/u', ' ', $name) ?? $name;
+                $name = preg_replace('/[\x{2028}\x{2029}\x{FFFD}\x00-\x1F\x7F\x80-\x9F]/u', ' ', $name) ?? $name;
+                $name = preg_replace('/\s+/u', ' ', $name) ?? $name;
+
+                return [
+                    'name' => trim($name),
+                    'students' => (int) $r->students,
+                ];
+            })
             ->values();
 
         return response()->json([

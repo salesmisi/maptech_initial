@@ -3,6 +3,7 @@ import { Download, Award, Calendar, ExternalLink } from 'lucide-react';
 import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
+const MAPTECH_LOGO_URL = '/assets/Maptech-Official-Logo.png';
 
 interface Certificate {
   id: number;
@@ -44,28 +45,22 @@ export function MyCertificates() {
   }, []);
 
   const handleDownloadPdf = async (cert: Certificate) => {
-    // If there's a logo, load it first
-    let logoImg: HTMLImageElement | null = null;
-    if (cert.logo_url) {
-      logoImg = await new Promise<HTMLImageElement | null>((resolve) => {
+    const loadImage = async (url?: string | null): Promise<HTMLImageElement | null> => {
+      if (!url) return null;
+      return new Promise<HTMLImageElement | null>((resolve) => {
         const img = new window.Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => resolve(img);
         img.onerror = () => resolve(null);
-        img.src = cert.logo_url!;
+        img.src = url;
       });
-    }
+    };
 
-    let signatureImg: HTMLImageElement | null = null;
-    if (cert.instructor_signature_url) {
-      signatureImg = await new Promise<HTMLImageElement | null>((resolve) => {
-        const img = new window.Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => resolve(img);
-        img.onerror = () => resolve(null);
-        img.src = cert.instructor_signature_url!;
-      });
-    }
+    const [maptechLogoImg, partnerLogoImg, signatureImg] = await Promise.all([
+      loadImage(MAPTECH_LOGO_URL),
+      loadImage(cert.logo_url),
+      loadImage(cert.instructor_signature_url),
+    ]);
 
     const canvas = document.createElement('canvas');
     const scale = 2;
@@ -75,133 +70,204 @@ export function MyCertificates() {
     if (!ctx) return;
     ctx.scale(scale, scale);
 
-    // Background
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 1000, 700);
+    const pageW = 1000;
+    const pageH = 700;
 
-    // Outer green frame matching the provided template
-    ctx.strokeStyle = '#0f6a4f';
-    ctx.lineWidth = 14;
-    ctx.strokeRect(16, 16, 968, 668);
+    const wrapText = (text: string, maxWidth: number, font: string) => {
+      ctx.font = font;
+      const words = (text || '').trim().split(/\s+/).filter(Boolean);
+      const lines: string[] = [];
+      let line = '';
 
-    // Inner frame
-    ctx.lineWidth = 3;
-    ctx.strokeRect(34, 34, 932, 632);
+      words.forEach((word) => {
+        const test = line ? `${line} ${word}` : word;
+        if (ctx.measureText(test).width <= maxWidth) {
+          line = test;
+        } else {
+          if (line) lines.push(line);
+          line = word;
+        }
+      });
 
-    // Product logo (if mapped), centered near top
-    if (logoImg) {
-      const maxW = 150, maxH = 85;
-      const ratio = Math.min(maxW / logoImg.width, maxH / logoImg.height);
-      const w = logoImg.width * ratio;
-      const h = logoImg.height * ratio;
-      ctx.drawImage(logoImg, 500 - w / 2, 58, w, h);
-    } else {
-      ctx.beginPath();
-      ctx.arc(500, 95, 26, 0, Math.PI * 2);
-      ctx.fillStyle = '#ecfdf5';
-      ctx.fill();
-      ctx.fillStyle = '#0f6a4f';
-      ctx.font = 'bold 26px Georgia';
+      if (line) lines.push(line);
+      return lines;
+    };
+
+    const drawCenteredLines = (
+      lines: string[],
+      centerX: number,
+      startY: number,
+      lineHeight: number,
+      font: string,
+      color: string,
+    ) => {
+      ctx.font = font;
+      ctx.fillStyle = color;
       ctx.textAlign = 'center';
-      ctx.fillText('★', 500, 104);
+      lines.forEach((line, idx) => ctx.fillText(line, centerX, startY + idx * lineHeight));
+    };
+
+    // Background with subtle warm tint for a cleaner premium look
+    const bg = ctx.createLinearGradient(0, 0, 0, pageH);
+    bg.addColorStop(0, '#fcfdfb');
+    bg.addColorStop(1, '#f6f8f4');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, pageW, pageH);
+
+    // Frame system
+    ctx.strokeStyle = '#115b45';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(18, 18, 964, 664);
+
+    ctx.lineWidth = 2;
+    ctx.strokeRect(32, 32, 936, 636);
+    ctx.strokeRect(42, 42, 916, 616);
+
+    // Top logo row: Maptech (left) + partner (right, when mapped)
+    const drawLogoInBox = (img: HTMLImageElement | null, x: number, y: number, w: number, h: number) => {
+      if (!img) return;
+      const ratio = Math.min((w - 16) / img.width, (h - 16) / img.height);
+      const drawW = img.width * ratio;
+      const drawH = img.height * ratio;
+      ctx.drawImage(img, x + (w - drawW) / 2, y + (h - drawH) / 2, drawW, drawH);
+    };
+
+    drawLogoInBox(maptechLogoImg, 74, 58, 284, 92);
+
+    if (partnerLogoImg) {
+      drawLogoInBox(partnerLogoImg, 642, 58, 284, 92);
+    } else {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#0f6a4f';
+      ctx.font = '700 20px Georgia';
+      ctx.fillText('★', 784, 102);
+      ctx.fillStyle = '#3f5d53';
+      ctx.font = '600 11px Arial';
+      ctx.fillText('Collaborating Brand', 784, 124);
     }
 
-    // Main heading
-    ctx.fillStyle = '#0f6a4f';
-    ctx.font = 'bold 68px Georgia';
-    ctx.fillText('Certificate of Achievement', 500, 200);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#64748b';
+    ctx.font = '600 12px Arial';
+    ctx.fillText('Maptech Information Solutions Inc.', 216, 170);
+    if (partnerLogoImg) {
+      ctx.fillText('Collaborating Brand', 784, 170);
+    }
 
-    // Heading ornament line
+    const contentShiftY = 12;
+
+    // Title block
+    ctx.fillStyle = '#0f6a4f';
+    ctx.font = '700 54px Georgia';
+    ctx.textAlign = 'center';
+    ctx.fillText('Certificate of Achievement', 500, 220 + contentShiftY);
+
     ctx.strokeStyle = '#0f6a4f';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(235, 228);
-    ctx.lineTo(765, 228);
-    ctx.stroke();
-    ctx.fillStyle = '#0f6a4f';
-    ctx.beginPath();
-    ctx.moveTo(500, 218);
-    ctx.lineTo(514, 228);
-    ctx.lineTo(500, 238);
-    ctx.lineTo(486, 228);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#1f2937';
-    ctx.font = 'bold 54px Times New Roman';
-    ctx.fillText('This certifies that:', 500, 292);
-
-    ctx.strokeStyle = '#9ca3af';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(200, 308);
-    ctx.lineTo(800, 308);
-    ctx.stroke();
-
-    ctx.fillStyle = '#111827';
-    ctx.font = 'bold 58px Times New Roman';
-    ctx.fillText(cert.user_name, 500, 372);
-
-    ctx.strokeStyle = '#9ca3af';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(140, 392);
-    ctx.lineTo(860, 392);
+    ctx.moveTo(288, 244 + contentShiftY);
+    ctx.lineTo(712, 244 + contentShiftY);
     ctx.stroke();
 
     ctx.fillStyle = '#1f2937';
-    ctx.font = 'bold 50px Times New Roman';
-    ctx.fillText('has successfully completed the requirements', 500, 462);
-    ctx.fillText('of the seminar for', 500, 520);
+    ctx.font = '700 26px Georgia';
+    ctx.fillText('This certifies that', 500, 288 + contentShiftY);
 
-    ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 54px Times New Roman';
-    ctx.fillText(cert.title, 500, 580);
+    // Recipient name (auto-fit up to 2 lines)
+    let nameSize = 48;
+    let nameLines: string[] = [];
+    while (nameSize >= 30) {
+      nameLines = wrapText(cert.user_name || 'Learner', 760, `700 ${nameSize}px Georgia`);
+      if (nameLines.length <= 2) break;
+      nameSize -= 2;
+    }
+    const nameLineHeight = Math.round(nameSize * 1.1);
+    drawCenteredLines(nameLines.slice(0, 2), 500, 352 + contentShiftY, nameLineHeight, `700 ${nameSize}px Georgia`, '#0f172a');
 
+    const nameBottomY = 352 + contentShiftY + (Math.max(1, nameLines.slice(0, 2).length) - 1) * nameLineHeight;
     ctx.strokeStyle = '#9ca3af';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(200, 598);
-    ctx.lineTo(800, 598);
+    ctx.moveTo(170, nameBottomY + 14);
+    ctx.lineTo(830, nameBottomY + 14);
     ctx.stroke();
 
-    // Footer section
-    ctx.font = 'italic 42px Times New Roman';
-    ctx.fillStyle = '#374151';
+    // Achievement statement
+    ctx.fillStyle = '#334155';
+    ctx.font = '600 20px Georgia';
+    ctx.fillText('has successfully completed the course requirements for', 500, nameBottomY + 56);
+
+    // Course title (auto-fit up to 2 lines)
+    let titleSize = 36;
+    let titleLines: string[] = [];
+    while (titleSize >= 20) {
+      titleLines = wrapText(cert.title || 'Course', 780, `700 ${titleSize}px Georgia`);
+      if (titleLines.length <= 2) break;
+      titleSize -= 2;
+    }
+    const titleStartY = nameBottomY + 108;
+    const titleLineHeight = Math.round(titleSize * 1.15);
+    drawCenteredLines(titleLines.slice(0, 2), 500, titleStartY, titleLineHeight, `700 ${titleSize}px Georgia`, '#0f172a');
+
+    const titleBottomY = titleStartY + (Math.max(1, titleLines.slice(0, 2).length) - 1) * titleLineHeight;
+    ctx.strokeStyle = '#9ca3af';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(200, titleBottomY + 12);
+    ctx.lineTo(800, titleBottomY + 12);
+    ctx.stroke();
+
+    // Footer rows
+    const footerY = Math.min(610, Math.max(596, titleBottomY + 56));
+    ctx.strokeStyle = '#6b7280';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(110, footerY);
+    ctx.lineTo(350, footerY);
+    ctx.moveTo(640, footerY);
+    ctx.lineTo(890, footerY);
+    ctx.stroke();
+
+    // Date block (left)
     ctx.textAlign = 'left';
-    ctx.fillText(`Date: ${cert.completed_date}`, 120, 645);
+    ctx.fillStyle = '#334155';
+    ctx.font = 'italic 22px Georgia';
+    ctx.fillText(`Date: ${cert.completed_date}`, 112, footerY - 6);
 
-    ctx.textAlign = 'right';
-    ctx.fillText('Instructor', 880, 645);
-
-    ctx.strokeStyle = '#4b5563';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(120, 652);
-    ctx.lineTo(360, 652);
-    ctx.moveTo(640, 652);
-    ctx.lineTo(880, 652);
-    ctx.stroke();
-
+    // Signature + instructor block (right)
     if (signatureImg) {
       const maxSigW = 220;
-      const maxSigH = 70;
+      const maxSigH = 58;
       const ratio = Math.min(maxSigW / signatureImg.width, maxSigH / signatureImg.height);
       const sigW = signatureImg.width * ratio;
       const sigH = signatureImg.height * ratio;
-      ctx.drawImage(signatureImg, 760 - sigW / 2, 575, sigW, sigH);
+      ctx.drawImage(signatureImg, 765 - sigW / 2, footerY - 74, sigW, sigH);
     }
 
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#374151';
-    ctx.font = 'bold 24px Times New Roman';
-    ctx.fillText(cert.instructor_name || 'Instructor', 760, 675);
+    ctx.fillStyle = '#1f2937';
+    ctx.font = '700 20px Georgia';
+    ctx.fillText(cert.instructor_name || 'Instructor', 765, footerY - 8);
+
+    ctx.fillStyle = '#334155';
+    ctx.font = 'italic 20px Georgia';
+    ctx.fillText('Instructor', 765, footerY + 30);
 
     // Certificate code
+    const certIdY = Math.min(648, footerY + 46);
+    ctx.strokeStyle = '#c6d0d8';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(332, certIdY - 4);
+    ctx.lineTo(430, certIdY - 4);
+    ctx.moveTo(570, certIdY - 4);
+    ctx.lineTo(668, certIdY - 4);
+    ctx.stroke();
+
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#6b7280';
-    ctx.font = '18px Arial';
-    ctx.fillText(`Certificate ID: ${cert.certificate_code}`, 500, 695);
+    ctx.fillStyle = '#5f7182';
+    ctx.font = '600 13px Arial';
+    ctx.fillText(`Certificate ID: ${cert.certificate_code}`, 500, certIdY);
 
     // Download as image (PNG pretending as PDF for simplicity)
     const link = document.createElement('a');
@@ -223,7 +289,7 @@ export function MyCertificates() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-900">My Certificates</h1>
       <p className="text-slate-500">
-        View and download your earned certificates. Product logos are mapped automatically based on your completed modules and lessons.
+        View and download your earned certificates. Product logos are mapped automatically based on the completed course.
       </p>
 
       {certificates.length === 0 ? (
@@ -245,11 +311,14 @@ export function MyCertificates() {
               <div className="h-48 bg-slate-100 relative p-4 flex items-center justify-center border-b border-slate-100">
                 <div className="bg-white w-full h-full shadow-sm border border-slate-200 p-4 flex flex-col items-center justify-center text-center relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-full h-2 bg-green-500"></div>
-                  {cert.logo_url ? (
-                    <img src={cert.logo_url} alt="Logo" className="h-8 w-auto mb-2 object-contain" />
-                  ) : (
-                    <Award className="h-8 w-8 text-green-600 mb-2" />
-                  )}
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <img src={MAPTECH_LOGO_URL} alt="Maptech Logo" className="h-8 w-auto max-w-[120px] object-contain" />
+                    {cert.logo_url ? (
+                      <img src={cert.logo_url} alt="Partner Logo" className="h-8 w-auto max-w-[120px] object-contain" />
+                    ) : (
+                      <Award className="h-6 w-6 text-green-600" />
+                    )}
+                  </div>
                   <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-1">
                     Certificate of Achievement
                   </h3>

@@ -12,6 +12,7 @@ import { AdminDashboard } from './pages/admin/AdminDashboard';
 import DepartmentManagement from './pages/admin/DepartmentManagement';
 import { UserManagement } from './pages/admin/UserManagement';
 import { CoursesAndContent } from './pages/admin/CoursesAndContent';
+import { CourseContentEditor } from './pages/admin/CourseContentEditor';
 import { EnrollmentManagement } from './pages/admin/EnrollmentManagement';
 import { ReportsAnalytics } from './pages/admin/ReportsAnalytics';
 import { NotificationManagement } from './pages/admin/NotificationManagement';
@@ -19,6 +20,7 @@ import { AuditLogs } from './pages/admin/AuditLogs';
 import { AdminFeedback } from './pages/admin/AdminFeedback';
 import { BusinessDetails } from './pages/admin/BusinessDetails';
 import { ProductLogoManager } from './pages/admin/ProductLogoManager';
+import { CustomFieldBuilder } from './pages/admin/CustomFieldBuilder';
 
 // Instructor Pages
 import { InstructorDashboard } from './pages/instructor/InstructorDashboard';
@@ -36,6 +38,7 @@ import { EmployeeDashboard } from './pages/employee/EmployeeDashboard';
 import { MyCourses } from './pages/employee/MyCourses';
 import { CourseEnrollDetail } from './pages/employee/CourseEnrollDetail';
 import { CourseViewer } from './pages/employee/CourseViewer';
+import { CustomModuleViewer } from './pages/employee/CustomModuleViewer';
 import { MyProgress } from './pages/employee/MyProgress';
 import { MyCertificates } from './pages/employee/MyCertificates';
 import { QAModule } from './pages/employee/QAModule';
@@ -71,6 +74,7 @@ export function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [logoutPhase, setLogoutPhase] = useState<'idle' | 'covering' | 'revealing'>('idle');
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [selectedCustomModuleId, setSelectedCustomModuleId] = useState<number | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
 
   const matches = (value: string | null | undefined, query: string) =>
@@ -416,7 +420,7 @@ export function App() {
     </div>
   );
 
-  const handleNavigate = (page: string, courseId?: string, quizId?: number) => {
+  const handleNavigate = (page: string, courseId?: string, quizIdOrModuleId?: number) => {
     setCurrentPage(page);
     if (user) {
       localStorage.setItem(`maptech_page_${user.role}`, page);
@@ -436,9 +440,16 @@ export function App() {
 
     updateUrlRouteState(page, courseId);
 
-    if (typeof quizId !== 'undefined') {
+    // Handle custom module ID for custom-field page and custom-module-viewer
+    if ((page === 'custom-field' || page === 'custom-module-viewer') && typeof quizIdOrModuleId === 'number') {
+      setSelectedCustomModuleId(quizIdOrModuleId);
+    } else if (page !== 'custom-field' && page !== 'custom-module-viewer') {
+      setSelectedCustomModuleId(null);
+    }
+
+    if (typeof quizIdOrModuleId !== 'undefined' && page !== 'custom-field') {
       if (user) {
-        try { localStorage.setItem(`maptech_quizId_${user.role}`, String(quizId ?? '')); } catch (e) { /* ignore */ }
+        try { localStorage.setItem(`maptech_quizId_${user.role}`, String(quizIdOrModuleId ?? '')); } catch (e) { /* ignore */ }
       }
     }
   };
@@ -450,6 +461,26 @@ export function App() {
     return (
       <>
         <LoadingState message="Loading app" size="lg" className="min-h-screen bg-slate-50 dark:bg-slate-900" />
+        <div className="relative min-h-screen overflow-hidden flex items-center justify-center bg-slate-950">
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-cover bg-center opacity-80"
+            style={{ backgroundImage: "url('/assets/pasted-image.jpg')" }}
+          />
+          <div aria-hidden="true" className="absolute inset-0 bg-slate-950/65" />
+
+          <div className="relative z-10 flex flex-col items-center px-6 text-center transition-opacity duration-500 opacity-100">
+            <img
+              className="h-20 w-auto"
+              src="/assets/Maptech-Official-Logo.png"
+              alt="Maptech LearnHub"
+            />
+            <p className="mt-5 text-sm font-medium tracking-wide text-slate-200">Preparing LearnHub...</p>
+            <div className="mt-4 h-1 w-44 overflow-hidden rounded-full bg-white/20">
+              <span className="block h-full w-full rounded-full bg-green-400 animate-pulse" />
+            </div>
+          </div>
+        </div>
         {renderThemeToggle()}
         {logoutOverlay}
       </>
@@ -611,6 +642,7 @@ export function App() {
 
   return (
     <>
+      <LoginPage onLogin={handleLogin} theme={theme} />
       <LoginPage onLogin={handleLogin} theme={theme} />
       {renderThemeToggle()}
       {logoutOverlay}

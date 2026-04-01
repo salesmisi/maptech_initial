@@ -16,7 +16,8 @@ import {
   ClipboardList,
   ImagePlus,
   Moon,
-  Sun
+  Sun,
+  Blocks
 } from 'lucide-react';
 import { NotificationBell } from '../NotificationBell';
 import { useBusinessDetails } from '../../hooks/useBusinessDetails';
@@ -94,6 +95,11 @@ export function AdminLayout({
     id: 'courses',
     label: 'Courses and Content',
     icon: BookOpen
+  },
+  {
+    id: 'custom-field',
+    label: 'Custom Field Builder',
+    icon: Blocks
   },
   {
     id: 'qa',

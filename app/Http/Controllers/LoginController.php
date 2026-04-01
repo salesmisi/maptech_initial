@@ -47,8 +47,11 @@ class LoginController extends Controller
 
         $request->session()->regenerate();
 
-        // Record a single consistent UTC timestamp for audit + time log
-        $ts = Carbon::now();
+        $sessionKey = 'web:' . $request->session()->getId();
+
+        // Record a single explicit UTC timestamp for audit + time log.
+        // Using UTC avoids DB/session timezone ambiguity across environments.
+        $ts = Carbon::now('UTC')->toIso8601String();
         // Debug: Log user role
         Log::info('LOGIN: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
         // Record audit log for Employees and Admins
@@ -61,12 +64,21 @@ class LoginController extends Controller
                     'user_id' => $user->id,
                     'action' => 'login',
                     'ip_address' => $request->ip(),
+                    'session_key' => $sessionKey,
                     'created_at' => $ts,
                 ]);
+                if ($log) {
+                    $request->session()->put('current_login_audit_id', $log->id);
+                }
                 // Broadcast the audit log so admins receive realtime updates
                 event(new AuditLogCreated($log));
             } catch (\Exception $e) {
-                Log::warning('Failed to create AuditLog on login', ['error' => $e->getMessage()]);
+                Log::error('Failed to create AuditLog on login', [
+                    'error' => $e->getMessage(),
+                    'user_id' => $user->id,
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]);
             }
         }
 
@@ -85,6 +97,8 @@ class LoginController extends Controller
             Log::info('LOGIN: Creating new TimeLog for this login', ['user_id' => $user->id, 'time_in' => $ts]);
             $timeLog = TimeLog::create([
                 'user_id' => $user->id,
+                'session_key' => $sessionKey,
+                'login_audit_log_id' => $log?->id,
                 'time_in' => $ts,
             ]);
             event(new TimeLogUpdated($timeLog->fresh()));
@@ -136,10 +150,12 @@ class LoginController extends Controller
 
         // Create new token with abilities based on role
         $abilities = $this->getTokenAbilities($user);
-        $token = $user->createToken('auth-token', $abilities)->plainTextToken;
+        $newToken = $user->createToken('auth-token', $abilities);
+        $token = $newToken->plainTextToken;
+        $sessionKey = 'token:' . $newToken->accessToken->id;
 
-        // Record single timestamp for API login audit + time log
-            $ts = Carbon::now();
+        // Record single explicit UTC timestamp for API login audit + time log.
+        $ts = Carbon::now('UTC')->toIso8601String();
         // Debug: Log user role
         Log::info('API LOGIN: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
         // Record audit log for Employees and Admins
@@ -152,12 +168,18 @@ class LoginController extends Controller
                     'user_id' => $user->id,
                     'action' => 'login',
                     'ip_address' => $request->ip(),
+                    'session_key' => $sessionKey,
                     'created_at' => $ts,
                 ]);
                 // Broadcast the audit log so admins receive realtime updates
                 event(new AuditLogCreated($log));
             } catch (\Exception $e) {
-                Log::warning('Failed to create AuditLog on apiLogin', ['error' => $e->getMessage()]);
+                Log::error('Failed to create AuditLog on apiLogin', [
+                    'error' => $e->getMessage(),
+                    'user_id' => $user->id,
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]);
             }
         }
 
@@ -175,6 +197,8 @@ class LoginController extends Controller
             Log::info('API LOGIN: Creating new TimeLog for this login', ['user_id' => $user->id, 'time_in' => $ts]);
             $timeLog = TimeLog::create([
                 'user_id' => $user->id,
+                'session_key' => $sessionKey,
+                'login_audit_log_id' => $log?->id,
                 'time_in' => $ts,
             ]);
             event(new TimeLogUpdated($timeLog->fresh()));
@@ -207,7 +231,11 @@ class LoginController extends Controller
         $user = $request->user();
 
         if ($user) {
-            $ts = Carbon::now();
+            $ts = Carbon::now('UTC')->toIso8601String();
+            $sessionKey = $user->currentAccessToken()
+                ? 'token:' . $user->currentAccessToken()->id
+                : 'web:' . $request->session()->getId();
+            $savedLoginAuditId = (int) $request->session()->get('current_login_audit_id', 0);
             // Debug: Log user role
             Log::info('LOGOUT: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
             // Record logout audit for Employees and Admins
@@ -220,25 +248,84 @@ class LoginController extends Controller
                         'user_id' => $user->id,
                         'action' => 'logout',
                         'ip_address' => $request->ip(),
+                        'session_key' => $sessionKey,
                         'created_at' => $ts,
                     ]);
                     event(new AuditLogCreated($log));
                 } catch (\Exception $e) {
-                    Log::warning('Failed to create AuditLog on logout', ['error' => $e->getMessage()]);
+                    Log::error('Failed to create AuditLog on logout', [
+                        'error' => $e->getMessage(),
+                        'user_id' => $user->id,
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                    ]);
                 }
             }
 
             // If user is an employee or admin, close ALL open time logs (punched-in without time_out)
             if ($shouldTrack) {
                 Log::info('LOGOUT: Closing open TimeLogs', ['user_id' => $user->id]);
-                $openLogs = TimeLog::where('user_id', $user->id)->whereNull('time_out')->get();
+                Log::info('LOGOUT DEBUG: Matching context', [
+                    'user_id' => $user->id,
+                    'session_key' => $sessionKey,
+                    'saved_login_audit_id' => $savedLoginAuditId,
+                    'logout_audit_id' => $log?->id,
+                ]);
+                // Prefer exact linkage by saved login audit id for web session-auth flows.
+                $openLogs = collect();
+                if ($savedLoginAuditId > 0) {
+                    $openLogs = TimeLog::where('user_id', $user->id)
+                        ->where('login_audit_log_id', $savedLoginAuditId)
+                        ->whereNull('time_out')
+                        ->get();
+
+                    Log::info('LOGOUT DEBUG: Match by login_audit_log_id', [
+                        'count' => $openLogs->count(),
+                        'time_log_ids' => $openLogs->pluck('id')->values()->all(),
+                    ]);
+                }
+
+                // Fallback to session key when no saved login audit id is available.
+                if ($openLogs->isEmpty()) {
+                    $openLogs = TimeLog::where('user_id', $user->id)
+                        ->where('session_key', $sessionKey)
+                        ->whereNull('time_out')
+                        ->get();
+
+                    Log::info('LOGOUT DEBUG: Match by session_key', [
+                        'count' => $openLogs->count(),
+                        'time_log_ids' => $openLogs->pluck('id')->values()->all(),
+                    ]);
+                }
+
+                // Fallback for legacy rows that don't have session_key yet.
+                if ($openLogs->isEmpty()) {
+                    $openLogs = TimeLog::where('user_id', $user->id)->whereNull('time_out')->get();
+
+                    Log::info('LOGOUT DEBUG: Legacy fallback match', [
+                        'count' => $openLogs->count(),
+                        'time_log_ids' => $openLogs->pluck('id')->values()->all(),
+                    ]);
+                }
+
                 foreach ($openLogs as $open) {
                     Log::info('LOGOUT: Closing TimeLog', ['log_id' => $open->id, 'user_id' => $user->id]);
                     $open->time_out = $ts;
+                    if ($log) {
+                        $open->logout_audit_log_id = $log->id;
+                    }
                     $open->save();
+                    Log::info('LOGOUT DEBUG: TimeLog updated', [
+                        'time_log_id' => $open->id,
+                        'user_id' => $user->id,
+                        'time_out' => $open->time_out,
+                        'logout_audit_log_id' => $open->logout_audit_log_id,
+                    ]);
                     event(new TimeLogUpdated($open->fresh()));
                 }
             }
+
+            $request->session()->forget('current_login_audit_id');
         }
 
         // For API token logout

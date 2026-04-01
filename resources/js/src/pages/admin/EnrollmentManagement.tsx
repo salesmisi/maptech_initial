@@ -53,9 +53,20 @@ interface UserOption {
   fullname: string;
   email: string;
   department: string;
+  subdepartment_id?: number | null;
+  subdepartment_name?: string | null;
+}
+
+interface DepartmentOption {
+  id: number;
+  name: string;
+  code?: string | null;
+  subdepartments: { id: number; name: string }[];
 }
 
 export function EnrollmentManagement() {
+  const normalizeDepartment = (value?: string | null) => (value || '').trim().toLowerCase();
+
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +77,7 @@ export function EnrollmentManagement() {
   // Modal state
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
-  const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedModuleId, setSelectedModuleId] = useState('');
   const [selectedDeptId, setSelectedDeptId] = useState<number | ''>('');
@@ -75,7 +86,6 @@ export function EnrollmentManagement() {
   const [selectedUsers, setSelectedUsers] = useState<UserOption[]>([]);
   const [userQuery, setUserQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserOption[]>([]);
-  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const userSearchTimer = React.useRef<number | null>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollError, setEnrollError] = useState<string | null>(null);
@@ -202,11 +212,25 @@ export function EnrollmentManagement() {
       }
       if (usersRes.ok) {
         const u = await usersRes.json();
-        setUsers(u.map((x: any) => ({ id: x.id, fullname: x.fullname || x.fullName || x.name || `${x.first_name || ''} ${x.last_name || ''}`.trim(), email: x.email, department: x.department })));
+        setUsers(u.map((x: any) => ({
+          id: x.id,
+          fullname: x.fullname || x.fullName || x.name || `${x.first_name || ''} ${x.last_name || ''}`.trim(),
+          email: x.email,
+          department: x.department,
+          subdepartment_id: x.subdepartment_id ?? null,
+          subdepartment_name: x.subdepartment?.name ?? null,
+        })));
       }
       if (departmentsRes && departmentsRes.ok) {
         const d = await departmentsRes.json();
-        setDepartments(d.map((x: any) => ({ id: x.id, name: x.name })));
+        setDepartments(d.map((x: any) => ({
+          id: x.id,
+          name: x.name,
+          code: x.code ?? null,
+          subdepartments: Array.isArray(x.subdepartments)
+            ? x.subdepartments.map((s: any) => ({ id: s.id, name: s.name }))
+            : [],
+        })));
       }
     } catch (e) {
       // ignore for now
@@ -219,7 +243,6 @@ export function EnrollmentManagement() {
       return;
     }
     try {
-      setIsSearchingUsers(true);
       // Always query backend so newly created users are immediately searchable.
       const params = new URLSearchParams();
       params.set('q', q);
@@ -233,11 +256,16 @@ export function EnrollmentManagement() {
       if (!res.ok) return setSearchResults([]);
       const data = await res.json();
       const usersFound = Array.isArray(data) ? data : (data?.data || []);
-      setSearchResults(usersFound.map((x: any) => ({ id: x.id, fullname: x.fullname || x.name || `${x.first_name || ''} ${x.last_name || ''}`.trim(), email: x.email, department: x.department })));
+      setSearchResults(usersFound.map((x: any) => ({
+        id: x.id,
+        fullname: x.fullname || x.name || `${x.first_name || ''} ${x.last_name || ''}`.trim(),
+        email: x.email,
+        department: x.department,
+        subdepartment_id: x.subdepartment_id ?? null,
+        subdepartment_name: x.subdepartment?.name ?? null,
+      })));
     } catch (e) {
       setSearchResults([]);
-    } finally {
-      setIsSearchingUsers(false);
     }
   };
 
@@ -257,6 +285,8 @@ export function EnrollmentManagement() {
     setSelectedUserIds([]);
     setSelectedUsers([]);
     setSelectedDeptId('');
+    setUserQuery('');
+    setSearchResults([]);
     setEnrollError(null);
     loadModalData();
   };
@@ -703,7 +733,15 @@ export function EnrollmentManagement() {
                   <select
                     className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     value={selectedDeptId}
-                    onChange={(e) => { const v = e.target.value; setSelectedDeptId(v ? Number(v) : ''); setSearchResults([]); setUserQuery(''); }}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setSelectedDeptId(v ? Number(v) : '');
+                      setSelectedCourseId('');
+                      setSelectedUserIds([]);
+                      setSelectedUsers([]);
+                      setSearchResults([]);
+                      setUserQuery('');
+                    }}
                   >
                     <option value="">-- All Departments --</option>
                     {departments.map(d => (
@@ -734,7 +772,14 @@ export function EnrollmentManagement() {
                                     const res = await fetch(`${API_BASE}/admin/users/${u.id}`, { credentials: 'include', headers: { Accept: 'application/json' } });
                                     if (res.ok) {
                                       const full = await res.json();
-                                      const mapped = { id: full.id, fullname: full.fullname || full.name || `${full.first_name || ''} ${full.last_name || ''}`.trim(), email: full.email, department: full.department };
+                                        const mapped = {
+                                          id: full.id,
+                                          fullname: full.fullname || full.name || `${full.first_name || ''} ${full.last_name || ''}`.trim(),
+                                          email: full.email,
+                                          department: full.department,
+                                          subdepartment_id: full.subdepartment_id ?? null,
+                                          subdepartment_name: full.subdepartment?.name ?? null,
+                                        };
                                       setSelectedUsers(prev => [...prev, mapped]);
                                     } else {
                                       setSelectedUsers(prev => [...prev, u]);
@@ -743,11 +788,6 @@ export function EnrollmentManagement() {
                                     setSelectedUsers(prev => [...prev, u]);
                                   }
                                 }
-                              }
-                              // If no department selected yet, auto-select the user's department
-                              if (!selectedDeptId && u.department) {
-                                const dept = departments.find(d => d.name === u.department);
-                                if (dept) setSelectedDeptId(dept.id);
                               }
                               setSearchResults([]);
                               setUserQuery('');
@@ -790,8 +830,15 @@ export function EnrollmentManagement() {
                   >
                     <option value="">-- Select a course --</option>
                     {(() => {
-                      const deptName = selectedDeptId ? departments.find(d => d.id === Number(selectedDeptId))?.name : null;
-                      const filtered = deptName ? courses.filter(c => c.department === deptName) : courses;
+                      const selectedDept = selectedDeptId ? departments.find(d => d.id === Number(selectedDeptId)) : null;
+                      const selectedDeptName = normalizeDepartment(selectedDept?.name);
+                      const selectedDeptCode = normalizeDepartment(selectedDept?.code);
+                      const filtered = selectedDept
+                        ? courses.filter((c) => {
+                            const courseDept = normalizeDepartment(c.department);
+                            return courseDept === selectedDeptName || (selectedDeptCode && courseDept === selectedDeptCode);
+                          })
+                        : courses;
                       return filtered.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.title} ({c.department})

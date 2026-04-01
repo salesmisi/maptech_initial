@@ -7,6 +7,39 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Project layout
+
+This repository is organized into two top-level folders:
+
+- `backend/` – the full Laravel application (PHP backend, API, React/Vite frontend code under `backend/resources/js`, build tooling, tests, etc.).
+- `docs/` – documentation and reference files (including this README, SQL dumps, JSON samples, and helper HTML files).
+
+All Laravel commands are now run from the `backend` folder.
+
+### Running the application
+
+From the repository root:
+
+```bash
+cd backend
+
+# Install dependencies (first time only)
+composer install
+npm install
+
+# Run database migrations
+php artisan migrate
+
+# Start the backend (e.g. Laravel start command or local server)
+php artisan serve
+
+# Start the frontend dev server
+npm run dev
+
+# Or build frontend assets for production
+npm run build
+```
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:

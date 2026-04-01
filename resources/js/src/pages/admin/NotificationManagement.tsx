@@ -39,6 +39,7 @@ export function NotificationManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -84,11 +85,22 @@ export function NotificationManagement() {
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
-  // Load notifications
+  const fetchOptions = (method: 'GET' | 'POST', body?: unknown): RequestInit => ({
+    method,
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+
+  // Load notifications and sent history
   useEffect(() => {
     console.debug('NotificationManagement mounted', { formData });
     fetchNotifications();
     fetchUnreadCount();
+    fetchSentAnnouncements();
   }, []);
 
   const fetchNotifications = async () => {
@@ -123,6 +135,21 @@ export function NotificationManagement() {
       setUnreadCount(data.count || 0);
     } catch (err) {
       console.error('Failed to load unread count:', err);
+    }
+  };
+
+  const fetchSentAnnouncements = async () => {
+    try {
+      const res = await fetch('/api/admin/notifications/sent-history', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      const data = await res.json();
+      setSentHistory(data.sent_announcements || []);
+    } catch (err) {
+      console.error('Failed to load sent announcements:', err);
     }
   };
 
@@ -274,17 +301,11 @@ export function NotificationManagement() {
         alert(`Announcement sent to ${data.recipients_count} users!`);
         setIsModalOpen(false);
         setFormData({ title: '', message: '', roles: [], course_id: '', target_user_ids: [] });
+        setSelectedUsers([]);
+        setSelectedDepartment('');
 
-        // Add to sent history
-        setSentHistory(prev => [{
-          id: Date.now(),
-          title: formData.title,
-          message: formData.message,
-          target: formData.target_user_ids && formData.target_user_ids.length > 0 ? `Users: ${formData.target_user_ids.length}` : formData.roles.join(', '),
-          date: new Date().toISOString().split('T')[0],
-          status: 'Sent',
-          recipients_count: data.recipients_count,
-        }, ...prev]);
+        // Refresh sent history from server
+        fetchSentAnnouncements();
       } else {
         const msg = data?.message || `Failed to send announcement (status ${res.status})`;
         alert(msg);
@@ -426,50 +447,53 @@ export function NotificationManagement() {
               {safeArray(notifications).map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-4 hover:bg-slate-50 transition-colors ${
-                    !notification.read_at ? 'bg-green-50' : ''
-                  }`}
+                  onClick={() => setSelectedNotification(notification)}
+                  className={`p-4 cursor-pointer transition-colors ${
+                    !notification.read_at
+                      ? 'bg-emerald-50 dark:bg-emerald-950 border-l-4 border-emerald-500'
+                      : 'bg-white dark:bg-slate-900 border-l-4 border-transparent'
+                  } hover:bg-slate-100 dark:hover:bg-slate-800`}
                 >
                   <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-3">
-                      <div className={`mt-1 p-2 rounded-full ${
-                        notification.type === 'announcement' ? 'bg-blue-100' :
-                        notification.type === 'employee_message' ? 'bg-yellow-100' :
-                        'bg-slate-100'
+                    <div className="flex items-start space-x-3 flex-1">
+                      <div className={`mt-1 p-2 rounded-full flex-shrink-0 ${
+                        notification.type === 'announcement' ? 'bg-blue-100 dark:bg-blue-900' :
+                        notification.type === 'employee_message' ? 'bg-yellow-100 dark:bg-yellow-900' :
+                        'bg-slate-100 dark:bg-slate-700'
                       }`}>
                         {notification.type === 'announcement' ? (
-                          <Bell className="h-4 w-4 text-blue-600" />
+                          <Bell className="h-4 w-4 text-blue-600 dark:text-blue-300" />
                         ) : notification.type === 'employee_message' ? (
-                          <Users className="h-4 w-4 text-yellow-600" />
+                          <Users className="h-4 w-4 text-yellow-600 dark:text-yellow-300" />
                         ) : (
-                          <AlertCircle className="h-4 w-4 text-slate-600" />
+                          <AlertCircle className="h-4 w-4 text-slate-600 dark:text-slate-300" />
                         )}
                       </div>
-                      <div>
-                        <h3 className="text-sm font-medium text-slate-900">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-medium text-slate-900 dark:text-white">
                           {notification.title}
                           {!notification.read_at && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
                               New
                             </span>
                           )}
                         </h3>
-                        <p className="mt-1 text-sm text-slate-600">{notification.message}</p>
+                        <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{notification.message}</p>
                         {notification.data?.from_user_name && (
-                          <p className="mt-1 text-xs text-slate-400">
+                          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                             From: {notification.data.from_user_name} ({notification.data.from_role})
                           </p>
                         )}
-                        <p className="mt-1 text-xs text-slate-400">
+                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                           {formatDate(notification.created_at)}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 flex-shrink-0 ml-4" onClick={(e) => e.stopPropagation()}>
                       {!notification.read_at && (
                         <button
                           onClick={() => markAsRead(notification.id)}
-                          className="text-slate-400 hover:text-green-600"
+                          className="text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400"
                           title="Mark as read"
                         >
                           <Eye className="h-5 w-5" />
@@ -477,7 +501,7 @@ export function NotificationManagement() {
                       )}
                       <button
                         onClick={() => deleteNotification(notification.id)}
-                        className="text-slate-400 hover:text-red-600"
+                        className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
                         title="Delete"
                       >
                         <Trash2 className="h-5 w-5" />
@@ -493,22 +517,22 @@ export function NotificationManagement() {
 
       {/* Sent History */}
       {activeTab === 'sent' && (
-        <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
           {sentHistory.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">
-              <Send className="h-12 w-12 mx-auto mb-4 text-slate-300" />
+            <div className="p-8 text-center text-slate-500 dark:text-slate-300">
+              <Send className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
               <p>No announcements sent yet</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
+              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                <thead className="bg-slate-50 dark:bg-slate-800">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Title</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Message</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Target</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Recipients</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Title</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Message</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Target</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Recipients</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Date</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
@@ -517,16 +541,16 @@ export function NotificationManagement() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
                         {item.title}
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-500 truncate max-w-xs">
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-200 truncate max-w-xs">
                         {item.message}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
                         {item.target}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
                         {item.recipients_count} users
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
                         {item.date}
                       </td>
                     </tr>
@@ -672,6 +696,122 @@ export function NotificationManagement() {
           </div>
         </div>
       )}
+      {/* Notification Detail Modal */}
+      {selectedNotification && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity bg-slate-900 bg-opacity-75 dark:bg-opacity-90" aria-hidden="true"></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white dark:bg-slate-800 rounded-lg text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+              <div className="absolute top-4 right-4">
+                <button
+                  onClick={() => setSelectedNotification(null)}
+                  className="text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="bg-white dark:bg-slate-800 px-6 py-8">
+                {/* Icon and Header */}
+                <div className="flex items-start space-x-4 mb-6">
+                  <div className={`p-3 rounded-full flex-shrink-0 ${
+                    selectedNotification.type === 'announcement' ? 'bg-blue-100 dark:bg-blue-900' :
+                    selectedNotification.type === 'employee_message' ? 'bg-yellow-100 dark:bg-yellow-900' :
+                    'bg-slate-100 dark:bg-slate-700'
+                  }`}>
+                    {selectedNotification.type === 'announcement' ? (
+                      <Bell className="h-6 w-6 text-blue-600 dark:text-blue-300" />
+                    ) : selectedNotification.type === 'employee_message' ? (
+                      <Users className="h-6 w-6 text-yellow-600 dark:text-yellow-300" />
+                    ) : (
+                      <AlertCircle className="h-6 w-6 text-slate-600 dark:text-slate-300" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                      {selectedNotification.title}
+                    </h2>
+                    {!selectedNotification.read_at && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 mt-2">
+                        New
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Main Message */}
+                <div className="mb-8">
+                  <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">Message</h3>
+                  <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
+                    <p className="text-base text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
+                      {selectedNotification.message}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Metadata */}
+                <div className="grid grid-cols-2 gap-6 mb-8">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Sent On</h3>
+                    <p className="text-slate-900 dark:text-white">{formatDate(selectedNotification.created_at)}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Type</h3>
+                    <p className="text-slate-900 dark:text-white capitalize">{selectedNotification.type.replace('_', ' ')}</p>
+                  </div>
+                </div>
+
+                {/* Sender Info */}
+                {selectedNotification.data?.from_user_name && (
+                  <div className="mb-8 pb-8 border-b border-slate-200 dark:border-slate-700">
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">From</h3>
+                    <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                      <p className="font-medium text-slate-900 dark:text-white">{selectedNotification.data.from_user_name}</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{selectedNotification.data.from_role}</p>
+                      {selectedNotification.data.course_title && (
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">Course: {selectedNotification.data.course_title}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex justify-between">
+                  <div className="flex space-x-3">
+                    {!selectedNotification.read_at && (
+                      <button
+                        onClick={() => {
+                          markAsRead(selectedNotification.id);
+                          setSelectedNotification(null);
+                        }}
+                        className="inline-flex items-center px-4 py-2 border border-emerald-300 dark:border-emerald-700 rounded-md shadow-sm text-sm font-medium text-emerald-700 dark:text-emerald-200 bg-white dark:bg-slate-700 hover:bg-emerald-50 dark:hover:bg-slate-600">
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Mark as Read
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        deleteNotification(selectedNotification.id);
+                        setSelectedNotification(null);
+                      }}
+                      className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-700 rounded-md shadow-sm text-sm font-medium text-red-700 dark:text-red-200 bg-white dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-slate-600">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setSelectedNotification(null)}
+                    className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirm.ConfirmModalRenderer()}
     </div>
   );

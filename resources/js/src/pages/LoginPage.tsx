@@ -19,6 +19,7 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
   const [videoSrcIndex, setVideoSrcIndex] = useState(0);
   const [videoFailed, setVideoFailed] = useState(false);
@@ -41,10 +42,16 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
       // ✅ 1. Get CSRF cookie
       await fetch('/sanctum/csrf-cookie', {
         credentials: 'include',
+      }).catch((err) => {
+        throw new Error('Cannot connect to server. Please ensure the server is running.');
       });
 
       // ✅ 2. Extract XSRF token from cookie
       const xsrfToken = getCookie('XSRF-TOKEN');
+
+      if (!xsrfToken) {
+        throw new Error('Unable to get security token. Please refresh the page and try again.');
+      }
 
       // ✅ 3. Login request WITH X-XSRF-TOKEN header
       const response = await fetch('/login', {
@@ -60,6 +67,8 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
           email,
           password,
         }),
+      }).catch((err) => {
+        throw new Error('Network error: Cannot connect to server.');
       });
 
       if (!response.ok) {
@@ -210,25 +219,43 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
         aria-hidden="true"
       />
 
-      <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
+      <div
+        className={`relative z-10 sm:mx-auto sm:w-full sm:max-w-md transform transition-all duration-700 delay-100 ${
+          pageReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
+        }`}
+      >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 -top-14 h-56 w-80 -translate-x-1/2 rounded-full bg-cyan-300/22 blur-3xl"
+        />
         <div className="flex justify-center">
           <img
-            className="h-20 w-auto"
+            className="h-20 sm:h-28 md:h-32 w-auto drop-shadow-[0_14px_36px_rgba(0,0,0,0.58)]"
             src="/assets/Maptech-Official-Logo.png"
             alt="Maptech LearnHub"
           />
         </div>
-        <h2 className={`mt-6 text-center text-3xl font-extrabold ${isDark ? 'text-white' : 'text-slate-50'}`}>
+        <h2
+          className={`mt-4 text-center text-2xl font-extrabold ${isDark ? 'text-white' : 'text-slate-50'}`}
+          style={{ textShadow: '0 4px 18px rgba(2, 6, 23, 0.75)' }}
+        >
           Sign in to LearnHub
         </h2>
-        <p className={`mt-2 text-center text-sm ${isDark ? 'text-slate-200' : 'text-slate-100'}`}>
+        <p
+          className={`mt-2 text-center text-sm ${isDark ? 'text-slate-200' : 'text-slate-100'}`}
+          style={{ textShadow: '0 2px 12px rgba(2, 6, 23, 0.7)' }}
+        >
           Maptech Information Solutions Inc.
         </p>
       </div>
 
-      <div className="relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className={`backdrop-blur-sm py-8 px-4 shadow sm:rounded-lg sm:px-10 border-t-4 border-green-500 ${isDark ? 'bg-slate-950/75' : 'bg-white/90'}`}>
-          <form className="space-y-6" onSubmit={handleSubmit}>
+      <div
+        className={`relative z-10 mt-5 sm:mx-auto sm:w-full sm:max-w-md transform transition-all duration-700 delay-150 ${
+          pageReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        }`}
+      >
+        <div className={`backdrop-blur-sm py-6 px-4 shadow sm:rounded-lg sm:px-8 border-t-4 border-green-500 ${isDark ? 'bg-slate-950/75' : 'bg-white/90'}`}>
+          <form className="space-y-4" onSubmit={handleSubmit}>
 
             <div>
               <label htmlFor="login-email" className={`block text-sm font-medium ${isDark ? 'text-slate-100' : 'text-slate-700'}`}>
@@ -246,7 +273,7 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className={`block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
+                  className={`login-auth-input block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
                   placeholder="name@maptech.com"
                 />
               </div>
@@ -264,13 +291,22 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
                   id="login-password"
                   name="password"
                   autoComplete="current-password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
+                  className={`login-auth-input block w-full pl-10 pr-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
                   placeholder="••••••••"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
             </div>
 

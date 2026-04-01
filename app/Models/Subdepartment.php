@@ -34,4 +34,12 @@ class Subdepartment extends Model
     {
         return $this->belongsTo(User::class, 'employee_id');
     }
+
+    /**
+     * Employees assigned to this subdepartment via users.subdepartment_id.
+     */
+    public function employees()
+    {
+        return $this->hasMany(User::class, 'subdepartment_id');
+    }
 }

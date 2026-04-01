@@ -28,7 +28,19 @@ Route::post('/departments', function (Request $request) {
     $request->validate([
         'name' => 'required|string|max:255',
         'code' => 'required|string|max:50|unique:departments,code',
+        'head_id' => 'nullable|exists:users,id',
     ]);
+
+    if ($request->filled('head_id')) {
+        $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
+        $headRole = strtolower((string) ($headUser?->role ?? ''));
+        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
+            return response()->json([
+                'message' => 'Department head must be an Admin or Instructor.',
+                'errors' => ['head_id' => ['Department head must be an Admin or Instructor.']]
+            ], 422);
+        }
+    }
 
     return Department::create([
         'name' => $request->name,
@@ -46,6 +58,23 @@ Route::post('/departments', function (Request $request) {
 Route::put('/departments/{id}', function (Request $request, $id) {
 
     $department = Department::findOrFail($id);
+
+    $request->validate([
+        'name' => 'required|string|max:255',
+        'code' => 'required|string|max:50',
+        'head_id' => 'nullable|exists:users,id',
+    ]);
+
+    if ($request->filled('head_id')) {
+        $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
+        $headRole = strtolower((string) ($headUser?->role ?? ''));
+        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
+            return response()->json([
+                'message' => 'Department head must be an Admin or Instructor.',
+                'errors' => ['head_id' => ['Department head must be an Admin or Instructor.']]
+            ], 422);
+        }
+    }
 
     $department->update([
         'name' => $request->name,
@@ -84,6 +113,17 @@ Route::post('/departments/{id}/subdepartments', function (Request $request, $id)
         'employee_id' => 'nullable|exists:users,id',
     ]);
 
+    if ($request->filled('head_id')) {
+        $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
+        $headRole = strtolower((string) ($headUser?->role ?? ''));
+        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
+            return response()->json([
+                'message' => 'Subdepartment head must be an Admin or Instructor.',
+                'errors' => ['head_id' => ['Subdepartment head must be an Admin or Instructor.']]
+            ], 422);
+        }
+    }
+
     $subdepartment = Subdepartment::create([
         'department_id' => $id,
         'name' => $request->name,
@@ -92,7 +132,7 @@ Route::post('/departments/{id}/subdepartments', function (Request $request, $id)
         'employee_id' => $request->employee_id,
     ]);
 
-    return $subdepartment->load(['headUser:id,fullname', 'employee:id,fullname']);
+    return $subdepartment->load(['headUser:id,fullname', 'employee:id,fullname', 'employees:id,fullname,email,department,subdepartment_id']);
 });
 
 // UPDATE SUBDEPARTMENT
@@ -106,13 +146,24 @@ Route::put('/subdepartments/{id}', function (Request $request, $id) {
         'employee_id' => 'nullable|exists:users,id',
     ]);
 
+    if ($request->filled('head_id')) {
+        $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
+        $headRole = strtolower((string) ($headUser?->role ?? ''));
+        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
+            return response()->json([
+                'message' => 'Subdepartment head must be an Admin or Instructor.',
+                'errors' => ['head_id' => ['Subdepartment head must be an Admin or Instructor.']]
+            ], 422);
+        }
+    }
+
     $subdepartment->update([
         'name' => $request->name,
         'head_id' => $request->head_id,
         'employee_id' => $request->employee_id,
     ]);
 
-    return $subdepartment->load(['headUser:id,fullname', 'employee:id,fullname']);
+    return $subdepartment->load(['headUser:id,fullname', 'employee:id,fullname', 'employees:id,fullname,email,department,subdepartment_id']);
 });
 
 // DELETE SUBDEPARTMENT
@@ -160,9 +211,19 @@ Route::get('/me/audit-logs', function (Request $request) {
     // For each audit entry, attempt to attach the matching time_log (same logic as admin endpoint)
     $logs = $logs->map(function ($log) {
         $timeLog = null;
-        if ($log->created_at) {
-            $start = $log->created_at->copy()->subMinutes(2);
-            $end = $log->created_at->copy()->addMinutes(2);
+
+        // Exact deterministic linkage for newly written rows.
+        if ($log->action === 'login') {
+            $timeLog = \App\Models\TimeLog::where('login_audit_log_id', $log->id)->first();
+        } elseif ($log->action === 'logout') {
+            $timeLog = \App\Models\TimeLog::where('logout_audit_log_id', $log->id)->first();
+        }
+
+        // Legacy fallback: match by user + tight time window.
+        $logAt = AuditDate::modelStorageDateTime($log, 'created_at');
+        if (!$timeLog && $logAt) {
+            $start = $logAt->copy()->subMinutes(2)->toDateTimeString();
+            $end = $logAt->copy()->addMinutes(2)->toDateTimeString();
             if ($log->action === 'login') {
                 $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
                     ->whereBetween('time_in', [$start, $end])
@@ -199,12 +260,12 @@ Route::get('/me/audit-logs', function (Request $request) {
             'user_id' => $log->user_id,
             'action' => $log->action,
             'ip_address' => $log->ip_address,
-            'created_at' => optional($log->created_at)->setTimezone('UTC')->toIso8601String(),
-            'updated_at' => optional($log->updated_at)->setTimezone('UTC')->toIso8601String(),
+            'created_at' => AuditDate::modelFieldUtcIso($log, 'created_at'),
+            'updated_at' => AuditDate::modelFieldUtcIso($log, 'updated_at'),
             'time_log' => $log->time_log ? [
                 'id' => $log->time_log->id,
-                'time_in' => $log->time_log->time_in ? Carbon::parse($log->time_log->time_in)->setTimezone('UTC')->toIso8601String() : null,
-                'time_out' => $log->time_log->time_out ? Carbon::parse($log->time_log->time_out)->setTimezone('UTC')->toIso8601String() : null,
+                'time_in' => AuditDate::modelFieldUtcIso($log->time_log, 'time_in'),
+                'time_out' => AuditDate::modelFieldUtcIso($log->time_log, 'time_out'),
             ] : null,
         ];
     });
@@ -297,16 +358,17 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::delete('/courses/{courseId}/modules/{moduleId}', [AdminCourseController::class, 'deleteModule']);
     Route::post('/courses/{courseId}/modules/reorder', [AdminCourseController::class, 'reorderModules']);
 
-    // Product Logo Manager (one active logo per module)
-    Route::get('/product-logos/modules', [ProductLogoManagerController::class, 'index']);
-    Route::post('/product-logos/modules/{module}/logo', [ProductLogoManagerController::class, 'upload']);
-    Route::patch('/product-logos/modules/{module}/logo', [ProductLogoManagerController::class, 'updateName']);
-    Route::delete('/product-logos/modules/{module}/logo', [ProductLogoManagerController::class, 'destroy']);
+    // Product Logo Manager (one active logo per course)
+    Route::get('/product-logos/courses', [ProductLogoManagerController::class, 'index']);
+    Route::post('/product-logos/courses/{course}/logo', [ProductLogoManagerController::class, 'upload']);
+    Route::patch('/product-logos/courses/{course}/logo', [ProductLogoManagerController::class, 'updateName']);
+    Route::delete('/product-logos/courses/{course}/logo', [ProductLogoManagerController::class, 'destroy']);
 
     // Lesson Management
     Route::post('/modules/{moduleId}/lessons', [AdminCourseController::class, 'addLesson']);
     Route::post('/modules/{moduleId}/lessons/{lessonId}', [AdminCourseController::class, 'updateLesson']);
     Route::delete('/modules/{moduleId}/lessons/{lessonId}', [AdminCourseController::class, 'deleteLesson']);
+    Route::post('/modules/{moduleId}/lessons/reorder', [AdminCourseController::class, 'reorderLessons']);
 
     // Quiz Management
     Route::get('/quizzes', [AdminQuizController::class, 'index']);
@@ -331,48 +393,41 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::delete('/questions/{questionId}/replies/{replyId}', [\App\Http\Controllers\QAController::class, 'destroyReply']);
     Route::post('/questions/{questionId}/replies/{replyId}/reactions', [\App\Http\Controllers\QAController::class, 'toggleReaction']);
 
-    // Audit Logs
+    // Audit Logs (stable query path)
     Route::get('/audit-logs', function (Request $request) {
-        // Get all audit logs as before
-        $query = AuditLog::with('user:id,fullname,email,role,department')
-            ->orderByDesc('created_at');
-
-        // Optional filters
         $roleFilter = null;
         if ($request->filled('role')) {
             $roleFilter = strtolower($request->input('role'));
             if (! in_array($roleFilter, ['admin', 'instructor', 'employee'])) {
                 return response()->json(['message' => 'Invalid role filter'], 422);
             }
-            // Filter audit logs by the user's role
-            $query->whereHas('user', function ($q) use ($roleFilter) {
-                $q->whereRaw('LOWER(role) = ?', [$roleFilter]);
-            });
         }
 
-        if ($request->has('user_id')) {
-            $query->where('user_id', $request->user_id);
-        }
+        $perPage = max(1, min(200, (int) $request->input('per_page', 50)));
+        $page = max(1, (int) $request->input('page', 1));
 
-        $logs = $query->get();
+        try {
+            $query = DB::table('audit_logs as a')
+                ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
+                ->select([
+                    'a.id',
+                    'a.user_id',
+                    'a.action',
+                    'a.ip_address',
+                    'a.created_at',
+                    'u.id as user_ref_id',
+                    'u.fullname as user_fullname',
+                    'u.email as user_email',
+                    'u.role as user_role',
+                    'u.department as user_department',
+                ]);
 
-        // Add latest open login for every user (if not already present)
-        // Respect the role filter when collecting user ids
-        $userQuery = \App\Models\User::query();
-        if ($roleFilter) {
-            $userQuery->whereRaw('LOWER(role) = ?', [$roleFilter]);
-        }
-        $userIds = $userQuery->pluck('id');
-        foreach ($userIds as $uid) {
-            $latestLogin = AuditLog::where('user_id', $uid)
-                ->where('action', 'login')
-                ->orderByDesc('created_at')
-                ->first();
+            if ($roleFilter) {
+                $query->whereRaw('LOWER(u.role) = ?', [$roleFilter]);
+            }
 
-            $latestLogoutQuery = AuditLog::where('user_id', $uid)
-                ->where('action', 'logout');
-            if ($latestLogin && $latestLogin->created_at) {
-                $latestLogoutQuery->where('created_at', '>=', $latestLogin->created_at);
+            if ($request->filled('user_id')) {
+                $query->where('a.user_id', (int) $request->input('user_id'));
             }
             $latestLogout = $latestLogoutQuery->orderByDesc('created_at')->first();
             if ($latestLogin && (! $latestLogout || $latestLogout->created_at < $latestLogin->created_at)) {
@@ -487,13 +542,34 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         $total = $logs->count();
         $paged = $logs->slice(($page - 1) * $perPage, $perPage)->values();
 
-        return response()->json([
-            'data' => $paged,
-            'current_page' => $page,
-            'last_page' => ceil($total / $perPage),
-            'total' => $total,
-            'per_page' => $perPage,
-        ]);
+            return response()->json([
+                'data' => $data,
+                'current_page' => $page,
+                'last_page' => (int) ceil($total / $perPage),
+                'total' => $total,
+                'per_page' => $perPage,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Admin audit logs stable query failed', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            $errorDetail = config('app.debug')
+                ? $e->getMessage()
+                : 'Audit logs are temporarily unavailable.';
+
+            return response()->json([
+                'data' => [],
+                'current_page' => $page,
+                'last_page' => 1,
+                'total' => 0,
+                'per_page' => $perPage,
+                'message' => $errorDetail,
+            ], 500);
+        }
     });
     // Bulk delete audit logs by id
     Route::post('/audit-logs/bulk-delete', function (Request $request) {
@@ -523,6 +599,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::prefix('notifications')->group(function () {
         Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index']);
         Route::get('/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount']);
+        Route::get('/sent-history', [\App\Http\Controllers\NotificationController::class, 'getSentAnnouncements']);
         Route::post('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead']);
         Route::post('/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
         Route::delete('/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy']);
@@ -538,6 +615,40 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::get('/feedbacks/{id}/replies', [\App\Http\Controllers\Admin\FeedbackReplyController::class, 'index']);
     Route::post('/feedbacks/{id}/replies', [\App\Http\Controllers\Admin\FeedbackReplyController::class, 'store']);
     Route::delete('/feedbacks/replies/{id}', [\App\Http\Controllers\Admin\FeedbackReplyController::class, 'destroy']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | CUSTOM FIELD MODULE SYSTEM ROUTES
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('custom-modules')->group(function () {
+        // Module CRUD
+        Route::get('/', [\App\Http\Controllers\Admin\CustomModuleController::class, 'index']);
+        Route::post('/', [\App\Http\Controllers\Admin\CustomModuleController::class, 'store']);
+        Route::get('/categories', [\App\Http\Controllers\Admin\CustomModuleController::class, 'categories']);
+        Route::get('/tags', [\App\Http\Controllers\Admin\CustomModuleController::class, 'tags']);
+        Route::post('/reorder', [\App\Http\Controllers\Admin\CustomModuleController::class, 'reorder']);
+        Route::get('/{id}', [\App\Http\Controllers\Admin\CustomModuleController::class, 'show']);
+        Route::put('/{id}', [\App\Http\Controllers\Admin\CustomModuleController::class, 'update']);
+        Route::delete('/{id}', [\App\Http\Controllers\Admin\CustomModuleController::class, 'destroy']);
+        Route::post('/{id}/toggle-publish', [\App\Http\Controllers\Admin\CustomModuleController::class, 'togglePublish']);
+        Route::get('/{id}/versions', [\App\Http\Controllers\Admin\CustomModuleController::class, 'versions']);
+        Route::get('/{id}/available-courses', [\App\Http\Controllers\Admin\CustomModuleController::class, 'availableCourses']);
+        Route::post('/{id}/push-to-course', [\App\Http\Controllers\Admin\CustomModuleController::class, 'pushToCourse']);
+        Route::post('/{id}/push-to-courses', [\App\Http\Controllers\Admin\CustomModuleController::class, 'pushToCourses']);
+        // Push to users (Instructors & Employees)
+        Route::get('/{id}/available-users', [\App\Http\Controllers\Admin\CustomModuleController::class, 'availableUsers']);
+        Route::post('/{id}/push-to-users', [\App\Http\Controllers\Admin\CustomModuleController::class, 'pushToUsers']);
+
+        // Lesson management within a module
+        Route::get('/{moduleId}/lessons', [\App\Http\Controllers\Admin\CustomLessonController::class, 'index']);
+        Route::post('/{moduleId}/lessons', [\App\Http\Controllers\Admin\CustomLessonController::class, 'store']);
+        Route::post('/{moduleId}/lessons/reorder', [\App\Http\Controllers\Admin\CustomLessonController::class, 'reorder']);
+        Route::get('/{moduleId}/lessons/{lessonId}', [\App\Http\Controllers\Admin\CustomLessonController::class, 'show']);
+        Route::put('/{moduleId}/lessons/{lessonId}', [\App\Http\Controllers\Admin\CustomLessonController::class, 'update']);
+        Route::delete('/{moduleId}/lessons/{lessonId}', [\App\Http\Controllers\Admin\CustomLessonController::class, 'destroy']);
+        Route::get('/{moduleId}/lessons/{lessonId}/content', [\App\Http\Controllers\Admin\CustomLessonController::class, 'content']);
+    });
 });
 
 // Public (authenticated) endpoint to record lesson events (play/pause/progress)
@@ -806,6 +917,10 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
         Route::post('/notify-instructor', [\App\Http\Controllers\NotificationController::class, 'employeeNotifyInstructor']);
         Route::post('/report-admin', [\App\Http\Controllers\NotificationController::class, 'employeeReportToAdmin']);
     });
+
+    // Custom Modules (assigned to employee)
+    Route::get('/custom-modules', [\App\Http\Controllers\Employee\CustomModuleController::class, 'assignedModules']);
+    Route::get('/custom-modules/{id}', [\App\Http\Controllers\Employee\CustomModuleController::class, 'show']);
 });
 
 // Q&A routes are now defined inside each role's route group above

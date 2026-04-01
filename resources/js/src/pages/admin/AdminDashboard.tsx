@@ -179,6 +179,14 @@ export function AdminDashboard({ onNavigate }: Props) {
   const completionStatus = reportData?.completion_status ?? [];
   const monthlyTrends = reportData?.monthly_trends ?? [];
   const popularCourses = reportData?.popular_courses ?? [];
+  const cleanedPopularCourses = popularCourses.map((course) => ({
+    ...course,
+    name: (course.name ?? '')
+      .replace(/(ΓÇª|Γçª|â€¦|…|Ã¢â‚¬Â¦|çª|Çª)/g, ' ')
+      .replace(/[\u0000-\u001F\u007F\u0080-\u009F\u2028\u2029\uFFFD]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  }));
   const recentActivity = stats?.recent_activity ?? [];
   const currentRangeLabel = RANGE_OPTIONS.find((o) => o.months === analyticsRange)?.label ?? 'Last 6 Months';
   const chartGridColor = isDarkMode ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.28)';
@@ -492,7 +500,7 @@ export function AdminDashboard({ onNavigate }: Props) {
                 <YAxis
                   dataKey="name"
                   type="category"
-                  width={160}
+                  width={popularCourseLabelWidth}
                   axisLine={false}
                   tickLine={false}
                   tick={{ fontSize: 12, fill: chartAxisTickColor }}
@@ -525,9 +533,9 @@ export function AdminDashboard({ onNavigate }: Props) {
       {/* Bottom Section: Activity & Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Activity */}
-        <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-slate-100 overflow-hidden">
-          <div className="p-6 border-b border-slate-100">
-            <h3 className="text-lg font-semibold text-slate-900">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+          <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
               Recent Activity
             </h3>
           </div>
@@ -536,14 +544,18 @@ export function AdminDashboard({ onNavigate }: Props) {
               <thead className="bg-slate-50 dark:bg-slate-800/80">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                     User
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                     Action
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                     Target
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                     Time
                   </th>
@@ -585,18 +597,18 @@ export function AdminDashboard({ onNavigate }: Props) {
               </tbody>
             </table>
           </div>
-          <div className="p-4 border-t border-slate-100 text-center">
+          <div className="p-4 border-t border-slate-100 dark:border-slate-700 text-center">
             <button
               onClick={openAllActivity}
-              className="text-sm text-green-600 font-medium hover:text-green-700">
+              className="text-sm text-green-600 dark:text-emerald-300 font-medium hover:text-green-700 dark:hover:text-emerald-200">
               View All Activity
             </button>
           </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">
             Quick Actions
           </h3>
           <div className="space-y-3">
@@ -607,6 +619,7 @@ export function AdminDashboard({ onNavigate }: Props) {
                 <BookOpen className="h-5 w-5 text-green-700 dark:text-emerald-300" />
               </div>
               <div className="ml-3">
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                   Create New Course
                 </p>
@@ -624,6 +637,7 @@ export function AdminDashboard({ onNavigate }: Props) {
               </div>
               <div className="ml-3">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                   Add Employee
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Register a new user</p>
@@ -637,6 +651,7 @@ export function AdminDashboard({ onNavigate }: Props) {
                 <Bell className="h-5 w-5 text-purple-700 dark:text-violet-300" />
               </div>
               <div className="ml-3">
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                   Send Notification
                 </p>

@@ -24,8 +24,8 @@ class CertificateController extends Controller
             ->orderByDesc('completed_at')
             ->get()
             ->map(function (Certificate $cert) use ($user) {
-                // Use certificate-specific logo first, then fall back to course logo.
-                $logoPath = $cert->logo_path ?? $cert->course?->logo_path;
+                // Use latest course-level logo first so admin branding updates reflect immediately.
+                $logoPath = $cert->course?->logo_path ?? $cert->logo_path;
                 $signaturePath = $cert->course?->instructor?->signature_path;
                 $signatureUrl = null;
 
@@ -45,7 +45,7 @@ class CertificateController extends Controller
                     'completed_date'   => $cert->completed_at->format('M d, Y'),
                     'score'            => $cert->score,
                     'user_name'        => $user->fullname,
-                    'logo_url'         => $logoPath ? asset('storage/' . $logoPath) : null,
+                    'logo_url'         => $logoPath ? asset('storage/' . ltrim($logoPath, '/')) : null,
                     'instructor_name'  => $cert->course?->instructor?->fullname ?? 'Instructor',
                     'instructor_signature_url' => $signatureUrl,
                     'has_course_logo'  => (bool) $cert->course?->logo_path,

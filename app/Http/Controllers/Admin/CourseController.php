@@ -42,6 +42,11 @@ class CourseController extends Controller
             $query->where('instructor_id', $request->instructor_id);
         }
 
+        // Filter by subdepartment
+        if ($request->filled('subdepartment_id')) {
+            $query->where('subdepartment_id', (int) $request->input('subdepartment_id'));
+        }
+
         $courses = $query->orderBy('created_at', 'desc')->get();
 
         // Transform the data to include enrollment counts
@@ -439,7 +444,27 @@ class CourseController extends Controller
         // Prefer course department matching to keep admin choices relevant.
         $courseDepartment = trim((string) ($course->department ?? ''));
         if ($courseDepartment !== '') {
-            $notEnrolledQuery->whereRaw('LOWER(department) = ?', [strtolower($courseDepartment)]);
+            $courseDepartmentLower = strtolower($courseDepartment);
+            $deptRecord = DB::table('departments')
+                ->select('name', 'code')
+                ->whereRaw('LOWER(name) = ?', [$courseDepartmentLower])
+                ->orWhereRaw('LOWER(code) = ?', [$courseDepartmentLower])
+                ->first();
+
+            $acceptedDepartments = [$courseDepartmentLower];
+            if ($deptRecord) {
+                $deptName = strtolower(trim((string) ($deptRecord->name ?? '')));
+                $deptCode = strtolower(trim((string) ($deptRecord->code ?? '')));
+                if ($deptName !== '') $acceptedDepartments[] = $deptName;
+                if ($deptCode !== '') $acceptedDepartments[] = $deptCode;
+            }
+            $acceptedDepartments = array_values(array_unique($acceptedDepartments));
+
+            $notEnrolledQuery->where(function ($q) use ($acceptedDepartments) {
+                foreach ($acceptedDepartments as $dept) {
+                    $q->orWhereRaw('LOWER(department) = ?', [$dept]);
+                }
+            });
         }
 
         $notEnrolledUsers = $notEnrolledQuery
@@ -469,6 +494,36 @@ class CourseController extends Controller
         ]);
 
         $course = Course::findOrFail($id);
+        $employee = User::select('id', 'fullname', 'email', 'department', 'role', 'status', 'subdepartment_id')
+            ->findOrFail($request->user_id);
+
+        if (strtolower((string) $employee->role) !== 'employee') {
+            return response()->json(['message' => 'Only employees can be enrolled in courses.'], 422);
+        }
+
+        if ($employee->department && $course->department && $employee->department !== $course->department) {
+            $courseDepartmentLower = strtolower(trim((string) $course->department));
+            $employeeDepartmentLower = strtolower(trim((string) $employee->department));
+
+            $deptRecord = DB::table('departments')
+                ->select('name', 'code')
+                ->whereRaw('LOWER(name) = ?', [$courseDepartmentLower])
+                ->orWhereRaw('LOWER(code) = ?', [$courseDepartmentLower])
+                ->first();
+
+            $acceptedDepartments = [$courseDepartmentLower];
+            if ($deptRecord) {
+                $deptName = strtolower(trim((string) ($deptRecord->name ?? '')));
+                $deptCode = strtolower(trim((string) ($deptRecord->code ?? '')));
+                if ($deptName !== '') $acceptedDepartments[] = $deptName;
+                if ($deptCode !== '') $acceptedDepartments[] = $deptCode;
+            }
+            $acceptedDepartments = array_values(array_unique($acceptedDepartments));
+
+            if (!in_array($employeeDepartmentLower, $acceptedDepartments, true)) {
+                return response()->json(['message' => 'Employee department does not match the selected course department.'], 422);
+            }
+        }
 
         if ($course->enrollments()->where('user_id', $request->user_id)->exists()) {
             return response()->json(['message' => 'User is already enrolled in this course'], 409);
@@ -480,11 +535,9 @@ class CourseController extends Controller
             'enrolled_at' => now(),
         ]);
 
-        $user = User::select('id', 'fullname', 'email', 'department', 'role', 'status')->findOrFail($request->user_id);
-
         return response()->json([
             'message' => 'User enrolled successfully',
-            'user'    => $user,
+            'user'    => $employee,
         ], 201);
     }
 
@@ -558,8 +611,8 @@ class CourseController extends Controller
         $request->validate([
             'title'        => 'required|string|max:255',
             'text_content' => 'nullable|string',
-            // Allow large video files (up to ~2 GB)
-            'content'      => 'nullable|file|max:2048000',
+            // Allow large video files (up to ~5 GB)
+            'content'      => 'nullable|file|max:5242880',
             'content_url'  => 'nullable|url|max:2000',
             'type'         => 'nullable|in:Video,Document,Text',
             'status'       => 'nullable|in:Published,Draft',
@@ -639,7 +692,8 @@ class CourseController extends Controller
         $request->validate([
             'title'        => 'sometimes|string|max:255',
             'text_content' => 'nullable|string',
-            'content'      => 'nullable|file|max:102400',
+            // Allow large video files (up to ~5 GB)
+            'content'      => 'nullable|file|max:5242880',
         ]);
 
         if ($request->has('title')) $lesson->title = $request->input('title');
@@ -674,6 +728,25 @@ class CourseController extends Controller
         }
 
         return response()->json(['message' => 'Modules reordered']);
+    }
+
+    /**
+     * Reorder lessons within a module.
+     */
+    public function reorderLessons(Request $request, int $moduleId)
+    {
+        $module = Module::findOrFail($moduleId);
+
+        $request->validate([
+            'order'   => 'required|array',
+            'order.*' => 'integer|exists:lessons,id',
+        ]);
+
+        foreach ($request->input('order') as $index => $lessonId) {
+            $module->lessons()->where('id', $lessonId)->update(['order' => $index + 1]);
+        }
+
+        return response()->json(['message' => 'Lessons reordered']);
     }
 
     /**

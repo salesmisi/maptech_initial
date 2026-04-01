@@ -9,6 +9,7 @@ import {
   ArrowRight,
   Bell,
   FileQuestion,
+  GraduationCap,
 } from 'lucide-react';
 import { UserTimeLog } from '../../components/UserTimeLog';
 import { safeArray } from '../../utils/safe';
@@ -23,6 +24,20 @@ interface Course {
   thumbnail: string;
   enroll_status: string | null;
   last_activity: string | null;
+}
+
+interface CustomModule {
+  id: number;
+  title: string;
+  description: string | null;
+  category: string | null;
+  lessons_count: number;
+  progress: number;
+  assigned_at: string;
+  creator: {
+    id: number;
+    fullname: string;
+  } | null;
 }
 
 interface DashboardData {
@@ -65,13 +80,14 @@ const upcomingDeadlines = [
 }];
 
 interface EmployeeDashboardProps {
-  onNavigate?: (page: string, courseId?: string) => void;
+  onNavigate?: (page: string, courseId?: string, moduleId?: number) => void;
 }
 
 export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [customModules, setCustomModules] = useState<CustomModule[]>([]);
   const lastUnreadRef = React.useRef<number>(0);
   const { pushToast } = useToast();
 
@@ -92,6 +108,21 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     } catch (err) {
       console.error('Failed to load notifications:', err);
       return [];
+    }
+  };
+
+  const loadCustomModules = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/employee/custom-modules`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCustomModules(data.modules || []);
+      }
+    } catch (err) {
+      console.error('Failed to load custom modules:', err);
     }
   };
 
@@ -167,7 +198,6 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
           last_activity: course.last_activity ?? null,
         }));
 
-
         setDashboardData({
           user: (data && data.user) ? data.user : { id: 0, name: 'Employee', email: '', department: '' },
           courses: mappedCourses,
@@ -186,6 +216,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     const runAsync = async () => {
       const dashboard = await loadDashboard();
       const initial = await loadNotifications();
+      await loadCustomModules();
       await loadQuizReminders();
       // initialize last unread count after initial load
       lastUnreadRef.current = (initial || []).filter((n: any) => !n.read).length;
@@ -285,7 +316,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   };
 
   const myCourses = dashboardData?.courses || [];
-  const userName = (dashboardData?.user && (dashboardData.user.fullName || dashboardData.user.fullname || dashboardData.user.name)) || 'Employee';
+  const userName = dashboardData?.user?.name || 'Employee';
   const totalCourses = dashboardData?.total_courses || 0;
 
   // Find the most-recently-active in-progress course for Resume Learning
@@ -350,6 +381,18 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
         <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
           <div className="flex items-center">
+            <div className="p-3 bg-purple-50 rounded-full">
+              <GraduationCap className="h-6 w-6 text-purple-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-slate-500">Custom Modules</p>
+              <p className="text-2xl font-bold text-slate-900">{customModules.length}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+          <div className="flex items-center">
             <div className="p-3 bg-green-50 rounded-full">
               <CheckCircle className="h-6 w-6 text-green-600" />
             </div>
@@ -367,7 +410,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-slate-500">In Progress</p>
-              <p className="text-2xl font-bold text-slate-900">{safeArray<Course>(myCourses).filter(c => c.progress > 0 && c.progress < 100).length}</p>
+              <p className="text-2xl font-bold text-slate-900">{myCourses.filter(c => c.progress > 0 && c.progress < 100).length}</p>
             </div>
           </div>
         </div>
@@ -497,6 +540,88 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             )}
           </div>
         </div>
+
+        {/* Custom Modules from Instructor */}
+        {customModules.length > 0 && (
+          <div className="lg:col-span-2 space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <GraduationCap className="h-5 w-5 text-purple-600" />
+                Custom Learning Modules
+              </h2>
+              <span className="text-sm text-slate-500">
+                {customModules.length} assigned
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {customModules.map((module) => (
+                <div
+                  key={module.id}
+                  className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg border border-purple-200 p-4 hover:shadow-md transition-all cursor-pointer"
+                  onClick={() => {
+                    // Navigate to custom module viewer (you may need to create this page)
+                    pushToast('Module Viewer', 'Custom module viewer coming soon!', 'info');
+                  }}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h3 className="text-base font-semibold text-slate-900 line-clamp-1">
+                        {module.title}
+                      </h3>
+                      {module.description && (
+                        <p className="text-sm text-slate-600 mt-1 line-clamp-2">
+                          {module.description}
+                        </p>
+                      )}
+                    </div>
+                    {module.category && (
+                      <span className="ml-2 px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full whitespace-nowrap">
+                        {module.category}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm text-slate-600 mb-3">
+                    <span className="flex items-center gap-1">
+                      <BookOpen className="h-4 w-4" />
+                      {module.lessons_count} lesson{module.lessons_count !== 1 ? 's' : ''}
+                    </span>
+                    {module.creator && (
+                      <span className="text-xs text-slate-500">
+                        by {module.creator.fullname}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-3">
+                    <div className="flex justify-between text-xs text-slate-600 mb-1">
+                      <span>{module.progress}% Complete</span>
+                      <span className="text-purple-600 font-medium">
+                        {module.progress === 100 ? 'Completed ✓' : 'In Progress'}
+                      </span>
+                    </div>
+                    <div className="w-full bg-white rounded-full h-2">
+                      <div
+                        className="bg-gradient-to-r from-purple-500 to-indigo-500 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${module.progress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-3 pt-3 border-t border-purple-100">
+                    <button
+                      onClick={() => onNavigate?.('custom-module-viewer', undefined, module.id)}
+                      className="w-full px-3 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 transition-colors"
+                    >
+                      Start Learning
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Sidebar Widgets */}
         <div className="space-y-6">

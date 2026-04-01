@@ -196,31 +196,31 @@ export function EmployeeNotifications() {
 
   const getNotificationIcon = (type: string, fromRole?: string) => {
     if (fromRole === 'Admin') {
-      return <User className="h-4 w-4 text-purple-600" />;
+      return <User className="h-4 w-4 text-purple-700 dark:text-purple-300" />;
     }
     if (fromRole === 'Instructor') {
-      return <MessageCircle className="h-4 w-4 text-blue-600" />;
+      return <MessageCircle className="h-4 w-4 text-blue-700 dark:text-blue-300" />;
     }
     switch (type) {
       case 'announcement':
-        return <Bell className="h-4 w-4 text-blue-600" />;
+        return <Bell className="h-4 w-4 text-blue-700 dark:text-blue-300" />;
       case 'quiz_reminder':
-        return <AlertCircle className="h-4 w-4 text-orange-600" />;
+        return <AlertCircle className="h-4 w-4 text-orange-700 dark:text-orange-300" />;
       default:
-        return <Bell className="h-4 w-4 text-slate-600" />;
+        return <Bell className="h-4 w-4 text-slate-700 dark:text-slate-300" />;
     }
   };
 
   const getNotificationBg = (type: string, fromRole?: string) => {
-    if (fromRole === 'Admin') return 'bg-purple-100';
-    if (fromRole === 'Instructor') return 'bg-blue-100';
+    if (fromRole === 'Admin') return 'bg-purple-100 dark:bg-purple-900/50';
+    if (fromRole === 'Instructor') return 'bg-blue-100 dark:bg-blue-900/50';
     switch (type) {
       case 'announcement':
-        return 'bg-blue-100';
+        return 'bg-blue-100 dark:bg-blue-900/50';
       case 'quiz_reminder':
-        return 'bg-orange-100';
+        return 'bg-orange-100 dark:bg-orange-900/50';
       default:
-        return 'bg-slate-100';
+        return 'bg-slate-100 dark:bg-slate-700';
     }
   };
 
@@ -239,7 +239,7 @@ export function EmployeeNotifications() {
           {unreadCount > 0 && (
             <button
               onClick={markAllAsRead}
-              className="inline-flex items-center px-3 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
+              className="inline-flex items-center px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
             >
               Mark All Read
             </button>
@@ -262,7 +262,7 @@ export function EmployeeNotifications() {
       </div>
 
       {/* Notifications List */}
-      <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
         {loading ? (
           <LoadingState message="Loading notifications" className="p-8" />
         ) : notifications.length === 0 ? (
@@ -276,8 +276,8 @@ export function EmployeeNotifications() {
             {safeArray(notifications).map((notification) => (
               <div
                 key={notification.id}
-                className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors ${
-                  !notification.read_at ? 'bg-green-50 dark:bg-green-900/40' : 'dark:bg-slate-800'
+                className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
+                  !notification.read_at ? 'bg-emerald-50 dark:bg-emerald-950/40' : 'bg-white dark:bg-slate-900'
                 }`}
               >
                 <div className="flex items-start justify-between">
@@ -289,19 +289,19 @@ export function EmployeeNotifications() {
                       <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">
                         {notification.title}
                         {!notification.read_at && (
-                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
                             New
                           </span>
                         )}
                       </h3>
-                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-200">{notification.message}</p>
+                      <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{notification.message}</p>
                       {notification.data?.from_user_name && (
-                        <p className="mt-1 text-xs text-slate-400 dark:text-slate-300">
+                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
                           From: {notification.data.from_user_name} ({notification.data.from_role})
                           {notification.data.course_title && ` • ${notification.data.course_title}`}
                         </p>
                       )}
-                      <p className="mt-1 text-xs text-slate-400 dark:text-slate-300">
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
                         {formatDate(notification.created_at)}
                       </p>
                     </div>
@@ -310,7 +310,7 @@ export function EmployeeNotifications() {
                     {!notification.read_at && (
                       <button
                         onClick={() => markAsRead(notification.id)}
-                        className="text-slate-400 hover:text-green-600"
+                        className="text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-300"
                         title="Mark as read"
                       >
                         <Eye className="h-5 w-5" />
@@ -318,7 +318,7 @@ export function EmployeeNotifications() {
                     )}
                     <button
                       onClick={() => deleteNotification(notification.id)}
-                      className="text-slate-400 hover:text-red-600"
+                      className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"
                       title="Delete"
                     >
                       <Trash2 className="h-5 w-5" />
