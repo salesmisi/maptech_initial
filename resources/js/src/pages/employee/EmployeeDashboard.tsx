@@ -529,7 +529,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <GraduationCap className="h-5 w-5 text-purple-600" />
-                Custom Learning Modules
+                 Learning Modules
               </h2>
               <span className="text-sm text-slate-500">
                 {customModules.length} assigned
