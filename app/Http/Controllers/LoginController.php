@@ -47,8 +47,9 @@ class LoginController extends Controller
 
         $request->session()->regenerate();
 
-        // Record a single consistent UTC timestamp for audit + time log
-        $ts = Carbon::now();
+        // Record a single explicit UTC timestamp for audit + time log.
+        // Using UTC avoids DB/session timezone ambiguity across environments.
+        $ts = Carbon::now('UTC');
         // Debug: Log user role
         Log::info('LOGIN: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
         // Record audit log for Employees and Admins
@@ -143,8 +144,8 @@ class LoginController extends Controller
         $abilities = $this->getTokenAbilities($user);
         $token = $user->createToken('auth-token', $abilities)->plainTextToken;
 
-        // Record single timestamp for API login audit + time log
-            $ts = Carbon::now();
+        // Record single explicit UTC timestamp for API login audit + time log.
+        $ts = Carbon::now('UTC');
         // Debug: Log user role
         Log::info('API LOGIN: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
         // Record audit log for Employees and Admins
@@ -217,7 +218,7 @@ class LoginController extends Controller
         $user = $request->user();
 
         if ($user) {
-            $ts = Carbon::now();
+            $ts = Carbon::now('UTC');
             // Debug: Log user role
             Log::info('LOGOUT: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
             // Record logout audit for Employees and Admins

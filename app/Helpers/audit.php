@@ -24,7 +24,16 @@ if (!function_exists('maptech_parse_storage_datetime')) {
                 return $value->copy();
             }
 
-            return Carbon::parse((string) $value, maptech_audit_storage_timezone());
+            $raw = trim((string) $value);
+
+            // If DB value already carries timezone info (e.g. +00:00, Z),
+            // parse it as-is and do not force a storage timezone.
+            if (preg_match('/(?:Z|[+-]\d{2}(?::?\d{2})?)$/i', $raw) === 1) {
+                return Carbon::parse($raw);
+            }
+
+            // For naive datetime strings, interpret with configured storage timezone.
+            return Carbon::parse($raw, maptech_audit_storage_timezone());
         } catch (\Throwable $e) {
             return null;
         }
