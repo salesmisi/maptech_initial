@@ -930,6 +930,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             'fullName' => $user->fullName ?? $user->fullname,
             'email' => $user->email,
             'role' => $user->role,
+            'company_role' => $user->company_role,
             'department' => $user->department,
             'status' => $user->status,
             'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
@@ -948,6 +949,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         if ($user->isAdmin()) {
             $rules['email'] = 'sometimes|email|max:255|unique:users,email,' . $user->id;
             $rules['password'] = 'sometimes|string|min:8|confirmed';
+            $rules['company_role'] = 'sometimes|nullable|string|max:255';
         }
 
         $validated = $request->validate($rules);
@@ -995,6 +997,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
                 'fullName' => $user->fullName ?? $user->fullname,
                 'email' => $user->email,
                 'role' => $user->role,
+                'company_role' => $user->company_role,
                 'department' => $user->department,
                 'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
                 'signature_path' => $user->signature_path ? asset('storage/' . $user->signature_path) : null,
@@ -1025,8 +1028,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::post('/profile/signature', function (Request $request) {
         $user = $request->user();
-        if (!$user || !$user->isInstructor()) {
-            return response()->json(['message' => 'Only instructors can upload a certificate signature.'], 403);
+        if (!$user || !($user->isInstructor() || $user->isAdmin())) {
+            return response()->json(['message' => 'Only admins and instructors can upload a certificate signature.'], 403);
         }
 
         $request->validate([

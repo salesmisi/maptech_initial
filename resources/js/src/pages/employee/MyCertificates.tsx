@@ -17,6 +17,9 @@ interface Certificate {
   logo_url: string | null;
   instructor_name: string;
   instructor_signature_url: string | null;
+  signer_name?: string | null;
+  signer_title?: string | null;
+  admin_signature_url?: string | null;
 }
 
 export function MyCertificates() {
@@ -55,9 +58,14 @@ export function MyCertificates() {
       });
     };
 
-    const [maptechLogoImg, partnerLogoImg, signatureImg] = await Promise.all([
+    const presidentName  = cert.signer_name  || null;
+    const presidentTitle = cert.signer_title || null;
+    const instructorName = cert.instructor_name || 'Instructor';
+
+    const [maptechLogoImg, partnerLogoImg, adminSigImg, instructorSigImg] = await Promise.all([
       loadImage(MAPTECH_LOGO_URL),
       loadImage(cert.logo_url),
+      loadImage(cert.admin_signature_url),
       loadImage(cert.instructor_signature_url),
     ]);
 
@@ -221,36 +229,63 @@ export function MyCertificates() {
     ctx.strokeStyle = '#6b7280';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(110, footerY);
-    ctx.lineTo(350, footerY);
-    ctx.moveTo(640, footerY);
-    ctx.lineTo(890, footerY);
+    // Left underline (date)
+    ctx.moveTo(70, footerY);
+    ctx.lineTo(310, footerY);
+    // Center underline (president) — only if admin signer exists
+    if (presidentName) {
+      ctx.moveTo(360, footerY);
+      ctx.lineTo(640, footerY);
+    }
+    // Right underline (instructor)
+    ctx.moveTo(700, footerY);
+    ctx.lineTo(940, footerY);
     ctx.stroke();
 
-    // Date block (left)
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#334155';
-    ctx.font = 'italic 22px Georgia';
-    ctx.fillText(`Date: ${cert.completed_date}`, 112, footerY - 6);
-
-    // Signature + instructor block (right)
-    if (signatureImg) {
-      const maxSigW = 220;
-      const maxSigH = 58;
-      const ratio = Math.min(maxSigW / signatureImg.width, maxSigH / signatureImg.height);
-      const sigW = signatureImg.width * ratio;
-      const sigH = signatureImg.height * ratio;
-      ctx.drawImage(signatureImg, 765 - sigW / 2, footerY - 74, sigW, sigH);
-    }
-
+    // Date block (left): date above line, label centered below line
+    const dateCenterX = 190;
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#1f2937';
-    ctx.font = '700 20px Georgia';
-    ctx.fillText(cert.instructor_name || 'Instructor', 765, footerY - 8);
-
     ctx.fillStyle = '#334155';
     ctx.font = 'italic 20px Georgia';
-    ctx.fillText('Instructor', 765, footerY + 30);
+    ctx.fillText(cert.completed_date, dateCenterX, footerY - 8);
+    ctx.font = 'italic 18px Georgia';
+    ctx.fillText('Date of Completion', dateCenterX, footerY + 22);
+
+    // Helper to draw a signer block (signature image + name + role) centered at given x
+    const drawSignerBlock = (
+      sigImg: HTMLImageElement | null,
+      name: string,
+      title: string,
+      centerX: number,
+    ) => {
+      if (sigImg) {
+        const maxSigW = 200;
+        const maxSigH = 52;
+        const ratio = Math.min(maxSigW / sigImg.width, maxSigH / sigImg.height);
+        const sigW = sigImg.width * ratio;
+        const sigH = sigImg.height * ratio;
+        // Use multiply blend: white background becomes transparent, dark ink stays dark
+        ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.drawImage(sigImg, centerX - sigW / 2, footerY - 68, sigW, sigH);
+        ctx.restore();
+      }
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#1f2937';
+      ctx.font = '700 18px Georgia';
+      ctx.fillText(name, centerX, footerY - 10);
+      ctx.fillStyle = '#334155';
+      ctx.font = 'italic 17px Georgia';
+      ctx.fillText(title, centerX, footerY + 26);
+    };
+
+    // Center block — President (only if admin signer exists)
+    if (presidentName) {
+      drawSignerBlock(adminSigImg, presidentName, presidentTitle ?? 'Administrator', 500);
+    }
+
+    // Right block — Instructor
+    drawSignerBlock(instructorSigImg, instructorName, 'Instructor', 820);
 
     // Certificate code
     const certIdY = Math.min(648, footerY + 46);
@@ -329,7 +364,7 @@ export function MyCertificates() {
                   </p>
                   <div className="mt-auto pt-2 border-t border-slate-100 w-full flex justify-between text-[8px] text-slate-400">
                     <span>{cert.completed_date}</span>
-                    <span>{cert.instructor_name || 'Instructor'}</span>
+                    <span>{cert.signer_name || cert.instructor_name || 'Instructor'}</span>
                   </div>
                 </div>
 
