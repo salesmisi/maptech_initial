@@ -18,10 +18,233 @@ import {
   ImagePlus,
   Moon,
   Sun,
-  Blocks
+  Blocks,
+  Clipboard,
+  Calendar,
+  FileText,
+  Briefcase,
+  FolderOpen,
+  Target,
+  CheckSquare,
+  Database,
+  TrendingUp,
+  Activity,
+  Package,
+  ShoppingCart,
+  DollarSign,
+  PieChart,
+  BarChart2,
+  Clock,
+  AlertCircle,
+  Info,
+  HelpCircle,
+  Star,
+  Tag,
+  Filter,
+  Grid,
+  List,
+  Layout,
+  Layers,
+  Home,
+  Folder,
+  File,
+  Upload,
+  Download,
+  Share2,
+  Link2,
+  Cake,
+  Gift,
+  PartyPopper,
+  Heart,
+  Award,
+  Trophy,
+  Medal,
+  Smile,
+  ThumbsUp,
+  Coffee,
+  Utensils,
+  Car,
+  Plane,
+  Map,
+  MapPin,
+  Phone,
+  Mail,
+  Send,
+  Inbox,
+  Archive,
+  Trash2,
+  Edit,
+  Eye,
+  Lock,
+  Unlock,
+  Key,
+  Shield,
+  Zap,
+  Lightbulb,
+  Rocket,
+  Flag,
+  Bookmark,
+  Hash,
+  AtSign,
+  Percent,
+  DollarSign as Dollar,
+  CreditCard,
+  Wallet,
+  Receipt,
+  FileCheck,
+  FilePlus,
+  FileWarning,
+  Megaphone,
+  Volume2,
+  Music,
+  Image,
+  Camera,
+  Film,
+  Mic,
+  Headphones,
+  Monitor,
+  Smartphone,
+  Tablet,
+  Laptop,
+  Printer,
+  Wifi,
+  Globe,
+  Cloud,
+  Sun as SunIcon,
+  CloudRain,
+  Snowflake,
+  Thermometer,
+  Droplet,
+  Wind,
+  Umbrella,
+  LucideIcon
 } from 'lucide-react';
 import { NotificationBell } from '../NotificationBell';
 import { useBusinessDetails } from '../../hooks/useBusinessDetails';
+
+// Icon mapping for dynamic icon rendering
+const iconMap: Record<string, LucideIcon> = {
+  LayoutDashboard,
+  Users,
+  BookOpen,
+  Building2,
+  UserPlus,
+  BarChart3,
+  Bell,
+  MessageCircle,
+  Settings,
+  ClipboardList,
+  ImagePlus,
+  Blocks,
+  Clipboard,
+  Calendar,
+  FileText,
+  Briefcase,
+  FolderOpen,
+  Target,
+  CheckSquare,
+  Database,
+  TrendingUp,
+  Activity,
+  Package,
+  ShoppingCart,
+  DollarSign,
+  PieChart,
+  BarChart2,
+  Clock,
+  AlertCircle,
+  Info,
+  HelpCircle,
+  Star,
+  Tag,
+  Filter,
+  Grid,
+  List,
+  Layout,
+  Layers,
+  Home,
+  Folder,
+  File,
+  Upload,
+  Download,
+  Share2,
+  Link2,
+  // Celebration & Events
+  Cake,
+  Gift,
+  PartyPopper,
+  Heart,
+  Award,
+  Trophy,
+  Medal,
+  Smile,
+  ThumbsUp,
+  // Food & Lifestyle
+  Coffee,
+  Utensils,
+  // Travel
+  Car,
+  Plane,
+  Map,
+  MapPin,
+  // Communication
+  Phone,
+  Mail,
+  Send,
+  Inbox,
+  Archive,
+  // Actions
+  Trash2,
+  Edit,
+  Eye,
+  Lock,
+  Unlock,
+  Key,
+  Shield,
+  // Ideas & Progress
+  Zap,
+  Lightbulb,
+  Rocket,
+  Flag,
+  Bookmark,
+  // Symbols
+  Hash,
+  AtSign,
+  Percent,
+  // Finance
+  CreditCard,
+  Wallet,
+  Receipt,
+  // Files
+  FileCheck,
+  FilePlus,
+  FileWarning,
+  // Media
+  Megaphone,
+  Volume2,
+  Music,
+  Image,
+  Camera,
+  Film,
+  Mic,
+  Headphones,
+  // Devices
+  Monitor,
+  Smartphone,
+  Tablet,
+  Laptop,
+  Printer,
+  Wifi,
+  Globe,
+  Cloud,
+  // Weather
+  Umbrella,
+};
+
+// Helper to get icon by name
+const getIconByName = (name: string): LucideIcon => {
+  return iconMap[name] || Blocks;
+};
 interface AdminLayoutProps {
   children: React.ReactNode;
   currentPage: string;
@@ -64,6 +287,7 @@ export function AdminLayout({
     }
   });
   const [displayName, setDisplayName] = useState<string | null>(user?.fullName ?? user?.fullname ?? user?.name ?? null);
+  const [customNavItems, setCustomNavItems] = useState<any[]>([]);
   const isDark = theme === 'dark';
   const businessDetails = useBusinessDetails();
 
@@ -85,6 +309,36 @@ export function AdminLayout({
     })();
     return () => { mounted = false; };
   }, [displayName]);
+
+  // Load custom UI component modules
+  const loadCustomNavItems = async () => {
+    try {
+      const res = await fetch('/api/admin/custom-modules/ui-components', {
+        credentials: 'include',
+        headers: { Accept: 'application/json' }
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setCustomNavItems(data);
+    } catch (e) {
+      console.error('Failed to load custom navigation items:', e);
+    }
+  };
+
+  useEffect(() => {
+    loadCustomNavItems();
+  }, []);
+
+  // Listen for UI component changes (create, update, delete)
+  useEffect(() => {
+    const handleUIComponentChange = () => {
+      loadCustomNavItems();
+    };
+    window.addEventListener('ui-component-changed', handleUIComponentChange);
+    return () => {
+      window.removeEventListener('ui-component-changed', handleUIComponentChange);
+    };
+  }, []);
   useEffect(() => {
     try {
       localStorage.setItem('maptech_admin_sidebar_collapsed', String(isSidebarCollapsed));
@@ -187,6 +441,18 @@ export function AdminLayout({
     icon: Building2
   }];
 
+  // Merge custom UI component modules into navigation
+  const allNavItems = [
+    ...navItems.slice(0, 5), // Dashboard to Custom Field Builder
+    ...customNavItems.map((item: any) => ({
+      id: item.route_path,
+      label: item.title,
+      icon: getIconByName(item.icon_name),
+      isCustom: true,
+    })),
+    ...navItems.slice(5), // Rest of the items (Q&A onwards)
+  ];
+
   return (
     <div className={`app-theme-scope min-h-screen flex ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 dark:bg-slate-900 text-slate-900'}`}>
       {!isDesktop && isMobileSidebarOpen && <button type="button" aria-label="Close sidebar" className="fixed inset-0 z-20 bg-slate-950/60" onClick={() => setIsMobileSidebarOpen(false)} />}
@@ -208,7 +474,7 @@ export function AdminLayout({
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
             <nav className={`mt-5 flex-1 space-y-1 ${isSidebarCompact ? 'px-3' : 'px-2'}`}>
-              {navItems.map((item) => {
+              {allNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = currentPage === item.id || (item.id === 'courses' && currentPage === 'course-detail');
                 return (

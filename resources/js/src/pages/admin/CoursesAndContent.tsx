@@ -91,6 +91,7 @@ interface CustomModule {
   category: string | null;
   tags: string[];
   status: 'draft' | 'published' | 'unpublished';
+  module_type?: 'learning' | 'ui_component';
   lessons_count: number;
   version: number;
   creator: {
@@ -876,7 +877,13 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   });
 
   // Filter custom modules based on search term and status
+  // Only show learning modules here - UI components appear in the sidebar instead
   const filteredCustomModules = customModules.filter(module => {
+    // Exclude UI component modules - they should only appear in sidebar
+    if (module.module_type === 'ui_component') {
+      return false;
+    }
+
     const matchesSearch = module.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (module.category || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (module.creator?.fullname || '').toLowerCase().includes(searchTerm.toLowerCase());
