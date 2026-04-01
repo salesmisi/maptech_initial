@@ -5,8 +5,10 @@ use Illuminate\Support\Carbon;
 if (!function_exists('maptech_audit_storage_timezone')) {
     function maptech_audit_storage_timezone(): string
     {
-        $tz = (string) config('app.audit_log_storage_timezone', 'Asia/Manila');
-        return $tz !== '' ? $tz : 'Asia/Manila';
+        // Use the app timezone — this matches how Carbon::now() stores timestamps.
+        // Locally (Asia/Manila) and on Railway (should also be Asia/Manila via APP_TIMEZONE).
+        $tz = (string) config('app.timezone', 'UTC');
+        return $tz !== '' ? $tz : 'UTC';
     }
 }
 
