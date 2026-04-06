@@ -9,7 +9,7 @@ import {
   LogOut,
   Search,
   Menu,
-  X,
+  ChevronLeft,
   Bell,
   Settings,
   Moon,
@@ -267,10 +267,10 @@ export function EmployeeLayout({
           <button
             type="button"
             onClick={toggleSidebar}
-            className={`inline-flex min-h-16 items-center justify-center self-stretch px-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500 ${isSidebarVisible ? isDark ? 'bg-slate-800/80 text-white' : 'bg-slate-100 text-slate-800' : isDark ? 'text-slate-300 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+            className={`inline-flex min-h-16 items-center justify-center self-stretch px-4 focus:outline-none ${isSidebarVisible ? isDark ? 'bg-slate-800/80 text-white' : 'bg-slate-100 text-slate-800' : isDark ? 'text-slate-300 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
 
             <span className="sr-only">{isDesktop ? (isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar') : isMobileSidebarOpen ? 'Close sidebar' : 'Open sidebar'}</span>
-            {isSidebarVisible ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            {isSidebarVisible ? <ChevronLeft className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4">
             <div className="order-2 flex w-full items-center md:order-1 md:flex-1">
