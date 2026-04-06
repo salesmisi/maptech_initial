@@ -799,15 +799,18 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
 
     // Custom Modules (read-only access for instructors)
     Route::get('/custom-modules', function (\Illuminate\Http\Request $request) {
-        // Instructors can only view published modules
+        // Instructors can only view published learning modules (not UI components)
         return \App\Models\CustomModule::with(['creator:id,fullname,email', 'lessons'])
             ->where('status', 'published')
+            ->where('module_type', 'learning') // Only learning modules for instructors
             ->orderBy('order')
             ->get();
     });
     Route::get('/custom-modules/{id}', function (\Illuminate\Http\Request $request, int $id) {
+        // Instructors can only view published learning modules (not UI components)
         return \App\Models\CustomModule::with(['creator:id,fullname,email', 'lessons'])
             ->where('status', 'published')
+            ->where('module_type', 'learning') // Only learning modules for instructors
             ->findOrFail($id);
     });
 

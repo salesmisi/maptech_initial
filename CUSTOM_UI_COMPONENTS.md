@@ -7,6 +7,31 @@ The Custom Field Builder now supports creating two types of modules:
 1. **Learning Modules** - Traditional course modules with lessons (existing functionality)
 2. **UI Component Modules** - Custom navigation items that appear in the admin sidebar
 
+## ⚠️ Access Restrictions
+
+**IMPORTANT**: UI Components are **Admin-Only** features:
+
+- ✅ **Admin Users**: Can create, edit, publish, and view UI Component modules
+- ❌ **Instructor Users**: Cannot access UI Components (only see Learning Modules)
+- ❌ **Employee Users**: Cannot access UI Components (only see assigned Learning Modules)
+
+### Why UI Components are Admin-Only:
+
+1. **Dashboard Customization**: UI Components allow customization of the sidebar navigation and admin dashboard
+2. **System Configuration**: These components are intended for system-wide administrative tools and pages
+3. **Security**: Restricting access prevents unauthorized modification of navigation and administrative interfaces
+
+### Module Type Behavior:
+
+| Feature | Learning Modules | UI Components |
+|---------|-----------------|---------------|
+| Create/Edit | Admin only | Admin only |
+| View in Admin Dashboard | Yes | Yes |
+| View in Instructor Dashboard | Yes (when published) | **No** (filtered out) |
+| View in Employee Dashboard | Yes (when assigned) | **No** (filtered out) |
+| Appears in Sidebar | No | Yes (admin only) |
+| Can be assigned to users | Yes | No |
+
 ## Creating a UI Component Module
 
 ### Step 1: Navigate to Custom Field Builder
