@@ -7,3 +7,4 @@ $rows = DB::select("SELECT conname, pg_get_constraintdef(c.oid) as def FROM pg_c
 foreach ($rows as $r) {
     echo $r->conname . ': ' . $r->def . PHP_EOL;
 }
+//comment
