@@ -1,5 +1,6 @@
 // Quiz Management — grouped by Department → Subdepartment → Quizzes
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import useConfirm from '../../hooks/useConfirm';
 import {
   ClipboardList,
@@ -561,60 +562,60 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
         </div>
       )}
 
-      {editingQuiz && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-5xl rounded-xl bg-white shadow-xl border border-slate-200 max-h-[90vh] flex flex-col">
-            <div className="px-5 py-4 border-b border-slate-200">
-              <h3 className="text-lg font-semibold text-slate-900">Edit Quiz</h3>
-              <p className="text-xs text-slate-500 mt-1">Update quiz details as instructor.</p>
+      {editingQuiz && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-5xl rounded-xl bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700 max-h-[90vh] flex flex-col">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Edit Quiz</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Update quiz details as instructor.</p>
             </div>
 
             <div className="flex-1 overflow-hidden flex">
               {/* Left Side - Edit Quiz Form */}
-              <div className="w-1/2 px-5 py-4 space-y-4 overflow-y-auto border-r border-slate-200">
+              <div className="w-1/2 px-5 py-4 space-y-4 overflow-y-auto border-r border-slate-200 dark:border-slate-700">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Title</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Title</label>
                   <input
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
-                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-green-500 focus:border-green-500"
                     placeholder="Quiz title"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Description</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Description</label>
                   <textarea
                     value={editDescription}
                     onChange={(e) => setEditDescription(e.target.value)}
                     rows={3}
-                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500 resize-none"
+                    className="w-full border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-green-500 focus:border-green-500 resize-none"
                     placeholder="Optional description"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Pass Percentage</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Pass Percentage</label>
                   <input
                     type="number"
                     min={1}
                     max={100}
                     value={editPassPercentage}
                     onChange={(e) => setEditPassPercentage(Number(e.target.value || 70))}
-                    className="w-28 border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500"
+                    className="w-28 border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-green-500 focus:border-green-500"
                   />
                 </div>
 
-                <div className="pt-3 border-t border-slate-200">
-                  <h4 className="text-sm font-semibold text-slate-900 mb-2">Add Question</h4>
+                <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">Add Question</h4>
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Question Text</label>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Question Text</label>
                       <textarea
                         value={newQuestionText}
                         onChange={(e) => setNewQuestionText(e.target.value)}
                         rows={2}
-                        className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500 resize-none"
+                        className="w-full border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-green-500 focus:border-green-500 resize-none"
                         placeholder="Type your question"
                       />
                     </div>
@@ -632,7 +633,7 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
                           <input
                             value={opt}
                             onChange={(e) => updateOption(idx, e.target.value)}
-                            className="flex-1 border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500"
+                            className="flex-1 border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-green-500 focus:border-green-500"
                             placeholder={`Option ${idx + 1}`}
                           />
                         </div>
@@ -657,45 +658,45 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
               </div>
 
               {/* Right Side - Questionnaires Created */}
-              <div className="w-1/2 px-5 py-4 overflow-y-auto bg-slate-50">
-                <h4 className="text-sm font-semibold text-slate-900 mb-3">Questionnaires Created</h4>
+              <div className="w-1/2 px-5 py-4 overflow-y-auto bg-slate-50 dark:bg-slate-900/40">
+                <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Questionnaires Created</h4>
 
                 {loadingQuestions ? (
-                  <div className="text-xs text-slate-500 flex items-center gap-2">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading questions...
                   </div>
                 ) : questions.length === 0 ? (
-                  <p className="text-xs text-slate-500">No questions yet for this quiz.</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">No questions yet for this quiz.</p>
                 ) : (
                   <div className="space-y-4 pr-1">
                     {questions.map((q, idx) => (
-                      <div key={q.id} className="border-2 border-slate-300 rounded-lg p-4 bg-white shadow-sm">
+                      <div key={q.id} className="border-2 border-slate-200 dark:border-slate-600 rounded-lg p-4 bg-white dark:bg-slate-700 shadow-sm">
                         <div className="flex items-start justify-between gap-2 mb-3">
                           <div className="flex items-start gap-2">
-                            <span className="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-indigo-600 text-white text-xs font-bold rounded-full">
+                            <span className="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-indigo-600 dark:bg-indigo-500 text-white text-xs font-bold rounded-full">
                               {idx + 1}
                             </span>
-                            <p className="text-sm font-semibold text-slate-800 pt-1">{q.question_text}</p>
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 pt-1">{q.question_text}</p>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
                             <button
                               onClick={() => startEditQuestion(q)}
-                              className="px-2 py-1 text-[11px] border border-blue-200 text-blue-700 rounded hover:bg-blue-50"
+                              className="px-2 py-1 text-[11px] border border-blue-200 dark:border-blue-600 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30"
                             >
                               Edit
                             </button>
                             <button
                               onClick={() => handleDeleteQuestion(q.id)}
                               disabled={deletingQuestionId === q.id}
-                              className="px-2 py-1 text-[11px] border border-red-200 text-red-700 rounded hover:bg-red-50 disabled:opacity-50"
+                              className="px-2 py-1 text-[11px] border border-red-200 dark:border-red-600 text-red-700 dark:text-red-300 rounded hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50"
                             >
                               {deletingQuestionId === q.id ? 'Deleting...' : 'Delete'}
                             </button>
                           </div>
                         </div>
-                        <div className="ml-9 space-y-1.5 border-l-2 border-slate-200 pl-3">
+                        <div className="ml-9 space-y-1.5 border-l-2 border-slate-200 dark:border-slate-500 pl-3">
                           {q.options.map((opt, optIdx) => (
-                            <div key={opt.id} className={`flex items-center gap-2 text-xs ${opt.is_correct ? 'text-green-700 font-semibold bg-green-50 rounded px-2 py-1' : 'text-slate-600'}`}>
+                            <div key={opt.id} className={`flex items-center gap-2 text-xs ${opt.is_correct ? 'text-green-700 dark:text-emerald-300 font-semibold bg-green-50 dark:bg-emerald-900/30 rounded px-2 py-1' : 'text-slate-600 dark:text-slate-300'}`}>
                               <span className="w-5 h-5 flex items-center justify-center rounded-full border text-[10px] font-medium ${opt.is_correct ? 'border-green-500 bg-green-100' : 'border-slate-300 bg-slate-100'}">
                                 {String.fromCharCode(97 + optIdx)}
                               </span>
@@ -706,12 +707,12 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
                         </div>
 
                         {editingQuestionId === q.id && (
-                          <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
+                          <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-600 space-y-2">
                             <textarea
                               value={editQuestionText}
                               onChange={(e) => setEditQuestionText(e.target.value)}
                               rows={2}
-                              className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs focus:ring-green-500 focus:border-green-500"
+                              className="w-full border border-slate-300 dark:border-slate-500 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 focus:ring-green-500 focus:border-green-500"
                             />
                             {editQuestionOptions.map((opt, optIdx) => (
                               <div key={optIdx} className="flex items-center gap-2">
@@ -725,7 +726,7 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
                                 <input
                                   value={opt}
                                   onChange={(e) => updateEditOption(optIdx, e.target.value)}
-                                  className="flex-1 border border-slate-300 rounded-md px-2 py-1.5 text-xs focus:ring-green-500 focus:border-green-500"
+                                  className="flex-1 border border-slate-300 dark:border-slate-500 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 focus:ring-green-500 focus:border-green-500"
                                 />
                               </div>
                             ))}
@@ -739,7 +740,7 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
                               </button>
                               <button
                                 onClick={() => setEditingQuestionId(null)}
-                                className="px-2.5 py-1 text-xs border border-slate-300 rounded hover:bg-slate-50"
+                                className="px-2.5 py-1 text-xs border border-slate-300 dark:border-slate-500 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-50 dark:hover:bg-slate-600"
                               >
                                 Cancel
                               </button>
@@ -753,10 +754,10 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
               </div>
             </div>
 
-            <div className="px-5 py-4 border-t border-slate-200 flex items-center justify-end gap-2">
+            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end gap-2">
               <button
                 onClick={() => setEditingQuiz(null)}
-                className="px-3 py-1.5 text-sm border border-slate-300 rounded-md hover:bg-slate-50"
+                className="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700"
                 disabled={savingEdit}
               >
                 Cancel
@@ -771,7 +772,7 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
       {confirm.ConfirmModalRenderer()}
     </div>
   );
