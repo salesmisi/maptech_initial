@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ArrowLeft,
   BookOpen,
@@ -1409,12 +1409,12 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                 <div key={lesson.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/35 overflow-hidden">
                                   {isEditingThisLesson ? (
                                     /* ── EDIT LESSON FORM ── */
-                                    <div className="p-3 space-y-2 bg-amber-50 border-amber-200">
-                                      <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Edit Lesson</p>
+                                    <div className="p-3 space-y-2 bg-amber-50/70 dark:bg-slate-800 border border-amber-200 dark:border-slate-700 rounded-md">
+                                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide">Edit Lesson</p>
                                       <input
                                         type="text" value={editLessonTitle}
                                         onChange={e => setEditLessonTitle(e.target.value)}
-                                        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-1.5 px-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                         placeholder="Lesson title"
                                       />
                                       <RichTextEditor
@@ -1427,11 +1427,11 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                         value={editLessonInfo}
                                         onChange={e => setEditLessonInfo(e.target.value)}
                                         rows={2}
-                                        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+                                        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-1.5 px-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
                                         placeholder="Text information (short summary for this lesson)"
                                       />
                                       <div className="flex items-center gap-2">
-                                        <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 rounded-md cursor-pointer hover:bg-white text-xs text-slate-600">
+                                        <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md cursor-pointer hover:bg-white dark:hover:bg-slate-700 text-xs text-slate-600 dark:text-slate-200 bg-white/60 dark:bg-slate-900">
                                           <Upload className="h-3.5 w-3.5" />
                                           {editLessonFile ? editLessonFile.name : 'Replace file (optional)'}
                                           <input ref={editLessonFileRef} type="file" accept="video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
@@ -1439,7 +1439,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                         </label>
                                         {editLessonFile && (
                                           <button onClick={() => { setEditLessonFile(null); if (editLessonFileRef.current) editLessonFileRef.current.value = ''; }}
-                                            className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                                            className="text-xs text-red-500 dark:text-red-300 hover:text-red-700 dark:hover:text-red-200">Remove</button>
                                         )}
                                       </div>
                                       <div className="flex gap-2">
@@ -1449,7 +1449,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                           {savingLesson ? 'Saving...' : 'Save Changes'}
                                         </button>
                                         <button onClick={cancelEditLesson}
-                                          className="px-3 py-1.5 border border-slate-300 text-slate-600 text-xs font-medium rounded-md hover:bg-white">
+                                          className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 text-xs font-medium rounded-md hover:bg-white dark:hover:bg-slate-700">
                                           Cancel
                                         </button>
                                       </div>
@@ -1505,49 +1505,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                             <div className="space-y-2">
                                               <div
                                                 className={`${RICH_CONTENT_STYLES} cursor-text`}
-                                                title="Click a specific sentence to add/view definition"
-                                                onClick={(e) => startWordDefinitionEditor(e, lesson)}
                                                 dangerouslySetInnerHTML={{ __html: sanitizeHtml(stripLessonMetaBlocks(lesson.text_content)) }}
                                               />
-                                              <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                                                <span>Click a sentence to add or view its definition.</span>
-                                                <button
-                                                  onClick={() => startQuickEditLessonText(lesson)}
-                                                  className="px-2 py-1 border border-slate-300 rounded hover:bg-white text-slate-600"
-                                                >
-                                                  Edit Text Info
-                                                </button>
-                                              </div>
-
-                                              {wordEditorLessonId === lesson.id && (
-                                                <div className="rounded-md border border-indigo-200 bg-indigo-50 p-2.5 space-y-2">
-                                                  <p className="text-xs text-indigo-800">
-                                                    <strong>Sentence:</strong> {wordEditorWord}
-                                                  </p>
-                                                  <textarea
-                                                    value={wordEditorDefinition}
-                                                    onChange={(e) => setWordEditorDefinition(e.target.value)}
-                                                    rows={2}
-                                                    className="w-full border border-indigo-300 rounded-md py-1.5 px-2 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
-                                                    placeholder="Type the definition for this sentence"
-                                                  />
-                                                  <div className="flex items-center gap-2">
-                                                    <button
-                                                      onClick={() => handleSaveWordDefinition(mod.id, lesson)}
-                                                      disabled={savingWordDefinition}
-                                                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded disabled:opacity-50"
-                                                    >
-                                                      {savingWordDefinition ? 'Saving...' : 'Save Definition'}
-                                                    </button>
-                                                    <button
-                                                      onClick={() => { setWordEditorLessonId(null); setWordEditorWord(''); setWordEditorDefinition(''); }}
-                                                      className="px-2.5 py-1 border border-slate-300 text-slate-600 text-xs rounded hover:bg-white"
-                                                    >
-                                                      Close
-                                                    </button>
-                                                  </div>
-                                                </div>
-                                              )}
                                             </div>
                                           )}
                                         </div>
