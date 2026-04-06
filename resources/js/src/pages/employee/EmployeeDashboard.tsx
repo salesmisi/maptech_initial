@@ -521,92 +521,85 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             )
             )}
           </div>
+
+          {/* Time Log - Left side */}
+          <div className="bg-white rounded-lg shadow-sm border border-slate-100 p-6 dark:bg-slate-900/80 dark:border-slate-700">
+            <h3 className="text-lg font-bold mb-4 dark:text-slate-100">Time Log</h3>
+            <UserTimeLog />
+          </div>
         </div>
 
-        {/* Custom Modules from Instructor */}
-        {customModules.length > 0 && (
-          <div className="lg:col-span-2 space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <GraduationCap className="h-5 w-5 text-purple-600" />
-                 Learning Modules
-              </h2>
-              <span className="text-sm text-slate-500">
-                {customModules.length} assigned
-              </span>
-            </div>
+        {/* Sidebar Widgets */}
+        <div className="space-y-6">
+          {/* Custom Modules from Instructor */}
+          {customModules.length > 0 && (
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 dark:bg-slate-900/80 dark:border-slate-700">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 dark:text-slate-100">
+                  <GraduationCap className="h-5 w-5 text-purple-600" />
+                  Learning Modules
+                </h3>
+              </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {customModules.map((module) => (
-                <div
-                  key={module.id}
-                  className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg border border-purple-200 p-4 hover:shadow-md transition-all cursor-pointer"
-                  onClick={() => {
-                    // Navigate to custom module viewer (you may need to create this page)
-                    pushToast('Module Viewer', 'Custom module viewer coming soon!', 'info');
-                  }}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h3 className="text-base font-semibold text-slate-900 line-clamp-1">
+              <div className="space-y-4">
+                {customModules.map((module) => (
+                  <div
+                    key={module.id}
+                    className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg border border-purple-200 p-4 hover:shadow-md transition-all cursor-pointer dark:from-purple-950/30 dark:to-indigo-950/30 dark:border-purple-800"
+                    onClick={() => {
+                      pushToast('Module Viewer', 'Custom module viewer coming soon!', 'info');
+                    }}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                         {module.title}
-                      </h3>
-                      {module.description && (
-                        <p className="text-sm text-slate-600 mt-1 line-clamp-2">
-                          {module.description}
-                        </p>
+                      </h4>
+                      {module.category && (
+                        <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full dark:bg-purple-900/50 dark:text-purple-300">
+                          {module.category}
+                        </span>
                       )}
                     </div>
-                    {module.category && (
-                      <span className="ml-2 px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full whitespace-nowrap">
-                        {module.category}
-                      </span>
-                    )}
-                  </div>
 
-                  <div className="flex items-center justify-between text-sm text-slate-600 mb-3">
-                    <span className="flex items-center gap-1">
-                      <BookOpen className="h-4 w-4" />
-                      {module.lessons_count} lesson{module.lessons_count !== 1 ? 's' : ''}
-                    </span>
-                    {module.creator && (
-                      <span className="text-xs text-slate-500">
-                        by {module.creator.fullname}
+                    <div className="flex items-center justify-between text-xs text-slate-600 mb-2 dark:text-slate-400">
+                      <span className="flex items-center gap-1">
+                        <BookOpen className="h-3 w-3" />
+                        {module.lessons_count} lesson{module.lessons_count !== 1 ? 's' : ''}
                       </span>
-                    )}
-                  </div>
-
-                  <div className="mt-3">
-                    <div className="flex justify-between text-xs text-slate-600 mb-1">
-                      <span>{module.progress}% Complete</span>
-                      <span className="text-purple-600 font-medium">
-                        {module.progress === 100 ? 'Completed ✓' : 'In Progress'}
-                      </span>
+                      {module.creator && (
+                        <span>by {module.creator.fullname}</span>
+                      )}
                     </div>
-                    <div className="w-full bg-white rounded-full h-2">
-                      <div
-                        className="bg-gradient-to-r from-purple-500 to-indigo-500 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${module.progress}%` }}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="mt-3 pt-3 border-t border-purple-100">
+                    <div className="mb-2">
+                      <div className="flex justify-between text-xs text-slate-600 mb-1 dark:text-slate-400">
+                        <span>{module.progress}% Complete</span>
+                        <span className="text-purple-600 font-medium dark:text-purple-400">
+                          {module.progress === 100 ? 'Completed ✓' : 'In Progress'}
+                        </span>
+                      </div>
+                      <div className="w-full bg-white rounded-full h-1.5 dark:bg-slate-700">
+                        <div
+                          className="bg-gradient-to-r from-purple-500 to-indigo-500 h-1.5 rounded-full transition-all duration-500"
+                          style={{ width: `${module.progress}%` }}
+                        />
+                      </div>
+                    </div>
+
                     <button
-                      onClick={() => onNavigate?.('custom-module-viewer', undefined, module.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigate?.('custom-module-viewer', undefined, module.id);
+                      }}
                       className="w-full px-3 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 transition-colors"
                     >
                       Start Learning
                     </button>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Sidebar Widgets */}
-        <div className="space-y-6">
+          )}
           {/* Deadlines */}
           <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 dark:bg-slate-900/80 dark:border-slate-700">
             <h3 className="text-lg font-bold text-slate-900 mb-4 dark:text-slate-100">
@@ -647,11 +640,6 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             </button>
           </div>
 
-          {/* Time Log */}
-          <div className="bg-white rounded-lg shadow-sm border border-slate-100 p-6">
-            <h3 className="text-lg font-bold mb-4">Time Log</h3>
-            <UserTimeLog />
-          </div>
         </div>
       </div>
     </div>);
