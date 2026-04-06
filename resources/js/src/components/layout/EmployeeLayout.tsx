@@ -236,9 +236,17 @@ export function EmployeeLayout({
           <div className="flex-shrink-0 flex border-t border-slate-800 p-4">
             <div className="flex-shrink-0 w-full group block">
               <div className={isSidebarCompact ? 'flex flex-col items-center gap-3' : 'flex items-center'}>
-                <div className="h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
-                  {(displayName?.charAt(0) ?? 'E').toUpperCase()}
-                </div>
+                {user.profile_picture ? (
+                  <img
+                    src={user.profile_picture}
+                    alt={displayName}
+                    className="h-9 w-9 rounded-full object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div className="h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold flex-shrink-0">
+                    {(displayName?.charAt(0) ?? 'E').toUpperCase()}
+                  </div>
+                )}
                 {!isSidebarCompact && (
                   <div className="ml-3 min-w-0">
                     <p className="truncate text-sm font-medium text-white">{displayName || ''}</p>

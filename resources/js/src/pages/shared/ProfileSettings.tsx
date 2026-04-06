@@ -176,6 +176,7 @@ export function ProfileSettings() {
       } else {
         setMessage({ type: 'success', text: 'Profile picture updated!' });
         setProfile((prev) => prev ? { ...prev, profile_picture: data.profile_picture } : prev);
+        window.dispatchEvent(new CustomEvent('profile-picture-updated', { detail: { profile_picture: data.profile_picture } }));
       }
     } catch (err) {
       setMessage({ type: 'error', text: 'Failed to upload picture.' });

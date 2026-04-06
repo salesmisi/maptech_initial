@@ -311,6 +311,15 @@ export function App() {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
+  useEffect(() => {
+    const onPicUpdated = (e: Event) => {
+      const { profile_picture } = (e as CustomEvent<{ profile_picture: string }>).detail;
+      setUser((prev) => prev ? { ...prev, profile_picture } : prev);
+    };
+    window.addEventListener('profile-picture-updated', onPicUpdated);
+    return () => window.removeEventListener('profile-picture-updated', onPicUpdated);
+  }, []);
+
   // =========================
   // HANDLE LOGIN
   // =========================
