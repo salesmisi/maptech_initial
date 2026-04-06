@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Department;
 use App\Models\Subdepartment;
 use App\Models\AuditLog;
+use App\Rules\MaptechEmail;
+use App\Rules\StrongPassword;
 use Illuminate\Support\Carbon;
 
 if (!function_exists('maptech_audit_storage_timezone')) {
@@ -961,8 +963,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // Only admins can change email and password
         if ($user->isAdmin()) {
-            $rules['email'] = 'sometimes|email|max:255|unique:users,email,' . $user->id;
-            $rules['password'] = 'sometimes|string|min:8|confirmed';
+            $rules['email'] = ['sometimes', 'email', new MaptechEmail, 'max:255', 'unique:users,email,' . $user->id];
+            $rules['password'] = ['sometimes', 'string', new StrongPassword, 'confirmed'];
         }
 
         $validated = $request->validate($rules);

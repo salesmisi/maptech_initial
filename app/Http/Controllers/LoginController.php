@@ -12,6 +12,7 @@ use App\Models\AuditLog;
 use App\Models\TimeLog;
 use App\Events\AuditLogCreated;
 use App\Events\TimeLogUpdated;
+use App\Rules\MaptechEmail;
 
 class LoginController extends Controller
 {
@@ -21,7 +22,7 @@ class LoginController extends Controller
     public function login(Request $request)
     {
         $credentials = $request->validate([
-            'email' => 'required|email',
+            'email' => ['required', 'email', new MaptechEmail],
             'password' => 'required',
         ]);
 
@@ -112,7 +113,7 @@ class LoginController extends Controller
     public function apiLogin(Request $request)
     {
         $credentials = $request->validate([
-            'email' => 'required|email',
+            'email' => ['required', 'email', new MaptechEmail],
             'password' => 'required',
         ]);
 
