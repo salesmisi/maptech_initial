@@ -145,6 +145,9 @@ export function BusinessDetails() {
       setRemoveLogo(false);
       if (fileRef.current) fileRef.current.value = '';
       setMessage({ type: 'success', text: data?.message || 'Business details updated.' });
+      window.dispatchEvent(new CustomEvent('business-details-changed', {
+        detail: { logo_url: data.logo_url || '/assets/Maptech-Official-Logo.png' },
+      }));
     } catch (err: any) {
       // Network-level failures surface as TypeError("Failed to fetch") in browsers.
       const text = String(err?.message || '').toLowerCase();

@@ -5,6 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Maptech E-Learning</title>
+    <link rel="icon" type="image/png" href="/assets/Maptech-Official-Logo.png">
     <link rel="preload" href="/assets/loginvid.mp4" as="video" type="video/mp4">
     <link rel="preload" href="/assets/pasted-image.jpg" as="image">
 
