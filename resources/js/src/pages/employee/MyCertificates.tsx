@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Award, Calendar, ExternalLink } from 'lucide-react';
+import { Download, Award, Calendar, ExternalLink, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 const API_BASE = '/api';
 const MAPTECH_LOGO_URL = '/assets/Maptech-Official-Logo.png';
@@ -25,6 +26,10 @@ interface Certificate {
 export function MyCertificates() {
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewCert, setPreviewCert] = useState<Certificate | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const loadCertificates = async () => {
     try {
@@ -46,7 +51,7 @@ export function MyCertificates() {
     loadCertificates();
   }, []);
 
-  const handleDownloadPdf = async (cert: Certificate) => {
+  const generateCertificateImage = async (cert: Certificate): Promise<string | null> => {
     const loadImage = async (url?: string | null): Promise<HTMLImageElement | null> => {
       if (!url) return null;
       return new Promise<HTMLImageElement | null>((resolve) => {
@@ -303,11 +308,26 @@ export function MyCertificates() {
     ctx.font = '600 13px Arial';
     ctx.fillText(`Certificate ID: ${cert.certificate_code}`, 500, certIdY);
 
-    // Download as image (PNG pretending as PDF for simplicity)
+    // Return image data for preview/download consumers.
+    return canvas.toDataURL('image/png');
+  };
+
+  const handleDownloadPdf = async (cert: Certificate) => {
+    const dataUrl = await generateCertificateImage(cert);
+    if (!dataUrl) return;
     const link = document.createElement('a');
     link.download = `${cert.certificate_code}.png`;
-    link.href = canvas.toDataURL('image/png');
+    link.href = dataUrl;
     link.click();
+  };
+
+  const handlePreview = async (cert: Certificate) => {
+    setPreviewLoading(true);
+    setPreviewCert(cert);
+    setPreviewOpen(true);
+    const dataUrl = await generateCertificateImage(cert);
+    setPreviewImage(dataUrl);
+    setPreviewLoading(false);
   };
 
   if (loading) {
@@ -371,7 +391,7 @@ export function MyCertificates() {
                 {/* Overlay on Hover */}
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={() => handleDownloadPdf(cert)}
+                    onClick={() => handlePreview(cert)}
                     className="bg-white text-slate-900 px-4 py-2 rounded-md font-medium text-sm flex items-center shadow-lg hover:bg-slate-50"
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
@@ -408,6 +428,36 @@ export function MyCertificates() {
             </div>
           ))}
         </div>
+      )}
+
+      {previewOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4" onClick={() => { setPreviewOpen(false); setPreviewImage(null); setPreviewCert(null); }}>
+          <div className="relative w-full max-w-5xl max-h-[92vh] bg-white rounded-xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+              <h3 className="text-sm sm:text-base font-semibold text-slate-900 truncate pr-2">
+                {previewCert ? `${previewCert.title} Certificate Preview` : 'Certificate Preview'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => { setPreviewOpen(false); setPreviewImage(null); setPreviewCert(null); }}
+                className="p-1.5 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                aria-label="Close preview"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="bg-slate-100 p-0 overflow-auto max-h-[calc(92vh-58px)] flex items-start justify-center">
+              {previewLoading && (
+                <div className="text-slate-600 text-sm p-4">Rendering certificate preview...</div>
+              )}
+              {!previewLoading && previewImage && (
+                <img src={previewImage} alt="Certificate Preview" className="w-full h-auto max-w-4xl shadow-lg border border-slate-200" />
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
