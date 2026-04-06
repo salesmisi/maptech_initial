@@ -348,6 +348,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   const [deletingQuizId, setDeletingQuizId] = useState<number | null>(null);
   const confirm = useConfirm();
   const { showConfirm } = confirm;
+  const [unenrollConfirm, setUnenrollConfirm] = useState<{ userId: number; name: string } | null>(null);
   const [unlockModalAction, setUnlockModalAction] = useState<'unlock' | 'lock'>('unlock');
   const [unlockModalOpen, setUnlockModalOpen] = useState(false);
   const [unlockModalUserId, setUnlockModalUserId] = useState<number | null>(null);
@@ -1109,8 +1110,14 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
     }
   };
 
-  const handleUnenroll = async (userId: number, name: string) => {
-    showConfirm(`Remove ${name} from this course?`, async () => {
+  const handleUnenroll = (userId: number, name: string) => {
+    setUnenrollConfirm({ userId, name });
+  };
+
+  const confirmUnenroll = async () => {
+    if (!unenrollConfirm) return;
+    const { userId } = unenrollConfirm;
+    setUnenrollConfirm(null);
     try {
       const xsrf = await getXsrfToken();
       const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/enrollments/${userId}`, {
@@ -1123,7 +1130,6 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
     } catch (e: any) {
       alert(e.message || 'Failed to unenroll user');
     }
-    });
   };
 
   if (loading) {
@@ -1213,7 +1219,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
         >
           <span className="flex items-center gap-1.5">
             <Users className="h-4 w-4" />
-            Enrolled Students
+            Enrolled Employees
             <span className="text-xs bg-slate-100 text-slate-600 rounded-full px-1.5 py-0.5">{course.enrolled_users.length}</span>
           </span>
         </button>
@@ -1811,39 +1817,39 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
           </div>
 
           {/* Enrolled Students Table */}
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
             {course.enrolled_users.length === 0 ? (
-              <div className="p-8 text-center text-slate-500">
-                <Users className="h-10 w-10 mx-auto mb-2 text-slate-300" />
-                <p className="text-sm">No students enrolled yet.</p>
+              <div className="p-8 text-center text-slate-500 dark:text-slate-400">
+                <Users className="h-10 w-10 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                <p className="text-sm">No employees enrolled yet.</p>
               </div>
             ) : (
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
+              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                <thead className="bg-slate-50 dark:bg-slate-700/60">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Student</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Department</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Progress</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Enrolled</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Employee</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Department</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Progress</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Enrolled</th>
                     <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-slate-200">
+                <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
                   {course.enrolled_users.map(user => (
-                    <tr key={user.id} className="hover:bg-slate-50">
+                    <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-sm flex-shrink-0">
                             {(user.fullname || '?').charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-slate-900">{user.fullname}</p>
-                            <p className="text-xs text-slate-500">{user.email}</p>
+                            <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{user.fullname}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{user.email}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{user.department || '—'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{user.department || '—'}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-2 bg-slate-200 rounded-full max-w-[80px]">
@@ -1858,7 +1864,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                               style={{ width: `${Math.min(user.progress, 100)}%` }}
                             />
                           </div>
-                          <span className="text-xs text-slate-500">{user.progress}%</span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400">{user.progress}%</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -1874,52 +1880,18 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                           {user.enrollment_status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-xs text-slate-500">
+                      <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">
                         {user.enrolled_at
                           ? new Date(user.enrolled_at).toLocaleDateString()
                           : '—'}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {user.locked ? (
-                            <button
-                              onClick={() => handleUnlock(user.id)}
-                              className="p-1 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded"
-                              title="Unlock access"
-                            >
-                              <Unlock className="h-4 w-4" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleLock(user.id)}
-                              className="p-1 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded"
-                              title="Lock access"
-                            >
-                              <Lock className="h-4 w-4" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleUnlockModuleForUser(user.id)}
-                            className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded"
-                            title="Unlock specific module for user"
-                          >
-                            <BookOpen className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleLockModuleForUser(user.id)}
-                            className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded"
-                            title="Lock specific module for user"
-                          >
-                            <Lock className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleUnenroll(user.id, user.fullname)}
-                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
-                            title="Remove from course"
-                          >
-                            <UserMinus className="h-4 w-4" />
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => handleUnenroll(user.id, user.fullname)}
+                          className="px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-md transition-colors"
+                        >
+                          Unenroll
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1948,6 +1920,32 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       />
 
       {confirm.ConfirmModalRenderer()}
+
+      {/* Unenroll Confirmation Modal */}
+      {unenrollConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-2">Unenroll Employee</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-6">
+              Are you sure you want to unenroll <span className="font-medium text-slate-900 dark:text-slate-100">{unenrollConfirm.name}</span>?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setUnenrollConfirm(null)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmUnenroll}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+              >
+                Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
