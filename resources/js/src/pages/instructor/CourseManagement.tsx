@@ -136,7 +136,11 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       });
       if (res.ok) {
         const data = await res.json();
-        setCustomModules(Array.isArray(data) ? data : []);
+        // Filter to only show learning modules, not UI components
+        const learningModules = Array.isArray(data)
+          ? data.filter((module: any) => module.module_type !== 'ui_component')
+          : [];
+        setCustomModules(learningModules);
       }
     } catch (e) {
       console.error('Failed to load custom modules:', e);
