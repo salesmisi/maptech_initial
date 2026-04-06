@@ -1383,29 +1383,6 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                     )}
 
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleUnlockModuleForAll(mod.id); }}
-                      className="p-1 text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 rounded flex-shrink-0"
-                      title="Unlock this module for all enrolled students"
-                    >
-                      <Users className="h-3.5 w-3.5" />
-                    </button>
-
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleUnlockModuleForDepartment(mod.id); }}
-                      className="p-1 text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 rounded flex-shrink-0"
-                      title="Unlock this module for a department"
-                    >
-                      <Unlock className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleLockModuleForDepartment(mod.id); }}
-                      className="p-1 text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 rounded flex-shrink-0"
-                      title="Lock this module for a department"
-                    >
-                      <Lock className="h-3.5 w-3.5" />
-                    </button>
-
-                    <button
                       onClick={(e) => { e.stopPropagation(); handleDeleteModule(mod.id); }}
                       disabled={deletingModuleId === mod.id}
                       className="p-1.5 text-red-400 dark:text-rose-300 hover:text-red-600 dark:hover:text-rose-200 hover:bg-red-50 dark:hover:bg-rose-900/25 rounded disabled:opacity-40 flex-shrink-0"
@@ -1675,24 +1652,24 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                       </div>
 
                       {/* Quiz section */}
-                      <div className="border-t border-slate-100 px-6 py-3">
-                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Quiz</p>
+                      <div className="border-t border-slate-100 dark:border-slate-700 px-6 py-3">
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wide mb-2">Quiz</p>
                         {quiz ? (
-                          <div className="bg-indigo-50 rounded-lg p-3">
+                          <div className="bg-indigo-50 dark:bg-slate-700/50 border border-indigo-100 dark:border-slate-600 rounded-lg p-3">
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex items-start gap-3">
-                                <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                                  <HelpCircle className="h-4 w-4 text-indigo-600" />
+                                <div className="h-8 w-8 rounded-full bg-indigo-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
+                                  <HelpCircle className="h-4 w-4 text-indigo-600 dark:text-indigo-300" />
                                 </div>
                                 <div>
-                                  <p className="text-sm font-semibold text-slate-900">{quiz.title}</p>
-                                  {quiz.description && <p className="text-xs text-slate-500 mt-0.5">{quiz.description}</p>}
-                                  <div className="flex gap-3 mt-1 text-xs text-slate-500">
+                                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{quiz.title}</p>
+                                  {quiz.description && <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5">{quiz.description}</p>}
+                                  <div className="flex gap-3 mt-1 text-xs text-slate-500 dark:text-slate-300">
                                     <span>{quiz.question_count} question{quiz.question_count !== 1 ? 's' : ''}</span>
                                     <span>·</span>
                                     <span className="flex items-center gap-1">
                                       <Lock className="h-3 w-3 text-amber-500" />
-                                      Must score <strong className="text-amber-700 mx-0.5">{quiz.pass_percentage}%</strong> to unlock next module
+                                      Must score <strong className="text-amber-700 dark:text-amber-300 mx-0.5">{quiz.pass_percentage}%</strong> to unlock next module
                                     </span>
                                   </div>
                                 </div>
@@ -1700,14 +1677,14 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                               <div className="flex items-center gap-2 flex-shrink-0">
                                 <button
                                   onClick={() => onManageQuiz(quiz.id, courseId)}
-                                  className="text-xs font-medium text-green-600 hover:text-green-800 px-3 py-1.5 border border-green-200 rounded-md hover:bg-green-50 transition-colors"
+                                  className="text-xs font-medium text-green-600 dark:text-emerald-300 hover:text-green-800 dark:hover:text-emerald-200 px-3 py-1.5 border border-green-200 dark:border-emerald-700 rounded-md hover:bg-green-50 dark:hover:bg-emerald-900/30 transition-colors"
                                 >
                                   Manage Quiz
                                 </button>
                                 <button
                                   onClick={() => handleDeleteQuiz(quiz.id)}
                                   disabled={deletingQuizId === quiz.id}
-                                  className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-100 rounded disabled:opacity-40"
+                                  className="p-1.5 text-red-400 dark:text-rose-300 hover:text-red-600 dark:hover:text-rose-200 hover:bg-red-100 dark:hover:bg-rose-900/25 rounded disabled:opacity-40"
                                 >
                                   {deletingQuizId === quiz.id
                                     ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -1760,9 +1737,9 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       {activeTab === 'students' && (
         <div className="space-y-4">
           {/* Enroll User Form */}
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
-              <Users className="h-4 w-4 text-green-600" />
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
+              <Users className="h-4 w-4 text-green-600 dark:text-emerald-400" />
               Enroll an Employee
             </h3>
             {enrollError && (
@@ -1783,13 +1760,13 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                   type="text"
                   value={enrollSearch}
                   onChange={e => setEnrollSearch(e.target.value)}
-                  className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   placeholder={course.department ? `Search ${course.department} employees by name or email` : 'Search employees by name or email'}
                 />
                 <select
                   value={selectedUserId}
                   onChange={e => setSelectedUserId(e.target.value)}
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   {filteredAvailableUsers.length === 0 && (
                     <option disabled>
