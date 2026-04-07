@@ -62,6 +62,12 @@ interface NotificationItem {
   created_at: string;
 }
 
+interface LatestAchievement {
+  id: number;
+  title: string;
+  completed_at: string;
+}
+
 const upcomingDeadlines = [
 {
   id: 1,
@@ -85,8 +91,30 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [customModules, setCustomModules] = useState<CustomModule[]>([]);
+  const [latestAchievement, setLatestAchievement] = useState<LatestAchievement | null>(null);
   const lastUnreadRef = React.useRef<number>(0);
   const { pushToast } = useToast();
+
+  const loadLatestAchievement = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/employee/certificates`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        const certs = await res.json();
+        if (Array.isArray(certs) && certs.length > 0) {
+          // Get the most recently completed certificate
+          const sorted = [...certs].sort((a, b) =>
+            new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime()
+          );
+          setLatestAchievement(sorted[0]);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading latest achievement:', err);
+    }
+  };
 
   const loadNotifications = async () => {
     try {
@@ -213,6 +241,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       const initial = await loadNotifications();
       await loadCustomModules();
       await loadQuizReminders();
+      await loadLatestAchievement();
       // initialize last unread count after initial load
       lastUnreadRef.current = (initial || []).filter((n: any) => !n.read).length;
       // Subscribe to realtime notifications channel (if Echo is available)
@@ -631,11 +660,19 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
               <Award className="h-8 w-8 text-yellow-300" />
               <h3 className="ml-3 text-lg font-bold">Latest Achievement</h3>
             </div>
-            <p className="text-green-50 mb-4">
-              You've earned the "Safety First" badge for completing Workplace
-              Safety training!
-            </p>
-            <button className="w-full py-2 bg-white/20 hover:bg-white/30 rounded-md text-sm font-medium transition-colors backdrop-blur-sm">
+            {latestAchievement ? (
+              <p className="text-green-50 mb-4">
+                You've earned a certificate for completing "{latestAchievement.title}"!
+              </p>
+            ) : (
+              <p className="text-green-50 mb-4">
+                Complete courses to earn certificates and track your achievements here.
+              </p>
+            )}
+            <button
+              onClick={() => onNavigate?.('certificates')}
+              className="w-full py-2 bg-white/20 hover:bg-white/30 rounded-md text-sm font-medium transition-colors backdrop-blur-sm"
+            >
               View Certificates
             </button>
           </div>
