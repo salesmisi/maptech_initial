@@ -21,6 +21,9 @@ interface Course {
   title: string;
   description: string;
   department: string;
+  subdepartment_id?: number | null;
+  start_date?: string | null;
+  deadline?: string | null;
   instructor: string;
   instructor_id: number | null;
   instructor_profile_picture?: string | null;
@@ -35,7 +38,15 @@ interface InstructorOption {
   fullname: string;
   email: string;
   department: string | null;
+  subdepartment_id?: number | null;
+  subdepartments?: { id: number; name: string; department_id?: number | null }[];
   profile_picture?: string | null;
+}
+
+interface DepartmentOption {
+  id: number;
+  name: string;
+  subdepartments?: { id: number; name: string; head_id?: number | null }[];
 }
 
 function normalizeCourseStatus(status: unknown): 'Active' | 'Draft' | 'Inactive' {
@@ -117,7 +128,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [departments, setDepartments] = useState<{id: number; name: string}[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
   const [selectedCourseIds, setSelectedCourseIds] = useState<number[]>([]);
   const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
@@ -125,7 +136,10 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   const [isBulkAssigning, setIsBulkAssigning] = useState(false);
   const [editInstructorId, setEditInstructorId] = useState<number | null>(null);
   const [createInstructorId, setCreateInstructorId] = useState<number | null>(null);
+  const [createDepartment, setCreateDepartment] = useState('');
+  const [createSubdepartmentId, setCreateSubdepartmentId] = useState<number | ''>('');
   const [editDepartment, setEditDepartment] = useState('');
+  const [editSubdepartmentId, setEditSubdepartmentId] = useState<number | ''>('');
   // Instructor photo upload in edit modal
   const [editInstructorPhotoFile, setEditInstructorPhotoFile] = useState<File | null>(null);
   const [editInstructorPhotoPreview, setEditInstructorPhotoPreview] = useState<string | null>(null);
@@ -242,13 +256,46 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   useEffect(() => {
     fetch('/api/departments')
       .then(res => res.json())
-      .then(data => setDepartments(Array.isArray(data) ? data : []))
+      .then(data => setDepartments(Array.isArray(data) ? data.map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        subdepartments: Array.isArray(d.subdepartments)
+          ? d.subdepartments.map((s: any) => ({ id: s.id, name: s.name, head_id: s.head_id ?? null }))
+          : [],
+      })) : []))
       .catch(err => console.error('Failed to load departments:', err));
     fetch('/api/admin/users?role=Instructor', { credentials: 'include', headers: { Accept: 'application/json' } })
       .then(res => res.json())
-      .then(data => setInstructors(Array.isArray(data) ? data.map((u: any) => ({ id: u.id, fullname: u.fullname, email: u.email, department: u.department, profile_picture: u.profile_picture ? `/storage/${u.profile_picture}` : null })) : []))
+      .then(data => setInstructors(Array.isArray(data) ? data.map((u: any) => ({
+        id: u.id,
+        fullname: u.fullname,
+        email: u.email,
+        department: u.department,
+        subdepartment_id: u.subdepartment_id ?? null,
+        subdepartments: Array.isArray(u.subdepartments)
+          ? u.subdepartments.map((s: any) => ({ id: s.id, name: s.name, department_id: s.department_id ?? null }))
+          : [],
+        profile_picture: u.profile_picture ? `/storage/${u.profile_picture}` : null,
+      })) : []))
       .catch(err => console.error('Failed to load instructors:', err));
   }, []);
+
+  const normalizeText = (value?: string | null) => (value || '').trim().toLowerCase();
+
+  const getEligibleInstructors = (departmentName: string, subdepartmentId: number | '') => {
+    const dept = normalizeText(departmentName);
+    const subId = subdepartmentId ? Number(subdepartmentId) : null;
+
+    return instructors.filter((i) => {
+      const deptMatches = !dept || normalizeText(i.department) === dept;
+      if (!deptMatches) return false;
+      if (!subId) return true;
+
+      const primarySubMatch = Number(i.subdepartment_id) === subId;
+      const assignedSubMatch = Array.isArray(i.subdepartments) && i.subdepartments.some((s) => Number(s.id) === subId);
+      return primarySubMatch || assignedSubMatch;
+    });
+  };
 
   // Fetch current profile to determine role (used for preview actions)
   useEffect(() => {
@@ -303,6 +350,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       setCourses(rawCourses.map((c: any) => ({
         ...c,
         status: normalizeCourseStatus(c.status),
+        subdepartment_id: c.subdepartment_id ?? null,
         instructor_id: c.instructor_id ?? (c.instructor?.id ?? null),
         instructor: typeof c.instructor === 'object' && c.instructor !== null
           ? c.instructor.fullname || 'Unassigned'
@@ -389,6 +437,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     setEditingCourse(course);
     setEditInstructorId(course.instructor_id);
     setEditDepartment(course.department);
+    setEditSubdepartmentId(course.subdepartment_id ?? '');
     // Pre-load existing instructor photo preview
     const assigned = instructors.find(i => i.id === course.instructor_id);
     setEditInstructorPhotoPreview(assigned?.profile_picture ?? null);
@@ -420,6 +469,9 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           title: formData.get('title'),
           description: formData.get('description'),
           department: formData.get('department'),
+          subdepartment_id: formData.get('subdepartment_id') || null,
+          start_date: formData.get('start_date') || null,
+          deadline: formData.get('deadline') || null,
           instructor_id: formData.get('instructor_id') || null,
           status: formData.get('status'),
         }),
@@ -1007,6 +1059,19 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Course Management</h1>
+        <button
+          type="button"
+          onClick={() => {
+            setCreateDepartment('');
+            setCreateSubdepartmentId('');
+            setCreateInstructorId(null);
+            setShowCreateModal(true);
+          }}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition-colors"
+        >
+          <PlusIcon className="h-5 w-5" />
+          Create Course
+        </button>
       </div>
 
       {/* Search and Filter */}
@@ -1906,7 +1971,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             <div className="p-6 border-b flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-900">Create New Course</h2>
               <button
-                onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); }}
+                onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); setCreateDepartment(''); setCreateSubdepartmentId(''); }}
                 className="text-gray-400 hover:text-gray-600 text-xl"
               >
                 <XMarkIcon className="h-6 w-6" />
@@ -1937,6 +2002,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   }
                   setShowCreateModal(false);
                   setCreateInstructorId(null);
+                  setCreateDepartment('');
+                  setCreateSubdepartmentId('');
                   await loadCourses();
                 } catch (err: any) {
                   alert(err.message);
@@ -1971,16 +2038,22 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <select
                     name="department"
                     required
+                    value={createDepartment}
+                    onChange={(e) => {
+                      setCreateDepartment(e.target.value);
+                      setCreateSubdepartmentId('');
+                      setCreateInstructorId(null);
+                    }}
                     className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
-                    <option value="" disabled selected>Select Department</option>
+                    <option value="" disabled>Select Department</option>
                     {departments.map(dept => (
                       <option key={dept.id} value={dept.name}>{dept.name}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Active Status</label>
                   <select
                     name="status"
                     defaultValue="Active"
@@ -1993,9 +2066,49 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sub Department</label>
+                <select
+                  name="subdepartment_id"
+                  required
+                  value={createSubdepartmentId}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setCreateSubdepartmentId(value ? Number(value) : '');
+                    setCreateInstructorId(null);
+                  }}
+                  disabled={!createDepartment}
+                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="">Select Sub Department</option>
+                  {(departments.find(d => d.name === createDepartment)?.subdepartments || []).map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date & Time</label>
+                  <input
+                    name="start_date"
+                    type="datetime-local"
+                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date & Time</label>
+                  <input
+                    name="deadline"
+                    type="datetime-local"
+                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+              </div>
+
               {/* Assign Instructor */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assign Instructor</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
                 {createInstructorId !== null && (() => {
                   const sel = instructors.find(i => i.id === createInstructorId);
                   return sel ? (
@@ -2023,10 +2136,11 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 <select
                   value={createInstructorId ?? ''}
                   onChange={(e) => setCreateInstructorId(e.target.value ? Number(e.target.value) : null)}
+                  disabled={!createDepartment || !createSubdepartmentId}
                   className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
-                  <option value="">Select Instructor</option>
-                  {instructors.map(i => (
+                  <option value="">{!createDepartment || !createSubdepartmentId ? 'Select department and sub department first' : 'Select Instructor'}</option>
+                  {(!createDepartment || !createSubdepartmentId ? [] : getEligibleInstructors(createDepartment, createSubdepartmentId)).map(i => (
                     <option key={i.id} value={i.id}>{i.fullname}</option>
                   ))}
                 </select>
@@ -2041,7 +2155,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); }}
+                  onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); setCreateDepartment(''); setCreateSubdepartmentId(''); }}
                   className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-md hover:bg-gray-50"
                 >
                   Cancel
@@ -2091,7 +2205,11 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <select
                     name="department"
                     value={editDepartment}
-                    onChange={(e) => { setEditDepartment(e.target.value); setEditInstructorId(null); }}
+                    onChange={(e) => {
+                      setEditDepartment(e.target.value);
+                      setEditSubdepartmentId('');
+                      setEditInstructorId(null);
+                    }}
                     required
                     className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
@@ -2112,6 +2230,45 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     <option value="Draft">Draft</option>
                     <option value="Inactive">Inactive</option>
                   </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sub Department</label>
+                <select
+                  name="subdepartment_id"
+                  value={editSubdepartmentId}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setEditSubdepartmentId(value ? Number(value) : '');
+                    setEditInstructorId(null);
+                  }}
+                  disabled={!editDepartment}
+                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="">Select Sub Department</option>
+                  {(departments.find(d => d.name === editDepartment)?.subdepartments || []).map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date & Time</label>
+                  <input
+                    name="start_date"
+                    type="datetime-local"
+                    defaultValue={editingCourse.start_date ? new Date(editingCourse.start_date).toISOString().slice(0, 16) : ''}
+                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date & Time</label>
+                  <input
+                    name="deadline"
+                    type="datetime-local"
+                    defaultValue={editingCourse.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
+                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
                 </div>
               </div>
               <div>
@@ -2184,9 +2341,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">Unassigned</option>
-                  {instructors
-                    .filter(i => !editDepartment || !i.department || i.department === editDepartment)
-                    .map(i => (
+                  {getEligibleInstructors(editDepartment, editSubdepartmentId).map(i => (
                       <option key={i.id} value={i.id}>{i.fullname} ({i.email})</option>
                     ))}
                 </select>
