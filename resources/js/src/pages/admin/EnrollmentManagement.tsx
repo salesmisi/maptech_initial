@@ -294,17 +294,9 @@ export function EnrollmentManagement() {
         })
       : courses;
 
-    if (!selectedSubDeptId) {
-      return byDepartment;
-    }
-
-    const bySubDepartment = byDepartment.filter((c) => (
-      !c.subdepartment_id || Number(c.subdepartment_id) === Number(selectedSubDeptId)
-    ));
-
-    // Keep the course list usable even when course subdepartment metadata is temporarily out of sync.
-    return bySubDepartment.length > 0 ? bySubDepartment : byDepartment;
-  }, [courses, departments, selectedDeptId, selectedSubDeptId]);
+    // Keep course selection stable by department; subdepartment filtering applies to employee options.
+    return byDepartment;
+  }, [courses, departments, selectedDeptId]);
 
   const openModal = () => {
     setIsModalOpen(true);
