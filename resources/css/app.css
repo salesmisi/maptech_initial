@@ -65,6 +65,69 @@ html.dark select {
 	border-color: #374151 !important;
 }
 
+/* Global select treatment to avoid harsh native arrow panels and improve hover comfort. */
+select:not([multiple]):not(.ui-select-custom-arrow) {
+	appearance: none;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5L10 12.5L15 7.5' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 0.72rem center;
+	background-size: 0.95rem;
+	padding-right: 2.35rem;
+	transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+select:not([multiple]):not(.ui-select-custom-arrow):hover {
+	border-color: #94a3b8;
+	background-color: #f8fafc;
+}
+
+select:not([multiple]):not(.ui-select-custom-arrow):focus {
+	outline: none;
+	border-color: #34d399;
+	box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.24);
+}
+
+html.dark select:not([multiple]):not(.ui-select-custom-arrow) {
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5L10 12.5L15 7.5' stroke='%23cbd5e1' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+	background-color: #0f172a !important;
+	border-color: #475569 !important;
+}
+
+html.dark select:not([multiple]):not(.ui-select-custom-arrow):hover {
+	background-color: #111827 !important;
+	border-color: #64748b !important;
+}
+
+/* Use this class when a select renders its own chevron icon (absolute-positioned). */
+.ui-select-custom-arrow {
+	appearance: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	background-image: none !important;
+}
+
+.ui-select-custom-arrow::-ms-expand {
+	display: none;
+}
+
+.ui-select-wrap .ui-select-arrow {
+	transition: color 180ms ease, filter 180ms ease, opacity 180ms ease;
+	opacity: 0.92;
+}
+
+.ui-select-wrap:hover .ui-select-arrow,
+.ui-select-wrap:focus-within .ui-select-arrow {
+	color: #34d399;
+	filter: drop-shadow(0 0 6px rgba(52, 211, 153, 0.28));
+	opacity: 1;
+}
+
+html.dark .ui-select-wrap:hover .ui-select-arrow,
+html.dark .ui-select-wrap:focus-within .ui-select-arrow {
+	color: #6ee7b7;
+	filter: drop-shadow(0 0 6px rgba(110, 231, 183, 0.24));
+}
+
 html.dark .shadow-sm,
 html.dark .shadow-md,
 html.dark .shadow-lg {
@@ -532,7 +595,7 @@ html.dark .shadow-lg {
 	.um-icon-btn,
 	.um-search-input,
 	.um-filter-select {
-		transition: transform 170ms ease, box-shadow 170ms ease, filter 170ms ease;
+		transition: transform 170ms ease, box-shadow 170ms ease, filter 170ms ease, border-color 170ms ease, background-color 170ms ease;
 	}
 
 	.um-action-btn:hover,
