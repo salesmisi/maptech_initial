@@ -94,6 +94,16 @@ export function ProfileSettings() {
       if (fullName !== profile?.fullName) body.fullName = fullName;
       if (email !== profile?.email) body.email = email;
       if (password) {
+        if (password.length < 8) {
+          setMessage({ type: 'error', text: 'Password must be at least 8 characters.' });
+          setSaving(false);
+          return;
+        }
+        if (password !== passwordConfirmation) {
+          setMessage({ type: 'error', text: 'Passwords do not match.' });
+          setSaving(false);
+          return;
+        }
         body.password = password;
         body.password_confirmation = passwordConfirmation;
       }
@@ -597,6 +607,59 @@ export function ProfileSettings() {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {/* Password Strength Indicator */}
+                {password && (
+                  <div className="mt-2">
+                    <div className="flex gap-1 mb-1">
+                      {[1, 2, 3, 4].map((level) => {
+                        const strength = (() => {
+                          let score = 0;
+                          if (password.length >= 8) score++;
+                          if (password.length >= 12) score++;
+                          if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
+                          if (/[0-9]/.test(password)) score++;
+                          if (/[^A-Za-z0-9]/.test(password)) score++;
+                          return Math.min(score, 4);
+                        })();
+                        const isActive = level <= strength;
+                        const color = strength <= 1 ? 'bg-red-500' : strength === 2 ? 'bg-orange-500' : strength === 3 ? 'bg-yellow-500' : 'bg-green-500';
+                        return (
+                          <div
+                            key={level}
+                            className={`h-1 flex-1 rounded-full transition-colors ${isActive ? color : 'bg-slate-200'}`}
+                          />
+                        );
+                      })}
+                    </div>
+                    <p className={`text-xs ${
+                      password.length < 8
+                        ? 'text-red-600'
+                        : (() => {
+                            let score = 0;
+                            if (password.length >= 8) score++;
+                            if (password.length >= 12) score++;
+                            if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
+                            if (/[0-9]/.test(password)) score++;
+                            if (/[^A-Za-z0-9]/.test(password)) score++;
+                            const strength = Math.min(score, 4);
+                            return strength <= 1 ? 'text-red-600' : strength === 2 ? 'text-orange-600' : strength === 3 ? 'text-yellow-600' : 'text-green-600';
+                          })()
+                    }`}>
+                      {password.length < 8
+                        ? `Password is too short (${password.length}/8 characters minimum)`
+                        : (() => {
+                            let score = 0;
+                            if (password.length >= 8) score++;
+                            if (password.length >= 12) score++;
+                            if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
+                            if (/[0-9]/.test(password)) score++;
+                            if (/[^A-Za-z0-9]/.test(password)) score++;
+                            const strength = Math.min(score, 4);
+                            return strength <= 1 ? 'Weak password' : strength === 2 ? 'Fair password' : strength === 3 ? 'Good password' : 'Strong password';
+                          })()}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -622,6 +685,12 @@ export function ProfileSettings() {
                     {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {/* Password Match Indicator */}
+                {passwordConfirmation && (
+                  <p className={`mt-1 text-xs ${password === passwordConfirmation ? 'text-green-600' : 'text-red-600'}`}>
+                    {password === passwordConfirmation ? '✓ Passwords match' : '✗ Passwords do not match'}
+                  </p>
+                )}
               </div>
             </div>
           </div>

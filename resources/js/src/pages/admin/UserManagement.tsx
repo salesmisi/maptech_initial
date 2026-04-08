@@ -70,6 +70,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
   const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [passwordValue, setPasswordValue] = useState('');
 
   // Form refs
   const fullNameRef = useRef<HTMLInputElement>(null);
@@ -243,6 +244,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     setProfilePictureFile(null);
     setProfilePicturePreview(user?.profile_picture ? `/storage/${user.profile_picture}` : null);
     setShowPassword(false);
+    setPasswordValue('');
     setIsModalOpen(true);
   };
 
@@ -258,6 +260,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     setProfilePictureFile(null);
     setProfilePicturePreview(null);
     setShowPassword(false);
+    setPasswordValue('');
   };
 
   // Form submit handler
@@ -269,7 +272,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     const formData: FormData = {
       fullName: fullNameRef.current?.value || '',
       email: emailRef.current?.value || '',
-      password: passwordRef.current?.value || '',
+      password: passwordValue,
       department: formDepartment,
       subdepartment_id: formSubdepartment,
       role: formRole,
@@ -289,6 +292,11 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     }
     if (!editingUser && !formData.password) {
       setFormError('Password is required for new users');
+      setSubmitting(false);
+      return;
+    }
+    if (formData.password && formData.password.length < 8) {
+      setFormError('Password must be at least 8 characters');
       setSubmitting(false);
       return;
     }
@@ -692,7 +700,9 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                       <input
                         ref={passwordRef}
                         type={showPassword ? 'text' : 'password'}
-                        placeholder={editingUser ? 'ΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇó' : ''}
+                        placeholder={editingUser ? '••••••••' : ''}
+                        value={passwordValue}
+                        onChange={(e) => setPasswordValue(e.target.value)}
                         className="block w-full border border-slate-300 rounded-md shadow-sm py-2 pl-3 pr-10 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                       />
                       <button
@@ -705,6 +715,62 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    {/* Password Strength Indicator */}
+                    {passwordValue && (
+                      <div className="mt-2">
+                        <div className="flex gap-1 mb-1">
+                          {[1, 2, 3, 4].map((level) => {
+                            const strength = (() => {
+                              let score = 0;
+                              if (passwordValue.length >= 8) score++;
+                              if (passwordValue.length >= 12) score++;
+                              if (/[A-Z]/.test(passwordValue) && /[a-z]/.test(passwordValue)) score++;
+                              if (/[0-9]/.test(passwordValue)) score++;
+                              if (/[^A-Za-z0-9]/.test(passwordValue)) score++;
+                              return Math.min(score, 4);
+                            })();
+                            const isActive = level <= strength;
+                            const color = strength <= 1 ? 'bg-red-500' : strength === 2 ? 'bg-orange-500' : strength === 3 ? 'bg-yellow-500' : 'bg-green-500';
+                            return (
+                              <div
+                                key={level}
+                                className={`h-1 flex-1 rounded-full transition-colors ${isActive ? color : 'bg-slate-200'}`}
+                              />
+                            );
+                          })}
+                        </div>
+                        <p className={`text-xs ${
+                          passwordValue.length < 8
+                            ? 'text-red-600'
+                            : (() => {
+                                let score = 0;
+                                if (passwordValue.length >= 8) score++;
+                                if (passwordValue.length >= 12) score++;
+                                if (/[A-Z]/.test(passwordValue) && /[a-z]/.test(passwordValue)) score++;
+                                if (/[0-9]/.test(passwordValue)) score++;
+                                if (/[^A-Za-z0-9]/.test(passwordValue)) score++;
+                                const strength = Math.min(score, 4);
+                                return strength <= 1 ? 'text-red-600' : strength === 2 ? 'text-orange-600' : strength === 3 ? 'text-yellow-600' : 'text-green-600';
+                              })()
+                        }`}>
+                          {passwordValue.length < 8
+                            ? `Password is too short (${passwordValue.length}/8 characters minimum)`
+                            : (() => {
+                                let score = 0;
+                                if (passwordValue.length >= 8) score++;
+                                if (passwordValue.length >= 12) score++;
+                                if (/[A-Z]/.test(passwordValue) && /[a-z]/.test(passwordValue)) score++;
+                                if (/[0-9]/.test(passwordValue)) score++;
+                                if (/[^A-Za-z0-9]/.test(passwordValue)) score++;
+                                const strength = Math.min(score, 4);
+                                return strength <= 1 ? 'Weak password' : strength === 2 ? 'Fair password' : strength === 3 ? 'Good password' : 'Strong password';
+                              })()}
+                        </p>
+                      </div>
+                    )}
+                    {!passwordValue && !editingUser && (
+                      <p className="mt-1 text-xs text-slate-500">Minimum 8 characters required</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700">
