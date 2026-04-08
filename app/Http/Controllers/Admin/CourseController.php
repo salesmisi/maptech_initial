@@ -7,6 +7,7 @@ use App\Models\Course;
 use App\Models\Module;
 use App\Models\User;
 use App\Models\Enrollment;
+use App\Models\Subdepartment;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -93,6 +94,66 @@ class CourseController extends Controller
                 'has_modules' => isset($validated['modules']),
                 'modules_count' => isset($validated['modules']) ? count($validated['modules']) : 0,
             ]);
+
+            $courseDepartment = strtolower(trim((string) ($validated['department'] ?? '')));
+            $selectedSubdepartment = null;
+
+            if (!empty($validated['subdepartment_id'])) {
+                $selectedSubdepartment = Subdepartment::with('department:id,name,code')->find((int) $validated['subdepartment_id']);
+
+                if (!$selectedSubdepartment) {
+                    return response()->json([
+                        'message' => 'Invalid subdepartment selected.',
+                        'errors' => ['subdepartment_id' => ['The selected subdepartment is invalid.']],
+                    ], 422);
+                }
+
+                $subDeptDepartmentName = strtolower(trim((string) ($selectedSubdepartment->department->name ?? '')));
+                $subDeptDepartmentCode = strtolower(trim((string) ($selectedSubdepartment->department->code ?? '')));
+                $deptMatches = $courseDepartment === $subDeptDepartmentName
+                    || ($subDeptDepartmentCode !== '' && $courseDepartment === $subDeptDepartmentCode);
+
+                if (!$deptMatches) {
+                    return response()->json([
+                        'message' => 'Selected subdepartment does not belong to the selected department.',
+                        'errors' => ['subdepartment_id' => ['Subdepartment must belong to the selected department.']],
+                    ], 422);
+                }
+            }
+
+            if (!empty($validated['instructor_id'])) {
+                $instructor = User::with('subdepartments:id')->find((int) $validated['instructor_id']);
+                $role = strtolower((string) ($instructor->role ?? ''));
+
+                if (!$instructor || $role !== 'instructor') {
+                    return response()->json([
+                        'message' => 'Invalid instructor selected.',
+                        'errors' => ['instructor_id' => ['The selected instructor is invalid.']],
+                    ], 422);
+                }
+
+                $instructorDepartment = strtolower(trim((string) ($instructor->department ?? '')));
+                if ($instructorDepartment !== $courseDepartment) {
+                    return response()->json([
+                        'message' => 'Instructor must belong to the selected department.',
+                        'errors' => ['instructor_id' => ['Instructor department does not match the course department.']],
+                    ], 422);
+                }
+
+                if ($selectedSubdepartment) {
+                    $selectedSubId = (int) $selectedSubdepartment->id;
+                    $isPrimarySub = (int) ($instructor->subdepartment_id ?? 0) === $selectedSubId;
+                    $isAssignedSub = $instructor->subdepartments->contains(fn($s) => (int) $s->id === $selectedSubId);
+                    $isSubHead = (int) ($selectedSubdepartment->head_id ?? 0) === (int) $instructor->id;
+
+                    if (!$isPrimarySub && !$isAssignedSub && !$isSubHead) {
+                        return response()->json([
+                            'message' => 'Instructor must be assigned to the selected subdepartment.',
+                            'errors' => ['instructor_id' => ['Instructor does not belong to the selected subdepartment.']],
+                        ], 422);
+                    }
+                }
+            }
 
             // Handle logo upload
             $logoPath = null;
@@ -206,6 +267,72 @@ class CourseController extends Controller
                 'modules.*.title' => 'nullable|string|max:255',
                 'modules.*.content' => 'nullable|file|max:102400',
             ]);
+
+            $effectiveDepartment = strtolower(trim((string) ($validated['department'] ?? $course->department ?? '')));
+            $effectiveSubdepartmentId = array_key_exists('subdepartment_id', $validated)
+                ? $validated['subdepartment_id']
+                : $course->subdepartment_id;
+            $effectiveInstructorId = array_key_exists('instructor_id', $validated)
+                ? $validated['instructor_id']
+                : $course->instructor_id;
+
+            $selectedSubdepartment = null;
+            if (!empty($effectiveSubdepartmentId)) {
+                $selectedSubdepartment = Subdepartment::with('department:id,name,code')->find((int) $effectiveSubdepartmentId);
+
+                if (!$selectedSubdepartment) {
+                    return response()->json([
+                        'message' => 'Invalid subdepartment selected.',
+                        'errors' => ['subdepartment_id' => ['The selected subdepartment is invalid.']],
+                    ], 422);
+                }
+
+                $subDeptDepartmentName = strtolower(trim((string) ($selectedSubdepartment->department->name ?? '')));
+                $subDeptDepartmentCode = strtolower(trim((string) ($selectedSubdepartment->department->code ?? '')));
+                $deptMatches = $effectiveDepartment === $subDeptDepartmentName
+                    || ($subDeptDepartmentCode !== '' && $effectiveDepartment === $subDeptDepartmentCode);
+
+                if (!$deptMatches) {
+                    return response()->json([
+                        'message' => 'Selected subdepartment does not belong to the selected department.',
+                        'errors' => ['subdepartment_id' => ['Subdepartment must belong to the selected department.']],
+                    ], 422);
+                }
+            }
+
+            if (!empty($effectiveInstructorId)) {
+                $instructor = User::with('subdepartments:id')->find((int) $effectiveInstructorId);
+                $role = strtolower((string) ($instructor->role ?? ''));
+
+                if (!$instructor || $role !== 'instructor') {
+                    return response()->json([
+                        'message' => 'Invalid instructor selected.',
+                        'errors' => ['instructor_id' => ['The selected instructor is invalid.']],
+                    ], 422);
+                }
+
+                $instructorDepartment = strtolower(trim((string) ($instructor->department ?? '')));
+                if ($instructorDepartment !== $effectiveDepartment) {
+                    return response()->json([
+                        'message' => 'Instructor must belong to the selected department.',
+                        'errors' => ['instructor_id' => ['Instructor department does not match the course department.']],
+                    ], 422);
+                }
+
+                if ($selectedSubdepartment) {
+                    $selectedSubId = (int) $selectedSubdepartment->id;
+                    $isPrimarySub = (int) ($instructor->subdepartment_id ?? 0) === $selectedSubId;
+                    $isAssignedSub = $instructor->subdepartments->contains(fn($s) => (int) $s->id === $selectedSubId);
+                    $isSubHead = (int) ($selectedSubdepartment->head_id ?? 0) === (int) $instructor->id;
+
+                    if (!$isPrimarySub && !$isAssignedSub && !$isSubHead) {
+                        return response()->json([
+                            'message' => 'Instructor must be assigned to the selected subdepartment.',
+                            'errors' => ['instructor_id' => ['Instructor does not belong to the selected subdepartment.']],
+                        ], 422);
+                    }
+                }
+            }
 
             // Handle logo
             if ($request->hasFile('logo')) {

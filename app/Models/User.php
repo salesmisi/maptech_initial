@@ -35,6 +35,7 @@ class User extends Authenticatable
         'password',
         'role',
         'department',
+        'company_role',
         'subdepartment_id',
         'status',
         'profile_picture',

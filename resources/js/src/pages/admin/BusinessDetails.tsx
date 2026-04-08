@@ -153,6 +153,9 @@ export function BusinessDetails() {
       window.setTimeout(() => {
         window.location.reload();
       }, 250);
+      window.dispatchEvent(new CustomEvent('business-details-changed', {
+        detail: { logo_url: data.logo_url || '/assets/Maptech-Official-Logo.png' },
+      }));
     } catch (err: any) {
       // Network-level failures surface as TypeError("Failed to fetch") in browsers.
       const text = String(err?.message || '').toLowerCase();

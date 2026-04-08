@@ -17,6 +17,10 @@ class CustomModule extends Model
      */
     protected $fillable = [
         'title',
+        'module_type',
+        'route_path',
+        'icon_name',
+        'component_config',
         'description',
         'category',
         'tags',
@@ -33,6 +37,7 @@ class CustomModule extends Model
      */
     protected $casts = [
         'tags' => 'array',
+        'component_config' => 'array',
         'order' => 'integer',
         'version' => 'integer',
     ];
@@ -167,6 +172,7 @@ class CustomModule extends Model
             'lessons_snapshot' => $lessonsSnapshot,
             'changes' => $changes,
             'created_by' => $userId,
+            'created_at' => now(),
         ]);
     }
 

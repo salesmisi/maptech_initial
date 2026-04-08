@@ -517,13 +517,13 @@ export function AuditLogs() {
                 <button onClick={closeManageModal} className="text-gray-500">Close</button>
               </div>
             </div>
-            <div>
+            <div className="max-h-[400px] overflow-y-auto">
               {modalLoading ? (
                 <LoadingState message="Loading time logs" />
               ) : modalTimeLogs.length === 0 ? (
                 <div className="text-center text-gray-500">No time logs for this user.</div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 pr-2">
                   {modalTimeLogs.map((tl) => (
                     <div key={tl.id} className="border rounded p-3 flex items-start justify-between gap-3">
                       <div>
@@ -743,9 +743,9 @@ export function AuditLogs() {
 
       {/* Table */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden border border-slate-200 dark:border-slate-700">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[700px]">
           <table style={{minWidth: '1400px'}} className="min-w-full divide-y divide-gray-200 table-fixed w-full">
-            <thead className="bg-gray-50 dark:bg-slate-800/80">
+            <thead className="bg-gray-50 dark:bg-slate-800/80 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <input

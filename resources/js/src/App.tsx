@@ -21,6 +21,7 @@ import { AdminFeedback } from './pages/admin/AdminFeedback';
 import { BusinessDetails } from './pages/admin/BusinessDetails';
 import { ProductLogoManager } from './pages/admin/ProductLogoManager';
 import { CustomFieldBuilder } from './pages/admin/CustomFieldBuilder';
+import { CustomModulePage } from './pages/admin/CustomModulePage';
 
 // Instructor Pages
 import { InstructorDashboard } from './pages/instructor/InstructorDashboard';
@@ -313,6 +314,15 @@ export function App() {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
+  useEffect(() => {
+    const onPicUpdated = (e: Event) => {
+      const { profile_picture } = (e as CustomEvent<{ profile_picture: string }>).detail;
+      setUser((prev) => prev ? { ...prev, profile_picture } : prev);
+    };
+    window.addEventListener('profile-picture-updated', onPicUpdated);
+    return () => window.removeEventListener('profile-picture-updated', onPicUpdated);
+  }, []);
+
   // =========================
   // HANDLE LOGIN
   // =========================
@@ -551,6 +561,10 @@ export function App() {
               />
             )}
             {currentPage === 'settings' && <ProfileSettings />}
+          {/* Fallback to custom module page for any unmatched route */}
+          {!['dashboard', 'departments', 'users', 'courses', 'custom-field', 'course-detail', 'course-content-editor', 'enrollments', 'reports', 'notifications', 'qa', 'audit-logs', 'business-details', 'feedbacks', 'product-logos', 'settings'].includes(currentPage) && (
+            <CustomModulePage routePath={currentPage} />
+          )}
           </div>
         </AdminLayout>
         {logoutOverlay}

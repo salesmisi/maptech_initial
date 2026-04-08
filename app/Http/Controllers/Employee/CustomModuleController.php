@@ -36,6 +36,7 @@ class CustomModuleController extends Controller
             $modules = CustomModule::with(['creator:id,fullname,email', 'lessons'])
                 ->whereIn('id', $assignedModuleIds)
                 ->where('status', 'published') // Only show published modules
+                ->where('module_type', 'learning') // Only show Learning Modules (NOT UI Components)
                 ->orderBy('order')
                 ->get()
                 ->map(function ($module) use ($employee) {

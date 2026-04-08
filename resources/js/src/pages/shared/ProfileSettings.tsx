@@ -5,6 +5,7 @@ import {
   Lock,
   Camera,
   Save,
+  Upload,
   Shield,
   Building2,
   CheckCircle,
@@ -22,6 +23,7 @@ interface ProfileData {
   fullName: string;
   email: string;
   role: string;
+  company_role: string | null;
   department: string | null;
   status: string;
   profile_picture: string | null;
@@ -48,6 +50,7 @@ export function ProfileSettings() {
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [companyRole, setCompanyRole] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -76,6 +79,7 @@ export function ProfileSettings() {
         setProfile(data);
         setFullName(data.fullName);
         setEmail(data.email);
+        setCompanyRole(data.company_role ?? '');
       }
     } catch (err) {
       console.error('Failed to load profile:', err);
@@ -94,6 +98,9 @@ export function ProfileSettings() {
       const body: Record<string, string> = {};
       if (fullName !== profile?.fullName) body.fullName = fullName;
       if (email !== profile?.email) body.email = email;
+      if (profile?.role?.toLowerCase() === 'admin' && companyRole !== (profile?.company_role ?? '')) {
+        body.company_role = companyRole;
+      }
       if (password) {
         body.password = password;
         body.password_confirmation = passwordConfirmation;
@@ -123,7 +130,13 @@ export function ProfileSettings() {
         setMessage({ type: 'error', text: errors || 'Failed to update profile.' });
       } else {
         setMessage({ type: 'success', text: 'Profile updated successfully!' });
-        setProfile((prev) => prev ? { ...prev, fullName: data.user.fullName, email: data.user.email } : prev);
+        setProfile((prev) => prev ? {
+          ...prev,
+          fullName: data.user.fullName,
+          email: data.user.email,
+          company_role: data.user.company_role ?? prev.company_role,
+        } : prev);
+        setCompanyRole(data.user.company_role ?? '');
         setPassword('');
         setPasswordConfirmation('');
       }
@@ -164,6 +177,7 @@ export function ProfileSettings() {
       } else {
         setMessage({ type: 'success', text: 'Profile picture updated!' });
         setProfile((prev) => prev ? { ...prev, profile_picture: data.profile_picture } : prev);
+        window.dispatchEvent(new CustomEvent('profile-picture-updated', { detail: { profile_picture: data.profile_picture } }));
       }
     } catch (err) {
       setMessage({ type: 'error', text: 'Failed to upload picture.' });
@@ -241,6 +255,20 @@ export function ProfileSettings() {
     };
   };
 
+  const initializeSignatureCanvas = () => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  };
+
   const startSignatureDraw = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (uploadingSignature) return;
     const canvas = signatureCanvasRef.current;
@@ -280,11 +308,7 @@ export function ProfileSettings() {
   };
 
   const clearSignaturePad = () => {
-    const canvas = signatureCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    initializeSignatureCanvas();
     setHasDrawnSignature(false);
   };
 
@@ -325,6 +349,20 @@ export function ProfileSettings() {
       default: return 'bg-green-500';
     }
   };
+
+  const normalizedRole = profile?.role?.toLowerCase() ?? '';
+  const canManageSignature = ['admin', 'instructor'].includes(normalizedRole);
+  const signatureOwnerLabel = normalizedRole === 'admin' ? 'Admin' : 'Instructor';
+
+  useEffect(() => {
+    if (!canManageSignature) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      initializeSignatureCanvas();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [canManageSignature]);
 
   if (loading) {
     return (
@@ -404,14 +442,15 @@ export function ProfileSettings() {
         </div>
       </div>
 
-      {/* Instructor Signature Section */}
-      {profile.role.toLowerCase() === 'instructor' && (
+      {/* Signature Section */}
+      {canManageSignature && (
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Certificate Signature</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">{signatureOwnerLabel} Signature</h2>
           <div className="flex flex-col sm:flex-row sm:items-center gap-6">
             <div className="w-full sm:w-72">
               <div
-                className="h-24 rounded-md border border-slate-200 bg-slate-50 flex items-center justify-center cursor-pointer overflow-hidden"
+                className="h-24 rounded-md border border-slate-300 bg-white flex items-center justify-center cursor-pointer overflow-hidden shadow-[inset_0_1px_2px_rgba(15,23,42,0.08)]"
+                style={{ backgroundColor: '#ffffff' }}
                 onClick={() => profile.signature_path && setShowSignaturePreview(true)}
               >
                 {profile.signature_path ? (
@@ -429,20 +468,21 @@ export function ProfileSettings() {
             </div>
 
             <div className="flex-1">
-              <p className="text-sm text-slate-700">
-                Upload your signature once and it will be used automatically for all generated certificates.
+              <p className="text-sm text-slate-700 dark:text-slate-200">
+                Upload your signature once or draw it using a mouse, touch input, or pen tablet.
               </p>
-              <p className="text-xs text-slate-500 mt-1">
-                PNG/JPG only, max 2MB. Uploading again replaces the previous signature.
+              <p className="text-xs text-slate-500 mt-1 dark:text-slate-300">
+                PNG/JPG only, max 2MB. Saving a new one replaces the current {signatureOwnerLabel.toLowerCase()} signature.
               </p>
 
-              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs text-slate-600">Draw signature using mouse, touch, or pen tablet.</p>
+              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/80">
+                <p className="text-xs text-slate-600 dark:text-slate-200">Draw signature using mouse, touch, or pen tablet.</p>
                 <canvas
                   ref={signatureCanvasRef}
                   width={900}
                   height={260}
-                  className="mt-2 w-full h-28 rounded-md border border-dashed border-slate-300 bg-white cursor-crosshair touch-none"
+                  className="mt-2 block w-full h-28 rounded-md border-2 border-slate-400 bg-white cursor-crosshair touch-none shadow-[0_0_0_1px_rgba(255,255,255,0.9),inset_0_1px_2px_rgba(15,23,42,0.08)] dark:border-slate-300 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.75),0_0_0_2px_rgba(16,185,129,0.2),inset_0_1px_2px_rgba(15,23,42,0.14)]"
+                  style={{ backgroundColor: '#ffffff', backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)' }}
                   onPointerDown={startSignatureDraw}
                   onPointerMove={moveSignatureDraw}
                   onPointerUp={endSignatureDraw}
@@ -454,7 +494,7 @@ export function ProfileSettings() {
                     type="button"
                     onClick={clearSignaturePad}
                     disabled={uploadingSignature}
-                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-500 dark:text-slate-100 dark:hover:bg-slate-700"
                   >
                     Clear Drawing
                   </button>
@@ -470,15 +510,16 @@ export function ProfileSettings() {
                 </div>
               </div>
 
-              <div className="mt-3">
+              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/80">
+                <p className="text-xs text-slate-600 dark:text-slate-200">Or upload an e-signature image file.</p>
                 <button
                   type="button"
                   onClick={() => signatureInputRef.current?.click()}
                   disabled={uploadingSignature}
-                  className="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                  className="mt-2 inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
                 >
-                  <PenTool className="h-4 w-4 mr-2" />
-                  {profile.signature_path ? 'Replace Signature' : 'Upload Signature'}
+                  <Upload className="h-4 w-4 mr-2" />
+                  {profile.signature_path ? 'Replace E-Signature' : 'Upload E-Signature'}
                 </button>
                 <input
                   ref={signatureInputRef}
@@ -542,6 +583,21 @@ export function ProfileSettings() {
               />
             </div>
           </div>
+
+          {profile.role.toLowerCase() === 'admin' && (
+            <div>
+              <label htmlFor="company_role" className="block text-sm font-medium text-slate-700 mb-1">Company Role</label>
+              <input
+                id="company_role"
+                type="text"
+                value={companyRole}
+                onChange={(e) => setCompanyRole(e.target.value)}
+                placeholder="e.g. Training Director"
+                className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+              />
+              <p className="mt-1 text-xs text-slate-500">This will appear on employee completion certificates below your signature.</p>
+            </div>
+          )}
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>

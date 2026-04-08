@@ -137,7 +137,11 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       });
       if (res.ok) {
         const data = await res.json();
-        setCustomModules(Array.isArray(data) ? data : []);
+        // Filter to only show learning modules, not UI components
+        const learningModules = Array.isArray(data)
+          ? data.filter((module: any) => module.module_type !== 'ui_component')
+          : [];
+        setCustomModules(learningModules);
       }
     } catch (e) {
       console.error('Failed to load custom modules:', e);
@@ -747,25 +751,21 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Start Date <span className="text-slate-400 text-xs">(optional)</span>
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
                   <input
                     type="datetime-local"
                     name="start_date"
                     defaultValue={editingCourse?.start_date ? new Date(editingCourse.start_date).toISOString().slice(0, 16) : ''}
-                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    End Date <span className="text-slate-400 text-xs">(optional)</span>
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Due Date</label>
                   <input
                     type="datetime-local"
                     name="deadline"
                     defaultValue={editingCourse?.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
-                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
               </div>

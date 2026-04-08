@@ -514,7 +514,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
   const renderLessonContent = () => {
     if (!currentLesson) {
       return (
-        <div className="text-center text-slate-500 py-12">
+        <div className="text-center text-slate-500 dark:text-slate-300 py-12">
           <BookOpen className="h-16 w-16 mx-auto mb-4 opacity-50" />
           <p>Select a lesson to view its content</p>
         </div>
@@ -526,9 +526,9 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
     if (!hasText && !hasFile) {
       return (
-        <div className="text-center text-slate-500 py-12 bg-slate-50 rounded-xl border border-slate-200">
-          <FileText className="h-16 w-16 mx-auto mb-4 text-slate-300" />
-          <h3 className="text-lg font-medium text-slate-700 mb-2">{currentLesson.title}</h3>
+        <div className="text-center text-slate-500 dark:text-slate-300 py-12 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+          <FileText className="h-16 w-16 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
+          <h3 className="text-lg font-medium text-slate-700 dark:text-slate-100 mb-2">{currentLesson.title}</h3>
           <p className="text-sm">No content available for this lesson.</p>
         </div>
       );
@@ -538,10 +538,10 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     if (hasText && !hasFile) {
       const renderedText = sanitizeHtml(stripLessonMetaBlocks(currentLesson.text_content || ''));
       return (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
           <div className="px-6 py-5">
             <div
-              className="prose prose-base max-w-none text-slate-700 leading-relaxed
+              className="prose dark:prose-invert prose-base max-w-none text-slate-700 dark:text-slate-200 leading-relaxed
                 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2
                 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1.5
                 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-2.5 [&_h3]:mb-1
@@ -553,9 +553,9 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
               dangerouslySetInnerHTML={{ __html: renderedText }}
             />
             {selectedSentence && (
-              <div className="mt-4 rounded-md border border-blue-200 bg-blue-50 p-3 space-y-2">
-                <p className="text-xs text-blue-800"><strong>Sentence:</strong> {selectedSentence}</p>
-                <p className="text-sm text-blue-900">{selectedSentenceDefinition}</p>
+              <div className="mt-4 rounded-md border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 p-3 space-y-2">
+                <p className="text-xs text-blue-800 dark:text-blue-200"><strong>Sentence:</strong> {selectedSentence}</p>
+                <p className="text-sm text-blue-900 dark:text-blue-100">{selectedSentenceDefinition}</p>
               </div>
             )}
           </div>
@@ -567,10 +567,10 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     const lessonContentUrl = content_url ?? undefined;
 
     const textBlock = hasText ? (
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-4">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden mb-4">
         <div className="px-6 py-5">
           <div
-            className="prose prose-base max-w-none text-slate-700 leading-relaxed
+            className="prose dark:prose-invert prose-base max-w-none text-slate-700 dark:text-slate-200 leading-relaxed
               [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2
               [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1.5
               [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-2.5 [&_h3]:mb-1
@@ -582,9 +582,9 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             dangerouslySetInnerHTML={{ __html: sanitizeHtml(stripLessonMetaBlocks(currentLesson.text_content || '')) }}
           />
           {selectedSentence && (
-            <div className="mt-4 rounded-md border border-blue-200 bg-blue-50 p-3 space-y-2">
-              <p className="text-xs text-blue-800"><strong>Sentence:</strong> {selectedSentence}</p>
-              <p className="text-sm text-blue-900">{selectedSentenceDefinition}</p>
+            <div className="mt-4 rounded-md border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 p-3 space-y-2">
+              <p className="text-xs text-blue-800 dark:text-blue-200"><strong>Sentence:</strong> {selectedSentence}</p>
+              <p className="text-sm text-blue-900 dark:text-blue-100">{selectedSentenceDefinition}</p>
             </div>
           )}
         </div>
@@ -615,9 +615,9 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       return (
         <div className="space-y-4">
           {textBlock}
-          <div className="bg-slate-100 rounded-xl p-8 flex flex-col items-center justify-center">
-            <Music className="h-20 w-20 text-slate-400 mb-4" />
-            <h3 className="text-lg font-medium text-slate-700 mb-4">{title}</h3>
+          <div className="bg-slate-100 dark:bg-slate-800 rounded-xl p-8 flex flex-col items-center justify-center border border-slate-200 dark:border-slate-700">
+            <Music className="h-20 w-20 text-slate-400 dark:text-slate-500 mb-4" />
+            <h3 className="text-lg font-medium text-slate-700 dark:text-slate-100 mb-4">{title}</h3>
             <audio controls className="w-full max-w-md">
               <source src={content_url || undefined} />
               Your browser does not support the audio element.
@@ -631,7 +631,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       return (
         <div className="space-y-4">
           {textBlock}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden" style={{ height: '70vh' }}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden" style={{ height: '70vh' }}>
             <iframe src={content_url} className="w-full h-full" title={title} />
           </div>
         </div>
@@ -641,10 +641,10 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     return (
       <div className="space-y-4">
         {textBlock}
-        <div className="bg-slate-50 rounded-xl p-12 flex flex-col items-center justify-center border border-slate-200">
+        <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-12 flex flex-col items-center justify-center border border-slate-200 dark:border-slate-700">
           {getFileIcon(file_type)}
-          <h3 className="text-xl font-medium text-slate-700 mt-4 mb-2">{title}</h3>
-          <p className="text-slate-500 mb-6 text-center">
+          <h3 className="text-xl font-medium text-slate-700 dark:text-slate-100 mt-4 mb-2">{title}</h3>
+          <p className="text-slate-500 dark:text-slate-300 mb-6 text-center">
             This file type is best viewed by downloading it.
           </p>
           <a
@@ -661,7 +661,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             href={content_url || undefined}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-3 text-sm text-green-600 hover:text-green-700"
+            className="mt-3 text-sm text-green-600 dark:text-emerald-400 hover:text-green-700 dark:hover:text-emerald-300"
           >
             Or open in new tab
           </a>
@@ -676,9 +676,9 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
     if (quizState === 'loading') {
       return (
-        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-6 flex items-center justify-center gap-2">
+        <div className="rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 p-6 flex items-center justify-center gap-2">
           <Loader className="h-5 w-5 animate-spin text-indigo-600" />
-          <span className="text-indigo-700">Loading quiz...</span>
+          <span className="text-indigo-700 dark:text-indigo-200">Loading quiz...</span>
         </div>
       );
     }
@@ -686,22 +686,22 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     if (quizState === 'taking') {
       const allAnswered = quizQuestions.length > 0 && quizQuestions.every(q => quizAnswers[q.id] !== undefined);
       return (
-        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-6 space-y-6">
+        <div className="rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 p-6 space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <h3 className="text-lg font-bold text-indigo-900">{quiz.title}</h3>
-            <span className="text-xs text-indigo-600 px-2.5 py-1 bg-indigo-100 rounded-full">
+            <h3 className="text-lg font-bold text-indigo-900 dark:text-indigo-100">{quiz.title}</h3>
+            <span className="text-xs text-indigo-600 dark:text-indigo-200 px-2.5 py-1 bg-indigo-100 dark:bg-indigo-800/60 rounded-full">
               Pass: {quiz.pass_percentage}%
             </span>
           </div>
-          {safeArray(quizQuestions).map((q, qi) => (
-            <div key={q.id} className="bg-white rounded-lg p-4 border border-slate-200">
-              <p className="text-sm font-semibold text-slate-800 mb-3">{qi + 1}. {q.question_text}</p>
+          {quizQuestions.map((q, qi) => (
+            <div key={q.id} className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">{qi + 1}. {q.question_text}</p>
               <div className="space-y-2">
                 {safeArray(q.options).map(opt => (
                   <label key={opt.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                     quizAnswers[q.id] === opt.id
-                      ? 'bg-indigo-50 border-indigo-400 text-indigo-900'
-                      : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
+                      ? 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-400 dark:border-indigo-500 text-indigo-900 dark:text-indigo-100'
+                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
                   }`}>
                     <input
                       type="radio"
@@ -732,15 +732,15 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       // Step 1: Ask if user wants to see result
       if (!showResultRevealed) {
         return (
-          <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-8 text-center space-y-5">
+          <div className="rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 p-8 text-center space-y-5">
             <div className="flex justify-center">
-              <div className="h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center">
+              <div className="h-16 w-16 rounded-full bg-indigo-100 dark:bg-indigo-800/70 flex items-center justify-center">
                 <HelpCircle className="h-8 w-8 text-indigo-600" />
               </div>
             </div>
             <div>
-              <h3 className="text-xl font-bold text-indigo-900">Quiz Submitted!</h3>
-              <p className="text-sm text-indigo-700 mt-2">Your answers have been recorded. Would you like to see your result?</p>
+              <h3 className="text-xl font-bold text-indigo-900 dark:text-indigo-100">Quiz Submitted!</h3>
+              <p className="text-sm text-indigo-700 dark:text-indigo-200 mt-2">Your answers have been recorded. Would you like to see your result?</p>
             </div>
             <button
               onClick={() => setShowResultRevealed(true)}
@@ -768,7 +768,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             <p className={`text-sm mt-2 ${quizResult.passed ? 'text-green-700' : 'text-red-700'}`}>
               You scored <strong>{quizResult.score}</strong> out of <strong>{quizResult.total}</strong> ({quizResult.percentage.toFixed(1)}%)
             </p>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">
               Required to pass: {quizResult.pass_percentage}%
             </p>
           </div>
@@ -780,7 +780,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                 {isLastModule ? (
                   <div className="text-center">
                     <p className="text-sm text-green-700 font-medium">Final assessment passed.</p>
-                    <p className="text-xs text-slate-600 mt-1">Click <strong>Finish Course</strong> on the lower-right navigation button to complete this course.</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">Click <strong>Finish Course</strong> on the lower-right navigation button to complete this course.</p>
                   </div>
                 ) : (
                   <>
@@ -819,14 +819,14 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
     // Idle — show quiz info + start button
     return (
-      <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-6">
+      <div className="rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 p-6">
         <div className="flex items-start gap-4">
-          <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+          <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-800/70 flex items-center justify-center flex-shrink-0">
             <HelpCircle className="h-5 w-5 text-indigo-600" />
           </div>
           <div className="flex-1">
-            <h3 className="text-base font-bold text-indigo-900">{quiz.title}</h3>
-            <p className="text-sm text-indigo-700 mt-1">
+            <h3 className="text-base font-bold text-indigo-900 dark:text-indigo-100">{quiz.title}</h3>
+            <p className="text-sm text-indigo-700 dark:text-indigo-200 mt-1">
               {quiz.question_count} question{quiz.question_count !== 1 ? 's' : ''} · Pass {quiz.pass_percentage}% to unlock next module
             </p>
             {quiz.has_passed ? (
@@ -853,13 +853,13 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
         </div>
 
         {quizAttempts.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-indigo-200">
-            <p className="text-xs font-semibold text-indigo-700 mb-2">Your Recent Attempts</p>
+          <div className="mt-4 pt-4 border-t border-indigo-200 dark:border-indigo-700">
+            <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-200 mb-2">Your Recent Attempts</p>
             <div className="space-y-1.5">
               {quizAttempts.slice(0, 5).map((attempt) => (
-                <div key={attempt.id} className="flex items-center justify-between text-xs bg-white border border-slate-200 rounded-md px-2.5 py-2">
-                  <span className="text-slate-600">{new Date(attempt.created_at).toLocaleString()}</span>
-                  <span className="font-medium text-slate-800">{attempt.score}/{attempt.total_questions} ({Number(attempt.percentage).toFixed(1)}%)</span>
+                <div key={attempt.id} className="flex items-center justify-between text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2.5 py-2">
+                  <span className="text-slate-600 dark:text-slate-300">{new Date(attempt.created_at).toLocaleString()}</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-100">{attempt.score}/{attempt.total_questions} ({Number(attempt.percentage).toFixed(1)}%)</span>
                   <span className={`font-semibold ${attempt.passed ? 'text-green-700' : 'text-red-700'}`}>
                     {attempt.passed ? 'Passed' : 'Failed'}
                   </span>
@@ -955,7 +955,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     return (
       <div className="flex items-center justify-center h-[calc(100vh-6rem)]">
         <Loader className="h-8 w-8 animate-spin text-green-600" />
-        <span className="ml-3 text-slate-600">Loading course...</span>
+        <span className="ml-3 text-slate-600 dark:text-slate-300">Loading course...</span>
       </div>
     );
   }
@@ -975,7 +975,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-6rem)]">
         <BookOpen className="h-16 w-16 text-slate-400 mb-4" />
-        <p className="text-slate-500 mb-4">No course available</p>
+        <p className="text-slate-500 dark:text-slate-300 mb-4">No course available</p>
         <button onClick={onBack} className="text-green-600 hover:text-green-700 font-medium">
           Go Back
         </button>
@@ -1040,17 +1040,17 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       )}
 
       {/* Header */}
-      <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center shrink-0">
+      <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex justify-between items-center shrink-0">
         <div>
           <h1 className="text-lg font-bold">{course.title}</h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             {showQuiz && currentModule ? `${currentModule.title} — Quiz` : currentLesson ? currentLesson.title : currentModule ? currentModule.title : 'Select a module'}
           </p>
         </div>
         <div className="flex items-center space-x-4">
           <div className="text-right hidden sm:block">
-            <p className="text-xs text-slate-400">Course Progress</p>
-            <div className="w-32 bg-slate-700 rounded-full h-1.5 mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Course Progress</p>
+            <div className="w-32 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 mt-1">
               <div
                 className="bg-green-500 h-1.5 rounded-full transition-all"
                 style={{ width: `${progress}%` }}
@@ -1059,7 +1059,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
           </div>
           <button
             onClick={onBack}
-            className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded text-sm transition-colors"
+            className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white px-3 py-1.5 rounded text-sm transition-colors"
           >
             Exit Course
           </button>
@@ -1068,13 +1068,13 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar - Module & Lesson List */}
-        <div className="w-80 bg-slate-50 border-r border-slate-200 overflow-y-auto hidden md:block">
+        <div className="w-80 bg-slate-50 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 overflow-y-auto hidden md:block">
           <div className="p-4">
-            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">
+            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-4">
               Course Modules ({modules.length})
             </h2>
             {modules.length === 0 ? (
-              <p className="text-sm text-slate-500 italic">No modules available for this course.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-300 italic">No modules available for this course.</p>
             ) : (
               <div className="space-y-1">
                 {safeArray(modules).map((module, index) => {
@@ -1099,10 +1099,10 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                         disabled={isLocked}
                         className={`w-full px-3 py-2.5 flex items-center text-left rounded-lg transition-colors ${
                           isActiveModule
-                            ? 'bg-green-50 text-green-900'
+                            ? 'bg-green-50 dark:bg-emerald-900/30 text-green-900 dark:text-emerald-200'
                             : isLocked
-                            ? 'text-slate-400 cursor-not-allowed opacity-60'
-                            : 'hover:bg-slate-100 text-slate-700'
+                            ? 'text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-60'
+                            : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
                         }`}
                       >
                         <div className="mr-2 flex-shrink-0">
@@ -1118,7 +1118,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium truncate text-sm">{module.title}</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
+                          <p className="text-[11px] text-slate-400 dark:text-slate-400 mt-0.5">
                             {isLocked ? 'Complete previous quiz' : `${lessons.length} lesson${lessons.length !== 1 ? 's' : ''}${module.quiz ? ' + quiz' : ''}`}
                           </p>
                         </div>
@@ -1140,8 +1140,8 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                                 onClick={() => selectLesson(module, lesson)}
                                 className={`w-full px-3 py-1.5 flex items-center gap-2 text-left rounded-md transition-colors text-sm ${
                                   isActiveLesson
-                                    ? 'bg-green-100 text-green-800 font-medium'
-                                    : 'text-slate-600 hover:bg-slate-100'
+                                    ? 'bg-green-100 dark:bg-emerald-900/40 text-green-800 dark:text-emerald-200 font-medium'
+                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                                 }`}
                               >
                                 {getSmallFileIcon(lesson.file_type)}
@@ -1154,8 +1154,8 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                               onClick={() => selectQuiz(module)}
                               className={`w-full px-3 py-1.5 flex items-center gap-2 text-left rounded-md transition-colors text-sm ${
                                 showQuiz && isActiveModule
-                                  ? 'bg-indigo-100 text-indigo-800 font-medium'
-                                  : 'text-slate-600 hover:bg-slate-100'
+                                  ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-200 font-medium'
+                                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                               }`}
                             >
                               <HelpCircle className={`h-3.5 w-3.5 ${module.quiz.has_passed ? 'text-green-500' : 'text-indigo-400'}`} />
@@ -1174,17 +1174,17 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 overflow-y-auto bg-white p-8">
+        <div className="flex-1 overflow-y-auto bg-white dark:bg-slate-900 p-8">
           <div className="max-w-4xl mx-auto">
             {/* Title */}
             {(currentLesson || showQuiz) && currentModule && (
               <div className="mb-6">
-                <p className="text-xs text-slate-400 uppercase tracking-wide font-medium mb-1">{currentModule.title}</p>
-                <h2 className="text-2xl font-bold text-slate-900">
+                <p className="text-xs text-slate-400 dark:text-slate-400 uppercase tracking-wide font-medium mb-1">{currentModule.title}</p>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                   {showQuiz ? currentModule.quiz?.title ?? 'Quiz' : currentLesson?.title}
                 </h2>
                 {currentLesson?.file_type && !showQuiz && (
-                  <p className="text-slate-500 mt-1 capitalize">{currentLesson.file_type} content</p>
+                  <p className="text-slate-500 dark:text-slate-300 mt-1 capitalize">{currentLesson.file_type} content</p>
                 )}
               </div>
             )}
@@ -1196,12 +1196,12 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
             {/* Quiz prompt at bottom of lesson content */}
             {!showQuiz && currentLesson && currentModule?.quiz && currentLessonIndex === moduleLessons.length - 1 && (
-              <div className="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-between">
+              <div className="mt-4 p-4 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-xl flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <HelpCircle className="h-5 w-5 text-indigo-600" />
                   <div>
-                    <p className="text-sm font-medium text-indigo-900">Ready for the quiz?</p>
-                    <p className="text-xs text-indigo-600">
+                    <p className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Ready for the quiz?</p>
+                    <p className="text-xs text-indigo-600 dark:text-indigo-200">
                       Pass with {currentModule.quiz.pass_percentage}% to unlock the next module
                     </p>
                   </div>
@@ -1223,11 +1223,11 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
             {/* Course Description */}
             {!currentLesson && !showQuiz && course.description && (
-              <div className="prose max-w-none text-slate-600 mt-8">
-                <h3 className="text-lg font-bold text-slate-900 mb-2">About this course</h3>
+              <div className="prose dark:prose-invert max-w-none text-slate-600 dark:text-slate-300 mt-8">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">About this course</h3>
                 <p>{course.description}</p>
                 {course.instructor && (
-                  <p className="text-sm text-slate-500 mt-2">
+                  <p className="text-sm text-slate-500 dark:text-slate-300 mt-2">
                     Instructor: {course.instructor.fullName}
                   </p>
                 )}
@@ -1236,11 +1236,11 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
             {/* Navigation Buttons */}
             {(currentLesson || showQuiz) && (
-              <div className="flex justify-between mt-12 pt-6 border-t border-slate-200">
+              <div className="flex justify-between mt-12 pt-6 border-t border-slate-200 dark:border-slate-700">
                 <button
                   onClick={goToPrevious}
                   disabled={!canGoPrevious}
-                  className="flex items-center px-4 py-2 text-slate-600 hover:text-slate-900 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center px-4 py-2 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Previous

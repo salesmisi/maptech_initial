@@ -78,8 +78,20 @@ class CustomModuleController extends Controller
         Log::info('Creating custom module', ['title' => $request->input('title')]);
 
         try {
+            // Parse component_config if it's a JSON string
+            if ($request->has('component_config') && is_string($request->input('component_config'))) {
+                $decoded = json_decode($request->input('component_config'), true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $request->merge(['component_config' => $decoded]);
+                }
+            }
+
             $validated = $request->validate([
                 'title' => 'required|string|max:255',
+                'module_type' => ['nullable', Rule::in(['learning', 'ui_component'])],
+                'route_path' => 'nullable|string|max:255',
+                'icon_name' => 'nullable|string|max:100',
+                'component_config' => 'nullable|array',
                 'description' => 'nullable|string',
                 'category' => 'nullable|string|max:100',
                 'tags' => 'nullable|array',
@@ -96,6 +108,10 @@ class CustomModuleController extends Controller
 
             $module = CustomModule::create([
                 'title' => $validated['title'],
+                'module_type' => $validated['module_type'] ?? 'learning',
+                'route_path' => $validated['route_path'] ?? null,
+                'icon_name' => $validated['icon_name'] ?? null,
+                'component_config' => $validated['component_config'] ?? null,
                 'description' => $validated['description'] ?? null,
                 'category' => $validated['category'] ?? null,
                 'tags' => $validated['tags'] ?? [],
@@ -136,8 +152,20 @@ class CustomModuleController extends Controller
         Log::info('Updating custom module', ['id' => $id]);
 
         try {
+            // Parse component_config if it's a JSON string
+            if ($request->has('component_config') && is_string($request->input('component_config'))) {
+                $decoded = json_decode($request->input('component_config'), true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $request->merge(['component_config' => $decoded]);
+                }
+            }
+
             $validated = $request->validate([
                 'title' => 'sometimes|string|max:255',
+                'module_type' => ['nullable', Rule::in(['learning', 'ui_component'])],
+                'route_path' => 'nullable|string|max:255',
+                'icon_name' => 'nullable|string|max:100',
+                'component_config' => 'nullable|array',
                 'description' => 'nullable|string',
                 'category' => 'nullable|string|max:100',
                 'tags' => 'nullable|array',
@@ -149,7 +177,7 @@ class CustomModuleController extends Controller
 
             // Create version snapshot before update
             $changes = [];
-            foreach (['title', 'description', 'category', 'status'] as $field) {
+            foreach (['title', 'module_type', 'route_path', 'icon_name', 'description', 'category', 'status'] as $field) {
                 if (isset($validated[$field]) && $module->$field !== $validated[$field]) {
                     $changes[$field] = [
                         'old' => $module->$field,
@@ -561,5 +589,19 @@ class CustomModuleController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Get published UI component modules for sidebar navigation.
+     */
+    public function uiComponents(Request $request)
+    {
+        $modules = CustomModule::where('module_type', 'ui_component')
+            ->where('status', 'published')
+            ->select('id', 'title', 'route_path', 'icon_name', 'component_config', 'order')
+            ->orderBy('order')
+            ->get();
+
+        return response()->json($modules);
     }
 }

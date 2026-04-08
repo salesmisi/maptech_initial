@@ -45,6 +45,7 @@ interface CourseOption {
   id: string;
   title: string;
   department: string;
+  subdepartment_id?: number | null;
   modules?: { id: number; title: string }[];
 }
 
@@ -81,12 +82,12 @@ export function EnrollmentManagement() {
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedModuleId, setSelectedModuleId] = useState('');
   const [selectedDeptId, setSelectedDeptId] = useState<number | ''>('');
+  const [selectedSubDeptId, setSelectedSubDeptId] = useState<number | ''>('');
   // multi-select users
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<UserOption[]>([]);
   const [userQuery, setUserQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserOption[]>([]);
-  const userSearchTimer = React.useRef<number | null>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollError, setEnrollError] = useState<string | null>(null);
   const [moduleUsersLoading, setModuleUsersLoading] = useState(false);
@@ -207,6 +208,7 @@ export function EnrollmentManagement() {
           id: x.id,
           title: x.title,
           department: x.department,
+          subdepartment_id: x.subdepartment_id ?? null,
           modules: (x.modules || []).map((m: any) => ({ id: m.id, title: m.title })),
         })));
       }
@@ -237,46 +239,48 @@ export function EnrollmentManagement() {
     }
   };
 
-  const searchUsers = async (q: string) => {
-    if (!q || q.length < 2) {
+  useEffect(() => {
+    // Show selectable employees immediately once all required filters are chosen.
+    if (!selectedDeptId || !selectedSubDeptId || !selectedCourseId) {
       setSearchResults([]);
       return;
     }
-    try {
-      // Always query backend so newly created users are immediately searchable.
-      const params = new URLSearchParams();
-      params.set('q', q);
-      // restrict search to employees only
-      params.set('role', 'Employee');
-      if (selectedDeptId) {
-        const deptName = departments.find(d => d.id === Number(selectedDeptId))?.name;
-        if (deptName) params.set('department', deptName);
-      }
-      const res = await fetch(`${API_BASE}/admin/users?${params.toString()}`, { credentials: 'include', headers: { Accept: 'application/json' } });
-      if (!res.ok) return setSearchResults([]);
-      const data = await res.json();
-      const usersFound = Array.isArray(data) ? data : (data?.data || []);
-      setSearchResults(usersFound.map((x: any) => ({
-        id: x.id,
-        fullname: x.fullname || x.name || `${x.first_name || ''} ${x.last_name || ''}`.trim(),
-        email: x.email,
-        department: x.department,
-        subdepartment_id: x.subdepartment_id ?? null,
-        subdepartment_name: x.subdepartment?.name ?? null,
-      })));
-    } catch (e) {
-      setSearchResults([]);
-    }
-  };
 
-  // debounce user search
-  useEffect(() => {
-    if (userSearchTimer.current) window.clearTimeout(userSearchTimer.current);
-    userSearchTimer.current = window.setTimeout(() => {
-      searchUsers(userQuery);
-    }, 300) as unknown as number;
-    return () => { if (userSearchTimer.current) window.clearTimeout(userSearchTimer.current); };
-  }, [userQuery]);
+    const selectedDept = departments.find(d => d.id === Number(selectedDeptId));
+    const selectedDeptName = normalizeDepartment(selectedDept?.name);
+    const selectedDeptCode = normalizeDepartment(selectedDept?.code);
+    const selectedSubDept = Number(selectedSubDeptId);
+    const q = userQuery.trim().toLowerCase();
+
+    const enrolledInCourse = new Set(
+      enrollments
+        .filter((en) => String(en.course_id) === String(selectedCourseId))
+        .map((en) => Number(en.user_id))
+    );
+
+    const filteredUsers = users.filter((u) => {
+      const userDept = normalizeDepartment(u.department);
+      const deptMatches = userDept === selectedDeptName || (selectedDeptCode && userDept === selectedDeptCode);
+      const subDeptMatches = Number(u.subdepartment_id) === selectedSubDept;
+      const notYetEnrolled = !enrolledInCourse.has(Number(u.id));
+      const notYetSelected = !selectedUserIds.includes(Number(u.id));
+      const queryMatches = !q
+        || u.fullname.toLowerCase().includes(q)
+        || u.email.toLowerCase().includes(q);
+      return deptMatches && subDeptMatches && notYetEnrolled && notYetSelected && queryMatches;
+    });
+
+    setSearchResults(filteredUsers);
+  }, [
+    userQuery,
+    users,
+    selectedDeptId,
+    selectedSubDeptId,
+    selectedCourseId,
+    selectedUserIds,
+    departments,
+    enrollments,
+  ]);
 
   const openModal = () => {
     setIsModalOpen(true);
@@ -285,6 +289,7 @@ export function EnrollmentManagement() {
     setSelectedUserIds([]);
     setSelectedUsers([]);
     setSelectedDeptId('');
+    setSelectedSubDeptId('');
     setUserQuery('');
     setSearchResults([]);
     setEnrollError(null);
@@ -371,10 +376,6 @@ export function EnrollmentManagement() {
 
   const handleEnroll = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedModuleId) {
-      setEnrollError('Please select a module first.');
-      return;
-    }
     if (!selectedCourseId || selectedUserIds.length === 0) {
       setEnrollError('Please select at least one employee and a course.');
       return;
@@ -728,6 +729,7 @@ export function EnrollmentManagement() {
                 </div>
               )}
               <form onSubmit={handleEnroll} className="space-y-4">
+                {/* 1. Select Department */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700">Select Department</label>
                   <select
@@ -736,6 +738,7 @@ export function EnrollmentManagement() {
                     onChange={(e) => {
                       const v = e.target.value;
                       setSelectedDeptId(v ? Number(v) : '');
+                      setSelectedSubDeptId('');
                       setSelectedCourseId('');
                       setSelectedUserIds([]);
                       setSelectedUsers([]);
@@ -748,84 +751,43 @@ export function EnrollmentManagement() {
                       <option key={d.id} value={d.id}>{d.name}</option>
                     ))}
                   </select>
-
-                  <label className="block text-sm font-medium text-slate-700 mt-3">Search Employees</label>
-                  <input
-                    type="text"
-                    value={userQuery}
-                    onChange={(e) => setUserQuery(e.target.value)}
-                    placeholder="Type name to search employees..."
-                    className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                  />
-                  {searchResults.length > 0 && (
-                    <div className="mt-1 border border-slate-200 rounded bg-white max-h-48 overflow-auto">
-                      {searchResults.map(u => (
-                        <div key={u.id} className="px-3 py-2 hover:bg-slate-50 cursor-pointer" onClick={async () => {
-                              if (!selectedUserIds.includes(u.id)) {
-                                setSelectedUserIds(prev => [...prev, u.id]);
-                                // Resolve canonical user object: prefer preloaded `users`, otherwise fetch single user
-                                const existing = users.find(x => x.id === u.id);
-                                if (existing) {
-                                  setSelectedUsers(prev => [...prev, existing]);
-                                } else {
-                                  try {
-                                    const res = await fetch(`${API_BASE}/admin/users/${u.id}`, { credentials: 'include', headers: { Accept: 'application/json' } });
-                                    if (res.ok) {
-                                      const full = await res.json();
-                                        const mapped = {
-                                          id: full.id,
-                                          fullname: full.fullname || full.name || `${full.first_name || ''} ${full.last_name || ''}`.trim(),
-                                          email: full.email,
-                                          department: full.department,
-                                          subdepartment_id: full.subdepartment_id ?? null,
-                                          subdepartment_name: full.subdepartment?.name ?? null,
-                                        };
-                                      setSelectedUsers(prev => [...prev, mapped]);
-                                    } else {
-                                      setSelectedUsers(prev => [...prev, u]);
-                                    }
-                                  } catch {
-                                    setSelectedUsers(prev => [...prev, u]);
-                                  }
-                                }
-                              }
-                              setSearchResults([]);
-                              setUserQuery('');
-                        }}>
-                          <div className="text-sm font-medium text-slate-900">{u.fullname}</div>
-                          <div className="text-xs text-slate-400">{u.email} — {u.department}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {selectedUsers.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {selectedUsers.map(u => (
-                        <span key={u.id} className="inline-flex items-center gap-2 px-2 py-1 bg-slate-100 text-slate-700 rounded-full text-xs">
-                          <span>{u.fullname}</span>
-                          <button type="button" onClick={() => {
-                            setSelectedUserIds(prev => prev.filter(id => id !== u.id));
-                            setSelectedUsers(prev => prev.filter(x => x.id !== u.id));
-                          }} className="text-slate-400 hover:text-red-600">×</button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-slate-700">
-                    Select Course
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700">Select Sub Department</label>
+                  <select
+                    className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    value={selectedSubDeptId}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setSelectedSubDeptId(v ? Number(v) : '');
+                      setSelectedCourseId('');
+                      setSelectedUserIds([]);
+                      setSelectedUsers([]);
+                      setSearchResults([]);
+                      setUserQuery('');
+                    }}
+                    disabled={!selectedDeptId}
+                  >
+                    <option value="">-- All Sub Departments --</option>
+                    {(selectedDeptId ? (departments.find(d => d.id === Number(selectedDeptId))?.subdepartments || []) : []).map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Select Course */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">Select Course</label>
                   <select
                     className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     value={selectedCourseId}
                     onChange={(e) => {
                       setSelectedCourseId(e.target.value);
-                      setSelectedModuleId('');
-                      setModuleNotEnrolledUsers([]);
-                      setModuleEnrolledUsers([]);
                       setSelectedUserIds([]);
                       setSelectedUsers([]);
+                      setSearchResults([]);
+                      setUserQuery('');
                     }}
                   >
                     <option value="">-- Select a course --</option>
@@ -839,7 +801,11 @@ export function EnrollmentManagement() {
                             return courseDept === selectedDeptName || (selectedDeptCode && courseDept === selectedDeptCode);
                           })
                         : courses;
-                      return filtered.map((c) => (
+                      const filteredBySubDept = selectedSubDeptId
+                        ? filtered.filter((c) => Number(c.subdepartment_id) === Number(selectedSubDeptId))
+                        : filtered;
+
+                      return filteredBySubDept.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.title} ({c.department})
                         </option>
@@ -847,80 +813,85 @@ export function EnrollmentManagement() {
                     })()}
                   </select>
                 </div>
+
+                {/* 3. Search Employees */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700">
-                    Select Module
-                  </label>
-                  <select
-                    className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    value={selectedModuleId}
-                    onChange={(e) => setSelectedModuleId(e.target.value)}
-                    disabled={!selectedCourseId}
-                  >
-                    <option value="">-- Select a module --</option>
-                    {(courses.find(c => c.id === selectedCourseId)?.modules || []).map((m) => (
-                      <option key={m.id} value={String(m.id)}>{m.title}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {selectedModuleId && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="border border-slate-200 rounded-md p-3">
-                      <div className="text-sm font-semibold text-slate-800 mb-2">Not Yet Enrolled Employees</div>
-                      {moduleUsersLoading ? (
-                        <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading...</div>
-                      ) : moduleNotEnrolledUsers.length === 0 ? (
-                        <div className="text-xs text-slate-500">No available employees for this module.</div>
-                      ) : (
-                        <div className="max-h-44 overflow-auto space-y-1">
-                          {moduleNotEnrolledUsers.map((u) => {
-                            const checked = selectedUserIds.includes(u.id);
-                            return (
-                              <label key={u.id} className="flex items-start gap-2 text-xs p-1.5 rounded hover:bg-slate-50 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  className="mt-0.5"
-                                  checked={checked}
-                                  onChange={(e) => {
-                                    if (e.target.checked) addSelectedUser(u);
-                                    else removeSelectedUser(u.id);
-                                  }}
-                                />
-                                <span>
-                                  <span className="block text-slate-800">{u.fullname}</span>
-                                  <span className="block text-slate-500">{u.email} - {u.department || 'No Dept'}</span>
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="border border-slate-200 rounded-md p-3">
-                      <div className="text-sm font-semibold text-slate-800 mb-2">Enrolled Employees</div>
-                      {moduleUsersLoading ? (
-                        <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading...</div>
-                      ) : moduleEnrolledUsers.length === 0 ? (
-                        <div className="text-xs text-slate-500">No enrolled employees for this module yet.</div>
-                      ) : (
-                        <div className="max-h-44 overflow-auto space-y-1">
-                          {moduleEnrolledUsers.map((u) => (
-                            <div key={u.id} className="text-xs p-1.5 rounded bg-slate-50">
-                              <div className="text-slate-800">{u.fullname}</div>
-                              <div className="text-slate-500">{u.email} - {u.department || 'No Dept'}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                  <label className="block text-sm font-medium text-slate-700">Select Employees</label>
+                  <div className="relative mt-1">
+                    <input
+                      type="text"
+                      value={userQuery}
+                      onChange={(e) => setUserQuery(e.target.value)}
+                      placeholder={selectedCourseId ? 'Type name to search employees...' : 'Select a course first to search employees...'}
+                      className="block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      disabled={!selectedCourseId}
+                    />
+                    {searchResults.length > 0 && (
+                      <div className="absolute z-10 mt-1 w-full border border-slate-200 rounded-md bg-white shadow-lg max-h-48 overflow-auto">
+                        {searchResults.map(u => (
+                          <div
+                            key={u.id}
+                            className="px-3 py-2 hover:bg-slate-50 cursor-pointer"
+                            onClick={async () => {
+                              if (!selectedUserIds.includes(u.id)) {
+                                setSelectedUserIds(prev => [...prev, u.id]);
+                                const existing = users.find(x => x.id === u.id);
+                                if (existing) {
+                                  setSelectedUsers(prev => [...prev, existing]);
+                                } else {
+                                  try {
+                                    const res = await fetch(`${API_BASE}/admin/users/${u.id}`, { credentials: 'include', headers: { Accept: 'application/json' } });
+                                    if (res.ok) {
+                                      const full = await res.json();
+                                      const mapped = {
+                                        id: full.id,
+                                        fullname: full.fullname || full.name || `${full.first_name || ''} ${full.last_name || ''}`.trim(),
+                                        email: full.email,
+                                        department: full.department,
+                                        subdepartment_id: full.subdepartment_id ?? null,
+                                        subdepartment_name: full.subdepartment?.name ?? null,
+                                      };
+                                      setSelectedUsers(prev => [...prev, mapped]);
+                                    } else {
+                                      setSelectedUsers(prev => [...prev, u]);
+                                    }
+                                  } catch {
+                                    setSelectedUsers(prev => [...prev, u]);
+                                  }
+                                }
+                              }
+                              setUserQuery('');
+                            }}
+                          >
+                            <div className="text-sm font-medium text-slate-900">{u.fullname}</div>
+                            <div className="text-xs text-slate-400">{u.email} — {u.department}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
+                  {selectedUsers.length > 0 && (
+                    <div className="mt-2 flex flex-row flex-wrap gap-2">
+                      {selectedUsers.map(u => (
+                        <span key={u.id} className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 border border-green-200 text-green-800 rounded-full text-xs font-medium">
+                          <span>{u.fullname}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedUserIds(prev => prev.filter(id => id !== u.id));
+                              setSelectedUsers(prev => prev.filter(x => x.id !== u.id));
+                            }}
+                            className="text-green-500 hover:text-red-600 leading-none"
+                          >×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
                   <button
                     type="submit"
-                    disabled={enrolling || !selectedModuleId}
+                      disabled={enrolling || !selectedCourseId || selectedUserIds.length === 0}
                     className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:col-start-2 sm:text-sm disabled:opacity-50"
                   >
                     {enrolling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

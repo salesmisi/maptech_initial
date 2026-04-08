@@ -544,6 +544,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         Route::post('/', [\App\Http\Controllers\Admin\CustomModuleController::class, 'store']);
         Route::get('/categories', [\App\Http\Controllers\Admin\CustomModuleController::class, 'categories']);
         Route::get('/tags', [\App\Http\Controllers\Admin\CustomModuleController::class, 'tags']);
+        Route::get('/ui-components', [\App\Http\Controllers\Admin\CustomModuleController::class, 'uiComponents']);
         Route::post('/reorder', [\App\Http\Controllers\Admin\CustomModuleController::class, 'reorder']);
         Route::get('/{id}', [\App\Http\Controllers\Admin\CustomModuleController::class, 'show']);
         Route::put('/{id}', [\App\Http\Controllers\Admin\CustomModuleController::class, 'update']);
@@ -758,7 +759,29 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     });
     // Instructor access to feedback listing (uses same controller logic)
     Route::get('/feedbacks', [\App\Http\Controllers\Admin\FeedbackController::class, 'index']);
+
+    // Custom Modules (read-only access for instructors)
+    Route::get('/custom-modules', function (\Illuminate\Http\Request $request) {
+        // Instructors can only view published learning modules (not UI components)
+        return \App\Models\CustomModule::with(['creator:id,fullname,email', 'lessons'])
+            ->where('status', 'published')
+            ->where('module_type', 'learning') // Only learning modules for instructors
+            ->orderBy('order')
+            ->get();
+    });
+    Route::get('/custom-modules/{id}', function (\Illuminate\Http\Request $request, int $id) {
+        // Instructors can only view published learning modules (not UI components)
+        return \App\Models\CustomModule::with(['creator:id,fullname,email', 'lessons'])
+            ->where('status', 'published')
+            ->where('module_type', 'learning') // Only learning modules for instructors
+            ->findOrFail($id);
+    });
+
+    // Custom Module assignment to department
+    Route::post('/custom-modules/{id}/push-to-department', [\App\Http\Controllers\Instructor\CustomModuleController::class, 'pushToDepartment']);
+    Route::get('/custom-modules/{id}/department-employees', [\App\Http\Controllers\Instructor\CustomModuleController::class, 'getDepartmentEmployees']);
 });
+
 
 /*
 |--------------------------------------------------------------------------
@@ -886,6 +909,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             'fullName' => $user->fullName ?? $user->fullname,
             'email' => $user->email,
             'role' => $user->role,
+            'company_role' => $user->company_role,
             'department' => $user->department,
             'status' => $user->status,
             'profile_picture' => $user->profile_picture ? asset('storage/'.$user->profile_picture) : null,
@@ -904,6 +928,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         if ($user->isAdmin()) {
             $rules['email'] = 'sometimes|email|max:255|unique:users,email,'.$user->id;
             $rules['password'] = 'sometimes|string|min:8|confirmed';
+            $rules['company_role'] = 'sometimes|nullable|string|max:255';
         }
 
         $validated = $request->validate($rules);
@@ -951,6 +976,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
                 'fullName' => $user->fullName ?? $user->fullname,
                 'email' => $user->email,
                 'role' => $user->role,
+                'company_role' => $user->company_role,
                 'department' => $user->department,
                 'profile_picture' => $user->profile_picture ? asset('storage/'.$user->profile_picture) : null,
                 'signature_path' => $user->signature_path ? asset('storage/'.$user->signature_path) : null,
@@ -981,8 +1007,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::post('/profile/signature', function (Request $request) {
         $user = $request->user();
-        if (! $user || ! $user->isInstructor()) {
-            return response()->json(['message' => 'Only instructors can upload a certificate signature.'], 403);
+        if (!$user || !($user->isInstructor() || $user->isAdmin())) {
+            return response()->json(['message' => 'Only admins and instructors can upload a certificate signature.'], 403);
         }
 
         $request->validate([
