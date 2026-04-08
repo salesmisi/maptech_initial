@@ -516,13 +516,13 @@ export function AuditLogs() {
                 <button onClick={closeManageModal} className="text-gray-500">Close</button>
               </div>
             </div>
-            <div>
+            <div className="max-h-[400px] overflow-y-auto">
               {modalLoading ? (
                 <div className="text-center text-gray-500">Loading...</div>
               ) : modalTimeLogs.length === 0 ? (
                 <div className="text-center text-gray-500">No time logs for this user.</div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 pr-2">
                   {modalTimeLogs.map((tl) => (
                     <div key={tl.id} className="border rounded p-3 flex items-start justify-between gap-3">
                       <div>
