@@ -521,7 +521,6 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       await loadCustomModules();
       await loadCertificates();
       await loadQuizReminders();
-      await loadLatestAchievement();
       // initialize last unread count after initial load
       lastUnreadRef.current = (initial || []).filter((n: any) => !n.read).length;
       // Subscribe to realtime notifications channel (if Echo is available)

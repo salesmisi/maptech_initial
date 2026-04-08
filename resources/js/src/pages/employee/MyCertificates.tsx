@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Award, Calendar, ExternalLink, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 const MAPTECH_LOGO_URL = '/assets/Maptech-Official-Logo.png';

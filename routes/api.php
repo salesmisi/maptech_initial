@@ -761,7 +761,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::get('/feedbacks', [\App\Http\Controllers\Admin\FeedbackController::class, 'index']);
 
     // Custom Modules (read-only access for instructors)
-    Route::get('/custom-modules', function (\Illuminate\Http\Request $request) {
+    Route::get('/custom-modules', function (Request $request) {
         // Instructors can only view published learning modules (not UI components)
         return \App\Models\CustomModule::with(['creator:id,fullname,email', 'lessons'])
             ->where('status', 'published')
@@ -769,7 +769,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
             ->orderBy('order')
             ->get();
     });
-    Route::get('/custom-modules/{id}', function (\Illuminate\Http\Request $request, int $id) {
+    Route::get('/custom-modules/{id}', function (Request $request, int $id) {
         // Instructors can only view published learning modules (not UI components)
         return \App\Models\CustomModule::with(['creator:id,fullname,email', 'lessons'])
             ->where('status', 'published')
