@@ -21,6 +21,7 @@ Route::get('/departments', function () {
     return Department::with([
         'subdepartments.headUser:id,fullname',
         'subdepartments.employee:id,fullname',
+        'subdepartments.employees:id,fullname,email,department,subdepartment_id',
         'headUser:id,fullname',
     ])->get();
 });
