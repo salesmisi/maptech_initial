@@ -30,7 +30,7 @@ interface Department {
   head_id: number | null;
   head_user?: { id: number; fullname: string } | null;
   employee_count: number;
-  course_count: number;
+  instructor_count?: number;
   status: 'Active' | 'Inactive';
   subdepartments: Subdepartment[];
 }
@@ -527,9 +527,9 @@ export default function DepartmentManagement() {
               </div>
               <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
                 <div className="mb-1 flex items-center gap-1 text-slate-500 dark:text-slate-400">
-                  <BookOpen className="h-3.5 w-3.5" /> Courses
+                  <BookOpen className="h-3.5 w-3.5" /> Instructor
                 </div>
-                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{dept.course_count ?? 0}</div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{dept.instructor_count ?? 0}</div>
               </div>
             </div>
 

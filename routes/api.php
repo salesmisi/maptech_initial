@@ -4,6 +4,7 @@ use App\Models\AuditLog;
 use App\Models\Department;
 use App\Models\Subdepartment;
 use App\Models\TimeLog;
+use App\Models\User;
 use App\Support\AuditDate;
 use App\Http\Controllers\LoginController;
 use Illuminate\Http\Request;
@@ -18,12 +19,39 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/departments', function () {
-    return Department::with([
+    $departments = Department::with([
         'subdepartments.headUser:id,fullname',
         'subdepartments.employee:id,fullname',
         'subdepartments.employees:id,fullname,email,department,subdepartment_id',
         'headUser:id,fullname',
     ])->get();
+
+    return $departments->map(function (Department $department) {
+        $name = strtolower(trim((string) $department->name));
+        $code = strtolower(trim((string) ($department->code ?? '')));
+
+        $acceptedDepartments = array_values(array_unique(array_filter([$name, $code])));
+
+        $department->employee_count = User::query()
+            ->whereRaw('LOWER(role) = ?', ['employee'])
+            ->where(function ($q) use ($acceptedDepartments) {
+                foreach ($acceptedDepartments as $dept) {
+                    $q->orWhereRaw('LOWER(TRIM(department)) = ?', [$dept]);
+                }
+            })
+            ->count();
+
+        $department->instructor_count = User::query()
+            ->whereRaw('LOWER(role) = ?', ['instructor'])
+            ->where(function ($q) use ($acceptedDepartments) {
+                foreach ($acceptedDepartments as $dept) {
+                    $q->orWhereRaw('LOWER(TRIM(department)) = ?', [$dept]);
+                }
+            })
+            ->count();
+
+        return $department;
+    })->values();
 });
 
 // CREATE DEPARTMENT
