@@ -802,7 +802,7 @@ export function EnrollmentManagement() {
                           })
                         : courses;
                       const filteredBySubDept = selectedSubDeptId
-                        ? filtered.filter((c) => Number(c.subdepartment_id) === Number(selectedSubDeptId))
+                        ? filtered.filter((c) => !c.subdepartment_id || Number(c.subdepartment_id) === Number(selectedSubDeptId))
                         : filtered;
 
                       return filteredBySubDept.map((c) => (
