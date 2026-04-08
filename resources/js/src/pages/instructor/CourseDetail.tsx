@@ -404,7 +404,10 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
-      if (!res.ok) throw new Error('Course not found.');
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.message || `Failed to load course (${res.status})`);
+      }
       const data = await res.json();
       setCourse({
         ...data,
@@ -422,7 +425,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
         })),
       });
     } catch (e: any) {
-      setError(e.message);
+      setError(e?.message || 'Failed to load course.');
     } finally {
       setLoading(false);
     }

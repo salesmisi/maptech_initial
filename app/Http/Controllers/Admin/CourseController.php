@@ -24,8 +24,12 @@ class CourseController extends Controller
      */
     public function index(Request $request)
     {
-        // Eager-load instructor and modules so API returns module data/count
-        $query = Course::with(['instructor:id,fullname,email,profile_picture', 'modules'])
+        // Eager-load instructor, subdepartment, and modules so API returns complete data
+        $query = Course::with([
+            'instructor:id,fullname,email,profile_picture',
+            'subdepartment:id,name,department_id',
+            'modules'
+        ])
             ->withCount('enrollments');
 
         // Filter by department
@@ -224,13 +228,22 @@ class CourseController extends Controller
     {
         $course = Course::with([
             'instructor:id,fullname,email,profile_picture',
+            'subdepartment:id,name,department_id',
             'modules.lessons',
             'enrolledUsers:id,fullname,email,department,role,status',
         ])->findOrFail($id);
 
         // Recalculate progress for each enrolled user
         foreach ($course->enrolledUsers as $eu) {
-            Enrollment::recalculateProgress($eu->id, $course->id);
+            try {
+                Enrollment::recalculateProgress($eu->id, $course->id);
+            } catch (\Throwable $exception) {
+                Log::warning('Failed to recalculate enrollment progress while loading admin course detail.', [
+                    'course_id' => $course->id,
+                    'user_id' => $eu->id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
         }
         // Refresh to get updated pivot data
         $course->load('enrolledUsers:id,fullname,email,department,role,status');

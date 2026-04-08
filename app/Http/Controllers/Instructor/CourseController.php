@@ -34,7 +34,10 @@ class CourseController extends Controller
         $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
-        $courses = Course::with(['modules.lessons'])
+        $courses = Course::with([
+            'instructor:id,fullname,email,profile_picture',
+            'modules.lessons',
+        ])
             ->withCount('enrollments')
             ->where(function ($q) use ($user, $assignedSubIds, $assignedDept) {
                 $q->where('instructor_id', $user->id);
@@ -54,7 +57,7 @@ class CourseController extends Controller
         // been reopened by the instructor.
         $courseIds = $courses->pluck('id');
         if ($courseIds->isNotEmpty()) {
-            $manualUnlockedCourseIds = \DB::table('module_user')
+            $manualUnlockedCourseIds = DB::table('module_user')
                 ->join('modules', 'module_user.module_id', '=', 'modules.id')
                 ->whereIn('modules.course_id', $courseIds)
                 ->where('module_user.unlocked', true)
@@ -69,7 +72,7 @@ class CourseController extends Controller
             $manualUnlockedLookup = array_flip($manualUnlockedCourseIds);
 
             foreach ($courses as $course) {
-                $course->setAttribute('has_manual_unlock', isset($manualUnlockedLookup[$course->id]));
+                $course->has_manual_unlock = isset($manualUnlockedLookup[$course->id]);
             }
         }
 
@@ -227,8 +230,11 @@ class CourseController extends Controller
 
         // Fetch the course and verify instructor has rights either by ownership
         // or because the course belongs to a department/subdepartment assigned to them
-        $course = Course::with(['modules.lessons', 'enrolledUsers:id,fullname,email,department,role,status'])
-            ->find($id);
+        $course = Course::with([
+            'instructor:id,fullname,email,profile_picture',
+            'modules.lessons',
+            'enrolledUsers:id,fullname,email,department,role,status',
+        ])->find($id);
 
         if (!$course) {
             return response()->json(['message' => 'Course not found.'], 404);
@@ -247,7 +253,15 @@ class CourseController extends Controller
 
         // Recalculate progress for each enrolled user
         foreach ($course->enrolledUsers as $eu) {
-            Enrollment::recalculateProgress($eu->id, $course->id);
+            try {
+                Enrollment::recalculateProgress($eu->id, $course->id);
+            } catch (\Throwable $exception) {
+                Log::warning('Failed to recalculate enrollment progress while loading instructor course detail.', [
+                    'course_id' => $course->id,
+                    'user_id' => $eu->id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
         }
         // Refresh to get updated pivot data
         $course->load('enrolledUsers:id,fullname,email,department,role,status');

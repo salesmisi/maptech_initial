@@ -19,7 +19,7 @@ import { safeArray } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
 
 interface Course {
-  id: number;
+  id: string;
   title: string;
   description: string;
   department: string;
@@ -133,7 +133,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
-  const [selectedCourseIds, setSelectedCourseIds] = useState<number[]>([]);
+  const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
   const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
   const [bulkInstructorId, setBulkInstructorId] = useState<number | null>(null);
   const [isBulkAssigning, setIsBulkAssigning] = useState(false);
@@ -373,20 +373,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       console.error('CoursesAndContent: Load courses error:', err);
       setError(err.message);
       // Set some default courses if API fails
-      setCourses([
-        {
-          id: 1,
-          title: 'Fundamentals of Networking',
-          description: 'Learn the basics of networking',
-          department: 'IT',
-          instructor: 'Admin',
-          instructor_id: null,
-          status: 'Active' as const,
-          modules_count: 2,
-          enrolled_count: 0,
-          created_at: new Date().toISOString()
-        }
-      ]);
+      setCourses([]);
     } finally {
       setLoading(false);
       console.log('CoursesAndContent: Load courses completed');

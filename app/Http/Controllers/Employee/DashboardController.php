@@ -12,6 +12,7 @@ use App\Models\Subdepartment;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
@@ -331,11 +332,20 @@ class DashboardController extends Controller
         $user = $request->user();
 
         // Recalculate progress from quiz attempts (fixes stale data)
-        Enrollment::recalculateProgress($user->id, $id);
+        try {
+            Enrollment::recalculateProgress($user->id, $id);
+        } catch (\Throwable $exception) {
+            Log::warning('Failed to recalculate enrollment progress while loading employee course detail.', [
+                'course_id' => $id,
+                'user_id' => $user?->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
 
         $course = Course::active()
             ->with([
-                'instructor:id,fullname,email',
+                'instructor:id,fullname,email,profile_picture',
+                'subdepartment:id,name,department_id',
                 'modules' => fn($q) => $q->with('lessons')->orderBy('order')->orderBy('id'),
             ])
             ->find($id);
