@@ -661,7 +661,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                     className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors text-sm font-medium"
                   >
                     <Users className="h-4 w-4" />
-                    Push to My Department
+                    Push to My Employee
                   </button>
                 </div>
               </div>
@@ -856,7 +856,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
           >
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
               <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Push to Department</h3>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Push to My Employee</h3>
               </div>
 
               <div className="p-6">
@@ -920,7 +920,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                     disabled={pushing || deptEmployees.length === 0}
                     className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {pushing ? 'Pushing...' : 'Push to Department'}
+                    {pushing ? 'Pushing...' : 'Push to My Employee'}
                   </button>
                 </div>
               </div>

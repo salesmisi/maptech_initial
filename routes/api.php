@@ -575,6 +575,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         Route::put('/{id}', [\App\Http\Controllers\Admin\CustomModuleController::class, 'update']);
         Route::delete('/{id}', [\App\Http\Controllers\Admin\CustomModuleController::class, 'destroy']);
         Route::post('/{id}/toggle-publish', [\App\Http\Controllers\Admin\CustomModuleController::class, 'togglePublish']);
+        Route::post('/{id}/thumbnail', [\App\Http\Controllers\Admin\CustomModuleController::class, 'uploadThumbnail']);
+        Route::delete('/{id}/thumbnail', [\App\Http\Controllers\Admin\CustomModuleController::class, 'removeThumbnail']);
         Route::get('/{id}/versions', [\App\Http\Controllers\Admin\CustomModuleController::class, 'versions']);
         Route::get('/{id}/available-courses', [\App\Http\Controllers\Admin\CustomModuleController::class, 'availableCourses']);
         Route::post('/{id}/push-to-course', [\App\Http\Controllers\Admin\CustomModuleController::class, 'pushToCourse']);

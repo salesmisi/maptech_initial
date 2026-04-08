@@ -105,6 +105,7 @@ interface CustomModule {
   module_type?: 'learning' | 'ui_component';
   lessons_count: number;
   version: number;
+  thumbnail_url: string | null;
   creator: {
     id: number;
     fullname: string;
@@ -176,6 +177,10 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadDuration, setUploadDuration] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Custom module thumbnail upload
+  const [uploadingThumbnailModuleId, setUploadingThumbnailModuleId] = useState<number | null>(null);
+  const customModuleThumbnailRef = useRef<HTMLInputElement>(null);
 
   // Helper to extract actual video duration from file
   const extractVideoDuration = (file: File): Promise<string> => {
@@ -424,6 +429,54 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       }
     } catch (err) {
       console.error('Failed to load enrolled students:', err);
+    }
+  };
+
+  // Handle custom module thumbnail upload
+  const handleCustomModuleThumbnailClick = (moduleId: number) => {
+    setUploadingThumbnailModuleId(moduleId);
+    customModuleThumbnailRef.current?.click();
+  };
+
+  const handleCustomModuleThumbnailChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadingThumbnailModuleId) return;
+
+    try {
+      const formData = new FormData();
+      formData.append('thumbnail', file);
+
+      const response = await fetch(`/api/admin/custom-modules/${uploadingThumbnailModuleId}/thumbnail`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Update the custom module in state with the new thumbnail
+        setCustomModules(prev => prev.map(m =>
+          m.id === uploadingThumbnailModuleId
+            ? { ...m, thumbnail_url: data.thumbnail_url }
+            : m
+        ));
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to upload thumbnail:', errorData.message);
+        alert(errorData.message || 'Failed to upload thumbnail');
+      }
+    } catch (err) {
+      console.error('Error uploading thumbnail:', err);
+      alert('An error occurred while uploading the thumbnail');
+    } finally {
+      setUploadingThumbnailModuleId(null);
+      if (customModuleThumbnailRef.current) {
+        customModuleThumbnailRef.current.value = '';
+      }
     }
   };
 
@@ -1038,6 +1091,15 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
   return (
     <div className="p-6">
+      {/* Hidden file input for custom module thumbnail upload */}
+      <input
+        type="file"
+        ref={customModuleThumbnailRef}
+        className="hidden"
+        accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+        onChange={handleCustomModuleThumbnailChange}
+      />
+
       {/* Error Banner */}
       {error && (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
@@ -1214,15 +1276,30 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               <div className="absolute top-2 left-2 px-2 py-0.5 bg-white/90 dark:bg-slate-800/90 rounded-full text-xs font-medium text-purple-700 dark:text-purple-300">
                 Custom Module
               </div>
-              <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md">
-                {module.creator ? (
+              {/* Clickable Logo/Thumbnail */}
+              <button
+                onClick={() => handleCustomModuleThumbnailClick(module.id)}
+                className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md cursor-pointer hover:opacity-90 transition-opacity group relative"
+                title="Click to upload logo"
+              >
+                {module.thumbnail_url ? (
+                  <img
+                    src={module.thumbnail_url}
+                    alt={module.title}
+                    className="w-full h-full object-cover"
+                  />
+                ) : module.creator ? (
                   <span className="text-2xl font-bold text-purple-700 dark:text-purple-300">
                     {module.creator.fullname.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                   </span>
                 ) : (
                   <AcademicCapIcon className="h-8 w-8 text-purple-700 dark:text-purple-300" />
                 )}
-              </div>
+                {/* Camera overlay on hover */}
+                <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <CameraIcon className="h-6 w-6 text-white" />
+                </div>
+              </button>
             </div>
 
             {/* Custom Module Content */}

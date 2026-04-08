@@ -604,4 +604,81 @@ class CustomModuleController extends Controller
 
         return response()->json($modules);
     }
+
+    /**
+     * Upload or update a custom module's thumbnail/logo.
+     */
+    public function uploadThumbnail(Request $request, int $id)
+    {
+        $module = CustomModule::findOrFail($id);
+
+        try {
+            $validated = $request->validate([
+                'thumbnail' => 'required|image|mimes:png,jpg,jpeg,svg,webp|max:2048',
+            ]);
+
+            // Delete old thumbnail if exists
+            if ($module->thumbnail_path) {
+                Storage::disk('public')->delete($module->thumbnail_path);
+            }
+
+            // Store new thumbnail
+            $thumbnailPath = $request->file('thumbnail')->store('custom-modules/thumbnails', 'public');
+
+            $module->update([
+                'thumbnail_path' => $thumbnailPath,
+                'updated_by' => $request->user()->id,
+            ]);
+
+            Log::info('Custom module thumbnail uploaded', ['id' => $module->id]);
+
+            return response()->json([
+                'message' => 'Thumbnail uploaded successfully',
+                'thumbnail_url' => $module->fresh()->thumbnail_url,
+                'module' => $module->fresh(['creator:id,fullname,email', 'lessons']),
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (Exception $e) {
+            Log::error('Error uploading thumbnail', ['error' => $e->getMessage()]);
+            return response()->json([
+                'message' => 'An error occurred while uploading the thumbnail',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove a custom module's thumbnail/logo.
+     */
+    public function removeThumbnail(Request $request, int $id)
+    {
+        $module = CustomModule::findOrFail($id);
+
+        try {
+            if ($module->thumbnail_path) {
+                Storage::disk('public')->delete($module->thumbnail_path);
+                $module->update([
+                    'thumbnail_path' => null,
+                    'updated_by' => $request->user()->id,
+                ]);
+            }
+
+            Log::info('Custom module thumbnail removed', ['id' => $module->id]);
+
+            return response()->json([
+                'message' => 'Thumbnail removed successfully',
+                'module' => $module->fresh(['creator:id,fullname,email', 'lessons']),
+            ]);
+        } catch (Exception $e) {
+            Log::error('Error removing thumbnail', ['error' => $e->getMessage()]);
+            return response()->json([
+                'message' => 'An error occurred while removing the thumbnail',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
 }
