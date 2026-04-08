@@ -814,7 +814,7 @@ export function EnrollmentManagement() {
                   </select>
                 </div>
 
-                {/* 3. Search Employees */}
+                {/* 3. Search & Select Employees */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700">Select Employees</label>
                   <div className="relative mt-1">
@@ -822,16 +822,16 @@ export function EnrollmentManagement() {
                       type="text"
                       value={userQuery}
                       onChange={(e) => setUserQuery(e.target.value)}
-                      placeholder={selectedCourseId ? 'Type name to search employees...' : 'Select a course first to search employees...'}
+                      placeholder={selectedCourseId ? 'Search and select employees...' : 'Select a course first...'}
                       className="block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                       disabled={!selectedCourseId}
                     />
-                    {searchResults.length > 0 && (
-                      <div className="absolute z-10 mt-1 w-full border border-slate-200 rounded-md bg-white shadow-lg max-h-48 overflow-auto">
+                    {selectedCourseId && searchResults.length > 0 && (
+                      <div className="absolute z-10 mt-1 w-full border border-slate-200 rounded-md bg-white shadow-lg max-h-56 overflow-auto">
                         {searchResults.map(u => (
                           <div
                             key={u.id}
-                            className="px-3 py-2 hover:bg-slate-50 cursor-pointer"
+                            className="px-4 py-3 hover:bg-green-50 cursor-pointer border-b border-slate-100 last:border-b-0 transition-colors"
                             onClick={async () => {
                               if (!selectedUserIds.includes(u.id)) {
                                 setSelectedUserIds(prev => [...prev, u.id]);
@@ -864,25 +864,41 @@ export function EnrollmentManagement() {
                             }}
                           >
                             <div className="text-sm font-medium text-slate-900">{u.fullname}</div>
-                            <div className="text-xs text-slate-400">{u.email} — {u.department}</div>
+                            <div className="text-xs text-slate-500">{u.email} • {u.subdepartment_name || u.department}</div>
                           </div>
                         ))}
                       </div>
                     )}
+                    {selectedCourseId && searchResults.length === 0 && userQuery === '' && (
+                      <div className="absolute z-10 mt-1 w-full border border-slate-200 rounded-md bg-slate-50 shadow-lg max-h-56 overflow-auto">
+                        <div className="px-4 py-3 text-sm text-slate-500 text-center">
+                          Type to search employees in this department
+                        </div>
+                      </div>
+                    )}
+                    {selectedCourseId && searchResults.length === 0 && userQuery !== '' && (
+                      <div className="absolute z-10 mt-1 w-full border border-slate-200 rounded-md bg-white shadow-lg max-h-56 overflow-auto">
+                        <div className="px-4 py-3 text-sm text-slate-500 text-center">
+                          No employees found matching "{userQuery}"
+                        </div>
+                      </div>
+                    )}
                   </div>
                   {selectedUsers.length > 0 && (
-                    <div className="mt-2 flex flex-row flex-wrap gap-2">
+                    <div className="mt-3 flex flex-row flex-wrap gap-2">
                       {selectedUsers.map(u => (
-                        <span key={u.id} className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 border border-green-200 text-green-800 rounded-full text-xs font-medium">
-                          <span>{u.fullname}</span>
+                        <span key={u.id} className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-300 text-green-700 rounded-full text-xs font-medium shadow-sm hover:shadow-md transition-shadow">
+                          <span className="font-semibold">{u.fullname}</span>
                           <button
                             type="button"
                             onClick={() => {
                               setSelectedUserIds(prev => prev.filter(id => id !== u.id));
                               setSelectedUsers(prev => prev.filter(x => x.id !== u.id));
                             }}
-                            className="text-green-500 hover:text-red-600 leading-none"
-                          >×</button>
+                            className="inline-flex items-center justify-center h-4 w-4 rounded-full text-green-600 hover:bg-red-200 hover:text-red-700 transition-colors ml-1"
+                          >
+                            <span className="text-sm font-bold">×</span>
+                          </button>
                         </span>
                       ))}
                     </div>
