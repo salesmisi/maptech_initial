@@ -517,7 +517,15 @@ class CourseController extends Controller
 
         // Recalculate progress for each enrollment
         foreach ($course->enrollments as $enrollment) {
-            Enrollment::recalculateProgress($enrollment->user_id, $course->id);
+            try {
+                Enrollment::recalculateProgress($enrollment->user_id, $course->id);
+            } catch (\Throwable $e) {
+                Log::warning('Enrollment progress recalculation skipped in enrollments endpoint', [
+                    'course_id' => $course->id,
+                    'user_id' => $enrollment->user_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         $users = $course->enrolledUsers()

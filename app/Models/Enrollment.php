@@ -82,10 +82,13 @@ class Enrollment extends Model
 
         $progress = (int) round(($passedCount / $totalQuizzes) * 100);
 
-        // Use DB-allowed status values (lowercase). Default to 'active' for not-completed enrollments.
-        $status = 'active';
+        // Use DB-allowed status values used across the app.
         if ($progress >= 100) {
-            $status = 'completed';
+            $status = 'Completed';
+        } elseif ($progress > 0) {
+            $status = 'Active';
+        } else {
+            $status = 'Not Started';
         }
 
         $enrollment->update([
