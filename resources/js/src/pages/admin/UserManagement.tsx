@@ -12,6 +12,7 @@ import {
   Camera,
   Eye,
   EyeOff,
+  ChevronDown,
 } from 'lucide-react';
 import { LoadingState } from '../../components/ui/LoadingState';
 
@@ -74,6 +75,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [passwordValue, setPasswordValue] = useState('');
+  const [newUserNonce, setNewUserNonce] = useState(0);
 
   // Form refs
   const fullNameRef = useRef<HTMLInputElement>(null);
@@ -81,6 +83,10 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
   const passwordRef = useRef<HTMLInputElement>(null);
   const statusRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const modalFieldClass =
+    'mt-1 block w-full rounded-md border border-slate-300 bg-white py-2 px-3 text-slate-900 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:bg-emerald-50/30 focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400 sm:text-sm dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:hover:border-emerald-400/70 dark:hover:bg-slate-700 dark:focus:ring-emerald-400/35 dark:focus:border-emerald-400';
+  const modalSelectClass = `${modalFieldClass} appearance-none pr-10`;
 
   // Helper to read a cookie value
   const getCookie = (name: string) => {
@@ -251,8 +257,25 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     setProfilePicturePreview(user?.profile_picture ? `/storage/${user.profile_picture}` : null);
     setShowPassword(false);
     setPasswordValue('');
+    if (!user) {
+      setNewUserNonce((prev) => prev + 1);
+    }
     setIsModalOpen(true);
   };
+
+  useEffect(() => {
+    if (!isModalOpen || editingUser) return;
+
+    const timer = window.setTimeout(() => {
+      if (fullNameRef.current) fullNameRef.current.value = '';
+      if (emailRef.current) emailRef.current.value = '';
+      if (passwordRef.current) passwordRef.current.value = '';
+      setPasswordValue('');
+      fullNameRef.current?.focus();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [isModalOpen, editingUser, newUserNonce]);
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
@@ -454,13 +477,13 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="sm:w-48">
-          <div className="relative">
+        <div className="sm:w-56">
+          <div className="relative ui-select-wrap">
             <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
               <Filter className="h-4 w-4 text-slate-400" />
             </div>
             <select
-              className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 um-filter-select"
+              className="block h-10 w-full pl-10 pr-10 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 um-filter-select ui-select-custom-arrow"
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
             >
@@ -469,6 +492,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                 <option key={d.id} value={d.name}>{d.name}</option>
               ))}
             </select>
+            <ChevronDown className="ui-select-arrow pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-300" />
           </div>
         </div>
       </div>
@@ -631,13 +655,13 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
               &#8203;
             </span>
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full ui-pop-in">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full ui-pop-in dark:bg-slate-900">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 dark:bg-slate-900">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg leading-6 font-medium text-slate-900">
+                  <h3 className="text-lg leading-6 font-medium text-slate-900 dark:text-slate-100">
                     {editingUser ? 'Edit User' : 'Add New User'}
                   </h3>
-                  <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-500">
+                  <button onClick={handleCloseModal} className="rounded-md p-1 text-slate-400 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200">
                     <X className="h-6 w-6" />
                   </button>
                 </div>
@@ -649,18 +673,23 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                   </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form
+                  key={editingUser ? `edit-user-${editingUser.id}` : `new-user-${newUserNonce}`}
+                  onSubmit={handleSubmit}
+                  className="space-y-4"
+                  autoComplete="off"
+                >
                   {/* Profile Picture Upload */}
                   <div className="flex flex-col items-center pb-2">
                     <div
-                      className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-dashed border-green-300 cursor-pointer hover:border-green-500 group"
+                      className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-dashed border-emerald-300 cursor-pointer transition-colors duration-200 hover:border-emerald-400 dark:border-emerald-500/60 dark:hover:border-emerald-400 group"
                       onClick={() => photoInputRef.current?.click()}
                     >
                       {profilePicturePreview ? (
                         <img src={profilePicturePreview} alt="Profile" className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full bg-green-50 flex flex-col items-center justify-center">
-                          <Camera className="h-8 w-8 text-green-400 group-hover:text-green-600" />
+                        <div className="w-full h-full bg-emerald-50 flex flex-col items-center justify-center dark:bg-emerald-950/40">
+                          <Camera className="h-8 w-8 text-emerald-400 transition-colors duration-200 group-hover:text-emerald-500" />
                         </div>
                       )}
                       <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-full">
@@ -682,50 +711,54 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                         }
                       }}
                     />
-                    <p className="text-xs text-slate-400 mt-2">
+                    <p className="text-xs text-slate-400 mt-2 dark:text-slate-300">
                       {profilePicturePreview ? 'Click photo to change' : 'Click to upload photo'}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                       Full Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       ref={fullNameRef}
                       type="text"
                       defaultValue={editingUser?.fullname || ''}
-                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      autoComplete="off"
+                      className={modalFieldClass}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                       Email <span className="text-red-500">*</span>
                     </label>
                     <input
                       ref={emailRef}
                       type="email"
                       defaultValue={editingUser?.email || ''}
-                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      autoComplete="off"
+                      spellCheck={false}
+                      className={modalFieldClass}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                       Password {!editingUser && <span className="text-red-500">*</span>}
-                      {editingUser && <span className="text-slate-400 text-xs ml-1">(leave blank to keep current)</span>}
+                      {editingUser && <span className="text-slate-400 text-xs ml-1 dark:text-slate-300">(leave blank to keep current)</span>}
                     </label>
-                    <div className="relative mt-1">
+                    <div className="relative mt-1 ui-select-wrap">
                       <input
                         ref={passwordRef}
                         type={showPassword ? 'text' : 'password'}
                         placeholder={editingUser ? '••••••••' : ''}
                         value={passwordValue}
                         onChange={(e) => setPasswordValue(e.target.value)}
-                        className="block w-full border border-slate-300 rounded-md shadow-sm py-2 pl-3 pr-10 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                        autoComplete="new-password"
+                        className={`${modalFieldClass} pl-3 pr-10 mt-0`}
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword((prev) => !prev)}
-                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600"
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 transition-colors duration-200 hover:text-slate-600 dark:hover:text-slate-200"
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
                         title={showPassword ? 'Hide password' : 'Show password'}
                       >
@@ -786,72 +819,81 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                       </div>
                     )}
                     {!passwordValue && !editingUser && (
-                      <p className="mt-1 text-xs text-slate-500">Minimum 8 characters required</p>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">Minimum 8 characters required</p>
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                       Role <span className="text-red-500">*</span>
                     </label>
-                    <select
-                      value={formRole}
-                      onChange={(e) => {
-                        const newRole = e.target.value as 'Admin' | 'Instructor' | 'Employee';
-                        setFormRole(newRole);
-                        setFormDepartment('');
-                        setFormSubdepartment('');
-                        setFormSubdepartmentIds([]);
-                        setFormIsHead(false);
-                      }}
-                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    >
-                      <option value="Employee">Employee</option>
-                      <option value="Instructor">Instructor</option>
-                      <option value="Admin">Admin</option>
-                    </select>
+                    <div className="relative mt-1">
+                      <select
+                        value={formRole}
+                        onChange={(e) => {
+                          const newRole = e.target.value as 'Admin' | 'Instructor' | 'Employee';
+                          setFormRole(newRole);
+                          setFormDepartment('');
+                          setFormSubdepartment('');
+                          setFormSubdepartmentIds([]);
+                          setFormIsHead(false);
+                        }}
+                        className={`${modalSelectClass} mt-0 ui-select-custom-arrow`}
+                      >
+                        <option value="Employee">Employee</option>
+                        <option value="Instructor">Instructor</option>
+                        <option value="Admin">Admin</option>
+                      </select>
+                      <ChevronDown className="ui-select-arrow pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-300" />
+                    </div>
                   </div>
 
                   {/* Department and subdepartment selection */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Department</label>
-                    <select
-                      value={formDepartment}
-                      onChange={(e) => {
-                        setFormDepartment(e.target.value);
-                        setFormSubdepartment('');
-                        setFormSubdepartmentIds([]);
-                        setFormIsHead(false);
-                      }}
-                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    >
-                      <option value="">Select department</option>
-                      {departments.map((d) => (
-                        <option key={d.id} value={d.name}>{d.name}</option>
-                      ))}
-                    </select>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Department</label>
+                    <div className="relative mt-1 ui-select-wrap">
+                      <select
+                        value={formDepartment}
+                        onChange={(e) => {
+                          setFormDepartment(e.target.value);
+                          setFormSubdepartment('');
+                          setFormSubdepartmentIds([]);
+                          setFormIsHead(false);
+                        }}
+                        className={`${modalSelectClass} mt-0 ui-select-custom-arrow`}
+                      >
+                        <option value="">Select department</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.name}>{d.name}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="ui-select-arrow pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-300" />
+                    </div>
                   </div>
 
                   {formRole === 'Employee' && formDepartment && (
                     <div>
-                      <label className="block text-sm font-medium text-slate-700">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                         Subdepartment <span className="text-red-500">*</span>
                       </label>
-                      <select
-                        value={formSubdepartment}
-                        onChange={(e) => setFormSubdepartment(e.target.value)}
-                        className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                      >
-                        <option value="">Select subdepartment</option>
-                        {(departments.find(d => d.name === formDepartment)?.subdepartments || []).map(s => (
-                          <option key={s.id} value={String(s.id)}>{s.name}</option>
-                        ))}
-                      </select>
+                      <div className="relative mt-1 ui-select-wrap">
+                        <select
+                          value={formSubdepartment}
+                          onChange={(e) => setFormSubdepartment(e.target.value)}
+                          className={`${modalSelectClass} mt-0 ui-select-custom-arrow`}
+                        >
+                          <option value="">Select subdepartment</option>
+                          {(departments.find(d => d.name === formDepartment)?.subdepartments || []).map(s => (
+                            <option key={s.id} value={String(s.id)}>{s.name}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="ui-select-arrow pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-300" />
+                      </div>
                     </div>
                   )}
 
                   {formRole === 'Instructor' && formDepartment && (
                     <div>
-                      <label className="block text-sm font-medium text-slate-700">Instructor Subdepartments</label>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Instructor Subdepartments</label>
                       <select
                         multiple
                         value={formSubdepartmentIds.map(String)}
@@ -859,7 +901,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                           const vals = Array.from(e.target.selectedOptions).map(o => Number(o.value));
                           setFormSubdepartmentIds(vals);
                         }}
-                        className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 h-28 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                        className={`${modalFieldClass} h-28`}
                       >
                         {(departments.find(d => d.name === formDepartment)?.subdepartments || []).map(s => (
                           <option key={s.id} value={String(s.id)}>{s.name}</option>
@@ -873,7 +915,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                           onChange={(e) => setFormIsHead(e.target.checked)}
                           className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
                         />
-                        <label className="ml-2 block text-sm text-slate-900">Set as Department Head</label>
+                        <label className="ml-2 block text-sm text-slate-900 dark:text-slate-100">Set as Department Head</label>
                       </div>
                     </div>
                   )}
@@ -885,13 +927,13 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                       defaultChecked={editingUser ? editingUser.status === 'Active' : true}
                       className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
                     />
-                    <label className="ml-2 block text-sm text-slate-900">Active Account</label>
+                    <label className="ml-2 block text-sm text-slate-900 dark:text-slate-100">Active Account</label>
                   </div>
                   <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:col-start-2 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-emerald-600 text-base font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-500 hover:shadow-[0_10px_20px_rgba(16,185,129,0.22)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:col-start-2 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {submitting ? (
                         <>
@@ -906,7 +948,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                       type="button"
                       onClick={handleCloseModal}
                       disabled={submitting}
-                      className="mt-3 w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:mt-0 sm:col-start-1 sm:text-sm"
+                      className="mt-3 w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:mt-0 sm:col-start-1 sm:text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                       Cancel
                     </button>
