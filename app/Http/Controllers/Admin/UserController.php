@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use App\Rules\MaptechEmail;
+use App\Rules\StrongPassword;
 
 class UserController extends Controller
 {
@@ -75,8 +77,8 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'fullName' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:8',
+            'email' => ['required', 'email', new MaptechEmail, 'unique:users,email'],
+            'password' => ['required', 'string', new StrongPassword],
             'role' => ['required', Rule::in(['Admin', 'Instructor', 'Employee'])],
             'department' => 'nullable|string|max:255',
             'subdepartment_id' => 'nullable|exists:subdepartments,id',
@@ -162,8 +164,8 @@ class UserController extends Controller
 
         $validated = $request->validate([
             'fullName' => 'sometimes|string|max:255',
-            'email' => ['sometimes', 'email', Rule::unique('users')->ignore($id)],
-            'password' => 'sometimes|string|min:8',
+            'email' => ['sometimes', 'email', new MaptechEmail, Rule::unique('users')->ignore($id)],
+            'password' => ['sometimes', 'string', new StrongPassword],
             'role' => ['sometimes', Rule::in(['Admin', 'Instructor', 'Employee'])],
             'department' => 'nullable|string|max:255',
             'subdepartment_id' => 'nullable|exists:subdepartments,id',
