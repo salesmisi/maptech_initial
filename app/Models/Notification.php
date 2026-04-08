@@ -12,6 +12,8 @@ class Notification extends Model
 {
     protected $fillable = [
         'user_id',
+        'target_type',
+        'target_id',
         'course_id',
         'module_id',
         'type',

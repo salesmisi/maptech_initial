@@ -30,5 +30,25 @@ class BroadcastServiceProvider extends ServiceProvider
         Broadcast::channel('notifications.{userId}', function ($user, $userId) {
             return (int) $user->id === (int) $userId;
         });
+
+        // Allow users to listen to course updates if they are enrolled, instructor, or admin
+        Broadcast::channel('course.{courseId}', function ($user, $courseId) {
+            // Admin can listen to all courses
+            if ($user->role === 'Admin') {
+                return true;
+            }
+
+            // Check if user is the instructor of this course
+            $course = \App\Models\Course::find($courseId);
+            if ($course && $course->instructor_id === $user->id) {
+                return true;
+            }
+
+            // Check if user is enrolled in this course
+            return \App\Models\Enrollment::where('user_id', $user->id)
+                ->where('course_id', $courseId)
+                ->where('status', '!=', 'Dropped')
+                ->exists();
+        });
     }
 }

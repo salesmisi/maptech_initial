@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Mail, Lock, ArrowRight } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { BusinessFooter } from '../components/business/BusinessFooter';
 
 interface LoginPageProps {
   onLogin: (
+    id: number | undefined,
     role: 'admin' | 'instructor' | 'employee',
     name: string,
     email: string,
@@ -18,7 +19,13 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [pageReady, setPageReady] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
+  const [videoSrcIndex, setVideoSrcIndex] = useState(0);
+  const [videoFailed, setVideoFailed] = useState(false);
+  const loginVideoSources = ['/assets/loginvid.mp4', '/loginvid.mp4'];
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // ✅ Function to get cookie value
   const getCookie = (name: string) => {
@@ -36,10 +43,16 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
       // ✅ 1. Get CSRF cookie
       await fetch('/sanctum/csrf-cookie', {
         credentials: 'include',
+      }).catch((err) => {
+        throw new Error('Cannot connect to server. Please ensure the server is running.');
       });
 
       // ✅ 2. Extract XSRF token from cookie
       const xsrfToken = getCookie('XSRF-TOKEN');
+
+      if (!xsrfToken) {
+        throw new Error('Unable to get security token. Please refresh the page and try again.');
+      }
 
       // ✅ 3. Login request WITH X-XSRF-TOKEN header
       const response = await fetch('/login', {
@@ -55,6 +68,8 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
           email,
           password,
         }),
+      }).catch((err) => {
+        throw new Error('Network error: Cannot connect to server.');
       });
 
       if (!response.ok) {
@@ -63,6 +78,11 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
       }
 
       const data = await response.json();
+
+      // Store token if provided so frontend can use bearer fallback when cookies fail
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
 
       // ✅ 4. Refresh CSRF cookie after login (session()->regenerate() creates a new token)
       await fetch('/sanctum/csrf-cookie', {
@@ -111,6 +131,7 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
 
       // Pass role (lowercase), name, email, and department
       onLogin(
+        data.id,
         role as 'admin' | 'instructor' | 'employee',
         data.fullName ?? data.fullname ?? data.name,
         data.email,
@@ -138,46 +159,109 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
   };
 
   const isDark = theme === 'dark';
+  const activeVideoSource = loginVideoSources[videoSrcIndex];
+
+  useEffect(() => {
+    if (videoFailed || !videoRef.current) return;
+
+    const video = videoRef.current;
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.then === 'function') {
+      playPromise.catch(() => {
+        // Keep poster fallback behavior; browsers may block playback in rare cases.
+      });
+    }
+  }, [activeVideoSource, videoFailed]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setPageReady(true), 30);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const handleVideoError = () => {
+    if (videoSrcIndex < loginVideoSources.length - 1) {
+      setVideoSrcIndex((index) => index + 1);
+      return;
+    }
+
+    setVideoFailed(true);
+  };
 
   return (
     <div className="relative min-h-screen overflow-hidden flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <video
-        className="absolute inset-0 h-full w-full object-cover"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        poster="/assets/pasted-image.jpg"
-        onCanPlay={() => setVideoReady(true)}
-      >
-        <source src="/assets/loginvid.mp4" type="video/mp4" />
-      </video>
-
       <div
-        className={`absolute inset-0 bg-slate-950/65 transition-opacity duration-500 ${videoReady ? 'opacity-100' : 'opacity-90'}`}
+        className="absolute inset-0 bg-slate-950"
         aria-hidden="true"
       />
 
-      <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
+      {!videoFailed && (
+        <video
+          key={activeVideoSource}
+          ref={videoRef}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${videoReady ? 'opacity-100' : 'opacity-0'}`}
+          src={activeVideoSource}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          onLoadStart={() => setVideoReady(false)}
+          onLoadedData={() => setVideoReady(true)}
+          onCanPlay={() => setVideoReady(true)}
+          onError={handleVideoError}
+        />
+      )}
+
+      {videoFailed && (
+        <div
+          className="absolute inset-0 h-full w-full bg-cover bg-center"
+          style={{ backgroundImage: 'url(/assets/pasted-image.jpg)' }}
+          aria-hidden="true"
+        />
+      )}
+
+      <div
+        className={`absolute inset-0 bg-slate-950/70 transition-opacity duration-500 ${videoReady ? 'opacity-100' : 'opacity-90'}`}
+        aria-hidden="true"
+      />
+
+      <div
+        className={`relative z-10 sm:mx-auto sm:w-full sm:max-w-md transform transition-all duration-700 delay-100 ${
+          pageReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
+        }`}
+      >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 -top-14 h-56 w-80 -translate-x-1/2 rounded-full bg-cyan-300/22 blur-3xl"
+        />
         <div className="flex justify-center">
           <img
-            className="h-20 w-auto"
+            className="h-20 sm:h-28 md:h-32 w-auto drop-shadow-[0_14px_36px_rgba(0,0,0,0.58)]"
             src="/assets/Maptech-Official-Logo.png"
             alt="Maptech LearnHub"
           />
         </div>
-        <h2 className={`mt-6 text-center text-3xl font-extrabold ${isDark ? 'text-white' : 'text-slate-50'}`}>
+        <h2
+          className={`mt-4 text-center text-2xl font-extrabold ${isDark ? 'text-white' : 'text-slate-50'}`}
+          style={{ textShadow: '0 4px 18px rgba(2, 6, 23, 0.75)' }}
+        >
           Sign in to LearnHub
         </h2>
-        <p className={`mt-2 text-center text-sm ${isDark ? 'text-slate-200' : 'text-slate-100'}`}>
+        <p
+          className={`mt-2 text-center text-sm ${isDark ? 'text-slate-200' : 'text-slate-100'}`}
+          style={{ textShadow: '0 2px 12px rgba(2, 6, 23, 0.7)' }}
+        >
           Maptech Information Solutions Inc.
         </p>
       </div>
 
-      <div className="relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className={`backdrop-blur-sm py-8 px-4 shadow sm:rounded-lg sm:px-10 border-t-4 border-green-500 ${isDark ? 'bg-slate-950/75' : 'bg-white/90'}`}>
-          <form className="space-y-6" onSubmit={handleSubmit}>
+      <div
+        className={`relative z-10 mt-5 sm:mx-auto sm:w-full sm:max-w-md transform transition-all duration-700 delay-150 ${
+          pageReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        }`}
+      >
+        <div className={`backdrop-blur-sm py-6 px-4 shadow sm:rounded-lg sm:px-8 border-t-4 border-green-500 ${isDark ? 'bg-slate-950/75' : 'bg-white/90'}`}>
+          <form className="space-y-4" onSubmit={handleSubmit}>
 
             <div>
               <label htmlFor="login-email" className={`block text-sm font-medium ${isDark ? 'text-slate-100' : 'text-slate-700'}`}>
@@ -195,7 +279,7 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className={`block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
+                  className={`login-auth-input block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
                   placeholder="name@maptech.com"
                 />
               </div>
@@ -213,13 +297,22 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
                   id="login-password"
                   name="password"
                   autoComplete="current-password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`block w-full pl-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
+                  className={`login-auth-input block w-full pl-10 pr-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
                   placeholder="••••••••"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
             </div>
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import useConfirm from '../hooks/useConfirm';
 import { RefreshCw, Clock, LogOut } from "lucide-react";
+import { LoadingState } from './ui/LoadingState';
 
 interface TimeLogEntry {
   id: number;
@@ -326,17 +327,17 @@ export function UserTimeLog() {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow border p-4 mb-6 dark:bg-slate-900/80 dark:border-slate-700">
+    <div className="bg-white rounded-lg shadow border border-slate-200 p-4 mb-6 dark:bg-slate-900/80 dark:border-slate-700">
       <div className="text-xs text-gray-500 mb-2 dark:text-slate-400">All times are shown in your local timezone.</div>
       <div className="flex justify-between items-center mb-2">
         <div className="flex items-center gap-2">
           <Clock className="w-5 h-5 text-green-600" />
-          <span className="font-semibold text-green-700 dark:text-green-400">My Time Log</span>
+          <span className="font-semibold text-green-700 dark:text-green-300">My Time Log</span>
         </div>
         <button
           onClick={() => fetchLogs(true)}
           disabled={refreshing}
-          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium border rounded hover:bg-gray-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium border rounded bg-white border-slate-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
         >
           <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
           Refresh
@@ -348,31 +349,31 @@ export function UserTimeLog() {
         )}
       </div>
       <div className="flex flex-wrap items-center gap-3 mb-3 text-xs">
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-800">
           <span className="font-semibold">Today:</span>
           <span>{formatTotalDuration(todaySeconds)}</span>
         </span>
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-100">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 dark:bg-sky-900/10 text-sky-700 dark:text-sky-300 border border-sky-100 dark:border-sky-800">
           <span className="font-semibold">This week:</span>
           <span>{formatTotalDuration(weekSeconds)}</span>
         </span>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
         <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-slate-700">
-          <thead className="bg-gray-50 dark:bg-slate-800/70">
+          <thead className="bg-gray-50 dark:bg-slate-800/70 sticky top-0 z-10">
             <tr>
-              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-300">Date</th>
-              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-300">Time In</th>
-              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-300">Time Out</th>
-              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-300">Status</th>
-              {userRole === 'Admin' && <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-300">Actions</th>}
+              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-200">Date</th>
+              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-200">Time In</th>
+              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-200">Time Out</th>
+              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-200">Status</th>
+              {userRole === 'Admin' && <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-200">Actions</th>}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-100 dark:bg-slate-900/60 dark:divide-slate-800">
+          <tbody className="bg-white divide-y divide-gray-100 dark:bg-slate-900/60 dark:divide-slate-700">
             {loading ? (
-              <tr><td colSpan={userRole === 'Admin' ? 5 : 4} className="px-4 py-6 text-center text-gray-400 dark:text-slate-500">Loading...</td></tr>
+              <tr><td colSpan={userRole === 'Admin' ? 5 : 4} className="px-4 py-6 text-center text-gray-400 dark:text-slate-300"><LoadingState message="Loading time logs" size="sm" className="py-2" /></td></tr>
             ) : sessions.length === 0 ? (
-              <tr><td colSpan={userRole === 'Admin' ? 5 : 4} className="px-4 py-6 text-center text-gray-400 dark:text-slate-500">No time logs found.</td></tr>
+              <tr><td colSpan={userRole === 'Admin' ? 5 : 4} className="px-4 py-6 text-center text-gray-400 dark:text-slate-300">No time logs found.</td></tr>
             ) : (
               sessions.map((session) => {
                 const timeIn = formatDateTime(session.time_in);
@@ -388,15 +389,15 @@ export function UserTimeLog() {
                 return (
                   <tr key={session.id}>
                     <td className="px-4 py-2">
-                      <span className="text-sm text-gray-700 dark:text-slate-300" title={displayDateFull}>{displayDate}</span>
+                      <span className="text-sm text-gray-700 dark:text-slate-100" title={displayDateFull}>{displayDate}</span>
                     </td>
                     <td className="px-4 py-2">
                       {timeIn ? (
                         <div>
                           <span className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5 dark:text-slate-500">Time In</span>
-                          <span className="block text-xs text-gray-500 dark:text-slate-400">{timeIn.date}</span>
+                          <span className="block text-xs text-gray-500 dark:text-slate-300">{timeIn.date}</span>
                           <div className="flex items-baseline gap-2">
-                            <span className="text-green-700 font-semibold dark:text-green-400">{timeIn.time}</span>
+                            <span className="text-green-700 font-semibold dark:text-green-300">{timeIn.time}</span>
                             <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium dark:bg-slate-800 dark:text-slate-300">{timeIn.period}</span>
                           </div>
                         </div>
@@ -406,7 +407,7 @@ export function UserTimeLog() {
                       {timeOut ? (
                         <div title={`Logged out at ${timeOut.fullDateTime}`}>
                           <span className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5 dark:text-slate-500">Time Out</span>
-                          <span className="block text-xs text-gray-500 dark:text-slate-400">{timeOut.date}</span>
+                          <span className="block text-xs text-gray-500 dark:text-slate-300">{timeOut.date}</span>
                           <div className="flex items-baseline gap-2">
                             <span className="text-red-600 font-semibold dark:text-red-400">{timeOut.time}</span>
                             <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium dark:bg-slate-800 dark:text-slate-300">{timeOut.period}</span>
@@ -418,12 +419,12 @@ export function UserTimeLog() {
                     </td>
                     <td className="px-4 py-2">
                       {!session.time_out && session.time_in ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full dark:bg-green-900/35 dark:text-green-300">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full dark:bg-green-900/40 dark:text-green-300">
                           <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse dark:bg-green-400"></span>
                           Active ({formatElapsed(session.time_in)})
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full dark:bg-slate-800 dark:text-slate-400">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full dark:bg-slate-800 dark:text-slate-300">
                           <LogOut className="w-3 h-3" />
                           Ended
                         </span>

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X } from 'lucide-react';
+import { safeArray } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 interface Notification {
   id: number;
@@ -73,8 +75,19 @@ export function NotificationManagement() {
     return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
   };
 
+  const fetchOptions = (method: 'GET' | 'POST', body?: unknown): RequestInit => ({
+    method,
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+
   // Load notifications and sent history
   useEffect(() => {
+    console.debug('NotificationManagement mounted', { formData });
     fetchNotifications();
     fetchUnreadCount();
     fetchSentAnnouncements();
@@ -83,14 +96,21 @@ export function NotificationManagement() {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/notifications', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
-      const data = await res.json();
-      setNotifications(data.notifications?.data || []);
+      const res = await fetch('/api/admin/notifications', fetchOptions('GET'));
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        const text = await res.text().catch(() => null);
+        console.error('Failed to parse /api/admin/notifications response as JSON', { status: res.status, text });
+        data = null;
+      }
+
+      const list = safeArray(data?.notifications?.data);
+      if (!Array.isArray(data?.notifications?.data) && data !== null) {
+        console.warn('/api/admin/notifications returned unexpected shape', data);
+      }
+      setNotifications(list);
     } catch (err) {
       console.error('Failed to load notifications:', err);
     } finally {
@@ -100,12 +120,7 @@ export function NotificationManagement() {
 
   const fetchUnreadCount = async () => {
     try {
-      const res = await fetch('/api/admin/notifications/unread-count', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/admin/notifications/unread-count', fetchOptions('GET'));
       const data = await res.json();
       setUnreadCount(data.count || 0);
     } catch (err) {
@@ -130,13 +145,7 @@ export function NotificationManagement() {
 
   const markAsRead = async (id: number) => {
     try {
-      await fetch(`/api/admin/notifications/${id}/read`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch(`/api/admin/notifications/${id}/read`, fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
@@ -146,13 +155,7 @@ export function NotificationManagement() {
 
   const markAllAsRead = async () => {
     try {
-      await fetch('/api/admin/notifications/read-all', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch('/api/admin/notifications/read-all', fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
@@ -253,7 +256,8 @@ export function NotificationManagement() {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.roles.length === 0) {
+    const rolesArray = Array.isArray(formData.roles) ? formData.roles : (formData.roles ? [formData.roles] : []);
+    if (rolesArray.length === 0) {
       alert('Please select at least one target audience');
       return;
     }
@@ -293,13 +297,56 @@ export function NotificationManagement() {
         // Refresh sent history from server
         fetchSentAnnouncements();
       } else {
-        alert(data.message || 'Failed to send announcement');
+        const msg = data?.message || `Failed to send announcement (status ${res.status})`;
+        alert(msg);
       }
     } catch (err) {
       console.error('Failed to send announcement:', err);
       alert('Failed to send announcement');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handlePreview = async () => {
+    const rolesArray = Array.isArray(formData.roles) ? formData.roles : (formData.roles ? [formData.roles] : []);
+    if (rolesArray.length === 0) {
+      alert('Please select at least one target audience');
+      return;
+    }
+
+    try {
+      // Ensure we have a fresh CSRF cookie when not using token fallback
+      if (!token) {
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      }
+      const payload = {
+        title: formData.title,
+        message: formData.message,
+        roles: rolesArray,
+        course_id: formData.course_id || null,
+        preview: true,
+      };
+      console.debug('Preview announce payload', payload);
+
+      const res = await fetch('/api/admin/notifications/announce', fetchOptions('POST', payload));
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        const text = await res.text().catch(() => null);
+        console.error('Failed to parse preview response JSON', { status: res.status, text });
+      }
+
+      if (res.ok) {
+        alert(`Preview: ${data?.recipients_count ?? 'unknown'} recipients`);
+      } else {
+        alert(data?.message || `Failed to preview recipients (status ${res.status})`);
+      }
+    } catch (err) {
+      console.error('Preview failed:', err);
+      alert('Preview failed');
     }
   };
 
@@ -317,16 +364,16 @@ export function NotificationManagement() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
             Notification System
           </h1>
           {unreadCount > 0 && (
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">
               You have {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+          <div className="flex gap-2">
           {unreadCount > 0 && (
             <button
               onClick={markAllAsRead}
@@ -337,7 +384,10 @@ export function NotificationManagement() {
             </button>
           )}
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={async () => {
+              if (!token) await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+              setIsModalOpen(true);
+            }}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -347,24 +397,24 @@ export function NotificationManagement() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200">
+      <div className="border-b border-slate-200 dark:border-slate-700">
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setActiveTab('received')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'received'
                 ? 'border-green-500 text-green-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
             }`}
           >
-            Received ({notifications.length})
+            Received ({safeArray(notifications).length})
           </button>
           <button
             onClick={() => setActiveTab('sent')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'sent'
                 ? 'border-green-500 text-green-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
             }`}
           >
             Sent History ({sentHistory.length})
@@ -376,15 +426,15 @@ export function NotificationManagement() {
       {activeTab === 'received' && (
         <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-slate-500">Loading...</div>
-          ) : notifications.length === 0 ? (
+            <LoadingState message="Loading notifications" className="p-8" />
+          ) : safeArray(notifications).length === 0 ? (
             <div className="p-8 text-center text-slate-500">
               <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300" />
               <p>No notifications yet</p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-700 dark:divide-slate-700">
-              {notifications.map((notification) => (
+            <div className="divide-y divide-slate-200">
+              {safeArray(notifications).map((notification) => (
                 <div
                   key={notification.id}
                   onClick={() => setSelectedNotification(notification)}
@@ -475,10 +525,10 @@ export function NotificationManagement() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Date</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
-                  {sentHistory.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
+                <tbody className="bg-white divide-y divide-slate-200">
+                  {safeArray(sentHistory).map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
                         {item.title}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-200 truncate max-w-xs">
@@ -613,6 +663,13 @@ export function NotificationManagement() {
                       className="w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 sm:text-sm"
                     >
                       Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePreview}
+                      className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 sm:text-sm mr-2"
+                    >
+                      Preview Recipients
                     </button>
                     <button
                       type="submit"

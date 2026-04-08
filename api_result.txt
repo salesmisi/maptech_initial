@@ -1,0 +1,10 @@
+HTTP/1.1 401 Unauthorized
+Host: 127.0.0.1:8000
+Connection: close
+X-Powered-By: PHP/8.2.12
+Cache-Control: no-cache, private
+Date: Thu, 12 Mar 2026 01:33:35 GMT
+Content-Type: application/json
+Vary: Origin
+
+{"message":"Unauthenticated."}

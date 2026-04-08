@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 
 const API = '/api';
+import { safeArray } from '../../utils/safe';
 
 // ─── helpers ────────────────────────────────────────────────────────────
 
@@ -168,7 +169,7 @@ export function LessonVideoUpload() {
         } catch {
           data = await apiFetch('/instructor/courses');
         }
-        const list = data.map((c: any) => ({ id: c.id, title: c.title }));
+        const list = safeArray(data).map((c: any) => ({ id: c.id, title: c.title }));
         setCourses(list);
         if (list.length > 0) {
           setSelectedCourseId(list[0].id);
@@ -500,7 +501,7 @@ export function LessonVideoUpload() {
           className="block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm rounded-md border"
         >
           {courses.length === 0 && <option value="">No courses available</option>}
-          {courses.map((c) => (
+          {safeArray(courses).map((c) => (
             <option key={c.id} value={c.id}>
               {c.title}
             </option>
@@ -540,7 +541,7 @@ export function LessonVideoUpload() {
       {/* Modules List */}
       {!loading && (
         <div className="space-y-4">
-          {modules.map((module) => (
+          {safeArray(modules).map((module) => (
             <div
               key={module.id}
               className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm"
@@ -629,7 +630,7 @@ export function LessonVideoUpload() {
                       No lessons yet. Click "Upload Content" to add lessons to this module.
                     </div>
                   ) : (
-                    module.lessons.map((lesson) => (
+                    safeArray(module.lessons).map((lesson) => (
                       <div
                         key={lesson.id}
                         className="px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer"
@@ -792,7 +793,7 @@ export function LessonVideoUpload() {
                     onChange={(e) => setUploadModuleId(Number(e.target.value))}
                     className="block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                   >
-                    {modules.map((m) => (
+                    {safeArray(modules).map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.title}
                       </option>

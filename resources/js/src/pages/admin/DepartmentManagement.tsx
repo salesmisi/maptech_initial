@@ -1,13 +1,15 @@
-﻿import { useState, useEffect } from "react";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  Users,
-  BookOpen,
-  Building2,
-  X,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from 'react';
+import { safeArray } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
+import { Building2, Plus, Trash2, Users, BookOpen, X } from 'lucide-react';
+
+interface EmployeeRecord {
+  id: number;
+  fullname: string;
+  email?: string | null;
+  department?: string | null;
+  subdepartment_id?: number | null;
+}
 
 interface Subdepartment {
   id: number;
@@ -16,6 +18,7 @@ interface Subdepartment {
   employee_id: number | null;
   head_user?: { id: number; fullname: string } | null;
   employee?: { id: number; fullname: string } | null;
+  employees?: EmployeeRecord[];
 }
 
 interface Department {
@@ -28,592 +31,788 @@ interface Department {
   head_user?: { id: number; fullname: string } | null;
   employee_count: number;
   course_count: number;
-  status: "Active" | "Inactive";
+  status: 'Active' | 'Inactive';
   subdepartments: Subdepartment[];
 }
 
-interface Instructor {
+interface HeadCandidate {
   id: number;
   fullname: string;
+  role: string;
 }
 
-interface Employee {
-  id: number;
-  fullname: string;
+interface ConfirmDialogState {
+  open: boolean;
+  title: string;
+  message: string;
+  action: null | (() => Promise<void>);
 }
 
 export default function DepartmentManagement() {
-  const API = "/api";
+  const API = '/api';
 
-  // Helper function to get cookie value
   const getCookie = (name: string) => {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
     if (parts.length === 2) return parts.pop()?.split(';').shift();
+    return '';
   };
 
-  // Helper function to get headers with XSRF token
   const getHeaders = () => ({
-    'Accept': 'application/json',
-    'Content-Type': 'application/json',
+    Accept: 'application/json',
     'X-Requested-With': 'XMLHttpRequest',
-    'X-XSRF-TOKEN': decodeURIComponent(getCookie('XSRF-TOKEN') || ''),
   });
 
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [instructors, setInstructors] = useState<Instructor[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  const [showDeptModal, setShowDeptModal] = useState(false);
-  const [showSubModal, setShowSubModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showDeleteSubModal, setShowDeleteSubModal] = useState(false);
-
-  const [selectedDeptId, setSelectedDeptId] = useState<number | null>(null);
-  const [selectedSubId, setSelectedSubId] = useState<number | null>(null);
-  const [selectedSubName, setSelectedSubName] = useState<string>('');
-  const [editing, setEditing] = useState<Department | null>(null);
-  const [editingSub, setEditingSub] = useState<Subdepartment | null>(null);
-
-  const [deptForm, setDeptForm] = useState({
-    name: "",
-    code: "",
-    head: "",
-    head_id: "" as string | number,
-    description: "",
-  });
-
-  const [subForm, setSubForm] = useState({
-    name: "",
-    head_id: "" as string | number,
-    employee_id: "" as string | number,
-  });
-
-  // ================= HELPERS =================
   const getXsrfToken = async (): Promise<string> => {
     await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
     return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
   };
 
-  // ================= LOAD =================
-  const loadDepartments = async () => {
-    try {
-      setLoading(true);
-      // Ensure CSRF cookie is set
-      await fetch('/sanctum/csrf-cookie', {
-        credentials: 'include',
-      });
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [headCandidates, setHeadCandidates] = useState<HeadCandidate[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-      const res = await fetch(`${API}/departments`, {
-        credentials: 'include',
-        headers: getHeaders(),
-      });
-      if (!res.ok) throw new Error("Failed to load");
-      const data = await res.json();
-      setDepartments(data);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showManageModal, setShowManageModal] = useState(false);
+  const [activeDeptId, setActiveDeptId] = useState<number | null>(null);
+
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [employeeToMove, setEmployeeToMove] = useState<EmployeeRecord | null>(null);
+  const [moveDepartment, setMoveDepartment] = useState('');
+  const [moveSubdepartmentId, setMoveSubdepartmentId] = useState('');
+
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>({
+    open: false,
+    title: '',
+    message: '',
+    action: null,
+  });
+  const [confirmBusy, setConfirmBusy] = useState(false);
+
+  const [createForm, setCreateForm] = useState({
+    name: '',
+    code: '',
+    description: '',
+  });
+
+  const [deptHeadId, setDeptHeadId] = useState('');
+  const [newSubForm, setNewSubForm] = useState({
+    name: '',
+    head_id: '',
+  });
+  const [subHeadDrafts, setSubHeadDrafts] = useState<Record<number, string>>({});
+
+  const activeDepartment = useMemo(
+    () => departments.find((d) => d.id === activeDeptId) ?? null,
+    [departments, activeDeptId]
+  );
+
+  const moveDepartmentSubdepartments = useMemo(() => {
+    const dept = departments.find((d) => d.name === moveDepartment);
+    return dept?.subdepartments ?? [];
+  }, [departments, moveDepartment]);
+
+  const loadDepartments = async () => {
+    const res = await fetch(`${API}/departments`, {
+      credentials: 'include',
+      headers: getHeaders(),
+    });
+
+    if (!res.ok) {
+      throw new Error('Failed to load departments.');
+    }
+
+    const data = await res.json();
+    setDepartments(Array.isArray(data) ? data : []);
+  };
+
+  const loadHeadCandidates = async () => {
+    const res = await fetch(`${API}/admin/users`, {
+      credentials: 'include',
+      headers: getHeaders(),
+    });
+
+    if (!res.ok) {
+      setHeadCandidates([]);
+      return;
+    }
+
+    const data = await res.json();
+    const candidates: HeadCandidate[] = (Array.isArray(data) ? data : [])
+      .filter((u: any) => {
+        const role = String(u?.role || '').toLowerCase();
+        return role === 'admin' || role === 'instructor';
+      })
+      .map((u: any) => ({
+        id: u.id,
+        fullname: u.fullname || u.fullName || u.name || 'Unknown User',
+        role: String(u.role || ''),
+      }));
+
+    setHeadCandidates(candidates);
+  };
+
+  const refreshAll = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      await Promise.all([loadDepartments(), loadHeadCandidates()]);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Failed to load data.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadDepartments();
-    loadInstructors();
-    loadEmployees();
+    refreshAll();
   }, []);
 
-  const loadInstructors = async () => {
-    try {
-      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-      const res = await fetch(`${API}/admin/users?role=Instructor`, {
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      setInstructors(data.map((u: any) => ({ id: u.id, fullname: u.fullname || u.fullName || u.name })));
-    } catch { /* ignore */ }
-  };
-
-  const loadEmployees = async () => {
-    try {
-      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-      const res = await fetch(`${API}/admin/users?role=Employee`, {
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      setEmployees(data.map((u: any) => ({ id: u.id, fullname: u.fullname || u.fullName || u.name })));
-    } catch { /* ignore */ }
-  };
-
-  // ================= SAVE DEPARTMENT =================
-  const handleSaveDepartment = async () => {
-    // Log form state
-    console.log('handleSaveDepartment called');
-    console.log('Form data:', deptForm);
-
-    // Validate required fields
-    if (!deptForm.name || !deptForm.name.trim()) {
-      alert('Department Name is required');
-      return;
-    }
-    if (!deptForm.code || !deptForm.code.trim()) {
-      alert('Department Code is required');
+  useEffect(() => {
+    if (!activeDepartment) {
+      setSubHeadDrafts({});
       return;
     }
 
-    const url = editing
-      ? `${API}/departments/${editing.id}`
-      : `${API}/departments`;
+    setDeptHeadId(activeDepartment.head_id ? String(activeDepartment.head_id) : '');
 
-    const method = editing ? "PUT" : "POST";
-    const xsrfToken = await getXsrfToken();
+    const nextDrafts: Record<number, string> = {};
+    for (const sub of safeArray(activeDepartment.subdepartments)) {
+      nextDrafts[sub.id] = sub.head_id ? String(sub.head_id) : '';
+    }
+    setSubHeadDrafts(nextDrafts);
+  }, [activeDepartment]);
 
+  const openManageModal = (dept: Department) => {
+    setActiveDeptId(dept.id);
+    setDeptHeadId(dept.head_id ? String(dept.head_id) : '');
+    setNewSubForm({ name: '', head_id: '' });
+    setShowManageModal(true);
+  };
+
+  const reloadAndKeepActive = async () => {
+    await loadDepartments();
+  };
+
+  const askConfirm = (title: string, message: string, action: () => Promise<void>) => {
+    setConfirmDialog({ open: true, title, message, action });
+  };
+
+  const runConfirmAction = async () => {
+    if (!confirmDialog.action) return;
+
+    setConfirmBusy(true);
     try {
-      const res = await fetch(url, {
-        method,
+      await confirmDialog.action();
+      setConfirmDialog({ open: false, title: '', message: '', action: null });
+    } catch (err: any) {
+      alert(err.message || 'Action failed.');
+    } finally {
+      setConfirmBusy(false);
+    }
+  };
+
+  const handleCreateDepartment = async () => {
+    if (!createForm.name.trim()) {
+      alert('Department Name is required.');
+      return;
+    }
+
+    if (!createForm.code.trim()) {
+      alert('Department Code is required.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const xsrfToken = await getXsrfToken();
+      const res = await fetch(`${API}/departments`, {
+        method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          Accept: 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
           'X-XSRF-TOKEN': xsrfToken,
         },
         body: JSON.stringify({
-          name: deptForm.name,
-          code: deptForm.code,
-          head: deptForm.head_id ? instructors.find(i => i.id === Number(deptForm.head_id))?.fullname || deptForm.head : deptForm.head,
-          head_id: deptForm.head_id ? Number(deptForm.head_id) : null,
-          description: deptForm.description,
-          status: "Active",
+          name: createForm.name.trim(),
+          code: createForm.code.trim(),
+          description: createForm.description.trim() || null,
+          status: 'Active',
         }),
       });
 
       if (!res.ok) {
-        const responseText = await res.text();
-        let errData: any = {};
-        try {
-          errData = JSON.parse(responseText);
-        } catch (e) {
-          throw new Error(`Failed to save: ${res.status} - ${responseText}`);
-        }
-
-        if (errData.errors) {
-          const errorMessages = Object.values(errData.errors).flat().join('\n');
-          throw new Error(errorMessages);
-        }
-        throw new Error(errData.message || `Failed to save: ${res.status}`);
+        const txt = await res.text();
+        throw new Error(txt || 'Failed to create department.');
       }
 
-      setShowDeptModal(false);
-      setEditing(null);
-      setDeptForm({ name: "", code: "", head: "", description: "" });
-      await loadDepartments();
+      setCreateForm({ name: '', code: '', description: '' });
+      setShowCreateModal(false);
+      await refreshAll();
     } catch (err: any) {
-      alert(err.message || "An error occurred");
+      alert(err.message || 'Failed to create department.');
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ================= ADD/EDIT SUB =================
-  const handleSaveSub = async () => {
-    const xsrfToken = await getXsrfToken();
+  const handleSaveDepartmentHead = async () => {
+    if (!activeDepartment) return;
 
-    const payload = {
-      name: subForm.name,
-      head_id: subForm.head_id ? Number(subForm.head_id) : null,
-      employee_id: subForm.employee_id ? Number(subForm.employee_id) : null,
-    };
-
+    setSaving(true);
     try {
-      if (editingSub) {
-        // Edit existing subdepartment
-        await fetch(`${API}/subdepartments/${editingSub.id}`, {
-          method: "PUT",
+      const xsrfToken = await getXsrfToken();
+      const selectedHead = headCandidates.find((h) => String(h.id) === deptHeadId);
+
+      const res = await fetch(`${API}/departments/${activeDepartment.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrfToken,
+        },
+        body: JSON.stringify({
+          name: activeDepartment.name,
+          code: activeDepartment.code,
+          description: activeDepartment.description,
+          status: activeDepartment.status,
+          head_id: deptHeadId ? Number(deptHeadId) : null,
+          head: selectedHead?.fullname || '',
+        }),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || 'Failed to update department head.');
+      }
+
+      await reloadAndKeepActive();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update department head.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreateSubdepartment = async () => {
+    if (!activeDepartment) return;
+    if (!newSubForm.name.trim()) {
+      alert('Subdepartment Name is required.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const xsrfToken = await getXsrfToken();
+      const res = await fetch(`${API}/departments/${activeDepartment.id}/subdepartments`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrfToken,
+        },
+        body: JSON.stringify({
+          name: newSubForm.name.trim(),
+          head_id: newSubForm.head_id ? Number(newSubForm.head_id) : null,
+        }),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || 'Failed to create subdepartment.');
+      }
+
+      setNewSubForm({ name: '', head_id: '' });
+      await reloadAndKeepActive();
+    } catch (err: any) {
+      alert(err.message || 'Failed to create subdepartment.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveSubHead = async (sub: Subdepartment) => {
+    if (!activeDepartment) return;
+
+    setSaving(true);
+    try {
+      const xsrfToken = await getXsrfToken();
+      const draft = subHeadDrafts[sub.id] ?? '';
+      const res = await fetch(`${API}/subdepartments/${sub.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrfToken,
+        },
+        body: JSON.stringify({
+          name: sub.name,
+          head_id: draft ? Number(draft) : null,
+          employee_id: sub.employee_id,
+        }),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || 'Failed to update subdepartment head.');
+      }
+
+      await reloadAndKeepActive();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update subdepartment head.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteDepartment = (dept: Department) => {
+    askConfirm(
+      'Delete Department',
+      `Are you sure you want to delete ${dept.name}? This will also remove its subdepartments.`,
+      async () => {
+        const xsrfToken = await getXsrfToken();
+        const res = await fetch(`${API}/departments/${dept.id}`, {
+          method: 'DELETE',
           credentials: 'include',
           headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
+            Accept: 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
             'X-XSRF-TOKEN': xsrfToken,
           },
-          body: JSON.stringify(payload),
         });
-      } else {
-        // Add new subdepartment
-        if (!selectedDeptId) return;
 
-        await fetch(
-          `${API}/departments/${selectedDeptId}/subdepartments`,
-          {
-            method: "POST",
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'X-Requested-With': 'XMLHttpRequest',
-              'X-XSRF-TOKEN': xsrfToken,
-            },
-            body: JSON.stringify(payload),
-          }
-        );
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(txt || 'Failed to delete department.');
+        }
+
+        setShowManageModal(false);
+        setActiveDeptId(null);
+        await refreshAll();
+      }
+    );
+  };
+
+  const handleDeleteSubdepartment = (sub: Subdepartment) => {
+    askConfirm('Delete Subdepartment', `Are you sure you want to delete ${sub.name}?`, async () => {
+      const xsrfToken = await getXsrfToken();
+      const res = await fetch(`${API}/subdepartments/${sub.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrfToken,
+        },
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || 'Failed to delete subdepartment.');
       }
 
-      setSubForm({ name: "", head_id: "", employee_id: "" });
-      setEditingSub(null);
-      setShowSubModal(false);
-      loadDepartments();
+      await reloadAndKeepActive();
+    });
+  };
+
+  const openMoveEmployeeModal = (employee: EmployeeRecord) => {
+    setEmployeeToMove(employee);
+    setMoveDepartment(employee.department || activeDepartment?.name || '');
+    setMoveSubdepartmentId(employee.subdepartment_id ? String(employee.subdepartment_id) : '');
+    setShowMoveModal(true);
+  };
+
+  const handleMoveEmployee = async () => {
+    if (!employeeToMove) return;
+    if (!moveDepartment) {
+      alert('Please select a department.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const xsrfToken = await getXsrfToken();
+      const res = await fetch(`${API}/admin/users/${employeeToMove.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrfToken,
+        },
+        body: JSON.stringify({
+          department: moveDepartment,
+          subdepartment_id: moveSubdepartmentId ? Number(moveSubdepartmentId) : null,
+        }),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || 'Failed to move employee.');
+      }
+
+      setShowMoveModal(false);
+      setEmployeeToMove(null);
+      await reloadAndKeepActive();
     } catch (err: any) {
-      alert(err.message || "An error occurred");
+      alert(err.message || 'Failed to move employee.');
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ================= DELETE SUB =================
-  const confirmDeleteSub = async () => {
-    if (!selectedSubId) return;
-
-    const xsrfToken = await getXsrfToken();
-    await fetch(`${API}/subdepartments/${selectedSubId}`, {
-      method: "DELETE",
-      credentials: 'include',
-      headers: {
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        'X-XSRF-TOKEN': xsrfToken,
-      },
-    });
-
-    setShowDeleteSubModal(false);
-    setSelectedSubId(null);
-    loadDepartments();
-  };
-
-  // ================= DELETE =================
-  const confirmDelete = async () => {
-    if (!selectedDeptId) return;
-
-    const xsrfToken = await getXsrfToken();
-    await fetch(`${API}/departments/${selectedDeptId}`, {
-      method: "DELETE",
-      credentials: 'include',
-      headers: {
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        'X-XSRF-TOKEN': xsrfToken,
-      },
-    });
-
-    setShowDeleteModal(false);
-    loadDepartments();
-  };
-
-  // ================= RENDER =================
-  if (loading) return <div className="p-6 text-slate-600 dark:text-slate-300">Loading...</div>;
+  if (loading) return <LoadingState message="Loading departments" className="p-6" />;
   if (error) return <div className="p-6 text-red-600">{error}</div>;
 
   return (
     <div className="p-6 text-slate-900 dark:text-slate-100">
-      {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-          Department Management
-        </h1>
+      <div className="department-toolbar-animate mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Department Management</h1>
 
         <button
-          onClick={() => {
-            setEditing(null);
-            setDeptForm({ name: "", code: "", head: "", head_id: "", description: "" });
-            setShowDeptModal(true);
-          }}
-          className="flex items-center px-4 py-2 bg-emerald-500 text-slate-950 font-semibold rounded-lg hover:bg-emerald-400 transition-colors"
+          onClick={() => setShowCreateModal(true)}
+          className="department-cta-button flex items-center rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-950 transition-colors hover:bg-emerald-400"
         >
-          <Plus className="w-4 h-4 mr-2" />
+          <Plus className="mr-2 h-4 w-4" />
           Add Department
         </button>
       </div>
 
-      {/* GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {departments.map((dept) => (
-          <div key={dept.id} className="bg-white border border-slate-200 rounded-xl shadow p-5 dark:bg-slate-900/80 dark:border-slate-700/80 dark:shadow-[0_10px_30px_rgba(2,6,23,0.35)]">
-            <div className="flex justify-between items-start mb-4">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {departments.map((dept, deptIndex) => (
+          <div
+            key={dept.id}
+            className="department-card rounded-xl border border-slate-200 bg-white p-5 shadow dark:border-slate-700/80 dark:bg-slate-900/80 dark:shadow-[0_10px_30px_rgba(2,6,23,0.35)]"
+            style={{ animationDelay: `${Math.min(deptIndex * 55, 440)}ms` }}
+          >
+            <div className="mb-4 flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-emerald-500/20 rounded-lg border border-emerald-500/30">
-                  <Building2 className="w-5 h-5 text-emerald-700 dark:text-emerald-300" />
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/20 p-3">
+                  <Building2 className="h-5 w-5 text-emerald-700 dark:text-emerald-300" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-lg text-slate-900 dark:text-slate-100">{dept.name}</h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">{dept.code}</p>
+                  <p className="text-lg font-semibold">{dept.name}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{dept.code}</p>
                 </div>
               </div>
             </div>
 
-            <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">
-              Head: <span className="font-medium text-slate-900 dark:text-slate-100">{dept.head_user?.fullname || dept.head || 'Unassigned'}</span>
+            <p className="mb-1 text-sm text-slate-600 dark:text-slate-300">
+              Head:{' '}
+              <span className="font-medium text-slate-900 dark:text-slate-100">
+                {dept.head_user?.fullname || 'Unassigned'}
+              </span>
             </p>
 
-            {/* DESCRIPTION */}
-            {dept.description && (
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
-                {dept.description}
-              </p>
-            )}
+            {dept.description && <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">{dept.description}</p>}
 
-            {/* SUBDEPARTMENTS */}
-            {dept.subdepartments?.length > 0 && (
-              <div className="mb-3">
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-medium">Subdepartments:</p>
-                <div className="space-y-2">
-                {dept.subdepartments.map((sub) => (
-                  <div
-                    key={sub.id}
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs group dark:bg-slate-800/90 dark:border-slate-700"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-sky-700 dark:text-sky-300">{sub.name}</span>
-                      <div className="flex items-center gap-1">
-                        <Pencil
-                          onClick={() => {
-                            setEditingSub(sub);
-                            setSubForm({
-                              name: sub.name,
-                              head_id: sub.head_id || "",
-                              employee_id: sub.employee_id || "",
-                            });
-                            setShowSubModal(true);
-                          }}
-                          className="w-3 h-3 cursor-pointer text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-                        />
-                        <X
-                          onClick={() => {
-                            setSelectedSubId(sub.id);
-                            setSelectedSubName(sub.name);
-                            setShowDeleteSubModal(true);
-                          }}
-                          className="w-3 h-3 cursor-pointer text-slate-500 hover:text-rose-500 dark:text-slate-400 dark:hover:text-rose-400"
-                        />
-                      </div>
-                    </div>
-                    <div className="mt-1 text-slate-500 dark:text-slate-400 space-y-0.5">
-                      <p>Head: <span className="text-slate-700 dark:text-slate-200">{sub.head_user?.fullname || 'Unassigned'}</span></p>
-                      <p>Employee: <span className="text-slate-700 dark:text-slate-200">{sub.employee?.fullname || 'Unassigned'}</span></p>
-                    </div>
-                  </div>
-                ))}
+            <div className="mb-4 grid grid-cols-2 gap-3 text-xs">
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+                <div className="mb-1 flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                  <Users className="h-3.5 w-3.5" /> Employees
                 </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{dept.employee_count ?? 0}</div>
               </div>
-            )}
-
-            <div className="flex justify-between items-center mt-4">
-              <div className="flex gap-3 items-center">
-                <button
-                  onClick={() => {
-                    setSelectedDeptId(dept.id);
-                    setSubForm({ name: "", head_id: "", employee_id: "" });
-                    setEditingSub(null);
-                    setShowSubModal(true);
-                  }}
-                  className="text-emerald-700 text-xs font-medium hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
-                >
-                  + Sub
-                </button>
-
-                <Pencil
-                  onClick={() => {
-                    setEditing(dept);
-                    setDeptForm({
-                      name: dept.name,
-                      code: dept.code,
-                      head: dept.head,
-                      head_id: dept.head_id || "",
-                      description: dept.description,
-                    });
-                    setShowDeptModal(true);
-                  }}
-                  className="w-4 h-4 cursor-pointer text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-                />
-
-                <Trash2
-                  onClick={() => {
-                    setSelectedDeptId(dept.id);
-                    setShowDeleteModal(true);
-                  }}
-                  className="w-4 h-4 cursor-pointer text-slate-500 hover:text-rose-500 dark:text-slate-400 dark:hover:text-rose-400"
-                />
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+                <div className="mb-1 flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                  <BookOpen className="h-3.5 w-3.5" /> Courses
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{dept.course_count ?? 0}</div>
               </div>
+            </div>
+
+            <div className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+              Subdepartments: <span className="font-medium text-slate-700 dark:text-slate-200">{safeArray(dept.subdepartments).length}</span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => openManageModal(dept)}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Manage
+              </button>
+
+              <button
+                onClick={() => handleDeleteDepartment(dept)}
+                className="inline-flex items-center rounded-md border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40"
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete
+              </button>
             </div>
           </div>
         ))}
       </div>
 
-      {/* ================= DEPARTMENT MODAL ================= */}
-      {showDeptModal && (
-        <Modal onClose={() => setShowDeptModal(false)}>
-          <h2 className="text-lg font-semibold mb-4">
-            {editing ? "Edit Department" : "Add Department"}
-          </h2>
-
-          <Input
+      {showCreateModal && (
+        <Modal onClose={() => setShowCreateModal(false)}>
+          <h2 className="mb-4 text-lg font-semibold">Add Department</h2>
+          <TextInput
             placeholder="Department Name"
-            value={deptForm.name}
-            onChange={(v) => setDeptForm({ ...deptForm, name: v })}
+            value={createForm.name}
+            onChange={(v) => setCreateForm((s) => ({ ...s, name: v }))}
           />
-          <Input
+          <TextInput
             placeholder="Department Code"
-            value={deptForm.code}
-            onChange={(v) => setDeptForm({ ...deptForm, code: v })}
+            value={createForm.code}
+            onChange={(v) => setCreateForm((s) => ({ ...s, code: v }))}
           />
-          <div className="mb-3">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Department Head</label>
-            <select
-              value={deptForm.head_id}
-              onChange={(e) => setDeptForm({ ...deptForm, head_id: e.target.value })}
-              className="w-full border border-slate-300 bg-white text-slate-900 rounded-md px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-            >
-              <option value="">Select Instructor</option>
-              {instructors.map((inst) => (
-                <option key={inst.id} value={inst.id}>{inst.fullname}</option>
-              ))}
-            </select>
-          </div>
-          <Input
+          <TextInput
             placeholder="Description"
-            value={deptForm.description}
-            onChange={(v) =>
-              setDeptForm({ ...deptForm, description: v })
-            }
+            value={createForm.description}
+            onChange={(v) => setCreateForm((s) => ({ ...s, description: v }))}
           />
 
           <button
-            onClick={handleSaveDepartment}
+            onClick={handleCreateDepartment}
             disabled={saving}
-            className="w-full mt-4 bg-emerald-500 text-slate-950 font-semibold py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-400"
+            className="mt-3 w-full rounded-md bg-emerald-500 py-2 font-semibold text-slate-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? 'Saving...' : 'Create Department'}
           </button>
         </Modal>
       )}
 
-      {/* ================= SUB MODAL ================= */}
-      {showSubModal && (
-        <Modal onClose={() => {
-          setShowSubModal(false);
-          setEditingSub(null);
-          setSubForm({ name: "", head_id: "", employee_id: "" });
-        }}>
-          <h2 className="text-lg font-semibold mb-4">
-            {editingSub ? "Edit Subdepartment" : "Add Subdepartment"}
-          </h2>
+      {showManageModal && activeDepartment && (
+        <Modal onClose={() => setShowManageModal(false)} maxWidthClass="max-w-4xl">
+          <h2 className="mb-4 text-lg font-semibold">Manage {activeDepartment.name}</h2>
 
-          <Input
-            placeholder="Subdepartment Name"
-            value={subForm.name}
-            onChange={(v) => setSubForm({ ...subForm, name: v })}
-          />
-
-          <div className="mb-3">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Subdepartment Head</label>
-            <select
-              value={subForm.head_id}
-              onChange={(e) => setSubForm({ ...subForm, head_id: e.target.value })}
-              className="w-full border border-slate-300 bg-white text-slate-900 rounded-md px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-            >
-              <option value="">Select Head</option>
-              {instructors.map((inst) => (
-                <option key={inst.id} value={inst.id}>{inst.fullname}</option>
-              ))}
-            </select>
+          <div className="mb-6 rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+            <p className="mb-2 text-sm font-semibold">Department Head</p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <select
+                value={deptHeadId}
+                onChange={(e) => setDeptHeadId(e.target.value)}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none sm:w-80 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              >
+                <option value="">Select Department Head</option>
+                {headCandidates.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.fullname} ({u.role})
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={handleSaveDepartmentHead}
+                disabled={saving}
+                className="rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Save Head
+              </button>
+            </div>
           </div>
 
-          <div className="mb-3">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Subdepartment Employee</label>
-            <select
-              value={subForm.employee_id}
-              onChange={(e) => setSubForm({ ...subForm, employee_id: e.target.value })}
-              className="w-full border border-slate-300 bg-white text-slate-900 rounded-md px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-            >
-              <option value="">Select Employee</option>
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>{emp.fullname}</option>
-              ))}
-            </select>
+          <div className="mb-6 rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+            <p className="mb-2 text-sm font-semibold">Add Subdepartment</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <input
+                value={newSubForm.name}
+                onChange={(e) => setNewSubForm((s) => ({ ...s, name: e.target.value }))}
+                placeholder="Subdepartment name"
+                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+              <select
+                value={newSubForm.head_id}
+                onChange={(e) => setNewSubForm((s) => ({ ...s, head_id: e.target.value }))}
+                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              >
+                <option value="">Select Head</option>
+                {headCandidates.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.fullname}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={handleCreateSubdepartment}
+                disabled={saving}
+                className="rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Add Subdepartment
+              </button>
+            </div>
           </div>
 
-          <button
-            onClick={handleSaveSub}
-            className="w-full mt-4 bg-emerald-500 text-slate-950 font-semibold py-2 rounded-md hover:bg-emerald-400"
-          >
-            {editingSub ? "Update Subdepartment" : "Save Subdepartment"}
-          </button>
+          <div className="space-y-3">
+            {safeArray(activeDepartment.subdepartments).length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                No subdepartments yet.
+              </div>
+            ) : (
+              safeArray(activeDepartment.subdepartments).map((sub) => (
+                <div key={sub.id} className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+                  <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{sub.name}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Subdepartment Head</p>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <select
+                        value={subHeadDrafts[sub.id] ?? ''}
+                        onChange={(e) => setSubHeadDrafts((prev) => ({ ...prev, [sub.id]: e.target.value }))}
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none sm:w-72 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                      >
+                        <option value="">Select sub head</option>
+                        {headCandidates.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.fullname} ({u.role})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => handleSaveSubHead(sub)}
+                        disabled={saving}
+                        className="rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Save Head
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSubdepartment(sub)}
+                        className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-md bg-slate-50 p-3 dark:bg-slate-800/70">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Employee Records</div>
+                    {safeArray(sub.employees).length > 0 ? (
+                      <div className="space-y-1">
+                        {safeArray(sub.employees).map((emp) => (
+                          <div key={emp.id} className="flex items-center justify-between rounded border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+                            <span className="font-medium text-slate-900 dark:text-slate-100">{emp.fullname}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-slate-500 dark:text-slate-400">{emp.email || 'No email'}</span>
+                              <button
+                                onClick={() => openMoveEmployeeModal(emp)}
+                                className="rounded border border-sky-300 bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-500/40 dark:bg-sky-950/40 dark:text-sky-300"
+                              >
+                                Move
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">No employees assigned yet.</p>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </Modal>
       )}
 
-      {/* ================= DELETE MODAL ================= */}
-      {showDeleteModal && (() => {
-        const deptToDelete = departments.find(d => d.id === selectedDeptId);
-        return (
-        <Modal onClose={() => setShowDeleteModal(false)}>
-          <h2 className="text-lg font-semibold mb-2">
-            Delete Department
-          </h2>
-          <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
-            Are you sure you want to delete <span className="font-semibold text-slate-900 dark:text-slate-100">"{deptToDelete?.name}"</span>? This will also remove all its subdepartments. This action cannot be undone.
+      {showMoveModal && employeeToMove && (
+        <Modal
+          onClose={() => {
+            setShowMoveModal(false);
+            setEmployeeToMove(null);
+          }}
+          maxWidthClass="max-w-xl"
+        >
+          <h3 className="mb-1 text-lg font-semibold">Move Employee</h3>
+          <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+            Move <span className="font-semibold text-slate-900 dark:text-slate-100">{employeeToMove.fullname}</span> to another department/subdepartment.
           </p>
 
-          <div className="flex justify-end gap-3">
-            <button
-              onClick={() => setShowDeleteModal(false)}
-              className="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Cancel
-            </button>
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium">Department</label>
+              <select
+                value={moveDepartment}
+                onChange={(e) => {
+                  setMoveDepartment(e.target.value);
+                  setMoveSubdepartmentId('');
+                }}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              >
+                <option value="">Select department</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.name}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            <button
-              onClick={confirmDelete}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-            >
-              Yes, Delete
-            </button>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Subdepartment</label>
+              <select
+                value={moveSubdepartmentId}
+                onChange={(e) => setMoveSubdepartmentId(e.target.value)}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              >
+                <option value="">Select subdepartment</option>
+                {moveDepartmentSubdepartments.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mt-2 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowMoveModal(false);
+                  setEmployeeToMove(null);
+                }}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMoveEmployee}
+                disabled={saving}
+                className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saving ? 'Moving...' : 'Move Employee'}
+              </button>
+            </div>
           </div>
         </Modal>
-        );
-      })()}
+      )}
 
-      {/* ================= DELETE SUB MODAL ================= */}
-      {showDeleteSubModal && (
-        <Modal onClose={() => setShowDeleteSubModal(false)}>
-          <h2 className="text-lg font-semibold mb-2">
-            Delete Subdepartment
-          </h2>
-          <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
-            Are you sure you want to delete <span className="font-semibold text-slate-900 dark:text-slate-100">"{selectedSubName}"</span>? This action cannot be undone and all employees assigned to this subdepartment will be unassigned.
-          </p>
-
-          <div className="flex justify-end gap-3">
+      {confirmDialog.open && (
+        <Modal
+          onClose={() => {
+            if (confirmBusy) return;
+            setConfirmDialog({ open: false, title: '', message: '', action: null });
+          }}
+          maxWidthClass="max-w-lg"
+        >
+          <h3 className="mb-2 text-lg font-semibold">{confirmDialog.title}</h3>
+          <p className="mb-5 text-sm text-slate-600 dark:text-slate-300">{confirmDialog.message}</p>
+          <div className="flex justify-end gap-2">
             <button
-              onClick={() => setShowDeleteSubModal(false)}
-              className="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+              onClick={() => setConfirmDialog({ open: false, title: '', message: '', action: null })}
+              disabled={confirmBusy}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Cancel
             </button>
-
             <button
-              onClick={confirmDeleteSub}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              onClick={runConfirmAction}
+              disabled={confirmBusy}
+              className="rounded-md bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Yes, Delete
+              {confirmBusy ? 'Deleting...' : 'Confirm Delete'}
             </button>
           </div>
         </Modal>
@@ -622,31 +821,34 @@ export default function DepartmentManagement() {
   );
 }
 
-/* ================= REUSABLE COMPONENTS ================= */
-
 function Modal({
   children,
   onClose,
+  maxWidthClass = 'max-w-md',
 }: {
   children: React.ReactNode;
   onClose: () => void;
+  maxWidthClass?: string;
 }) {
   return (
-    <div className="fixed inset-0 bg-slate-900/40 dark:bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white border border-slate-200 w-96 rounded-lg shadow-xl p-6 relative text-slate-900 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100">
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
-        >
-          <X className="w-5 h-5" />
-        </button>
-        {children}
+    <div className="fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-sm">
+      <div className="flex h-full items-center justify-center px-4 py-4 sm:py-8">
+        <div className={`relative max-h-[92dvh] w-full ${maxWidthClass} overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900`}>
+          <button
+            onClick={onClose}
+            className="absolute right-6 top-4 z-20 inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300/70 bg-white/90 text-slate-500 shadow-sm backdrop-blur transition hover:text-slate-800 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-400 dark:hover:text-slate-100"
+          >
+            <X className="h-5 w-5" />
+          </button>
+
+          <div className="max-h-[92dvh] overflow-y-auto p-6 pr-5 pt-12">{children}</div>
+        </div>
       </div>
     </div>
   );
 }
 
-function Input({
+function TextInput({
   placeholder,
   value,
   onChange,
@@ -658,10 +860,10 @@ function Input({
   return (
     <input
       type="text"
-      placeholder={placeholder}
-      className="w-full border border-slate-300 bg-white text-slate-900 rounded-md px-3 py-2 mb-3 placeholder:text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="mb-3 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
     />
   );
 }

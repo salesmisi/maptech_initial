@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle } from 'lucide-react';
+import { safeArray } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 interface Notification {
   id: number;
@@ -53,6 +55,16 @@ export function InstructorNotifications() {
   const confirm = useConfirm();
   const { showConfirm } = confirm;
 
+  const fetchOptions = (method: 'GET' | 'POST', body?: unknown): RequestInit => ({
+    method,
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+
   useEffect(() => {
     fetchNotifications();
     fetchUnreadCount();
@@ -93,12 +105,7 @@ export function InstructorNotifications() {
 
   const fetchCourses = async () => {
     try {
-      const res = await fetch('/api/instructor/courses', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/instructor/courses', fetchOptions('GET'));
       const data = await res.json();
       setCourses(Array.isArray(data) ? data : data.data || []);
     } catch (err) {
@@ -119,12 +126,7 @@ export function InstructorNotifications() {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/instructor/notifications', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/instructor/notifications', fetchOptions('GET'));
       const data = await res.json();
       setNotifications(data.notifications?.data || []);
     } catch (err) {
@@ -136,12 +138,7 @@ export function InstructorNotifications() {
 
   const fetchUnreadCount = async () => {
     try {
-      const res = await fetch('/api/instructor/notifications/unread-count', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/instructor/notifications/unread-count', fetchOptions('GET'));
       const data = await res.json();
       setUnreadCount(data.count || 0);
     } catch (err) {
@@ -151,13 +148,7 @@ export function InstructorNotifications() {
 
   const markAsRead = async (id: number) => {
     try {
-      await fetch(`/api/instructor/notifications/${id}/read`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch(`/api/instructor/notifications/${id}/read`, fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
@@ -167,13 +158,7 @@ export function InstructorNotifications() {
 
   const markAllAsRead = async () => {
     try {
-      await fetch('/api/instructor/notifications/read-all', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch('/api/instructor/notifications/read-all', fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
@@ -300,7 +285,7 @@ export function InstructorNotifications() {
             onClick={() => setIsModalOpen(true)}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
           >
-            <Send className="h-4 w-4 mr-2" />
+            <Users className="h-4 w-4 mr-2" />
             Notify Employees
           </button>
         </div>
@@ -309,12 +294,12 @@ export function InstructorNotifications() {
       {/* Notifications List */}
       <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-slate-500 dark:text-slate-300">Loading...</div>
+          <LoadingState message="Loading notifications" className="p-8" />
         ) : notifications.length === 0 ? (
           <div className="p-8 text-center text-slate-500 dark:text-slate-300">
             <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
             <p>No notifications yet</p>
-            <p className="text-sm mt-2">You'll receive notifications from admin and employees here</p>
+            <p className="text-sm mt-2">You'll receive notifications from employees here</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-200 dark:divide-slate-700">

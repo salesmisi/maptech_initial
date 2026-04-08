@@ -110,4 +110,12 @@ class Module extends Model
             ->withPivot('unlocked', 'unlocked_at', 'unlocked_until')
             ->withTimestamps();
     }
+
+    /**
+     * Get the custom module this module is synced from (if any).
+     */
+    public function customModule()
+    {
+        return $this->belongsTo(CustomModule::class, 'custom_module_id');
+    }
 }

@@ -1,5 +1,6 @@
 // Quiz Management — grouped by Department → Subdepartment → Quizzes
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import useConfirm from '../../hooks/useConfirm';
 import {
   ClipboardList,
@@ -33,6 +34,7 @@ interface QuizSummary {
   id: number;
   title: string;
   description: string | null;
+  pass_percentage: number;
   course_id: string;
   course_title: string;
   course_dept: string;
@@ -40,6 +42,18 @@ interface QuizSummary {
   subdepartment_name: string | null;
   question_count: number;
   created_at: string;
+}
+
+interface QuizQuestionOptionItem {
+  id: number;
+  option_text: string;
+  is_correct: boolean;
+}
+
+interface QuizQuestionItem {
+  id: number;
+  question_text: string;
+  options: QuizQuestionOptionItem[];
 }
 
 const DEPT_HEADER_COLORS: Record<string, string> = {
@@ -72,6 +86,24 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [editingQuiz, setEditingQuiz] = useState<QuizSummary | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editPassPercentage, setEditPassPercentage] = useState(70);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [newQuestionText, setNewQuestionText] = useState('');
+  const [newOptions, setNewOptions] = useState<string[]>(['', '', '', '']);
+  const [correctOptionIndex, setCorrectOptionIndex] = useState(0);
+  const [addingQuestion, setAddingQuestion] = useState(false);
+  const [questionMessage, setQuestionMessage] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<QuizQuestionItem[]>([]);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [editingQuestionId, setEditingQuestionId] = useState<number | null>(null);
+  const [editQuestionText, setEditQuestionText] = useState('');
+  const [editQuestionOptions, setEditQuestionOptions] = useState<string[]>(['', '', '', '']);
+  const [editCorrectOptionIndex, setEditCorrectOptionIndex] = useState(0);
+  const [savingQuestionEdit, setSavingQuestionEdit] = useState(false);
+  const [deletingQuestionId, setDeletingQuestionId] = useState<number | null>(null);
   const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
   const [expandedSubdepts, setExpandedSubdepts] = useState<Set<string>>(new Set());
   const confirm = useConfirm();
@@ -98,6 +130,221 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
   };
 
   useEffect(() => { loadQuizzes(); }, []);
+
+  const loadQuizQuestions = async (quizId: number) => {
+    setLoadingQuestions(true);
+    try {
+      const res = await fetch(`${API_BASE}/instructor/quizzes/${quizId}`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error('Failed to load quiz questions.');
+      const data = await res.json();
+      setQuestions(Array.isArray(data?.questions) ? data.questions : []);
+    } catch (e: any) {
+      setQuestionMessage(e.message || 'Failed to load quiz questions.');
+      setQuestions([]);
+    } finally {
+      setLoadingQuestions(false);
+    }
+  };
+
+  const startEdit = (quiz: QuizSummary) => {
+    setEditingQuiz(quiz);
+    setEditTitle(quiz.title || '');
+    setEditDescription(quiz.description || '');
+    setEditPassPercentage(quiz.pass_percentage || 70);
+    setNewQuestionText('');
+    setNewOptions(['', '', '', '']);
+    setCorrectOptionIndex(0);
+    setQuestionMessage(null);
+    setEditingQuestionId(null);
+    setEditQuestionText('');
+    setEditQuestionOptions(['', '', '', '']);
+    setEditCorrectOptionIndex(0);
+    loadQuizQuestions(quiz.id);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingQuiz) return;
+    if (!editTitle.trim()) {
+      alert('Quiz title is required.');
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const token = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/instructor/quizzes/${editingQuiz.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': token,
+        },
+        body: JSON.stringify({
+          title: editTitle.trim(),
+          description: editDescription.trim() || null,
+          pass_percentage: editPassPercentage,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'Failed to update quiz.');
+
+      setEditingQuiz(null);
+      await loadQuizzes();
+    } catch (e: any) {
+      alert(e.message || 'Failed to update quiz.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const updateOption = (index: number, value: string) => {
+    setNewOptions((prev) => prev.map((opt, i) => (i === index ? value : opt)));
+  };
+
+  const handleAddQuestion = async () => {
+    if (!editingQuiz) return;
+    if (!newQuestionText.trim()) {
+      setQuestionMessage('Question text is required.');
+      return;
+    }
+    if (newOptions.some((opt) => !opt.trim())) {
+      setQuestionMessage('All options are required.');
+      return;
+    }
+
+    setAddingQuestion(true);
+    setQuestionMessage(null);
+
+    try {
+      const token = await getXsrfToken();
+      const payload = {
+        question_text: newQuestionText.trim(),
+        options: newOptions.map((opt, idx) => ({
+          text: opt.trim(),
+          is_correct: idx === correctOptionIndex,
+        })),
+      };
+
+      const res = await fetch(`${API_BASE}/instructor/quizzes/${editingQuiz.id}/questions`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': token,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'Failed to add question.');
+
+      setNewQuestionText('');
+      setNewOptions(['', '', '', '']);
+      setCorrectOptionIndex(0);
+      setQuestionMessage('Question added successfully.');
+      await loadQuizQuestions(editingQuiz.id);
+      await loadQuizzes();
+    } catch (e: any) {
+      setQuestionMessage(e.message || 'Failed to add question.');
+    } finally {
+      setAddingQuestion(false);
+    }
+  };
+
+  const startEditQuestion = (question: QuizQuestionItem) => {
+    setEditingQuestionId(question.id);
+    setEditQuestionText(question.question_text || '');
+    const opts = (question.options || []).map((o) => o.option_text);
+    while (opts.length < 4) opts.push('');
+    setEditQuestionOptions(opts.slice(0, 4));
+    const correctIndex = question.options?.findIndex((o) => o.is_correct) ?? 0;
+    setEditCorrectOptionIndex(correctIndex >= 0 ? correctIndex : 0);
+    setQuestionMessage(null);
+  };
+
+  const updateEditOption = (index: number, value: string) => {
+    setEditQuestionOptions((prev) => prev.map((opt, i) => (i === index ? value : opt)));
+  };
+
+  const handleSaveQuestionEdit = async () => {
+    if (!editingQuiz || !editingQuestionId) return;
+    if (!editQuestionText.trim()) {
+      setQuestionMessage('Question text is required.');
+      return;
+    }
+    if (editQuestionOptions.some((opt) => !opt.trim())) {
+      setQuestionMessage('All question options are required.');
+      return;
+    }
+
+    setSavingQuestionEdit(true);
+    try {
+      const token = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/instructor/quizzes/${editingQuiz.id}/questions/${editingQuestionId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': token,
+        },
+        body: JSON.stringify({
+          question_text: editQuestionText.trim(),
+          options: editQuestionOptions.map((opt, idx) => ({
+            text: opt.trim(),
+            is_correct: idx === editCorrectOptionIndex,
+          })),
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'Failed to update question.');
+
+      setQuestionMessage('Question updated successfully.');
+      setEditingQuestionId(null);
+      await loadQuizQuestions(editingQuiz.id);
+      await loadQuizzes();
+    } catch (e: any) {
+      setQuestionMessage(e.message || 'Failed to update question.');
+    } finally {
+      setSavingQuestionEdit(false);
+    }
+  };
+
+  const handleDeleteQuestion = async (questionId: number) => {
+    if (!editingQuiz) return;
+
+    showConfirm('Delete this question permanently?', async () => {
+      setDeletingQuestionId(questionId);
+      try {
+        const token = await getXsrfToken();
+        const res = await fetch(`${API_BASE}/instructor/quizzes/${editingQuiz.id}/questions/${questionId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.message || 'Failed to delete question.');
+
+        setQuestionMessage('Question deleted successfully.');
+        if (editingQuestionId === questionId) {
+          setEditingQuestionId(null);
+        }
+        await loadQuizQuestions(editingQuiz.id);
+        await loadQuizzes();
+      } catch (e: any) {
+        setQuestionMessage(e.message || 'Failed to delete question.');
+      } finally {
+        setDeletingQuestionId(null);
+      }
+    });
+  };
 
   const handleDelete = async (id: number) => {
     showConfirm('Delete this quiz and all its questions permanently?', async () => {
@@ -285,6 +532,13 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => startEdit(quiz)}
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-700 border border-blue-200 rounded-md hover:bg-blue-50 transition-colors"
+                                    >
+                                      <Edit2 className="h-3.5 w-3.5" />
+                                      Edit
+                                    </button>
                                     {onOpenQuiz && (
                                       <button
                                         onClick={() => onOpenQuiz(quiz.id)}
@@ -319,6 +573,218 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
           })}
         </div>
       )}
+
+      {editingQuiz && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-5xl rounded-xl bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700 max-h-[90vh] flex flex-col">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Edit Quiz</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Update quiz details as instructor.</p>
+            </div>
+
+            <div className="flex-1 overflow-hidden flex">
+              {/* Left Side - Edit Quiz Form */}
+              <div className="w-1/2 px-5 py-4 space-y-4 overflow-y-auto border-r border-slate-200 dark:border-slate-700">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Title</label>
+                  <input
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-green-500 focus:border-green-500"
+                    placeholder="Quiz title"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Description</label>
+                  <textarea
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    rows={3}
+                    className="w-full border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-green-500 focus:border-green-500 resize-none"
+                    placeholder="Optional description"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Pass Percentage</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={editPassPercentage}
+                    onChange={(e) => setEditPassPercentage(Number(e.target.value || 70))}
+                    className="w-28 border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+
+                <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">Add Question</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Question Text</label>
+                      <textarea
+                        value={newQuestionText}
+                        onChange={(e) => setNewQuestionText(e.target.value)}
+                        rows={2}
+                        className="w-full border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-green-500 focus:border-green-500 resize-none"
+                        placeholder="Type your question"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2">
+                      {newOptions.map((opt, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="correctOption"
+                            checked={correctOptionIndex === idx}
+                            onChange={() => setCorrectOptionIndex(idx)}
+                            className="h-4 w-4 text-green-600"
+                          />
+                          <input
+                            value={opt}
+                            onChange={(e) => updateOption(idx, e.target.value)}
+                            className="flex-1 border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-green-500 focus:border-green-500"
+                            placeholder={`Option ${idx + 1}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    {questionMessage && (
+                      <p className={`text-xs ${questionMessage.includes('success') ? 'text-green-600' : 'text-red-600'}`}>
+                        {questionMessage}
+                      </p>
+                    )}
+
+                    <button
+                      onClick={handleAddQuestion}
+                      disabled={addingQuestion}
+                      className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {addingQuestion ? 'Adding...' : 'Add Question'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Side - Questionnaires Created */}
+              <div className="w-1/2 px-5 py-4 overflow-y-auto bg-slate-50 dark:bg-slate-900/40">
+                <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Questionnaires Created</h4>
+
+                {loadingQuestions ? (
+                  <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading questions...
+                  </div>
+                ) : questions.length === 0 ? (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">No questions yet for this quiz.</p>
+                ) : (
+                  <div className="space-y-4 pr-1">
+                    {questions.map((q, idx) => (
+                      <div key={q.id} className="border-2 border-slate-200 dark:border-slate-600 rounded-lg p-4 bg-white dark:bg-slate-700 shadow-sm">
+                        <div className="flex items-start justify-between gap-2 mb-3">
+                          <div className="flex items-start gap-2">
+                            <span className="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-indigo-600 dark:bg-indigo-500 text-white text-xs font-bold rounded-full">
+                              {idx + 1}
+                            </span>
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 pt-1">{q.question_text}</p>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              onClick={() => startEditQuestion(q)}
+                              className="px-2 py-1 text-[11px] border border-blue-200 dark:border-blue-600 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteQuestion(q.id)}
+                              disabled={deletingQuestionId === q.id}
+                              className="px-2 py-1 text-[11px] border border-red-200 dark:border-red-600 text-red-700 dark:text-red-300 rounded hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50"
+                            >
+                              {deletingQuestionId === q.id ? 'Deleting...' : 'Delete'}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="ml-9 space-y-1.5 border-l-2 border-slate-200 dark:border-slate-500 pl-3">
+                          {q.options.map((opt, optIdx) => (
+                            <div key={opt.id} className={`flex items-center gap-2 text-xs ${opt.is_correct ? 'text-green-700 dark:text-emerald-300 font-semibold bg-green-50 dark:bg-emerald-900/30 rounded px-2 py-1' : 'text-slate-600 dark:text-slate-300'}`}>
+                              <span className="w-5 h-5 flex items-center justify-center rounded-full border text-[10px] font-medium ${opt.is_correct ? 'border-green-500 bg-green-100' : 'border-slate-300 bg-slate-100'}">
+                                {String.fromCharCode(97 + optIdx)}
+                              </span>
+                              <span>{opt.option_text}</span>
+                              {opt.is_correct && <span className="ml-auto text-[10px] bg-green-600 text-white px-1.5 py-0.5 rounded">Correct</span>}
+                            </div>
+                          ))}
+                        </div>
+
+                        {editingQuestionId === q.id && (
+                          <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-600 space-y-2">
+                            <textarea
+                              value={editQuestionText}
+                              onChange={(e) => setEditQuestionText(e.target.value)}
+                              rows={2}
+                              className="w-full border border-slate-300 dark:border-slate-500 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 focus:ring-green-500 focus:border-green-500"
+                            />
+                            {editQuestionOptions.map((opt, optIdx) => (
+                              <div key={optIdx} className="flex items-center gap-2">
+                                <input
+                                  type="radio"
+                                  name={`edit-correct-${q.id}`}
+                                  checked={editCorrectOptionIndex === optIdx}
+                                  onChange={() => setEditCorrectOptionIndex(optIdx)}
+                                  className="h-3.5 w-3.5"
+                                />
+                                <input
+                                  value={opt}
+                                  onChange={(e) => updateEditOption(optIdx, e.target.value)}
+                                  className="flex-1 border border-slate-300 dark:border-slate-500 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 focus:ring-green-500 focus:border-green-500"
+                                />
+                              </div>
+                            ))}
+                            <div className="flex gap-2">
+                              <button
+                                onClick={handleSaveQuestionEdit}
+                                disabled={savingQuestionEdit}
+                                className="px-2.5 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                              >
+                                {savingQuestionEdit ? 'Saving...' : 'Save Question'}
+                              </button>
+                              <button
+                                onClick={() => setEditingQuestionId(null)}
+                                className="px-2.5 py-1 text-xs border border-slate-300 dark:border-slate-500 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-50 dark:hover:bg-slate-600"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setEditingQuiz(null)}
+                className="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700"
+                disabled={savingEdit}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={savingEdit}
+                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+              >
+                {savingEdit ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
       {confirm.ConfirmModalRenderer()}
     </div>
   );

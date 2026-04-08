@@ -29,10 +29,10 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
 
   return (
     <div className={`relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md`}>
-      <div className={`backdrop-blur-sm py-6 px-4 shadow sm:rounded-lg sm:px-6 border-t border-emerald-500/50 ${
+      <div className={`backdrop-blur-md py-6 px-4 shadow-xl sm:rounded-lg sm:px-6 border-t border-emerald-500/60 ring-1 ${
         isDark
-          ? 'bg-slate-950/70'
-          : 'bg-white/80'
+          ? 'bg-slate-950/85 ring-slate-800/80'
+          : 'bg-white/95 ring-slate-300/70'
       }`}>
         <div aria-label="Business information">
           <button
@@ -48,7 +48,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                 }`}>
                   Business Information
                 </p>
-                <h3 className={`text-lg font-bold mt-1 ${
+                <h3 className={`text-base font-bold mt-1 ${
                   isDark ? 'text-slate-50' : 'text-slate-900'
                 }`}>
                   {businessDetails.company_name}
@@ -69,7 +69,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
             style={{ maxHeight: isOpen ? `${contentHeight}px` : '0px' }}
           >
             <div ref={contentRef}>
-              <div className={`space-y-2 pt-4 transition-all duration-400 ease-in-out ${
+              <div className={`space-y-1.5 pt-3 transition-all duration-400 ease-in-out ${
                 isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1'
               }`}>
                 {businessDetails.email && (
@@ -80,7 +80,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                 <a
                   href={`mailto:${businessDetails.email}`}
                   className={`text-sm break-all hover:underline ${
-                    isDark ? 'text-slate-300 hover:text-emerald-300' : 'text-slate-700 hover:text-emerald-700'
+                    isDark ? 'text-slate-200 hover:text-emerald-200' : 'text-slate-800 hover:text-emerald-800'
                   }`}
                 >
                   {businessDetails.email}
@@ -96,7 +96,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                 <a
                   href={`tel:${businessDetails.phone}`}
                   className={`text-sm hover:underline ${
-                    isDark ? 'text-slate-300 hover:text-emerald-300' : 'text-slate-700 hover:text-emerald-700'
+                    isDark ? 'text-slate-200 hover:text-emerald-200' : 'text-slate-800 hover:text-emerald-800'
                   }`}
                 >
                   Telephone: {businessDetails.phone}
@@ -112,7 +112,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                 <a
                   href={`tel:${businessDetails.mobile_phone}`}
                   className={`text-sm hover:underline ${
-                    isDark ? 'text-slate-300 hover:text-emerald-300' : 'text-slate-700 hover:text-emerald-700'
+                    isDark ? 'text-slate-200 hover:text-emerald-200' : 'text-slate-800 hover:text-emerald-800'
                   }`}
                 >
                   Mobile: {businessDetails.mobile_phone}
@@ -126,7 +126,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                   isDark ? 'text-emerald-400' : 'text-emerald-600'
                 }`} />
                 <p className={`text-sm ${
-                  isDark ? 'text-slate-300' : 'text-slate-700'
+                  isDark ? 'text-slate-200' : 'text-slate-800'
                 }`}>
                   VAT REG TIN No.: {businessDetails.vat_reg_tin}
                 </p>
@@ -139,7 +139,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                   isDark ? 'text-emerald-400' : 'text-emerald-600'
                 }`} />
                 <p className={`text-sm ${
-                  isDark ? 'text-slate-300' : 'text-slate-700'
+                  isDark ? 'text-slate-200' : 'text-slate-800'
                 }`}>
                   {businessDetails.address}
                 </p>
@@ -152,7 +152,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                   isDark ? 'text-emerald-400' : 'text-emerald-600'
                 }`} />
                 <p className={`text-sm ${
-                  isDark ? 'text-slate-300' : 'text-slate-700'
+                  isDark ? 'text-slate-200' : 'text-slate-800'
                 }`}>
                   {businessDetails.country}
                 </p>
@@ -169,7 +169,7 @@ export function BusinessFooter({ isDark = true }: BusinessFooterProps) {
                   target="_blank"
                   rel="noopener noreferrer"
                   className={`text-sm break-all hover:underline ${
-                    isDark ? 'text-slate-300 hover:text-emerald-300' : 'text-slate-700 hover:text-emerald-700'
+                    isDark ? 'text-slate-200 hover:text-emerald-200' : 'text-slate-800 hover:text-emerald-800'
                   }`}
                 >
                   {businessDetails.website.replace(/^https?:\/\//, '')}

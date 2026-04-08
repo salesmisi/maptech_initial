@@ -34,7 +34,10 @@ class CourseController extends Controller
         $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
-        $courses = Course::with(['modules.lessons'])
+        $courses = Course::with([
+            'instructor:id,fullname,email,profile_picture',
+            'modules.lessons',
+        ])
             ->withCount('enrollments')
             ->where(function ($q) use ($user, $assignedSubIds, $assignedDept) {
                 $q->where('instructor_id', $user->id);
@@ -54,7 +57,7 @@ class CourseController extends Controller
         // been reopened by the instructor.
         $courseIds = $courses->pluck('id');
         if ($courseIds->isNotEmpty()) {
-            $manualUnlockedCourseIds = \DB::table('module_user')
+            $manualUnlockedCourseIds = DB::table('module_user')
                 ->join('modules', 'module_user.module_id', '=', 'modules.id')
                 ->whereIn('modules.course_id', $courseIds)
                 ->where('module_user.unlocked', true)
@@ -69,7 +72,7 @@ class CourseController extends Controller
             $manualUnlockedLookup = array_flip($manualUnlockedCourseIds);
 
             foreach ($courses as $course) {
-                $course->setAttribute('has_manual_unlock', isset($manualUnlockedLookup[$course->id]));
+                $course->has_manual_unlock = isset($manualUnlockedLookup[$course->id]);
             }
         }
 
@@ -154,7 +157,7 @@ class CourseController extends Controller
             })
             ->withCount([
                 'enrollments',
-                'enrollments as completed_count' => fn ($q) => $q->where('status', 'completed'),
+                'enrollments as completed_count' => fn ($q) => $q->where('status', 'Completed'),
             ])
             ->get()
             ->map(fn ($c) => [
@@ -227,8 +230,11 @@ class CourseController extends Controller
 
         // Fetch the course and verify instructor has rights either by ownership
         // or because the course belongs to a department/subdepartment assigned to them
-        $course = Course::with(['modules.lessons', 'enrolledUsers:id,fullname,email,department,role,status'])
-            ->find($id);
+        $course = Course::with([
+            'instructor:id,fullname,email,profile_picture',
+            'modules.lessons',
+            'enrolledUsers:id,fullname,email,department,role,status',
+        ])->find($id);
 
         if (!$course) {
             return response()->json(['message' => 'Course not found.'], 404);
@@ -247,7 +253,15 @@ class CourseController extends Controller
 
         // Recalculate progress for each enrolled user
         foreach ($course->enrolledUsers as $eu) {
-            Enrollment::recalculateProgress($eu->id, $course->id);
+            try {
+                Enrollment::recalculateProgress($eu->id, $course->id);
+            } catch (\Throwable $exception) {
+                Log::warning('Failed to recalculate enrollment progress while loading instructor course detail.', [
+                    'course_id' => $course->id,
+                    'user_id' => $eu->id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
         }
         // Refresh to get updated pivot data
         $course->load('enrolledUsers:id,fullname,email,department,role,status');
@@ -518,8 +532,8 @@ $module = $course->modules()->create($data);
         $request->validate([
             'title'        => 'required|string|max:255',
             'text_content' => 'nullable|string',
-            // Allow large video files (up to ~2 GB)
-            'content'      => 'nullable|file|max:2048000',
+            // Allow large video files (up to ~5 GB)
+            'content'      => 'nullable|file|max:5242880',
             'content_url'  => 'nullable|url|max:2000',
             'type'         => 'nullable|in:Video,Document,Text',
             'status'       => 'nullable|in:Published,Draft',
@@ -628,7 +642,8 @@ $module = $course->modules()->create($data);
         $request->validate([
             'title'        => 'sometimes|string|max:255',
             'text_content' => 'nullable|string',
-            'content'      => 'nullable|file|max:102400',
+            // Allow large video files (up to ~5 GB)
+            'content'      => 'nullable|file|max:5242880',
         ]);
 
         $lesson = $module->lessons()->findOrFail($lessonId);
@@ -684,13 +699,47 @@ $module = $course->modules()->create($data);
     /**
      * List active employees (for enrollment dropdown).
      */
-    public function listUsers()
+    public function listUsers(Request $request)
     {
-        $users = User::where('status', 'Active')
-            ->whereIn('role', ['Employee'])
+        $instructor = $request->user();
+        $assignedSubIds = $instructor->subdepartments()->pluck('subdepartments.id')->toArray();
+        $assignedDept = trim((string) ($instructor->department ?? ''));
+
+        $departmentFilter = $assignedDept !== '' ? $assignedDept : null;
+
+        if ($request->filled('course_id')) {
+            $course = Course::findOrFail((string) $request->input('course_id'));
+
+            $allowed = ($course->instructor_id == $instructor->id)
+                || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+                || ($assignedDept !== '' && $this->departmentsMatch($course->department, $assignedDept));
+
+            if (!$allowed) {
+                return response()->json(['message' => 'Forbidden'], 403);
+            }
+
+            // For enrollment, prioritize the course's department so instructors only see eligible employees.
+            $courseDepartment = trim((string) ($course->department ?? ''));
+            if ($courseDepartment !== '') {
+                $departmentFilter = $courseDepartment;
+            }
+        }
+
+        $usersQuery = User::query()
+            ->where('status', 'Active')
+            // Roles are stored lowercase by the mutator; query case-insensitively for safety.
+            ->whereRaw('LOWER(role) = ?', ['employee']);
+
+        $users = $usersQuery
             ->select('id', 'fullname', 'email', 'role', 'department', 'status')
             ->orderBy('fullname')
             ->get();
+
+        if ($departmentFilter) {
+            $users = $users->filter(function ($u) use ($departmentFilter) {
+                return $this->departmentsMatch($u->department, $departmentFilter);
+            })->values();
+        }
 
         return response()->json($users);
     }
@@ -753,7 +802,7 @@ $module = $course->modules()->create($data);
 
         $allowed = ($course->instructor_id === $user->id)
             || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
-            || ($assignedDept && $course->department === $assignedDept);
+            || ($assignedDept && $this->departmentsMatch($course->department, $assignedDept));
 
         if (!$allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
@@ -1087,6 +1136,23 @@ $module = $course->modules()->create($data);
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
+        $targetUser = User::select('id', 'fullname', 'email', 'department', 'role', 'status')
+            ->findOrFail($request->user_id);
+
+        if (strtolower((string) $targetUser->role) !== 'employee') {
+            return response()->json(['message' => 'Only employees can be enrolled'], 422);
+        }
+
+        if ((string) $targetUser->status !== 'Active') {
+            return response()->json(['message' => 'Only active employees can be enrolled'], 422);
+        }
+
+        if (!$this->departmentsMatch($course->department, $targetUser->department)) {
+            return response()->json([
+                'message' => 'This employee is not in the course department and cannot be enrolled here',
+            ], 422);
+        }
+
         if ($course->enrollments()->where('user_id', $request->user_id)->exists()) {
             return response()->json(['message' => 'User is already enrolled in this course'], 409);
         }
@@ -1097,12 +1163,9 @@ $module = $course->modules()->create($data);
             'enrolled_at' => now(),
         ]);
 
-        $user = User::select('id', 'fullname', 'email', 'department', 'role', 'status')
-            ->findOrFail($request->user_id);
-
         return response()->json([
             'message' => 'User enrolled successfully',
-            'user'    => $user,
+            'user'    => $targetUser,
         ], 201);
     }
 
@@ -1132,5 +1195,32 @@ $module = $course->modules()->create($data);
         }
 
         return response()->json(['message' => 'User unenrolled successfully']);
+    }
+
+    private function normalizeDepartmentKey(?string $value): string
+    {
+        $raw = strtolower(trim((string) $value));
+        if ($raw === '') return '';
+
+        $compact = preg_replace('/department|dept/', '', $raw);
+        $compact = preg_replace('/[^a-z0-9]/', '', (string) $compact);
+
+        if (in_array($compact, ['it', 'informationtechnology', 'informationtech'], true)) return 'it';
+        if (in_array($compact, ['hr', 'humanresources'], true)) return 'humanresources';
+        if (in_array($compact, ['salesandmarketing', 'marketingandsales'], true)) return 'salesandmarketing';
+
+        return (string) $compact;
+    }
+
+    private function departmentsMatch(?string $a, ?string $b): bool
+    {
+        $left = $this->normalizeDepartmentKey($a);
+        $right = $this->normalizeDepartmentKey($b);
+
+        if ($left === '' || $right === '') {
+            return false;
+        }
+
+        return $left === $right;
     }
 }

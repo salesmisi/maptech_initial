@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import {
   Search,
@@ -9,8 +9,13 @@ import {
   X,
   AlertCircle,
   Loader2,
-  Camera
+  Camera,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
+import { LoadingState } from '../../components/ui/LoadingState';
+
+import { safeArray, resolveImageUrl } from '../../utils/safe';
 
 interface User {
   id: number;
@@ -67,6 +72,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
   const [formIsHead, setFormIsHead] = useState(false);
   const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Form refs
   const fullNameRef = useRef<HTMLInputElement>(null);
@@ -141,7 +147,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
   };
 
   // Filter users
-  const filteredUsers = users.filter((user) => {
+  const filteredUsers = safeArray(users).filter((user) => {
     const name = user.fullname || '';
     const matchesSearch =
       name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -150,6 +156,9 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
       departmentFilter === 'All' || user.department === departmentFilter;
     return matchesSearch && matchesDept;
   });
+
+  const selectionCheckboxClass =
+    'h-4 w-4 rounded-md border border-slate-300 accent-emerald-500 cursor-pointer transition focus:ring-2 focus:ring-emerald-500/60 focus:ring-offset-0 dark:border-slate-600 dark:bg-slate-800';
 
   // Delete handler
   const handleDelete = async (id: number) => {
@@ -238,7 +247,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     setFormIsHead(user?.head_of_departments && user.head_of_departments.length > 0 ? true : false);
     setFormError(null);
     setProfilePictureFile(null);
-    setProfilePicturePreview(user?.profile_picture ? `/storage/${user.profile_picture}` : null);
+    setProfilePicturePreview(resolveImageUrl(user?.profile_picture || null) || null);
     setIsModalOpen(true);
   };
 
@@ -253,6 +262,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     setFormError(null);
     setProfilePictureFile(null);
     setProfilePicturePreview(null);
+    setShowPassword(false);
   };
 
   // Form submit handler
@@ -287,7 +297,17 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
       setSubmitting(false);
       return;
     }
-    // Department selection removed from modal; do not enforce department here.
+    if (formData.role === 'Employee' && !formData.department) {
+      setFormError('Department is required for Employee role');
+      setSubmitting(false);
+      return;
+    }
+
+    if (formData.role === 'Employee' && !formData.subdepartment_id) {
+      setFormError('Subdepartment is required for Employee role');
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const xsrfToken = await getXsrfToken();
@@ -363,10 +383,11 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-12">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-500 dark:text-emerald-400" />
-        <span className="ml-2 text-slate-600 dark:text-slate-300">Loading users...</span>
-      </div>
+      <LoadingState
+        message="Loading users"
+        size="lg"
+        className="min-h-[40vh]"
+      />
     );
   }
 
@@ -388,21 +409,21 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">User Management</h1>
+    <div className="space-y-6 ui-pop-grid um-shell">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 um-header">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 um-title">User Management</h1>
         <div className="flex items-center space-x-3">
           <button
             onClick={handleBulkDelete}
             disabled={selectedIds.length === 0}
-            className="inline-flex items-center px-3 py-2 border border-rose-500/40 rounded-md shadow-sm text-sm font-medium text-rose-200 bg-rose-900/40 hover:bg-rose-800/50 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center px-3 py-2 border border-rose-500/40 rounded-md shadow-sm text-sm font-medium text-rose-200 bg-rose-900/40 hover:bg-rose-800/50 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50 disabled:cursor-not-allowed um-action-btn"
           >
             <Trash2 className="h-4 w-4 mr-2" />
             Delete Selected ({selectedIds.length})
           </button>
           <button
             onClick={() => handleOpenModal()}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-slate-950 bg-emerald-400 hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-slate-950 bg-emerald-400 hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 um-action-btn"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add User
@@ -411,14 +432,14 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-4 dark:bg-slate-900/80 dark:border-slate-700/80">
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-4 dark:bg-slate-900/80 dark:border-slate-700/80 ui-pop-in ui-force-pop um-filter-panel">
         <div className="relative flex-1">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
             <Search className="h-5 w-5 text-slate-400" />
           </div>
           <input
             type="text"
-            className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400"
+            className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400 um-search-input"
             placeholder="Search by name or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -430,12 +451,12 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
               <Filter className="h-4 w-4 text-slate-400" />
             </div>
             <select
-              className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 um-filter-select"
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
             >
               <option value="All">All Departments</option>
-              {departments.map((d) => (
+              {safeArray(departments).map((d) => (
                 <option key={d.id} value={d.name}>{d.name}</option>
               ))}
             </select>
@@ -444,18 +465,21 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
       </div>
 
       {/* Table */}
-      <div className="bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden dark:bg-slate-900/80 dark:border-slate-700/80">
+      <div className="bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden dark:bg-slate-900/80 dark:border-slate-700/80 ui-pop-in ui-force-pop um-table-shell">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
             <thead className="bg-slate-50 dark:bg-slate-800/80">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
-                  <input
-                    type="checkbox"
-                    onChange={toggleSelectAll}
-                    checked={filteredUsers.length > 0 && filteredUsers.every(u => selectedIds.includes(u.id))}
-                    className="h-4 w-4 text-emerald-500 border-slate-300 rounded bg-white dark:border-slate-600 dark:bg-slate-800"
-                  />
+                <th className="px-3 py-3 text-center align-middle text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
+                  <div className="flex items-center justify-center">
+                    <input
+                      type="checkbox"
+                      onChange={toggleSelectAll}
+                      checked={filteredUsers.length > 0 && filteredUsers.every(u => selectedIds.includes(u.id))}
+                      className={selectionCheckboxClass}
+                      aria-label="Select all users"
+                    />
+                  </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   Name
@@ -474,7 +498,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-slate-200 dark:bg-slate-900/30 dark:divide-slate-700">
+            <tbody className="bg-white divide-y divide-slate-200 dark:bg-slate-900/30 dark:divide-slate-700 um-table-body">
               {filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
@@ -482,27 +506,34 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-800/50">
-                    <td className="px-3 py-4 whitespace-nowrap">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(user.id)}
-                        onChange={() => toggleSelect(user.id)}
-                        className="h-4 w-4 text-emerald-500 border-slate-300 rounded bg-white dark:border-slate-600 dark:bg-slate-800"
-                      />
+                filteredUsers.map((user, index) => (
+                  <tr
+                    key={user.id}
+                    className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-800/50 um-row"
+                    style={{ ['--um-row-delay' as any]: `${Math.min(index, 14) * 55}ms` }}
+                  >
+                    <td className="px-3 py-4 whitespace-nowrap text-center align-middle">
+                      <div className="flex items-center justify-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(user.id)}
+                          onChange={() => toggleSelect(user.id)}
+                          className={selectionCheckboxClass}
+                          aria-label={`Select ${user.fullname}`}
+                        />
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
                           {user.profile_picture ? (
                             <img
-                              src={`/storage/${user.profile_picture}`}
+                              src={resolveImageUrl(user.profile_picture)}
                               alt={user.fullname}
-                              className="h-10 w-10 rounded-full object-cover"
+                              className="h-10 w-10 rounded-full object-cover um-avatar"
                             />
                           ) : (
-                            <div className="h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-bold">
+                            <div className="h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-bold um-avatar">
                               {(user.fullname || '?').charAt(0).toUpperCase()}
                             </div>
                           )}
@@ -529,7 +560,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                       )}
                       {user.role === 'Instructor' && user.subdepartments && user.subdepartments.length > 0 && (
                         <div className="text-xs text-slate-400">
-                          {user.subdepartments.map(s => s.name).join(', ')}
+                          {safeArray(user.subdepartments).map(s => s.name).join(', ')}
                         </div>
                       )}
                     </td>
@@ -561,13 +592,13 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                       <div className="flex justify-end space-x-2">
                         <button
                           onClick={() => handleOpenModal(user)}
-                          className="text-sky-700 hover:text-sky-900 p-1 hover:bg-sky-50 rounded dark:text-sky-400 dark:hover:text-sky-300 dark:hover:bg-slate-700"
+                          className="text-sky-700 hover:text-sky-900 p-1 hover:bg-sky-50 rounded dark:text-sky-400 dark:hover:text-sky-300 dark:hover:bg-slate-700 um-icon-btn"
                         >
                           <Edit2 className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(user.id)}
-                          className="text-rose-700 hover:text-rose-900 p-1 hover:bg-rose-50 rounded dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-slate-700"
+                          className="text-rose-700 hover:text-rose-900 p-1 hover:bg-rose-50 rounded dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-slate-700 um-icon-btn"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -583,7 +614,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
 
       {/* Add/Edit Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="fixed inset-0 z-50 overflow-y-auto ui-overlay-fade">
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity" aria-hidden="true">
               <div className="absolute inset-0 bg-slate-500 opacity-75"></div>
@@ -591,7 +622,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
               &#8203;
             </span>
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full ui-pop-in">
               <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg leading-6 font-medium text-slate-900">
@@ -673,12 +704,23 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                       Password {!editingUser && <span className="text-red-500">*</span>}
                       {editingUser && <span className="text-slate-400 text-xs ml-1">(leave blank to keep current)</span>}
                     </label>
-                    <input
-                      ref={passwordRef}
-                      type="password"
-                      placeholder={editingUser ? 'ΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇó' : ''}
-                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    />
+                    <div className="relative mt-1">
+                      <input
+                        ref={passwordRef}
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder={editingUser ? 'ΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇó' : ''}
+                        className="block w-full border border-slate-300 rounded-md shadow-sm py-2 pl-3 pr-10 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        title={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700">
@@ -724,13 +766,15 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
 
                   {formRole === 'Employee' && formDepartment && (
                     <div>
-                      <label className="block text-sm font-medium text-slate-700">Subdepartment</label>
+                      <label className="block text-sm font-medium text-slate-700">
+                        Subdepartment <span className="text-red-500">*</span>
+                      </label>
                       <select
                         value={formSubdepartment}
                         onChange={(e) => setFormSubdepartment(e.target.value)}
                         className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                       >
-                        <option value="">Select subdepartment (optional)</option>
+                        <option value="">Select subdepartment</option>
                         {(departments.find(d => d.name === formDepartment)?.subdepartments || []).map(s => (
                           <option key={s.id} value={String(s.id)}>{s.name}</option>
                         ))}

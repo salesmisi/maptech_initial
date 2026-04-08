@@ -14,42 +14,65 @@ use Illuminate\Support\Carbon;
 class NotificationController extends Controller
 {
     /**
-     * Get all notifications for the authenticated user.
+     * Return notifications for the authenticated user.
      */
     public function index(Request $request)
     {
-        $user = Auth::user();
+        $user = $request->user() ?? Auth::user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
 
-        $query = Notification::where('user_id', $user->id)
-            ->orderByDesc('created_at');
+        $query = Notification::where('user_id', $user->id)->orderByDesc('created_at');
 
-        // Filter by read status
         if ($request->has('unread') && $request->unread === 'true') {
             $query->whereNull('read_at');
         }
 
-        // Filter by type
-        if ($request->has('type')) {
-            $query->where('type', $request->type);
+        $perPage = (int) $request->query('per_page', 25);
+        $data = $query->paginate($perPage);
+
+        return response()->json($data);
+    }
+
+    /**
+     * Mark a notification as read for the authenticated user.
+     */
+    public function markRead(Request $request, $id)
+    {
+        $user = $request->user() ?? Auth::user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $notifications = $query->paginate($request->input('per_page', 20));
+        $notification = Notification::where('id', $id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        $notification->update(['read_at' => Carbon::now()->utc()]);
+
+        Cache::forget("user:{$user->id}:notifications:unread_count");
+        $count = Notification::where('user_id', $user->id)->whereNull('read_at')->count();
+        event(new NotificationCountUpdated($user->id, $count));
 
         return response()->json([
-            'notifications' => $notifications,
-            'unread_count' => Notification::where('user_id', $user->id)->whereNull('read_at')->count(),
+            'message' => 'Notification marked as read',
+            'notification' => $notification,
+            'count' => $count,
         ]);
     }
 
     /**
-     * Get unread notification count.
+     * Unread count for authenticated user
      */
-    public function unreadCount()
+    public function unreadCount(Request $request)
     {
-        $userId = Auth::id();
+        $user = $request->user() ?? Auth::user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
 
-        // Cache the unread count for a very short window to avoid repeated DB hits
-        // (frontend polls this endpoint frequently). TTL: 3 seconds.
+        $userId = (int) $user->id;
         $count = Cache::remember("user:{$userId}:notifications:unread_count", 3, function () use ($userId) {
             return Notification::where('user_id', $userId)->whereNull('read_at')->count();
         });
@@ -60,30 +83,12 @@ class NotificationController extends Controller
     }
 
     /**
-     * Mark a notification as read.
+     * Mark all notifications as read for authenticated user
      */
-    public function markAsRead(int $id)
+    public function readAll(Request $request)
     {
-        $user = Auth::user();
-
-        $notification = Notification::where('id', $id)
-            ->where('user_id', $user->id)
-            ->firstOrFail();
-
-        $notification->update(['read_at' => Carbon::now()->utc()]);
-
-        return response()->json([
-            'message' => 'Notification marked as read',
-            'notification' => $notification,
-        ]);
-    }
-
-    /**
-     * Mark all notifications as read.
-     */
-    public function markAllAsRead()
-    {
-        $user = Auth::user();
+        $user = $request->user() ?? Auth::user();
+        if (! $user) return response()->json(['message' => 'Unauthenticated'], 401);
 
         Notification::where('user_id', $user->id)
             ->whereNull('read_at')
@@ -99,16 +104,30 @@ class NotificationController extends Controller
     }
 
     /**
-     * Delete a notification.
+     * Backward-compatible alias used by API routes.
      */
-    public function destroy(int $id)
+    public function markAsRead(Request $request, $id)
     {
-        $user = Auth::user();
+        return $this->markRead($request, $id);
+    }
 
-        $notification = Notification::where('id', $id)
-            ->where('user_id', $user->id)
-            ->firstOrFail();
+    /**
+     * Backward-compatible alias used by API routes.
+     */
+    public function markAllAsRead(Request $request)
+    {
+        return $this->readAll($request);
+    }
 
+    /**
+     * Delete a notification for the authenticated user
+     */
+    public function destroy(Request $request, $id)
+    {
+        $user = $request->user() ?? Auth::user();
+        if (! $user) return response()->json(['message' => 'Unauthenticated'], 401);
+
+        $notification = Notification::where('id', $id)->where('user_id', $user->id)->firstOrFail();
         $notification->delete();
 
         return response()->json([
@@ -260,7 +279,11 @@ class NotificationController extends Controller
             'type' => 'nullable|string|in:announcement,lesson_update,quiz_reminder',
         ]);
 
+        /** @var User|null $instructor */
         $instructor = Auth::user();
+        if (! $instructor) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
 
         $courseId = $request->input('course_id');
         $department = $request->input('department');

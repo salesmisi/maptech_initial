@@ -7,6 +7,7 @@ use App\Models\Course;
 use App\Models\Module;
 use App\Models\User;
 use App\Models\Enrollment;
+use App\Models\Subdepartment;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -23,8 +24,12 @@ class CourseController extends Controller
      */
     public function index(Request $request)
     {
-        // Eager-load instructor and modules so API returns module data/count
-        $query = Course::with(['instructor:id,fullname,email,profile_picture', 'modules'])
+        // Eager-load instructor, subdepartment, and modules so API returns complete data
+        $query = Course::with([
+            'instructor:id,fullname,email,profile_picture',
+            'subdepartment:id,name,department_id',
+            'modules'
+        ])
             ->withCount('enrollments');
 
         // Filter by department
@@ -40,6 +45,11 @@ class CourseController extends Controller
         // Filter by instructor
         if ($request->has('instructor_id')) {
             $query->where('instructor_id', $request->instructor_id);
+        }
+
+        // Filter by subdepartment
+        if ($request->filled('subdepartment_id')) {
+            $query->where('subdepartment_id', (int) $request->input('subdepartment_id'));
         }
 
         $courses = $query->orderBy('created_at', 'desc')->get();
@@ -88,6 +98,66 @@ class CourseController extends Controller
                 'has_modules' => isset($validated['modules']),
                 'modules_count' => isset($validated['modules']) ? count($validated['modules']) : 0,
             ]);
+
+            $courseDepartment = strtolower(trim((string) ($validated['department'] ?? '')));
+            $selectedSubdepartment = null;
+
+            if (!empty($validated['subdepartment_id'])) {
+                $selectedSubdepartment = Subdepartment::with('department:id,name,code')->find((int) $validated['subdepartment_id']);
+
+                if (!$selectedSubdepartment) {
+                    return response()->json([
+                        'message' => 'Invalid subdepartment selected.',
+                        'errors' => ['subdepartment_id' => ['The selected subdepartment is invalid.']],
+                    ], 422);
+                }
+
+                $subDeptDepartmentName = strtolower(trim((string) ($selectedSubdepartment->department->name ?? '')));
+                $subDeptDepartmentCode = strtolower(trim((string) ($selectedSubdepartment->department->code ?? '')));
+                $deptMatches = $courseDepartment === $subDeptDepartmentName
+                    || ($subDeptDepartmentCode !== '' && $courseDepartment === $subDeptDepartmentCode);
+
+                if (!$deptMatches) {
+                    return response()->json([
+                        'message' => 'Selected subdepartment does not belong to the selected department.',
+                        'errors' => ['subdepartment_id' => ['Subdepartment must belong to the selected department.']],
+                    ], 422);
+                }
+            }
+
+            if (!empty($validated['instructor_id'])) {
+                $instructor = User::with('subdepartments:id')->find((int) $validated['instructor_id']);
+                $role = strtolower((string) ($instructor->role ?? ''));
+
+                if (!$instructor || $role !== 'instructor') {
+                    return response()->json([
+                        'message' => 'Invalid instructor selected.',
+                        'errors' => ['instructor_id' => ['The selected instructor is invalid.']],
+                    ], 422);
+                }
+
+                $instructorDepartment = strtolower(trim((string) ($instructor->department ?? '')));
+                if ($instructorDepartment !== $courseDepartment) {
+                    return response()->json([
+                        'message' => 'Instructor must belong to the selected department.',
+                        'errors' => ['instructor_id' => ['Instructor department does not match the course department.']],
+                    ], 422);
+                }
+
+                if ($selectedSubdepartment) {
+                    $selectedSubId = (int) $selectedSubdepartment->id;
+                    $isPrimarySub = (int) ($instructor->subdepartment_id ?? 0) === $selectedSubId;
+                    $isAssignedSub = $instructor->subdepartments->contains(fn($s) => (int) $s->id === $selectedSubId);
+                    $isSubHead = (int) ($selectedSubdepartment->head_id ?? 0) === (int) $instructor->id;
+
+                    if (!$isPrimarySub && !$isAssignedSub && !$isSubHead) {
+                        return response()->json([
+                            'message' => 'Instructor must be assigned to the selected subdepartment.',
+                            'errors' => ['instructor_id' => ['Instructor does not belong to the selected subdepartment.']],
+                        ], 422);
+                    }
+                }
+            }
 
             // Handle logo upload
             $logoPath = null;
@@ -158,13 +228,22 @@ class CourseController extends Controller
     {
         $course = Course::with([
             'instructor:id,fullname,email,profile_picture',
+            'subdepartment:id,name,department_id',
             'modules.lessons',
             'enrolledUsers:id,fullname,email,department,role,status',
         ])->findOrFail($id);
 
         // Recalculate progress for each enrolled user
         foreach ($course->enrolledUsers as $eu) {
-            Enrollment::recalculateProgress($eu->id, $course->id);
+            try {
+                Enrollment::recalculateProgress($eu->id, $course->id);
+            } catch (\Throwable $exception) {
+                Log::warning('Failed to recalculate enrollment progress while loading admin course detail.', [
+                    'course_id' => $course->id,
+                    'user_id' => $eu->id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
         }
         // Refresh to get updated pivot data
         $course->load('enrolledUsers:id,fullname,email,department,role,status');
@@ -201,6 +280,72 @@ class CourseController extends Controller
                 'modules.*.title' => 'nullable|string|max:255',
                 'modules.*.content' => 'nullable|file|max:102400',
             ]);
+
+            $effectiveDepartment = strtolower(trim((string) ($validated['department'] ?? $course->department ?? '')));
+            $effectiveSubdepartmentId = array_key_exists('subdepartment_id', $validated)
+                ? $validated['subdepartment_id']
+                : $course->subdepartment_id;
+            $effectiveInstructorId = array_key_exists('instructor_id', $validated)
+                ? $validated['instructor_id']
+                : $course->instructor_id;
+
+            $selectedSubdepartment = null;
+            if (!empty($effectiveSubdepartmentId)) {
+                $selectedSubdepartment = Subdepartment::with('department:id,name,code')->find((int) $effectiveSubdepartmentId);
+
+                if (!$selectedSubdepartment) {
+                    return response()->json([
+                        'message' => 'Invalid subdepartment selected.',
+                        'errors' => ['subdepartment_id' => ['The selected subdepartment is invalid.']],
+                    ], 422);
+                }
+
+                $subDeptDepartmentName = strtolower(trim((string) ($selectedSubdepartment->department->name ?? '')));
+                $subDeptDepartmentCode = strtolower(trim((string) ($selectedSubdepartment->department->code ?? '')));
+                $deptMatches = $effectiveDepartment === $subDeptDepartmentName
+                    || ($subDeptDepartmentCode !== '' && $effectiveDepartment === $subDeptDepartmentCode);
+
+                if (!$deptMatches) {
+                    return response()->json([
+                        'message' => 'Selected subdepartment does not belong to the selected department.',
+                        'errors' => ['subdepartment_id' => ['Subdepartment must belong to the selected department.']],
+                    ], 422);
+                }
+            }
+
+            if (!empty($effectiveInstructorId)) {
+                $instructor = User::with('subdepartments:id')->find((int) $effectiveInstructorId);
+                $role = strtolower((string) ($instructor->role ?? ''));
+
+                if (!$instructor || $role !== 'instructor') {
+                    return response()->json([
+                        'message' => 'Invalid instructor selected.',
+                        'errors' => ['instructor_id' => ['The selected instructor is invalid.']],
+                    ], 422);
+                }
+
+                $instructorDepartment = strtolower(trim((string) ($instructor->department ?? '')));
+                if ($instructorDepartment !== $effectiveDepartment) {
+                    return response()->json([
+                        'message' => 'Instructor must belong to the selected department.',
+                        'errors' => ['instructor_id' => ['Instructor department does not match the course department.']],
+                    ], 422);
+                }
+
+                if ($selectedSubdepartment) {
+                    $selectedSubId = (int) $selectedSubdepartment->id;
+                    $isPrimarySub = (int) ($instructor->subdepartment_id ?? 0) === $selectedSubId;
+                    $isAssignedSub = $instructor->subdepartments->contains(fn($s) => (int) $s->id === $selectedSubId);
+                    $isSubHead = (int) ($selectedSubdepartment->head_id ?? 0) === (int) $instructor->id;
+
+                    if (!$isPrimarySub && !$isAssignedSub && !$isSubHead) {
+                        return response()->json([
+                            'message' => 'Instructor must be assigned to the selected subdepartment.',
+                            'errors' => ['instructor_id' => ['Instructor does not belong to the selected subdepartment.']],
+                        ], 422);
+                    }
+                }
+            }
 
             // Handle logo
             if ($request->hasFile('logo')) {
@@ -397,6 +542,89 @@ class CourseController extends Controller
     }
 
     /**
+     * List enrolled and not-yet-enrolled employees for a specific module.
+     * Enrollment is course-based, so this uses the module's course enrollments.
+     */
+    public function moduleEnrollmentLists(int $moduleId)
+    {
+        $module = Module::with('course:id,title,department')->findOrFail($moduleId);
+        $course = $module->course;
+
+        if (!$course) {
+            return response()->json(['message' => 'Course not found for module'], 404);
+        }
+
+        $enrolledUsers = $course->enrolledUsers()
+            ->select('users.id', 'users.fullname', 'users.email', 'users.department', 'users.role', 'users.status')
+            ->orderBy('users.fullname')
+            ->get()
+            ->map(function ($user) {
+                return [
+                    'id' => $user->id,
+                    'fullname' => $user->fullname,
+                    'email' => $user->email,
+                    'department' => $user->department,
+                    'role' => $user->role,
+                    'status' => $user->status,
+                ];
+            })
+            ->values();
+
+        $enrolledIds = $enrolledUsers->pluck('id')->all();
+
+        $notEnrolledQuery = User::query()
+            ->where('status', 'Active')
+            ->whereRaw('LOWER(role) = ?', ['employee'])
+            ->orderBy('fullname');
+
+        if (!empty($enrolledIds)) {
+            $notEnrolledQuery->whereNotIn('id', $enrolledIds);
+        }
+
+        // Prefer course department matching to keep admin choices relevant.
+        $courseDepartment = trim((string) ($course->department ?? ''));
+        if ($courseDepartment !== '') {
+            $courseDepartmentLower = strtolower($courseDepartment);
+            $deptRecord = DB::table('departments')
+                ->select('name', 'code')
+                ->whereRaw('LOWER(name) = ?', [$courseDepartmentLower])
+                ->orWhereRaw('LOWER(code) = ?', [$courseDepartmentLower])
+                ->first();
+
+            $acceptedDepartments = [$courseDepartmentLower];
+            if ($deptRecord) {
+                $deptName = strtolower(trim((string) ($deptRecord->name ?? '')));
+                $deptCode = strtolower(trim((string) ($deptRecord->code ?? '')));
+                if ($deptName !== '') $acceptedDepartments[] = $deptName;
+                if ($deptCode !== '') $acceptedDepartments[] = $deptCode;
+            }
+            $acceptedDepartments = array_values(array_unique($acceptedDepartments));
+
+            $notEnrolledQuery->where(function ($q) use ($acceptedDepartments) {
+                foreach ($acceptedDepartments as $dept) {
+                    $q->orWhereRaw('LOWER(department) = ?', [$dept]);
+                }
+            });
+        }
+
+        $notEnrolledUsers = $notEnrolledQuery
+            ->select('id', 'fullname', 'email', 'department', 'role', 'status')
+            ->get();
+
+        return response()->json([
+            'module' => [
+                'id' => $module->id,
+                'title' => $module->title,
+                'course_id' => $course->id,
+                'course_title' => $course->title,
+                'course_department' => $course->department,
+            ],
+            'not_enrolled_users' => $notEnrolledUsers,
+            'enrolled_users' => $enrolledUsers,
+        ]);
+    }
+
+    /**
      * Enroll a user into a course.
      */
     public function enroll(Request $request, string $id)
@@ -406,6 +634,36 @@ class CourseController extends Controller
         ]);
 
         $course = Course::findOrFail($id);
+        $employee = User::select('id', 'fullname', 'email', 'department', 'role', 'status', 'subdepartment_id')
+            ->findOrFail($request->user_id);
+
+        if (strtolower((string) $employee->role) !== 'employee') {
+            return response()->json(['message' => 'Only employees can be enrolled in courses.'], 422);
+        }
+
+        if ($employee->department && $course->department && $employee->department !== $course->department) {
+            $courseDepartmentLower = strtolower(trim((string) $course->department));
+            $employeeDepartmentLower = strtolower(trim((string) $employee->department));
+
+            $deptRecord = DB::table('departments')
+                ->select('name', 'code')
+                ->whereRaw('LOWER(name) = ?', [$courseDepartmentLower])
+                ->orWhereRaw('LOWER(code) = ?', [$courseDepartmentLower])
+                ->first();
+
+            $acceptedDepartments = [$courseDepartmentLower];
+            if ($deptRecord) {
+                $deptName = strtolower(trim((string) ($deptRecord->name ?? '')));
+                $deptCode = strtolower(trim((string) ($deptRecord->code ?? '')));
+                if ($deptName !== '') $acceptedDepartments[] = $deptName;
+                if ($deptCode !== '') $acceptedDepartments[] = $deptCode;
+            }
+            $acceptedDepartments = array_values(array_unique($acceptedDepartments));
+
+            if (!in_array($employeeDepartmentLower, $acceptedDepartments, true)) {
+                return response()->json(['message' => 'Employee department does not match the selected course department.'], 422);
+            }
+        }
 
         if ($course->enrollments()->where('user_id', $request->user_id)->exists()) {
             return response()->json(['message' => 'User is already enrolled in this course'], 409);
@@ -417,11 +675,9 @@ class CourseController extends Controller
             'enrolled_at' => now(),
         ]);
 
-        $user = User::select('id', 'fullname', 'email', 'department', 'role', 'status')->findOrFail($request->user_id);
-
         return response()->json([
             'message' => 'User enrolled successfully',
-            'user'    => $user,
+            'user'    => $employee,
         ], 201);
     }
 
@@ -495,8 +751,8 @@ class CourseController extends Controller
         $request->validate([
             'title'        => 'required|string|max:255',
             'text_content' => 'nullable|string',
-            // Allow large video files (up to ~2 GB)
-            'content'      => 'nullable|file|max:2048000',
+            // Allow large video files (up to ~5 GB)
+            'content'      => 'nullable|file|max:5242880',
             'content_url'  => 'nullable|url|max:2000',
             'type'         => 'nullable|in:Video,Document,Text',
             'status'       => 'nullable|in:Published,Draft',
@@ -576,7 +832,8 @@ class CourseController extends Controller
         $request->validate([
             'title'        => 'sometimes|string|max:255',
             'text_content' => 'nullable|string',
-            'content'      => 'nullable|file|max:102400',
+            // Allow large video files (up to ~5 GB)
+            'content'      => 'nullable|file|max:5242880',
         ]);
 
         if ($request->has('title')) $lesson->title = $request->input('title');
@@ -611,6 +868,25 @@ class CourseController extends Controller
         }
 
         return response()->json(['message' => 'Modules reordered']);
+    }
+
+    /**
+     * Reorder lessons within a module.
+     */
+    public function reorderLessons(Request $request, int $moduleId)
+    {
+        $module = Module::findOrFail($moduleId);
+
+        $request->validate([
+            'order'   => 'required|array',
+            'order.*' => 'integer|exists:lessons,id',
+        ]);
+
+        foreach ($request->input('order') as $index => $lessonId) {
+            $module->lessons()->where('id', $lessonId)->update(['order' => $index + 1]);
+        }
+
+        return response()->json(['message' => 'Lessons reordered']);
     }
 
     /**

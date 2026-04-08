@@ -2,7 +2,10 @@
 
 namespace App\Providers;
 
+use App\Models\CustomModule;
+use App\Policies\CustomModulePolicy;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 
 
@@ -21,6 +24,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Register policies
+        Gate::policy(CustomModule::class, CustomModulePolicy::class);
+
         // If app is configured to use the Pusher broadcaster but the Pusher PHP
         // SDK is not installed, fallback to the `log` broadcaster to avoid
         // a fatal exception when creating the broadcaster.

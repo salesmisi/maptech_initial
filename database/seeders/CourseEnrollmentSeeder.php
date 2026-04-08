@@ -29,14 +29,14 @@ class CourseEnrollmentSeeder extends Seeder
                 'user_id' => $users[0]->id,
                 'course_id' => $courses[0]->id,
                 'progress' => 75,
-                'status' => 'Active',
+                'status' => 'active',
                 'enrolled_at' => now()->subDays(30),
             ],
             [
                 'user_id' => $users[1]->id,
                 'course_id' => $courses[0]->id,
                 'progress' => 100,
-                'status' => 'Completed',
+                'status' => 'completed',
                 'enrolled_at' => now()->subDays(45),
                 'completed_at' => now()->subDays(5),
             ],
@@ -44,14 +44,14 @@ class CourseEnrollmentSeeder extends Seeder
                 'user_id' => $users[2]->id,
                 'course_id' => $courses[0]->id,
                 'progress' => 45,
-                'status' => 'Active',
+                'status' => 'active',
                 'enrolled_at' => now()->subDays(15),
             ],
             [
                 'user_id' => $users[0]->id,
                 'course_id' => $courses[1]->id,
                 'progress' => 30,
-                'status' => 'Active',
+                'status' => 'active',
                 'enrolled_at' => now()->subDays(20),
             ],
         ];
@@ -61,7 +61,7 @@ class CourseEnrollmentSeeder extends Seeder
                 'user_id' => $users[3]->id,
                 'course_id' => $courses[1]->id,
                 'progress' => 90,
-                'status' => 'Active',
+                'status' => 'active',
                 'enrolled_at' => now()->subDays(25),
             ];
         }

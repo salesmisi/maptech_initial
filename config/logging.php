@@ -18,7 +18,12 @@ return [
     |
     */
 
-    'default' => env('LOG_CHANNEL', 'stack'),
+    // Laravel's `artisan serve` parses built-in server stderr output and can crash
+    // if application logs are also sent to stderr. Keep stderr for production (e.g. Railway),
+    // but force file/stack logs only for cli-server requests.
+    'default' => PHP_SAPI === 'cli-server'
+        ? 'stack'
+        : env('LOG_CHANNEL', 'stack'),
 
     /*
     |--------------------------------------------------------------------------

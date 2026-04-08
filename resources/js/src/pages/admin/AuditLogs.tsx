@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import useConfirm from '../../hooks/useConfirm';
 import usePrompt from '../../hooks/usePrompt';
 import { LogIn, LogOut, Search, ChevronLeft, ChevronRight, Filter, Users, GraduationCap, Shield, Clock, RefreshCw } from "lucide-react";
+import { LoadingState } from '../../components/ui/LoadingState';
 
 interface AuditUser {
   id: number;
@@ -81,6 +82,7 @@ export function AuditLogs() {
 
   const [logs, setLogs] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
@@ -92,10 +94,8 @@ export function AuditLogs() {
   const doFetch = useCallback(async (pageNum: number, _silent = false) => {
     try {
       setLoading(true);
+      if (!_silent) setLoadError(null);
       let url = `${API}/audit-logs?page=${pageNum}&per_page=100`;
-      if (roleFilter !== "All") {
-        url += `&role=${encodeURIComponent(roleFilter.toLowerCase())}`;
-      }
       const res = await fetch(url, {
         credentials: "include",
         headers: {
@@ -104,18 +104,33 @@ export function AuditLogs() {
           "X-XSRF-TOKEN": decodeURIComponent(getCookie("XSRF-TOKEN") || ""),
         },
       });
-      if (!res.ok) throw new Error("Failed to load audit logs");
+      if (!res.ok) {
+        let message = `Failed to load audit logs (${res.status})`;
+        const text = await res.text().catch(() => "");
+        if (text) {
+          try {
+            const parsed = JSON.parse(text);
+            message = parsed?.message || message;
+          } catch {
+            // keep fallback message
+          }
+        }
+        throw new Error(message);
+      }
       const data: PaginatedResponse = await res.json();
       setLogs(data.data);
       setPage(data.current_page);
       setLastPage(data.last_page);
       setTotal(data.total);
-    } catch {
-      /* ignore */
+      setLoadError(null);
+    } catch (err: any) {
+      const message = err?.message || "Failed to load audit logs";
+      setLoadError(message);
+      if (!_silent) showToast(message);
     } finally {
       setLoading(false);
     }
-  }, [API, roleFilter]);
+  }, [API]);
 
   const confirm = useConfirm();
   const { showConfirm } = confirm;
@@ -198,7 +213,11 @@ export function AuditLogs() {
   // Apply role/search filters
   const filteredSessions = sortSessions(
     sessions.filter((s) => {
-      if (roleFilter !== "All" && (s.user?.role || "") !== roleFilter) return false;
+      if (roleFilter !== "All") {
+        const userRole = (s.user?.role || "").trim().toLowerCase();
+        const selectedRole = roleFilter.trim().toLowerCase();
+        if (userRole !== selectedRole) return false;
+      }
       if (!search) return true;
       const q = search.toLowerCase();
       return (s.user?.fullname || "").toLowerCase().includes(q) || (s.user?.email || "").toLowerCase().includes(q);
@@ -462,6 +481,18 @@ export function AuditLogs() {
         <span className="text-sm text-gray-500 dark:text-slate-400">{total} total entries</span>
       </div>
 
+      {loadError && (
+        <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200 flex items-center justify-between gap-2">
+          <span>{loadError}</span>
+          <button
+            onClick={() => fetchLogs(page)}
+            className="rounded border border-amber-400 px-2 py-1 text-xs font-medium hover:bg-amber-100 dark:border-amber-600 dark:hover:bg-amber-900/40"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Manage Time Logs Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -486,13 +517,13 @@ export function AuditLogs() {
                 <button onClick={closeManageModal} className="text-gray-500">Close</button>
               </div>
             </div>
-            <div>
+            <div className="max-h-[400px] overflow-y-auto">
               {modalLoading ? (
-                <div className="text-center text-gray-500">Loading...</div>
+                <LoadingState message="Loading time logs" />
               ) : modalTimeLogs.length === 0 ? (
                 <div className="text-center text-gray-500">No time logs for this user.</div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 pr-2">
                   {modalTimeLogs.map((tl) => (
                     <div key={tl.id} className="border rounded p-3 flex items-start justify-between gap-3">
                       <div>
@@ -712,9 +743,9 @@ export function AuditLogs() {
 
       {/* Table */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden border border-slate-200 dark:border-slate-700">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[700px]">
           <table style={{minWidth: '1400px'}} className="min-w-full divide-y divide-gray-200 table-fixed w-full">
-            <thead className="bg-gray-50 dark:bg-slate-800/80">
+            <thead className="bg-gray-50 dark:bg-slate-800/80 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <input
@@ -784,7 +815,7 @@ export function AuditLogs() {
               <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
                 <tr>
                   <td colSpan={12} className="px-6 py-8 text-center text-gray-400 dark:text-slate-500">
-                    Loading...
+                    <LoadingState message="Loading audit logs" size="sm" className="py-2" />
                   </td>
                 </tr>
               </tbody>
@@ -792,7 +823,7 @@ export function AuditLogs() {
               <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
                 <tr>
                   <td colSpan={12} className="px-6 py-8 text-center text-gray-400 dark:text-slate-500">
-                    No audit logs found.
+                    {loadError ? "Unable to load audit logs right now." : "No audit logs found."}
                   </td>
                 </tr>
               </tbody>

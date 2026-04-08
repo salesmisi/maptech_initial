@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Building2, ImagePlus, Save, Trash2, CheckCircle, AlertCircle, Mail, Phone, Smartphone, Globe, MapPin } from 'lucide-react';
+import { resolveImageUrl } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 interface BusinessDetailsResponse {
   company_name: string;
@@ -60,7 +62,7 @@ export function BusinessDetails() {
           setAddress(data.address || '');
           setWebsite(data.website || '');
           setVatRegTin(data.vat_reg_tin || '');
-          setLogoUrl(data.logo_url || '/assets/Maptech-Official-Logo.png');
+          setLogoUrl(resolveImageUrl(data.logo_url, { fallback: '/assets/Maptech-Official-Logo.png' }));
         }
       } catch {
         if (!cancelled) {
@@ -140,11 +142,20 @@ export function BusinessDetails() {
       setAddress(data.address || '');
       setWebsite(data.website || '');
       setVatRegTin(data.vat_reg_tin || '');
-      setLogoUrl(data.logo_url || '/assets/Maptech-Official-Logo.png');
+      setLogoUrl(resolveImageUrl(data.logo_url, { fallback: '/assets/Maptech-Official-Logo.png' }));
       setSelectedLogo(null);
       setRemoveLogo(false);
       if (fileRef.current) fileRef.current.value = '';
       setMessage({ type: 'success', text: data?.message || 'Business details updated.' });
+
+      // Force a full refresh so all mounted components immediately pick up
+      // the latest business logo/details from the server.
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 250);
+      window.dispatchEvent(new CustomEvent('business-details-changed', {
+        detail: { logo_url: data.logo_url || '/assets/Maptech-Official-Logo.png' },
+      }));
     } catch (err: any) {
       // Network-level failures surface as TypeError("Failed to fetch") in browsers.
       const text = String(err?.message || '').toLowerCase();
@@ -162,10 +173,7 @@ export function BusinessDetails() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-        <span className="ml-3 text-slate-600">Loading business details...</span>
-      </div>
+      <LoadingState message="Loading business details" size="lg" className="min-h-[40vh]" />
     );
   }
 
@@ -325,7 +333,14 @@ export function BusinessDetails() {
 
           <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
             <div className="h-20 w-28 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex items-center justify-center overflow-hidden">
-              <img src={logoUrl} alt="Company logo preview" className="max-h-16 max-w-24 object-contain" />
+              <img
+                src={logoUrl}
+                alt="Company logo preview"
+                className="max-h-16 max-w-24 object-contain"
+                onError={(e) => {
+                  e.currentTarget.src = '/assets/Maptech-Official-Logo.png';
+                }}
+              />
             </div>
 
             <div className="flex flex-wrap gap-2">

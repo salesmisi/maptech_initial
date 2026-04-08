@@ -11,6 +11,7 @@ use App\Models\Module;
 use App\Models\ProductLogo;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * @property int $id
@@ -81,13 +82,10 @@ class Enrollment extends Model
 
         $progress = (int) round(($passedCount / $totalQuizzes) * 100);
 
-        $status = 'Not Started';
+        // Use DB-allowed status values (lowercase). Default to 'active' for not-completed enrollments.
+        $status = 'active';
         if ($progress >= 100) {
-            $status = 'Completed';
-        } elseif ($progress > 0) {
-            $status = 'In Progress';
-        } elseif (QuizAttempt::where('user_id', $userId)->whereIn('quiz_id', $quizIds)->exists()) {
-            $status = 'In Progress';
+            $status = 'completed';
         }
 
         $enrollment->update([
@@ -156,10 +154,17 @@ class Enrollment extends Model
 
     /**
      * Resolve the certificate logo from product logo mappings.
-     * Falls back to the course logo when no module/lesson mapping exists.
+     * Prioritizes course-level logo, then falls back to legacy module/lesson mappings.
      */
     private static function resolveLogoPath(int $userId, Course $course, $quizzes): ?string
     {
+        $moduleHasLogoPath = Schema::hasColumn('modules', 'logo_path');
+
+        // Primary source for collaborator branding: one logo per course.
+        if (!empty($course->logo_path)) {
+            return $course->logo_path;
+        }
+
         $moduleIds = $quizzes->pluck('module_id')->filter()->unique()->values()->all();
         $quizIds = $quizzes->pluck('id')->filter()->unique()->values()->all();
 
@@ -172,7 +177,7 @@ class Enrollment extends Model
             ->first();
 
         $completedModuleId = $latestPassed?->quiz?->module_id;
-        if (!empty($completedModuleId)) {
+        if ($moduleHasLogoPath && !empty($completedModuleId)) {
             $completedModuleLogo = Module::where('id', $completedModuleId)
                 ->whereNotNull('logo_path')
                 ->value('logo_path');
@@ -203,9 +208,12 @@ class Enrollment extends Model
                     return $lessonLogo;
                 }
 
-                $lessonModuleLogo = Module::where('id', function ($query) use ($latestLessonEvent) {
-                    $query->select('module_id')->from('lessons')->where('id', $latestLessonEvent->lesson_id)->limit(1);
-                })->whereNotNull('logo_path')->value('logo_path');
+                $lessonModuleLogo = null;
+                if ($moduleHasLogoPath) {
+                    $lessonModuleLogo = Module::where('id', function ($query) use ($latestLessonEvent) {
+                        $query->select('module_id')->from('lessons')->where('id', $latestLessonEvent->lesson_id)->limit(1);
+                    })->whereNotNull('logo_path')->value('logo_path');
+                }
 
                 if (!empty($lessonModuleLogo)) {
                     return $lessonModuleLogo;
@@ -214,7 +222,7 @@ class Enrollment extends Model
         }
 
         // Primary source: direct logo assignment on modules table.
-        if (!empty($moduleIds)) {
+        if ($moduleHasLogoPath && !empty($moduleIds)) {
             $module = Module::whereIn('id', $moduleIds)
                 ->whereNotNull('logo_path')
                 ->orderBy('id')
@@ -226,10 +234,13 @@ class Enrollment extends Model
         }
 
         // If no quiz-linked modules are available, try any module in the course.
-        $courseModuleLogo = Module::where('course_id', $course->id)
-            ->whereNotNull('logo_path')
-            ->orderBy('id')
-            ->value('logo_path');
+        $courseModuleLogo = null;
+        if ($moduleHasLogoPath) {
+            $courseModuleLogo = Module::where('course_id', $course->id)
+                ->whereNotNull('logo_path')
+                ->orderBy('id')
+                ->value('logo_path');
+        }
 
         if (!empty($courseModuleLogo)) {
             return $courseModuleLogo;
@@ -258,6 +269,6 @@ class Enrollment extends Model
             }
         }
 
-        return $course->logo_path;
+        return null;
     }
 }
