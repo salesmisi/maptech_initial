@@ -43,6 +43,7 @@ async function getCsrf() {
 export function ProfileSettings() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isPageVisible, setIsPageVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingPic, setUploadingPic] = useState(false);
   const [uploadingSignature, setUploadingSignature] = useState(false);
@@ -66,6 +67,16 @@ export function ProfileSettings() {
 
   useEffect(() => {
     loadProfile();
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setIsPageVisible(true);
+    }, 90);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, []);
 
   const loadProfile = async () => {
@@ -390,19 +401,24 @@ export function ProfileSettings() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div
+      className={`settings-page-enter max-w-3xl mx-auto space-y-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
+    >
       <h1 className="text-2xl font-bold text-slate-900">Profile Settings</h1>
 
       {/* Message Banner */}
       {message && (
-        <div className={`flex items-center gap-2 p-4 rounded-lg text-sm font-medium ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+        <div className={`flex items-center gap-2 p-4 rounded-lg text-sm font-medium transition-all duration-300 ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
           {message.type === 'success' ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
           {message.text}
         </div>
       )}
 
       {/* Profile Picture Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+      <div
+        className={`settings-card-enter settings-card-delay-1 bg-white rounded-lg shadow-sm border border-slate-200 p-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
+        style={{ transitionDelay: isPageVisible ? '90ms' : '0ms' }}
+      >
         <h2 className="text-lg font-semibold text-slate-900 mb-4">Profile Picture</h2>
         <div className="flex items-center gap-6">
           <div className="relative">
@@ -421,7 +437,7 @@ export function ProfileSettings() {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadingPic}
-              className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-green-600 text-white flex items-center justify-center hover:bg-green-700 transition-colors shadow-md"
+              className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-green-600 text-white flex items-center justify-center hover:bg-green-700 transition-all duration-200 shadow-md hover:scale-105"
             >
               <Camera className="h-4 w-4" />
             </button>
@@ -454,7 +470,10 @@ export function ProfileSettings() {
 
       {/* Signature Section */}
       {canManageSignature && (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+        <div
+          className={`settings-card-enter settings-card-delay-2 bg-white rounded-lg shadow-sm border border-slate-200 p-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
+          style={{ transitionDelay: isPageVisible ? '150ms' : '0ms' }}
+        >
           <h2 className="text-lg font-semibold text-slate-900 mb-4">{signatureOwnerLabel} Signature</h2>
           <div className="flex flex-col sm:flex-row sm:items-center gap-6">
             <div className="w-full sm:w-72">
@@ -504,7 +523,7 @@ export function ProfileSettings() {
                     type="button"
                     onClick={clearSignaturePad}
                     disabled={uploadingSignature}
-                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-500 dark:text-slate-100 dark:hover:bg-slate-700"
+                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-500 dark:text-slate-100 dark:hover:bg-slate-700 transition-all duration-200 hover:-translate-y-0.5"
                   >
                     Clear Drawing
                   </button>
@@ -512,7 +531,7 @@ export function ProfileSettings() {
                     type="button"
                     onClick={uploadDrawnSignature}
                     disabled={uploadingSignature}
-                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 transition-all duration-200 hover:-translate-y-0.5"
                   >
                     <Save className="h-3.5 w-3.5 mr-1.5" />
                     Save Drawn Signature
@@ -526,7 +545,7 @@ export function ProfileSettings() {
                   type="button"
                   onClick={() => signatureInputRef.current?.click()}
                   disabled={uploadingSignature}
-                  className="mt-2 inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                  className="mt-2 inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 transition-all duration-200 hover:-translate-y-0.5"
                 >
                   <Upload className="h-4 w-4 mr-2" />
                   {profile.signature_path ? 'Replace E-Signature' : 'Upload E-Signature'}
@@ -552,7 +571,10 @@ export function ProfileSettings() {
       )}
 
       {/* Account Information */}
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+      <div
+        className={`settings-card-enter settings-card-delay-3 bg-white rounded-lg shadow-sm border border-slate-200 p-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
+        style={{ transitionDelay: isPageVisible ? '210ms' : '0ms' }}
+      >
         <h2 className="text-lg font-semibold text-slate-900 mb-4">Account Information</h2>
 
         {/* Read-only fields */}
@@ -754,7 +776,7 @@ export function ProfileSettings() {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 transition-all duration-200 hover:-translate-y-0.5"
             >
               {saving ? (
                 <>
