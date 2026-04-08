@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import {
   Search,
@@ -281,6 +281,30 @@ export function EnrollmentManagement() {
     departments,
     enrollments,
   ]);
+
+  const filteredCourseOptions = useMemo(() => {
+    const selectedDept = selectedDeptId ? departments.find(d => d.id === Number(selectedDeptId)) : null;
+    const selectedDeptName = normalizeDepartment(selectedDept?.name);
+    const selectedDeptCode = normalizeDepartment(selectedDept?.code);
+
+    const byDepartment = selectedDept
+      ? courses.filter((c) => {
+          const courseDept = normalizeDepartment(c.department);
+          return courseDept === selectedDeptName || (selectedDeptCode && courseDept === selectedDeptCode);
+        })
+      : courses;
+
+    if (!selectedSubDeptId) {
+      return byDepartment;
+    }
+
+    const bySubDepartment = byDepartment.filter((c) => (
+      !c.subdepartment_id || Number(c.subdepartment_id) === Number(selectedSubDeptId)
+    ));
+
+    // Keep the course list usable even when course subdepartment metadata is temporarily out of sync.
+    return bySubDepartment.length > 0 ? bySubDepartment : byDepartment;
+  }, [courses, departments, selectedDeptId, selectedSubDeptId]);
 
   const openModal = () => {
     setIsModalOpen(true);
@@ -791,26 +815,11 @@ export function EnrollmentManagement() {
                     }}
                   >
                     <option value="">-- Select a course --</option>
-                    {(() => {
-                      const selectedDept = selectedDeptId ? departments.find(d => d.id === Number(selectedDeptId)) : null;
-                      const selectedDeptName = normalizeDepartment(selectedDept?.name);
-                      const selectedDeptCode = normalizeDepartment(selectedDept?.code);
-                      const filtered = selectedDept
-                        ? courses.filter((c) => {
-                            const courseDept = normalizeDepartment(c.department);
-                            return courseDept === selectedDeptName || (selectedDeptCode && courseDept === selectedDeptCode);
-                          })
-                        : courses;
-                      const filteredBySubDept = selectedSubDeptId
-                        ? filtered.filter((c) => !c.subdepartment_id || Number(c.subdepartment_id) === Number(selectedSubDeptId))
-                        : filtered;
-
-                      return filteredBySubDept.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.title} ({c.department})
-                        </option>
-                      ));
-                    })()}
+                    {filteredCourseOptions.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.title} ({c.department})
+                      </option>
+                    ))}
                   </select>
                 </div>
 
