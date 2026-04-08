@@ -50,7 +50,6 @@ import { EmployeeNotifications } from './pages/employee/EmployeeNotifications';
 import { ProfileSettings } from './pages/shared/ProfileSettings';
 import { YTDebug } from './pages/debug/YTDebug';
 import { resolveImageUrl } from './utils/safe';
-import { LoadingState } from './components/ui/LoadingState';
 
 interface User {
   id?: number;
@@ -470,7 +469,6 @@ export function App() {
   if (isLoading) {
     return (
       <>
-        <LoadingState message="Loading app" size="lg" className="min-h-screen bg-slate-50 dark:bg-slate-900" />
         <div className="relative min-h-screen overflow-hidden flex items-center justify-center bg-slate-950">
           <div
             aria-hidden="true"
@@ -662,7 +660,6 @@ export function App() {
 
   return (
     <>
-      <LoginPage onLogin={handleLogin} theme={theme} />
       <LoginPage onLogin={handleLogin} theme={theme} />
       {renderThemeToggle()}
       {logoutOverlay}
