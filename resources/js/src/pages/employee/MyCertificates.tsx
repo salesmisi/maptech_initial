@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Award, Calendar, ExternalLink, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 const MAPTECH_LOGO_URL = '/assets/Maptech-Official-Logo.png';
@@ -356,7 +357,7 @@ export function MyCertificates() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {certificates.map((cert) => (
+          {safeArray(certificates).map((cert) => (
             <div
               key={cert.id}
               className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group"

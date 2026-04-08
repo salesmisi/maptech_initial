@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import useConfirm from '../hooks/useConfirm';
 import { RefreshCw, Clock, LogOut } from "lucide-react";
+import { LoadingState } from './ui/LoadingState';
 
 interface TimeLogEntry {
   id: number;
@@ -326,23 +327,23 @@ export function UserTimeLog() {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-lg shadow border border-slate-200 dark:border-slate-700 p-4 mb-6 dark:bg-slate-900/80 dark:border-slate-700">
-      <div className="text-xs text-gray-500 dark:text-slate-300 mb-2 dark:text-slate-400">All times are shown in your local timezone.</div>
+    <div className="bg-white rounded-lg shadow border border-slate-200 p-4 mb-6 dark:bg-slate-900/80 dark:border-slate-700">
+      <div className="text-xs text-gray-500 mb-2 dark:text-slate-400">All times are shown in your local timezone.</div>
       <div className="flex justify-between items-center mb-2">
         <div className="flex items-center gap-2">
           <Clock className="w-5 h-5 text-green-600" />
-          <span className="font-semibold text-green-700 dark:text-green-400 dark:text-green-300">My Time Log</span>
+          <span className="font-semibold text-green-700 dark:text-green-300">My Time Log</span>
         </div>
         <button
           onClick={() => fetchLogs(true)}
           disabled={refreshing}
-          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium border rounded bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium border rounded bg-white border-slate-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
         >
           <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
           Refresh
         </button>
         {lastRefreshed && (
-          <span className="text-xs text-gray-400 dark:text-slate-400 ml-2 dark:text-slate-500">
+          <span className="text-xs text-gray-400 ml-2 dark:text-slate-500">
             Updated {lastRefreshed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })}
           </span>
         )}
@@ -358,21 +359,21 @@ export function UserTimeLog() {
         </span>
       </div>
       <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700 text-sm dark:divide-slate-700">
-          <thead className="bg-gray-50 dark:bg-slate-800/70 dark:bg-slate-800 sticky top-0 z-10">
+        <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-slate-700">
+          <thead className="bg-gray-50 dark:bg-slate-800/70 sticky top-0 z-10">
             <tr>
-              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-300 text-slate-700 dark:text-slate-200">Date</th>
-              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-300 text-slate-700 dark:text-slate-200">Time In</th>
-              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-300 text-slate-700 dark:text-slate-200">Time Out</th>
-              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-300 text-slate-700 dark:text-slate-200">Status</th>
-              {userRole === 'Admin' && <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-300 text-slate-700 dark:text-slate-200">Actions</th>}
+              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-200">Date</th>
+              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-200">Time In</th>
+              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-200">Time Out</th>
+              <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-200">Status</th>
+              {userRole === 'Admin' && <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-200">Actions</th>}
             </tr>
           </thead>
-          <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-100 dark:bg-slate-900/60 dark:divide-slate-800 dark:divide-slate-700">
+          <tbody className="bg-white divide-y divide-gray-100 dark:bg-slate-900/60 dark:divide-slate-700">
             {loading ? (
-              <tr><td colSpan={userRole === 'Admin' ? 5 : 4} className="px-4 py-6 text-center text-gray-400 dark:text-slate-500 dark:text-slate-300">Loading...</td></tr>
+              <tr><td colSpan={userRole === 'Admin' ? 5 : 4} className="px-4 py-6 text-center text-gray-400 dark:text-slate-300"><LoadingState message="Loading time logs" size="sm" className="py-2" /></td></tr>
             ) : sessions.length === 0 ? (
-              <tr><td colSpan={userRole === 'Admin' ? 5 : 4} className="px-4 py-6 text-center text-gray-400 dark:text-slate-500 dark:text-slate-300">No time logs found.</td></tr>
+              <tr><td colSpan={userRole === 'Admin' ? 5 : 4} className="px-4 py-6 text-center text-gray-400 dark:text-slate-300">No time logs found.</td></tr>
             ) : (
               sessions.map((session) => {
                 const timeIn = formatDateTime(session.time_in);
@@ -388,16 +389,16 @@ export function UserTimeLog() {
                 return (
                   <tr key={session.id}>
                     <td className="px-4 py-2">
-                      <span className="text-sm text-gray-700 dark:text-slate-300 dark:text-slate-100" title={displayDateFull}>{displayDate}</span>
+                      <span className="text-sm text-gray-700 dark:text-slate-100" title={displayDateFull}>{displayDate}</span>
                     </td>
                     <td className="px-4 py-2">
                       {timeIn ? (
                         <div>
-                          <span className="block text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-300 mb-0.5 dark:text-slate-500">Time In</span>
-                          <span className="block text-xs text-gray-500 dark:text-slate-400 dark:text-slate-300">{timeIn.date}</span>
+                          <span className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5 dark:text-slate-500">Time In</span>
+                          <span className="block text-xs text-gray-500 dark:text-slate-300">{timeIn.date}</span>
                           <div className="flex items-baseline gap-2">
-                            <span className="text-green-700 dark:text-green-300 font-semibold dark:text-green-400">{timeIn.time}</span>
-                            <span className="text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-medium dark:bg-slate-800 dark:text-slate-300">{timeIn.period}</span>
+                            <span className="text-green-700 font-semibold dark:text-green-300">{timeIn.time}</span>
+                            <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium dark:bg-slate-800 dark:text-slate-300">{timeIn.period}</span>
                           </div>
                         </div>
                       ) : <span className="text-gray-400 dark:text-slate-500">—</span>}
@@ -405,25 +406,25 @@ export function UserTimeLog() {
                     <td className="px-4 py-2">
                       {timeOut ? (
                         <div title={`Logged out at ${timeOut.fullDateTime}`}>
-                          <span className="block text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-300 mb-0.5 dark:text-slate-500">Time Out</span>
-                          <span className="block text-xs text-gray-500 dark:text-slate-400 dark:text-slate-300">{timeOut.date}</span>
+                          <span className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5 dark:text-slate-500">Time Out</span>
+                          <span className="block text-xs text-gray-500 dark:text-slate-300">{timeOut.date}</span>
                           <div className="flex items-baseline gap-2">
-                            <span className="text-red-600 dark:text-red-400 font-semibold dark:text-red-400">{timeOut.time}</span>
-                            <span className="text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-medium dark:bg-slate-800 dark:text-slate-300">{timeOut.period}</span>
-                            <span className="ml-2 text-xs text-blue-500 dark:text-sky-300 bg-blue-50 dark:bg-slate-700 rounded px-1.5 py-0.5 dark:text-blue-300 dark:bg-blue-950/40" title="This is the logout time">Logged out</span>
+                            <span className="text-red-600 font-semibold dark:text-red-400">{timeOut.time}</span>
+                            <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium dark:bg-slate-800 dark:text-slate-300">{timeOut.period}</span>
+                            <span className="ml-2 text-xs text-blue-500 bg-blue-50 rounded px-1.5 py-0.5 dark:text-blue-300 dark:bg-blue-950/40" title="This is the logout time">Logged out</span>
                           </div>
-                          <span className="block text-xs text-gray-400 dark:text-slate-300 mt-1 dark:text-slate-500">{timeOut.fullDateTime}</span>
+                          <span className="block text-xs text-gray-400 mt-1 dark:text-slate-500">{timeOut.fullDateTime}</span>
                         </div>
                       ) : <span className="text-gray-400 dark:text-slate-500">—</span>}
                     </td>
                     <td className="px-4 py-2">
                       {!session.time_out && session.time_in ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-xs rounded-full dark:bg-green-900/35 dark:text-green-300">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full dark:bg-green-900/40 dark:text-green-300">
                           <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse dark:bg-green-400"></span>
                           Active ({formatElapsed(session.time_in)})
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-300 text-xs rounded-full dark:bg-slate-800 dark:text-slate-400">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full dark:bg-slate-800 dark:text-slate-300">
                           <LogOut className="w-3 h-3" />
                           Ended
                         </span>
@@ -465,7 +466,7 @@ export function UserTimeLog() {
                                 }
                               });
                             }}
-                            className="px-2 py-1 text-xs border rounded bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 hover:bg-red-100 dark:bg-red-950/25 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-900/30 dark:hover:bg-red-800"
+                            className="px-2 py-1 text-xs border rounded bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/25 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-900/30"
                           >
                             Delete
                           </button>

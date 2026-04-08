@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { useToast } from '../../components/ToastProvider';
 import { createPortal } from 'react-dom';
+import { safeArray } from '../../utils/safe';
 import {
   Search,
   Plus,
@@ -780,6 +781,56 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   className="w-full text-sm text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
                 />
                 <p className="mt-1 text-xs text-slate-400">This logo will appear on certificates issued for this course.</p>
+              </div>
+
+              {/* Module Upload Section */}
+              <div className="border-t border-slate-200 pt-4">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-sm font-medium text-slate-700">Add Modules / Content</h4>
+                  <button
+                    type="button"
+                    onClick={addModule}
+                    className="inline-flex items-center px-3 py-1.5 border border-green-300 rounded-md text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Module
+                  </button>
+                </div>
+
+                {modules.length === 0 ? (
+                  <p className="text-sm text-slate-500 italic">No modules added yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {safeArray(modules).map((mod, idx) => (
+                      <div key={mod.id} className="p-3 bg-slate-50 rounded-md border border-slate-200">
+                        <div className="flex gap-2 items-start">
+                          <div className="flex-1 space-y-2">
+                            <input
+                              type="text"
+                              placeholder={`Module ${idx + 1} Title`}
+                              value={mod.title}
+                              onChange={(e) => updateModuleTitle(mod.id, e.target.value)}
+                              className="w-full border border-slate-300 rounded-md py-1.5 px-2 text-sm focus:ring-green-500 focus:border-green-500"
+                            />
+                            <input
+                              type="file"
+                              accept="video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
+                              onChange={(e) => updateModuleFile(mod.id, e.target.files?.[0] || null)}
+                              className="w-full text-sm text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-medium file:bg-green-50 file:text-green-700"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeModule(mod.id)}
+                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                          >
+                            <Trash className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 pt-4 border-t border-slate-200">

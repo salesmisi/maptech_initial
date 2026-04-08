@@ -245,6 +245,7 @@ const iconMap: Record<string, LucideIcon> = {
 const getIconByName = (name: string): LucideIcon => {
   return iconMap[name] || Blocks;
 };
+import { safeArray } from '../../utils/safe';
 interface AdminLayoutProps {
   children: React.ReactNode;
   currentPage: string;
@@ -474,7 +475,7 @@ export function AdminLayout({
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
             <nav className={`mt-5 flex-1 space-y-1 ${isSidebarCompact ? 'px-3' : 'px-2'}`}>
-              {allNavItems.map((item) => {
+              {safeArray(allNavItems).map((item) => {
                 const Icon = item.icon;
                 const isActive = currentPage === item.id || (item.id === 'courses' && currentPage === 'course-detail');
                 return (
@@ -483,7 +484,7 @@ export function AdminLayout({
                     onClick={() => handleSidebarNavigate(item.id)}
                     title={isSidebarCompact ? item.label : undefined}
                     aria-label={item.label}
-                    className={`group flex w-full items-center rounded-lg text-sm font-medium transition-colors ${isSidebarCompact ? 'justify-center px-2 py-3' : 'px-3 py-2.5'} ${isActive ? 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}>
+                    className={`sidebar-nav-item group flex w-full items-center rounded-lg text-sm font-medium transition-colors ${isSidebarCompact ? 'justify-center px-2 py-3' : 'px-3 py-2.5'} ${isActive ? 'is-active bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}>
 
                     <Icon
                       className={`h-5 w-5 flex-shrink-0 ${isSidebarCompact ? '' : 'mr-3'} ${isActive ? 'text-emerald-300' : 'text-slate-400 group-hover:text-slate-200'}`} />

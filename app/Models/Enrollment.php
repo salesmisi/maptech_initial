@@ -81,13 +81,10 @@ class Enrollment extends Model
 
         $progress = (int) round(($passedCount / $totalQuizzes) * 100);
 
-        $status = 'Not Started';
+        // Use DB-allowed status values (lowercase). Default to 'active' for not-completed enrollments.
+        $status = 'active';
         if ($progress >= 100) {
-            $status = 'Completed';
-        } elseif ($progress > 0) {
-            $status = 'In Progress';
-        } elseif (QuizAttempt::where('user_id', $userId)->whereIn('quiz_id', $quizIds)->exists()) {
-            $status = 'In Progress';
+            $status = 'completed';
         }
 
         $enrollment->update([

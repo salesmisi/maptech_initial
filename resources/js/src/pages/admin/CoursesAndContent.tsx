@@ -15,6 +15,8 @@ import {
   XMarkIcon,
   CameraIcon,
 } from '@heroicons/react/24/outline';
+import { safeArray } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 interface Course {
   id: number;
@@ -271,7 +273,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       .catch(err => console.error('Failed to load departments:', err));
     fetch('/api/admin/users?role=Instructor', { credentials: 'include', headers: { Accept: 'application/json' } })
       .then(res => res.json())
-      .then(data => setInstructors(Array.isArray(data) ? data.map((u: any) => ({
+      .then(data => setInstructors(safeArray<any>(data).map((u: any) => ({
         id: u.id,
         fullname: u.fullname,
         email: u.email,
@@ -281,7 +283,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           ? u.subdepartments.map((s: any) => ({ id: s.id, name: s.name, department_id: s.department_id ?? null }))
           : [],
         profile_picture: u.profile_picture ? `/storage/${u.profile_picture}` : null,
-      })) : []))
+      }))))
       .catch(err => console.error('Failed to load instructors:', err));
   }, []);
 
@@ -378,6 +380,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           description: 'Learn the basics of networking',
           department: 'IT',
           instructor: 'Admin',
+          instructor_id: null,
           status: 'Active' as const,
           modules_count: 2,
           enrolled_count: 0,
@@ -622,7 +625,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       });
       if (res.ok) {
         const data = await res.json();
-        setCourseModules(data.map((m: any) => ({ ...m, isOpen: false })));
+        setCourseModules(safeArray<any>(data).map((m: any) => ({ ...m, isOpen: false })));
       }
     } catch (err) {
       console.error('Failed to load modules:', err);
@@ -878,7 +881,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       });
       if (res.ok) {
         const data = await res.json();
-        setAvailableUsers(Array.isArray(data) ? data : []);
+        setAvailableUsers(safeArray<any>(data));
       }
     } catch (err) {
       console.error('Failed to load users:', err);
@@ -973,7 +976,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     }
   };
 
-  const filteredCourses = courses.filter(course => {
+  const filteredCourses = safeArray<Course>(courses).filter(course => {
     const matchesSearch = course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          course.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          course.instructor.toLowerCase().includes(searchTerm.toLowerCase());
@@ -1015,9 +1018,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   if (loading) {
     return (
       <div className="p-6">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 dark:bg-slate-800/80 dark:border-slate-700">
-          <h3 className="text-blue-800 font-medium dark:text-slate-100">Loading Courses...</h3>
-          <p className="text-blue-600 mt-1 dark:text-slate-300">Please wait while we fetch your course data.</p>
+        <div className="bg-white border border-slate-200 rounded-lg p-4 mb-4">
+          <LoadingState message="Loading courses" />
         </div>
         <div className="animate-pulse">
           <div className="h-8 bg-gray-200 dark:bg-slate-700 rounded mb-4"></div>
@@ -1137,7 +1139,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       </div>
 
       {/* Search and Filter */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+      <div className="course-toolbar-animate flex flex-col sm:flex-row gap-4 mb-6">
         <div className="flex-1 relative">
           <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-3 text-gray-400 dark:text-slate-400" />
           <input
@@ -1162,8 +1164,12 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
       {/* Courses Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredCourses.map((course) => (
-          <div key={course.id} className="relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)]">
+        {filteredCourses.map((course, index) => (
+          <div
+            key={course.id}
+            className="course-management-card group relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)]"
+            style={{ animationDelay: `${Math.min(index * 45, 360)}ms` }}
+          >
             {/* Course Icon */}
             <div className="h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-teal-500 rounded-t-xl flex items-center justify-center">
               <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md">
@@ -1189,8 +1195,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 <div className="flex space-x-1">
                   <button
                     onClick={() => onNavigate?.('course-detail', String(course.id))}
-                    className="p-1.5 rounded-md text-gray-600 hover:text-blue-700 hover:bg-blue-50 dark:text-slate-300 dark:hover:text-sky-300 dark:hover:bg-slate-800"
-                    title="View Course Details"
+                    className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-blue-700 hover:bg-blue-50 dark:text-slate-300 dark:hover:text-sky-300 dark:hover:bg-slate-800"
+                    title="Manage Content"
                   >
                     <EyeIcon className="h-4 w-4" />
                   </button>
@@ -1203,14 +1209,14 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   </button>
                   <button
                     onClick={() => handleEditCourse(course)}
-                    className="p-1.5 rounded-md text-gray-600 hover:text-amber-700 hover:bg-amber-50 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800"
+                    className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-amber-700 hover:bg-amber-50 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800"
                     title="Edit"
                   >
                     <PencilIcon className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteCourse(course)}
-                    className="p-1.5 rounded-md text-gray-600 hover:text-rose-700 hover:bg-rose-50 dark:text-slate-300 dark:hover:text-rose-300 dark:hover:bg-slate-800"
+                    className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-rose-700 hover:bg-rose-50 dark:text-slate-300 dark:hover:text-rose-300 dark:hover:bg-slate-800"
                     title="Delete"
                   >
                     <TrashIcon className="h-4 w-4" />
@@ -1258,8 +1264,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
               {/* Manage Content Button */}
               <button
-                onClick={() => onNavigate?.('course-content-editor', String(course.id))}
-                className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                onClick={() => onNavigate?.('course-detail', String(course.id))}
+                className="course-manage-button w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
               >
                 Manage Content →
               </button>
@@ -1466,13 +1472,13 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   </div>
 
                   {loadingModules ? (
-                    <div className="text-center py-8 text-gray-500 dark:text-slate-300">Loading modules...</div>
+                    <LoadingState message="Loading modules" />
                   ) : courseModules.length === 0 ? (
                     <div className="text-center py-8 text-gray-500 dark:text-slate-300">No modules yet. Add one above.</div>
                   ) : (
                     <div className="space-y-3">
-                      {courseModules.map((mod) => (
-                        <div key={mod.id} className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden bg-white dark:bg-slate-900">
+                      {safeArray(courseModules).map((mod) => (
+                        <div key={mod.id} className="border border-gray-200 rounded-lg overflow-hidden">
                           {/* Module Header */}
                           <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
                             onClick={() => setCourseModules(prev => prev.map(m => m.id === mod.id ? { ...m, isOpen: !m.isOpen } : m))}
@@ -1498,7 +1504,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                               )}
                             </div>
                             <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                              <span className="text-xs text-gray-500 dark:text-slate-300">{mod.lessons?.length || 0} lessons</span>
+                              <span className="text-xs text-gray-500">{safeArray(mod.lessons).length || 0} lessons</span>
                               <button
                                 onClick={() => { setSelectedModuleId(mod.id); setActivePanel('upload'); }}
                                 className="p-1 text-gray-400 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-300"
@@ -1524,16 +1530,16 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                           </div>
                           {/* Module Lessons */}
                           {mod.isOpen && (
-                            <div className="p-4 space-y-2 bg-white dark:bg-slate-900">
-                              {mod.pre_assessment && mod.pre_assessment.length > 0 && (
-                                <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-emerald-900/25 rounded text-sm text-green-700 dark:text-emerald-300">
+                            <div className="p-4 space-y-2">
+                              {safeArray(mod.pre_assessment).length > 0 && (
+                                <div className="flex items-center gap-2 p-2 bg-green-50 rounded text-sm text-green-700">
                                   <AcademicCapIcon className="h-4 w-4" />
-                                  Quiz: {mod.pre_assessment.length} question{mod.pre_assessment.length !== 1 ? 's' : ''}
+                                  Quiz: {safeArray(mod.pre_assessment).length} question{safeArray(mod.pre_assessment).length !== 1 ? 's' : ''}
                                 </div>
                               )}
-                              {mod.lessons && mod.lessons.length > 0 ? (
-                                mod.lessons.map((lesson: any) => (
-                                  <div key={lesson.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-700 rounded cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors" onClick={() => setPreviewLesson(lesson)}>
+                              {safeArray(mod.lessons).length > 0 ? (
+                                safeArray(mod.lessons).map((lesson: any) => (
+                                  <div key={lesson.id} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setPreviewLesson(lesson)}>
                                     <div className="flex items-center gap-2">
                                       {lesson.type === 'Video' ? (
                                         <VideoCameraIcon className="h-4 w-4 text-purple-500" />
@@ -1615,7 +1621,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                         className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                       >
                         <option value="">-- Choose a module --</option>
-                        {courseModules.map(m => (
+                        {safeArray(courseModules).map(m => (
                           <option key={m.id} value={m.id}>{m.title}</option>
                         ))}
                       </select>
@@ -1759,7 +1765,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                       className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     >
                       <option value="">-- Choose a module --</option>
-                      {courseModules.map(m => (
+                      {safeArray(courseModules).map(m => (
                         <option key={m.id} value={m.id}>{m.title}</option>
                       ))}
                     </select>
@@ -1790,7 +1796,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                           className="w-full border border-gray-300 rounded-md py-2 px-3 mb-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                         />
                         <div className="space-y-2">
-                          {q.options.map((opt: string, oi: number) => (
+                          {safeArray(q.options).map((opt: string, oi: number) => (
                             <div key={oi} className="flex items-center gap-2">
                               <input
                                 type="radio"
@@ -1857,7 +1863,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                       >
                         <option value="">-- Select module with quiz --</option>
                         {courseModules
-                          .filter(m => m.pre_assessment && m.pre_assessment.length > 0)
+                          .filter(m => (Array.isArray(m.pre_assessment) ? m.pre_assessment.length > 0 : false))
                           .map(m => (
                             <option key={m.id} value={m.id}>
                               {m.title} ({m.pre_assessment.length} question{m.pre_assessment.length !== 1 ? 's' : ''})
@@ -1872,7 +1878,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                         {sendingQuiz ? 'Sending...' : 'Send Quiz'}
                       </button>
                     </div>
-                    {courseModules.filter(m => m.pre_assessment && m.pre_assessment.length > 0).length === 0 && (
+                    {safeArray<ModuleDetail>(courseModules).filter(m => (Array.isArray(m.pre_assessment) ? m.pre_assessment.length > 0 : false)).length === 0 && (
                       <p className="text-xs text-blue-600 mt-2">No modules have quizzes yet. Create one in the "Create Quiz" tab first.</p>
                     )}
                   </div>
@@ -1900,7 +1906,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                             const term = enrollSearchTerm.toLowerCase();
                             const alreadyEnrolled = enrolledStudents.some(s => s.id === u.id);
                             return !alreadyEnrolled && (
-                              (u.fullName || u.name || '').toLowerCase().includes(term) ||
+                              (u.fullName || '').toLowerCase().includes(term) ||
                               u.email.toLowerCase().includes(term)
                             );
                           })
@@ -1911,15 +1917,15 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                               onClick={() => { handleEnrollStudent(u.id); setEnrollSearchTerm(''); }}
                               className="w-full text-left px-3 py-2 hover:bg-orange-50 border-b border-gray-100 last:border-0"
                             >
-                              <div className="text-sm font-medium text-gray-900">{u.fullName || u.name}</div>
+                              <div className="text-sm font-medium text-gray-900">{u.fullName}</div>
                               <div className="text-xs text-gray-500">{u.email} &middot; {u.department || 'No Dept'}</div>
                             </button>
                           ))}
-                        {availableUsers.filter(u => {
+                        {safeArray<UserOption>(availableUsers).filter(u => {
                           const term = enrollSearchTerm.toLowerCase();
                           const alreadyEnrolled = enrolledStudents.some(s => s.id === u.id);
                           return !alreadyEnrolled && (
-                            (u.fullName || u.name || '').toLowerCase().includes(term) ||
+                            (u.fullName || '').toLowerCase().includes(term) ||
                             u.email.toLowerCase().includes(term)
                           );
                         }).length === 0 && (

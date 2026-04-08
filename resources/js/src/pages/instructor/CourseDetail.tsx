@@ -28,6 +28,7 @@ import YouTubePlayer from '../../components/YouTubePlayer';
 import UnlockModuleModal from '../../components/UnlockModuleModal';
 import DepartmentSelectModal from '../../components/DepartmentSelectModal';
 import useConfirm from '../../hooks/useConfirm';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 
@@ -647,7 +648,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       });
       if (!res.ok) return;
       const data: AllUser[] = await res.json();
-      setAllUsers(data.filter(u => u.status === 'Active'));
+      setAllUsers(safeArray<AllUser>(data).filter(u => u.status === 'Active'));
     } catch {
       // ignore
     }
@@ -1018,7 +1019,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token },
-        body: JSON.stringify({ order: modules.map(m => m.id) }),
+        body: JSON.stringify({ order: safeArray(modules).map(m => m.id) }),
       });
     } catch {
       await loadCourse();
@@ -1302,7 +1303,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
               No modules yet. Click <strong>Add Module</strong> to get started.
             </div>
           ) : (
-            course.modules.map((mod, idx) => {
+            safeArray(course.modules).map((mod, idx) => {
               const quiz = quizByModule[mod.id];
               const isExpanded = expandedModules.has(mod.id);
               const isEditingMod = editingModuleId === mod.id;
@@ -1403,7 +1404,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                           <p className="text-xs text-slate-400 italic">No lessons yet. Add one below.</p>
                         ) : (
                           <div className="space-y-2">
-                            {mod.lessons.map((lesson, li) => {
+                            {safeArray(mod.lessons).map((lesson, li) => {
                               const isEditingThisLesson = editingLessonId === lesson.id;
                               return (
                                 <div key={lesson.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/35 overflow-hidden">

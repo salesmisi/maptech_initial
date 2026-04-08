@@ -4,6 +4,7 @@ import { BusinessFooter } from '../components/business/BusinessFooter';
 
 interface LoginPageProps {
   onLogin: (
+    id: number | undefined,
     role: 'admin' | 'instructor' | 'employee',
     name: string,
     email: string,
@@ -19,32 +20,12 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [videoReady, setVideoReady] = useState(false);
   const [pageReady, setPageReady] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
+  const [videoSrcIndex, setVideoSrcIndex] = useState(0);
+  const [videoFailed, setVideoFailed] = useState(false);
+  const loginVideoSources = ['/assets/loginvid.mp4', '/loginvid.mp4'];
   const videoRef = useRef<HTMLVideoElement | null>(null);
-
-  useEffect(() => {
-    const frameId = window.requestAnimationFrame(() => {
-      setPageReady(true);
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
-  }, []);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    if (video.readyState >= 2) {
-      setVideoReady(true);
-    }
-
-    void video.play().catch(() => {
-      // Ignore autoplay race conditions; native autoplay usually recovers once ready.
-    });
-  }, []);
 
   // ✅ Function to get cookie value
   const getCookie = (name: string) => {
@@ -98,6 +79,11 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
 
       const data = await response.json();
 
+      // Store token if provided so frontend can use bearer fallback when cookies fail
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
+
       // ✅ 4. Refresh CSRF cookie after login (session()->regenerate() creates a new token)
       await fetch('/sanctum/csrf-cookie', {
         credentials: 'include',
@@ -145,6 +131,7 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
 
       // Pass role (lowercase), name, email, and department
       onLogin(
+        data.id,
         role as 'admin' | 'instructor' | 'employee',
         data.fullName ?? data.fullname ?? data.name,
         data.email,
@@ -172,39 +159,69 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
   };
 
   const isDark = theme === 'dark';
-  const markVideoReady = () => setVideoReady(true);
+  const activeVideoSource = loginVideoSources[videoSrcIndex];
+
+  useEffect(() => {
+    if (videoFailed || !videoRef.current) return;
+
+    const video = videoRef.current;
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.then === 'function') {
+      playPromise.catch(() => {
+        // Keep poster fallback behavior; browsers may block playback in rare cases.
+      });
+    }
+  }, [activeVideoSource, videoFailed]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setPageReady(true), 30);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const handleVideoError = () => {
+    if (videoSrcIndex < loginVideoSources.length - 1) {
+      setVideoSrcIndex((index) => index + 1);
+      return;
+    }
+
+    setVideoFailed(true);
+  };
 
   return (
-    <div
-      className={`relative min-h-screen overflow-hidden flex flex-col justify-center py-6 sm:py-8 sm:px-6 lg:px-8 transform transition-all duration-700 ease-out ${
-        pageReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-      }`}
-    >
+    <div className="relative min-h-screen overflow-hidden flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div
-        className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${videoReady ? 'opacity-0' : 'opacity-100'}`}
-        style={{ backgroundImage: "url('/assets/pasted-image.jpg')" }}
+        className="absolute inset-0 bg-slate-950"
         aria-hidden="true"
       />
 
-      <video
-        ref={videoRef}
-        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${videoReady ? 'opacity-100' : 'opacity-0'}`}
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        poster="/assets/pasted-image.jpg"
-        onLoadedData={markVideoReady}
-        onCanPlay={markVideoReady}
-        onCanPlayThrough={markVideoReady}
-        onPlaying={markVideoReady}
-      >
-        <source src="/assets/loginvid.mp4" type="video/mp4" />
-      </video>
+      {!videoFailed && (
+        <video
+          key={activeVideoSource}
+          ref={videoRef}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${videoReady ? 'opacity-100' : 'opacity-0'}`}
+          src={activeVideoSource}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          onLoadStart={() => setVideoReady(false)}
+          onLoadedData={() => setVideoReady(true)}
+          onCanPlay={() => setVideoReady(true)}
+          onError={handleVideoError}
+        />
+      )}
+
+      {videoFailed && (
+        <div
+          className="absolute inset-0 h-full w-full bg-cover bg-center"
+          style={{ backgroundImage: 'url(/assets/pasted-image.jpg)' }}
+          aria-hidden="true"
+        />
+      )}
 
       <div
-        className={`absolute inset-0 bg-slate-950/65 transition-opacity duration-700 ${videoReady ? 'opacity-100' : 'opacity-90'}`}
+        className={`absolute inset-0 bg-slate-950/70 transition-opacity duration-500 ${videoReady ? 'opacity-100' : 'opacity-90'}`}
         aria-hidden="true"
       />
 

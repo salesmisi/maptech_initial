@@ -154,7 +154,7 @@ class CourseController extends Controller
             })
             ->withCount([
                 'enrollments',
-                'enrollments as completed_count' => fn ($q) => $q->where('status', 'completed'),
+                'enrollments as completed_count' => fn ($q) => $q->where('status', 'Completed'),
             ])
             ->get()
             ->map(fn ($c) => [

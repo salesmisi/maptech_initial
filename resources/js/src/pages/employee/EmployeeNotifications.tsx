@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { Bell, Send, Eye, Trash2, MessageCircle, AlertCircle, X, User } from 'lucide-react';
+import { safeArray } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 interface Notification {
   id: number;
@@ -45,6 +47,16 @@ export function EmployeeNotifications() {
   const confirm = useConfirm();
   const { showConfirm } = confirm;
 
+  const fetchOptions = (method: 'GET' | 'POST', body?: unknown): RequestInit => ({
+    method,
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+
   useEffect(() => {
     fetchNotifications();
     fetchUnreadCount();
@@ -53,12 +65,7 @@ export function EmployeeNotifications() {
 
   const fetchEnrolledCourses = async () => {
     try {
-      const res = await fetch('/api/employee/courses', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/employee/courses', fetchOptions('GET'));
       const data = await res.json();
       setEnrolledCourses(Array.isArray(data) ? data : data.data || []);
     } catch (err) {
@@ -69,12 +76,7 @@ export function EmployeeNotifications() {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/employee/notifications', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/employee/notifications', fetchOptions('GET'));
       const data = await res.json();
       setNotifications(data.notifications?.data || []);
     } catch (err) {
@@ -86,12 +88,7 @@ export function EmployeeNotifications() {
 
   const fetchUnreadCount = async () => {
     try {
-      const res = await fetch('/api/employee/notifications/unread-count', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/employee/notifications/unread-count', fetchOptions('GET'));
       const data = await res.json();
       setUnreadCount(data.count || 0);
     } catch (err) {
@@ -101,13 +98,7 @@ export function EmployeeNotifications() {
 
   const markAsRead = async (id: number) => {
     try {
-      await fetch(`/api/employee/notifications/${id}/read`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch(`/api/employee/notifications/${id}/read`, fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
@@ -117,13 +108,7 @@ export function EmployeeNotifications() {
 
   const markAllAsRead = async () => {
     try {
-      await fetch('/api/employee/notifications/read-all', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch('/api/employee/notifications/read-all', fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
@@ -180,15 +165,7 @@ export function EmployeeNotifications() {
             type: formData.type,
           };
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
+      const res = await fetch(endpoint, fetchOptions('POST', body));
 
       const data = await res.json();
 
@@ -287,7 +264,7 @@ export function EmployeeNotifications() {
       {/* Notifications List */}
       <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-slate-500 dark:text-slate-300">Loading...</div>
+          <LoadingState message="Loading notifications" className="p-8" />
         ) : notifications.length === 0 ? (
           <div className="p-8 text-center text-slate-500 dark:text-slate-300">
             <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
@@ -295,8 +272,8 @@ export function EmployeeNotifications() {
             <p className="text-sm mt-2">You'll receive notifications from instructors and admin here</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-200 dark:divide-slate-700">
-            {notifications.map((notification) => (
+          <div className="divide-y divide-slate-200">
+            {safeArray(notifications).map((notification) => (
               <div
                 key={notification.id}
                 className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
@@ -395,7 +372,7 @@ export function EmployeeNotifications() {
                         className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                       >
                         <option value="">Select a course</option>
-                        {enrolledCourses.map((course) => (
+                        {safeArray(enrolledCourses).map((course) => (
                           <option key={course.id} value={course.id}>{course.title}</option>
                         ))}
                       </select>

@@ -96,7 +96,7 @@ class DashboardController extends Controller
     /**
      * Resolve enrollment status for a given enrollment row + course.
      */
-    private function resolveStatus(Enrollment $enrollment, Course $course): string
+    private function resolveStatus($enrollment, Course $course): string
     {
         if ($enrollment->progress >= 100) {
             return 'Completed';

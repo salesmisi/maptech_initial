@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { sanitizeHtml } from '../../components/RichTextEditor';
 import YouTubePlayer from '../../components/YouTubePlayer';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 
@@ -234,7 +235,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       if (!res.ok) throw new Error('Failed to load course');
       const data = await res.json();
       setCourse(data);
-      const mods: ModuleData[] = data.modules ?? [];
+      const mods: ModuleData[] = safeArray<ModuleData>(data.modules);
       setModules(mods);
       setCurrentModule(prev => {
         if (prev) {
@@ -244,12 +245,8 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
         const firstUnlocked = mods.find(m => m.is_unlocked) ?? mods[0] ?? null;
         if (firstUnlocked) {
           setExpandedModules(new Set([firstUnlocked.id]));
-          markModuleViewed(firstUnlocked.id);
-          const lessons = firstUnlocked.lessons ?? [];
-          if (lessons.length > 0) {
-            setCurrentLesson(lessons[0]);
-            markLessonViewed(lessons[0].id);
-          }
+          const lessons = safeArray<LessonData>(firstUnlocked.lessons);
+          if (lessons.length > 0) setCurrentLesson(lessons[0]);
         }
         return firstUnlocked;
       });
@@ -410,10 +407,8 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     markModuleViewed(mod.id);
     setCurrentModule(mod);
     setExpandedModules(prev => new Set(prev).add(mod.id));
-    const lessons = mod.lessons ?? [];
-    const firstLesson = lessons.length > 0 ? lessons[0] : null;
-    setCurrentLesson(firstLesson);
-    if (firstLesson) markLessonViewed(firstLesson.id);
+    const lessons = safeArray<LessonData>(mod.lessons);
+    setCurrentLesson(lessons.length > 0 ? lessons[0] : null);
     setShowQuiz(false);
   };
 
@@ -607,7 +602,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
               // YouTube player container; we'll initialize the YT player via JS API
               <YouTubePlayer contentUrl={lessonContentUrl || ''} lessonId={currentLesson!.id} />
             ) : (
-              <video controls className="w-full h-full" src={lessonContentUrl}>
+              <video controls className="w-full h-full" src={content_url || undefined}>
                 Your browser does not support the video tag.
               </video>
             )}
@@ -624,7 +619,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             <Music className="h-20 w-20 text-slate-400 dark:text-slate-500 mb-4" />
             <h3 className="text-lg font-medium text-slate-700 dark:text-slate-100 mb-4">{title}</h3>
             <audio controls className="w-full max-w-md">
-              <source src={lessonContentUrl} />
+              <source src={content_url || undefined} />
               Your browser does not support the audio element.
             </audio>
           </div>
@@ -637,7 +632,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
         <div className="space-y-4">
           {textBlock}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden" style={{ height: '70vh' }}>
-            <iframe src={lessonContentUrl} className="w-full h-full" title={title} />
+            <iframe src={content_url} className="w-full h-full" title={title} />
           </div>
         </div>
       );
@@ -653,7 +648,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             This file type is best viewed by downloading it.
           </p>
           <a
-            href={lessonContentUrl}
+            href={content_url || undefined}
             download
             target="_blank"
             rel="noopener noreferrer"
@@ -663,7 +658,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             Download File
           </a>
           <a
-            href={lessonContentUrl}
+            href={content_url || undefined}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-3 text-sm text-green-600 dark:text-emerald-400 hover:text-green-700 dark:hover:text-emerald-300"
@@ -702,7 +697,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             <div key={q.id} className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">{qi + 1}. {q.question_text}</p>
               <div className="space-y-2">
-                {q.options.map(opt => (
+                {safeArray(q.options).map(opt => (
                   <label key={opt.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                     quizAnswers[q.id] === opt.id
                       ? 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-400 dark:border-indigo-500 text-indigo-900 dark:text-indigo-100'
@@ -988,8 +983,10 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     );
   }
 
-  const completedModules = modules.filter(m => m.quiz?.has_passed).length;
-  const progress = modules.length > 0 ? Math.round((completedModules / modules.length) * 100) : 0;
+  // Count total lessons across all modules for progress
+  const totalItems = safeArray<ModuleData>(modules).reduce((sum, m) => sum + (m.lessons?.length ?? 0) + (m.quiz ? 1 : 0), 0);
+  const completedModules = safeArray<ModuleData>(modules).filter(m => m.quiz?.has_passed).length;
+  const progress = safeArray<ModuleData>(modules).length > 0 ? Math.round((completedModules / safeArray<ModuleData>(modules).length) * 100) : 0;
 
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)] -m-6">
@@ -1080,11 +1077,11 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
               <p className="text-sm text-slate-500 dark:text-slate-300 italic">No modules available for this course.</p>
             ) : (
               <div className="space-y-1">
-                {modules.map((module, index) => {
+                {safeArray(modules).map((module, index) => {
                   const isLocked = !module.is_unlocked;
                   const isActiveModule = currentModule?.id === module.id;
                   const isModuleExpanded = expandedModules.has(module.id);
-                  const lessons = module.lessons ?? [];
+                          const lessons = safeArray(module.lessons);
 
                   return (
                     <div key={module.id}>
@@ -1135,7 +1132,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                       {/* Expanded lessons + quiz */}
                       {isModuleExpanded && !isLocked && (
                         <div className="ml-6 mt-0.5 mb-1 space-y-0.5">
-                          {lessons.map((lesson) => {
+                          {safeArray(lessons).map((lesson) => {
                             const isActiveLesson = currentLesson?.id === lesson.id && isActiveModule && !showQuiz;
                             return (
                               <button
@@ -1254,27 +1251,112 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                       <Lock className="h-3 w-3" /> Pass the quiz to unlock the next module
                     </p>
                   )}
-                  {isFinalQuizReadyToFinish ? (
-                    <button
-                      onClick={openCompletionPopup}
-                      className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm"
-                    >
-                      Finish Course
-                      <Trophy className="h-4 w-4 ml-2" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={goToNext}
-                      disabled={!canGoNext}
-                      className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Next
-                      <ArrowRight className="h-4 w-4 ml-2" />
-                    </button>
-                  )}
+                  <button
+                    onClick={goToNext}
+                    disabled={!canGoNext}
+                    className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </button>
                 </div>
               </div>
             )}
+            {/* Quiz Panel */}
+            {showQuiz && currentModule && (function renderQuiz() {
+              // pre_assessment may be stored as JSON string or object
+              let quiz = (currentModule as any).pre_assessment || null;
+              try {
+                if (typeof quiz === 'string') quiz = JSON.parse(quiz);
+              } catch (e) {
+                quiz = null;
+              }
+
+              if (!quiz || !Array.isArray(quiz) || quiz.length === 0) {
+                return (
+                  <div className="mt-8 p-6 bg-yellow-50 rounded">No assessment available.</div>
+                );
+              }
+
+              const total = quiz.length;
+
+              const submitQuiz = async () => {
+                let correct = 0;
+                for (const q of quiz) {
+                  const selected = quizAnswers[q.id];
+                  if (selected !== undefined && selected === q.answer) correct++;
+                }
+                const total = quiz.length;
+                const scorePercent = total > 0 ? Math.round((correct / total) * 100) : 0;
+                const passPercentage = currentModule.quiz?.pass_percentage ?? 70;
+                setQuizResult({
+                  score: correct,
+                  total,
+                  percentage: scorePercent,
+                  passed: scorePercent >= passPercentage,
+                  pass_percentage: passPercentage,
+                });
+
+                // Persist the attempt to the backend
+                try {
+                  await fetch(`${API_BASE}/employee/modules/${(currentModule as any).id}/quiz`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Accept': 'application/json',
+                      'X-XSRF-TOKEN': decodeURIComponent(getCookie('XSRF-TOKEN') || ''),
+                    },
+                    body: JSON.stringify({
+                      score: scorePercent,
+                      correct_answers: correct,
+                      total_questions: total,
+                    }),
+                  });
+                } catch {
+                  // silent – progress page will still show 0 until next attempt
+                }
+              };
+
+              return (
+                <div className="mt-8 p-6 bg-white border rounded-lg">
+                  <h3 className="text-lg font-bold mb-4">Pre-assessment</h3>
+                  {safeArray(quiz).map((q: any) => (
+                    <div key={q.id} className="mb-4">
+                      <p className="font-medium">{q.id}. {q.question}</p>
+                      <div className="mt-2 space-y-2">
+                        {safeArray(q.options).map((opt: string, idx: number) => (
+                          <label key={idx} className={`flex items-center space-x-3 cursor-pointer ${quizResult ? 'opacity-70' : ''}`}>
+                            <input
+                              type="radio"
+                              name={`q_${q.id}`}
+                              value={idx}
+                              checked={quizAnswers[q.id] === idx}
+                              disabled={!!quizResult}
+                              onChange={() => setQuizAnswers(prev => ({ ...prev, [q.id]: idx }))}
+                            />
+                            <span>{opt}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {!quizResult ? (
+                    <div className="flex items-center space-x-3">
+                      <button onClick={submitQuiz} className="px-4 py-2 bg-green-600 text-white rounded">Submit Assessment</button>
+                      <button onClick={() => { setShowQuiz(false); setQuizAnswers({}); }} className="px-4 py-2 border rounded">Close</button>
+                    </div>
+                  ) : (
+                    <div className="mt-4">
+                      <p className="font-semibold">Result: {quizResult.score} / {quizResult.total}</p>
+                      <button onClick={() => { setQuizResult(null); setQuizAnswers({}); }} className="mt-2 px-3 py-1 border rounded">Retry</button>
+                      <button onClick={() => setShowQuiz(false)} className="mt-2 ml-2 px-3 py-1 bg-green-600 text-white rounded">Close</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>

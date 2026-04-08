@@ -27,6 +27,7 @@ import {
 import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
 import UnlockModuleModal from '../../components/UnlockModuleModal';
 import ConfirmModal from '../../components/ConfirmModal';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 
@@ -349,7 +350,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
         status: data.status,
         instructor: data.instructor ?? null,
         modules: data.modules ?? [],
-        enrolled_users: (data.enrolled_users ?? []).map((u: any) => ({
+        enrolled_users: safeArray(data.enrolled_users).map((u: any) => ({
           id: u.id,
           fullname: u.fullname,
           email: u.email,
@@ -375,8 +376,13 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
         headers: { Accept: 'application/json' },
       });
       if (!res.ok) return;
-      const data: AllUser[] = await res.json();
-      setAllUsers(data.filter(u => u.status === 'Active'));
+      const raw = await res.json().catch(() => null);
+      const list: AllUser[] = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+          ? raw.data
+          : raw?.users || [];
+      setAllUsers(safeArray<AllUser>(list).filter(u => u.status === 'Active'));
     } catch {
       // ignore
     }
@@ -617,7 +623,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': xsrf },
-        body: JSON.stringify({ order: mods.map(m => m.id) }),
+        body: JSON.stringify({ order: safeArray(mods).map(m => m.id) }),
       });
     } catch {
       await loadCourse();
@@ -626,9 +632,8 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
 
   // ─── ENROLLMENT HANDLERS ─────────────────────────────────────────────────────
 
-  const enrolledIds = new Set(course?.enrolled_users.map(u => u.id) ?? []);
-
-  const availableUsers = allUsers.filter(u => !enrolledIds.has(u.id));
+  const enrolledIds = new Set(safeArray<EnrolledUser>(course?.enrolled_users).map(u => u.id));
+  const availableUsers = safeArray<AllUser>(allUsers).filter(u => !enrolledIds.has(u.id));
 
   const handleEnroll = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -810,7 +815,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                 <p className="text-sm">No modules yet. Add the first one below.</p>
               </div>
             ) : (
-              course.modules.map((mod, idx) => {
+              safeArray(course.modules).map((mod, idx) => {
                 const quiz = quizByModule[mod.id];
                 const isExpanded = expandedModules.has(mod.id);
                 const isEditingMod = editingModuleId === mod.id;
@@ -913,7 +918,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                             <p className="text-xs text-slate-400 italic">No lessons yet. Add one below.</p>
                           ) : (
                             <div className="space-y-2">
-                              {mod.lessons.map((lesson, li) => {
+                              {safeArray(mod.lessons).map((lesson, li) => {
                                 const isEditingThisLesson = editingLessonId === lesson.id;
                                 return (
                                   <div key={lesson.id} className="rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
@@ -1233,7 +1238,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                 {availableUsers.length === 0 && (
                   <option disabled>All active users are already enrolled</option>
                 )}
-                {availableUsers.map(u => (
+                {safeArray(availableUsers).map(u => (
                   <option key={u.id} value={u.id}>
                     {u.fullname} ({u.email}) · {u.role}
                   </option>
@@ -1270,7 +1275,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
-                  {course.enrolled_users.map(user => (
+                  {safeArray(course.enrolled_users).map(user => (
                     <tr key={user.id} className="hover:bg-slate-50">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">

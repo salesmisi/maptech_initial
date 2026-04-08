@@ -17,6 +17,7 @@ import {
 'lucide-react';
 import { NotificationBell } from '../NotificationBell';
 import { useBusinessDetails } from '../../hooks/useBusinessDetails';
+import { safeArray } from '../../utils/safe';
 interface EmployeeLayoutProps {
   children: React.ReactNode;
   currentPage: string;
@@ -212,7 +213,7 @@ export function EmployeeLayout({
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
             <nav className={`mt-5 flex-1 space-y-1 ${isSidebarCompact ? 'px-3' : 'px-2'}`}>
-              {navItems.map((item) => {
+              {safeArray(navItems).map((item) => {
                 const Icon = item.icon;
                 const isActive = currentPage === item.id ||
                   (item.id === 'my-courses' && (currentPage === 'course-viewer' || currentPage === 'course-enroll'));
@@ -222,7 +223,7 @@ export function EmployeeLayout({
                     onClick={() => handleSidebarNavigate(item.id)}
                     title={isSidebarCompact ? item.label : undefined}
                     aria-label={item.label}
-                    className={`group flex w-full items-center text-sm font-medium rounded-md transition-colors ${isSidebarCompact ? 'justify-center px-2 py-3' : 'px-2 py-2'} ${isActive ? 'bg-green-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                    className={`sidebar-nav-item group flex w-full items-center text-sm font-medium rounded-md transition-colors ${isSidebarCompact ? 'justify-center px-2 py-3' : 'px-2 py-2'} ${isActive ? 'is-active bg-green-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
 
                     <Icon
                       className={`h-5 w-5 flex-shrink-0 ${isSidebarCompact ? '' : 'mr-3'} ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'}`} />

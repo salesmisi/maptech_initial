@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { UserTimeLog } from '../../components/UserTimeLog';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 const MAPTECH_LOGO_URL = '/assets/Maptech-Official-Logo.png';
@@ -47,6 +48,8 @@ interface DashboardData {
   user: {
     id: number;
     name: string;
+    fullName?: string;
+    fullname?: string;
     email: string;
     department: string;
   };
@@ -502,8 +505,10 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
           courses: mappedCourses,
           total_courses: mappedCourses.length,
         });
+        return data;
       } catch (error) {
         console.error('Error loading dashboard:', error);
+        return null;
       } finally {
         setLoading(false);
       }
@@ -511,19 +516,19 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
     const handles: any = {};
     const runAsync = async () => {
-      await loadDashboard();
+      const dashboard = await loadDashboard();
       const initial = await loadNotifications();
       await loadCustomModules();
       await loadCertificates();
       await loadQuizReminders();
-      await loadLatestAchievement();
       // initialize last unread count after initial load
       lastUnreadRef.current = (initial || []).filter((n: any) => !n.read).length;
       // Subscribe to realtime notifications channel (if Echo is available)
       try {
         const Echo = (window as any).Echo;
-        if (Echo && typeof Echo.private === 'function' && dashboardData?.user?.id) {
-          const notifChannel = Echo.private('notifications.' + dashboardData.user.id);
+        const dashboardUserId = dashboard?.user?.id;
+        if (Echo && typeof Echo.private === 'function' && dashboardUserId) {
+          const notifChannel = Echo.private('notifications.' + dashboardUserId);
           const createdHandler = (payload: any) => {
             const n = payload?.notification || payload;
             if (!n) return;
@@ -712,7 +717,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-slate-500">Completed</p>
-              <p className="text-2xl font-bold text-slate-900">{myCourses.filter(c => c.progress === 100).length}</p>
+              <p className="text-2xl font-bold text-slate-900">{safeArray<Course>(myCourses).filter(c => c.progress === 100).length}</p>
             </div>
           </div>
         </div>
@@ -728,6 +733,18 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             </div>
           </div>
         </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+          <div className="flex items-center">
+            <div className="p-3 bg-purple-50 rounded-full">
+              <Award className="h-6 w-6 text-purple-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-slate-500">Certificates</p>
+              <p className="text-2xl font-bold text-slate-900">3</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Quiz Notifications */}
@@ -736,7 +753,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
           <div className="flex items-center gap-2 mb-4">
             <Bell className="h-5 w-5 text-orange-600" />
             <h2 className="text-lg font-bold text-slate-900">
-              Notifications ({notifications.filter(n => !n.read).length} new)
+              Notifications ({safeArray<NotificationItem>(notifications).filter(n => !n.read).length} new)
             </h2>
           </div>
           <div className="space-y-3">

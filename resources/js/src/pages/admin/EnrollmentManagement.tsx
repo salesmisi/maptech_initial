@@ -12,6 +12,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 
@@ -437,7 +438,7 @@ export function EnrollmentManagement() {
     return status;
   };
 
-  const filteredEnrollments = enrollments.filter((enrollment) => {
+  const filteredEnrollments = safeArray<Enrollment>(enrollments).filter((enrollment) => {
     const matchesSearch =
       enrollment.employee_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       enrollment.course_title.toLowerCase().includes(searchTerm.toLowerCase());
