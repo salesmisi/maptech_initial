@@ -205,19 +205,20 @@ class NotificationController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'message' => 'required|string',
-            'roles' => 'required|array|min:1',
+            'roles' => 'nullable|array',
             'roles.*' => 'string|in:Instructor,Employee,Admin',
             'course_id' => 'nullable|exists:courses,id',
             'department' => 'nullable|string|max:255',
             'target_user_ids' => 'nullable|array',
             'target_user_ids.*' => 'integer|exists:users,id',
+            'preview' => 'nullable|boolean',
         ]);
 
         $admin = Auth::user();
 
         // Temporary debug: log incoming payload for troubleshooting
         Log::debug('adminAnnounce payload', $request->all());
-        $roles = $request->input('roles');
+        $roles = $request->input('roles', []);
         // Normalize roles to lowercase to match storage convention in User::setRoleAttribute
         $normalizedRoles = is_array($roles) ? array_map('strtolower', $roles) : [];
         $title = $request->input('title');
@@ -233,19 +234,20 @@ class NotificationController extends Controller
             }
         }
 
-        // If specific user IDs provided, target those (respecting department/roles)
+        // Explicit selected users take precedence over role/department filters.
         $targetIds = $request->input('target_user_ids');
         if (is_array($targetIds) && count($targetIds) > 0) {
+            $targetIds = array_values(array_unique(array_map('intval', $targetIds)));
             $users = User::whereIn('id', $targetIds)
                 ->where('id', '!=', $admin->id)
-                ->when($normalizedRoles, function ($q) use ($normalizedRoles) {
-                    return $q->whereIn('role', $normalizedRoles);
-                })
-                ->when($department, function ($q) use ($department) {
-                    return $q->where('department', $department);
-                })
                 ->get();
         } else {
+            if (count($normalizedRoles) === 0) {
+                return response()->json([
+                    'message' => 'Please select at least one role or choose specific users.',
+                ], 422);
+            }
+
             // Get all users with specified roles
             $users = User::whereIn('role', $normalizedRoles)
                 ->where('id', '!=', $admin->id)
@@ -263,6 +265,18 @@ class NotificationController extends Controller
             'roles' => $roles,
             'roles_normalized' => $normalizedRoles,
         ]);
+
+        // Preview should only report recipients and never create notifications/history.
+        if ($request->boolean('preview')) {
+            $payload = [
+                'message' => 'Preview recipients calculated',
+                'recipients_count' => $users->count(),
+            ];
+            if (config('app.debug')) {
+                $payload['matched_user_ids'] = $users->pluck('id')->values()->all();
+            }
+            return response()->json($payload);
+        }
 
         $notifications = [];
         foreach ($users as $user) {
@@ -282,7 +296,11 @@ class NotificationController extends Controller
 
         // Create sent history entry
         $targetDescription = 'Multiple Users';
-        if ($department) {
+        if ($users->count() === 1) {
+            $targetDescription = 'Selected User: ' . $users->first()->fullname;
+        } elseif (is_array($targetIds) && count($targetIds) > 0) {
+            $targetDescription = 'Selected Users (' . $users->count() . ')';
+        } elseif ($department) {
             $targetDescription = $department . ' - ' . implode(', ', $roles);
         } elseif (count($roles) > 0) {
             $targetDescription = implode(', ', $roles);

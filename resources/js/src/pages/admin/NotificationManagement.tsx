@@ -311,8 +311,9 @@ export function NotificationManagement() {
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     const rolesArray = Array.isArray(formData.roles) ? formData.roles : (formData.roles ? [formData.roles] : []);
-    if (rolesArray.length === 0) {
-      alert('Please select at least one target audience');
+    const hasSelectedUsers = Array.isArray(formData.target_user_ids) && formData.target_user_ids.length > 0;
+    if (!hasSelectedUsers && rolesArray.length === 0) {
+      alert('Please select at least one target role or choose specific users.');
       return;
     }
 
@@ -321,7 +322,7 @@ export function NotificationManagement() {
       const res = await fetch('/api/admin/notifications/announce', await fetchOptions('POST', {
         title: formData.title,
         message: formData.message,
-        roles: formData.roles,
+        roles: rolesArray,
         course_id: formData.course_id || null,
         department_id: selectedDepartment ? Number(selectedDepartment) : null,
         target_user_ids: formData.target_user_ids && formData.target_user_ids.length > 0 ? formData.target_user_ids : null,
@@ -352,8 +353,9 @@ export function NotificationManagement() {
 
   const handlePreview = async () => {
     const rolesArray = Array.isArray(formData.roles) ? formData.roles : (formData.roles ? [formData.roles] : []);
-    if (rolesArray.length === 0) {
-      alert('Please select at least one target audience');
+    const hasSelectedUsers = Array.isArray(formData.target_user_ids) && formData.target_user_ids.length > 0;
+    if (!hasSelectedUsers && rolesArray.length === 0) {
+      alert('Please select at least one target role or choose specific users.');
       return;
     }
 
@@ -364,6 +366,8 @@ export function NotificationManagement() {
         message: formData.message,
         roles: rolesArray,
         course_id: formData.course_id || null,
+        department_id: selectedDepartment ? Number(selectedDepartment) : null,
+        target_user_ids: hasSelectedUsers ? formData.target_user_ids : null,
         preview: true,
       };
       console.debug('Preview announce payload', payload);
