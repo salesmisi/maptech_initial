@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
-import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X } from 'lucide-react';
+import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X, RotateCcw, Archive } from 'lucide-react';
 
 interface Notification {
   id: number;
@@ -29,15 +29,28 @@ interface SentNotification {
   recipients_count: number;
 }
 
+interface RecentlyDeletedNotification {
+  id: number;
+  title: string;
+  message: string;
+  target: string;
+  date: string;
+  deleted_at: string;
+  recipients_count: number;
+}
+
 export function NotificationManagement() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [sentHistory, setSentHistory] = useState<SentNotification[]>([]);
+  const [recentlyDeleted, setRecentlyDeleted] = useState<RecentlyDeletedNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
+  const [activeTab, setActiveTab] = useState<'sent' | 'deleted'>('sent');
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const [successToast, setSuccessToast] = useState<{ show: boolean; count: number }>({ show: false, count: 0 });
+  const HISTORY_LIMIT = 50;
 
   // Form state
   const [formData, setFormData] = useState({
@@ -78,6 +91,7 @@ export function NotificationManagement() {
     fetchNotifications();
     fetchUnreadCount();
     fetchSentAnnouncements();
+    fetchRecentlyDeleted();
   }, []);
 
   const fetchNotifications = async () => {
@@ -126,6 +140,72 @@ export function NotificationManagement() {
     } catch (err) {
       console.error('Failed to load sent announcements:', err);
     }
+  };
+
+  const fetchRecentlyDeleted = async () => {
+    try {
+      const res = await fetch('/api/admin/notifications/recently-deleted', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      const data = await res.json();
+      setRecentlyDeleted(data.recently_deleted || []);
+    } catch (err) {
+      console.error('Failed to load recently deleted:', err);
+    }
+  };
+
+  const deleteSentHistory = async (id: number) => {
+    showConfirm('Move this announcement to recently deleted?', async () => {
+      try {
+        await fetch(`/api/admin/notifications/sent-history/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+          },
+        });
+        fetchSentAnnouncements();
+        fetchRecentlyDeleted();
+      } catch (err) {
+        console.error('Failed to delete sent history:', err);
+      }
+    });
+  };
+
+  const restoreFromDeleted = async (id: number) => {
+    try {
+      await fetch(`/api/admin/notifications/sent-history/${id}/restore`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      fetchSentAnnouncements();
+      fetchRecentlyDeleted();
+    } catch (err) {
+      console.error('Failed to restore announcement:', err);
+    }
+  };
+
+  const permanentlyDelete = async (id: number) => {
+    showConfirm('Permanently delete this announcement? This cannot be undone.', async () => {
+      try {
+        await fetch(`/api/admin/notifications/sent-history/${id}/permanent`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+          },
+        });
+        fetchRecentlyDeleted();
+      } catch (err) {
+        console.error('Failed to permanently delete:', err);
+      }
+    });
   };
 
   const markAsRead = async (id: number) => {
@@ -284,7 +364,7 @@ export function NotificationManagement() {
       const data = await res.json();
 
       if (res.ok) {
-        alert(`Announcement sent to ${data.recipients_count} users!`);
+        setSuccessToast({ show: true, count: data.recipients_count });
         setIsModalOpen(false);
         setFormData({ title: '', message: '', roles: [], course_id: '', target_user_ids: [] });
         setSelectedUsers([]);
@@ -350,16 +430,6 @@ export function NotificationManagement() {
       <div className="border-b border-slate-200 dark:border-slate-700">
         <nav className="-mb-px flex space-x-8">
           <button
-            onClick={() => setActiveTab('received')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'received'
-                ? 'border-green-500 text-green-600'
-                : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
-            }`}
-          >
-            Received ({notifications.length})
-          </button>
-          <button
             onClick={() => setActiveTab('sent')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'sent'
@@ -367,93 +437,20 @@ export function NotificationManagement() {
                 : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
             }`}
           >
-            Sent History ({sentHistory.length})
+            Sent History ({sentHistory.length}/{HISTORY_LIMIT})
+          </button>
+          <button
+            onClick={() => setActiveTab('deleted')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'deleted'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
+            }`}
+          >
+            Recently Deleted ({recentlyDeleted.length})
           </button>
         </nav>
       </div>
-
-      {/* Received Notifications */}
-      {activeTab === 'received' && (
-        <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
-          {loading ? (
-            <div className="p-8 text-center text-slate-500">Loading...</div>
-          ) : notifications.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">
-              <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-              <p>No notifications yet</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-700 dark:divide-slate-700">
-              {notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  onClick={() => setSelectedNotification(notification)}
-                  className={`p-4 cursor-pointer transition-colors ${
-                    !notification.read_at
-                      ? 'bg-emerald-50 dark:bg-emerald-950 border-l-4 border-emerald-500'
-                      : 'bg-white dark:bg-slate-900 border-l-4 border-transparent'
-                  } hover:bg-slate-100 dark:hover:bg-slate-800`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-3 flex-1">
-                      <div className={`mt-1 p-2 rounded-full flex-shrink-0 ${
-                        notification.type === 'announcement' ? 'bg-blue-100 dark:bg-blue-900' :
-                        notification.type === 'employee_message' ? 'bg-yellow-100 dark:bg-yellow-900' :
-                        'bg-slate-100 dark:bg-slate-700'
-                      }`}>
-                        {notification.type === 'announcement' ? (
-                          <Bell className="h-4 w-4 text-blue-600 dark:text-blue-300" />
-                        ) : notification.type === 'employee_message' ? (
-                          <Users className="h-4 w-4 text-yellow-600 dark:text-yellow-300" />
-                        ) : (
-                          <AlertCircle className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-medium text-slate-900 dark:text-white">
-                          {notification.title}
-                          {!notification.read_at && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
-                              New
-                            </span>
-                          )}
-                        </h3>
-                        <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{notification.message}</p>
-                        {notification.data?.from_user_name && (
-                          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                            From: {notification.data.from_user_name} ({notification.data.from_role})
-                          </p>
-                        )}
-                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                          {formatDate(notification.created_at)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2 flex-shrink-0 ml-4" onClick={(e) => e.stopPropagation()}>
-                      {!notification.read_at && (
-                        <button
-                          onClick={() => markAsRead(notification.id)}
-                          className="text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400"
-                          title="Mark as read"
-                        >
-                          <Eye className="h-5 w-5" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => deleteNotification(notification.id)}
-                        className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-5 w-5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Sent History */}
       {activeTab === 'sent' && (
@@ -473,6 +470,7 @@ export function NotificationManagement() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Target</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Recipients</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
@@ -492,6 +490,86 @@ export function NotificationManagement() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
                         {item.date}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <button
+                          onClick={() => deleteSentHistory(item.id)}
+                          className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
+                          title="Move to Recently Deleted"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Recently Deleted */}
+      {activeTab === 'deleted' && (
+        <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+          {recentlyDeleted.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 dark:text-slate-300">
+              <Archive className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
+              <p>No recently deleted announcements</p>
+              <p className="text-xs mt-2 text-slate-400">When sent history exceeds {HISTORY_LIMIT} items, the oldest half will automatically appear here</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                <thead className="bg-slate-50 dark:bg-slate-800">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Title</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Message</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Target</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Recipients</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Sent Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Deleted Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
+                  {recentlyDeleted.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
+                        {item.title}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-200 truncate max-w-xs">
+                        {item.message}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                        {item.target}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                        {item.recipients_count} users
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                        {item.date}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                        {item.deleted_at}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => restoreFromDeleted(item.id)}
+                            className="text-slate-400 dark:text-slate-500 hover:text-green-600 dark:hover:text-green-400"
+                            title="Restore"
+                          >
+                            <RotateCcw className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={() => permanentlyDelete(item.id)}
+                            className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
+                            title="Permanently Delete"
+                          >
+                            <Trash2 className="h-5 w-5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -548,6 +626,21 @@ export function NotificationManagement() {
                       Target Audience *
                     </label>
                     <div className="space-y-2">
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={formData.roles.length === 3}
+                          onChange={() => {
+                            const allRoles = ['Instructor', 'Employee', 'Admin'];
+                            setFormData(prev => ({
+                              ...prev,
+                              roles: prev.roles.length === 3 ? [] : allRoles
+                            }));
+                          }}
+                          className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
+                        />
+                        <span className="ml-2 text-sm text-slate-700 font-medium">Select All</span>
+                      </label>
                       {['Instructor', 'Employee', 'Admin'].map((role) => (
                         <label key={role} className="flex items-center">
                           <input

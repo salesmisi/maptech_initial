@@ -29,4 +29,27 @@ class TimeLog extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    /**
+     * Enforce time log limit: if count >= 50, permanently delete oldest half.
+     *
+     * @param int $userId The user's ID
+     * @return int Number of deleted entries
+     */
+    public static function enforceTimeLogLimit(int $userId): int
+    {
+        $count = static::where('user_id', $userId)->count();
+
+        if ($count >= 50) {
+            $halfCount = (int) floor($count / 2);
+            $oldestIds = static::where('user_id', $userId)
+                ->orderBy('time_in', 'asc')
+                ->limit($halfCount)
+                ->pluck('id');
+
+            return static::whereIn('id', $oldestIds)->delete();
+        }
+
+        return 0;
+    }
 }
