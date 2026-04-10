@@ -180,7 +180,7 @@ class NotificationController extends Controller
     /**
      * Permanently delete a notification.
      */
-    public function permanentlyDeleteNotification(int $id)
+    public function permanentlyDeleteNotification(Request $request, int $id)
     {
         $user = $request->user() ?? Auth::user();
         if (! $user) return response()->json(['message' => 'Unauthenticated'], 401);
@@ -190,10 +190,7 @@ class NotificationController extends Controller
             ->where('user_id', $user->id)
             ->firstOrFail();
 
-        $notification->delete();
-
-        // Auto-cleanup: if recently deleted count >= 50, permanently delete oldest half
-        $permanentlyDeleted = Notification::enforceTrashLimit($user->id);
+        $notification->forceDelete();
 
         return response()->json([
             'message' => 'Notification permanently deleted',

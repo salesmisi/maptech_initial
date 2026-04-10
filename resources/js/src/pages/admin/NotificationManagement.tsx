@@ -72,7 +72,6 @@ export function NotificationManagement() {
   const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
 
-  const token = localStorage.getItem('token');
   const confirm = useConfirm();
   const { showConfirm } = confirm;
 
@@ -88,15 +87,24 @@ export function NotificationManagement() {
     return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
   };
 
-  const fetchOptions = (method: 'GET' | 'POST', body?: unknown): RequestInit => ({
-    method,
-    credentials: 'include',
-    headers: {
+  const fetchOptions = async (method: 'GET' | 'POST' | 'DELETE', body?: unknown): Promise<RequestInit> => {
+    const headers: Record<string, string> = {
       'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
       ...(body ? { 'Content-Type': 'application/json' } : {}),
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
+    };
+
+    if (method !== 'GET') {
+      headers['X-XSRF-TOKEN'] = await getXsrfToken();
+    }
+
+    return {
+      method,
+      credentials: 'include',
+      headers,
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    };
+  };
 
   // Load notifications and sent history
   useEffect(() => {
@@ -110,7 +118,7 @@ export function NotificationManagement() {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/notifications', fetchOptions('GET'));
+      const res = await fetch('/api/admin/notifications', await fetchOptions('GET'));
       let data: any = null;
       try {
         data = await res.json();
@@ -134,7 +142,7 @@ export function NotificationManagement() {
 
   const fetchUnreadCount = async () => {
     try {
-      const res = await fetch('/api/admin/notifications/unread-count', fetchOptions('GET'));
+      const res = await fetch('/api/admin/notifications/unread-count', await fetchOptions('GET'));
       const data = await res.json();
       setUnreadCount(data.count || 0);
     } catch (err) {
@@ -144,12 +152,7 @@ export function NotificationManagement() {
 
   const fetchSentAnnouncements = async () => {
     try {
-      const res = await fetch('/api/admin/notifications/sent-history', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/admin/notifications/sent-history', await fetchOptions('GET'));
       const data = await res.json();
       setSentHistory(data.sent_announcements || []);
     } catch (err) {
@@ -159,12 +162,7 @@ export function NotificationManagement() {
 
   const fetchRecentlyDeleted = async () => {
     try {
-      const res = await fetch('/api/admin/notifications/recently-deleted', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/admin/notifications/recently-deleted', await fetchOptions('GET'));
       const data = await res.json();
       setRecentlyDeleted(data.recently_deleted || []);
     } catch (err) {
@@ -175,13 +173,7 @@ export function NotificationManagement() {
   const deleteSentHistory = async (id: number) => {
     showConfirm('Move this announcement to recently deleted?', async () => {
       try {
-        await fetch(`/api/admin/notifications/sent-history/${id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json',
-          },
-        });
+        await fetch(`/api/admin/notifications/sent-history/${id}`, await fetchOptions('DELETE'));
         fetchSentAnnouncements();
         fetchRecentlyDeleted();
       } catch (err) {
@@ -192,13 +184,7 @@ export function NotificationManagement() {
 
   const restoreFromDeleted = async (id: number) => {
     try {
-      await fetch(`/api/admin/notifications/sent-history/${id}/restore`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch(`/api/admin/notifications/sent-history/${id}/restore`, await fetchOptions('POST'));
       fetchSentAnnouncements();
       fetchRecentlyDeleted();
     } catch (err) {
@@ -209,13 +195,7 @@ export function NotificationManagement() {
   const permanentlyDelete = async (id: number) => {
     showConfirm('Permanently delete this announcement? This cannot be undone.', async () => {
       try {
-        await fetch(`/api/admin/notifications/sent-history/${id}/permanent`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json',
-          },
-        });
+        await fetch(`/api/admin/notifications/sent-history/${id}/permanent`, await fetchOptions('DELETE'));
         fetchRecentlyDeleted();
       } catch (err) {
         console.error('Failed to permanently delete:', err);
@@ -225,7 +205,7 @@ export function NotificationManagement() {
 
   const markAsRead = async (id: number) => {
     try {
-      await fetch(`/api/admin/notifications/${id}/read`, fetchOptions('POST'));
+      await fetch(`/api/admin/notifications/${id}/read`, await fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
@@ -235,7 +215,7 @@ export function NotificationManagement() {
 
   const markAllAsRead = async () => {
     try {
-      await fetch('/api/admin/notifications/read-all', fetchOptions('POST'));
+      await fetch('/api/admin/notifications/read-all', await fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
@@ -246,13 +226,7 @@ export function NotificationManagement() {
   const deleteNotification = async (id: number) => {
     showConfirm('Delete this notification?', async () => {
       try {
-        await fetch(`/api/admin/notifications/${id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json',
-          },
-        });
+        await fetch(`/api/admin/notifications/${id}`, await fetchOptions('DELETE'));
         fetchNotifications();
       } catch (err) {
         console.error('Failed to delete notification:', err);
@@ -300,12 +274,7 @@ export function NotificationManagement() {
       setIsSearchingUsers(true);
       const roleParam = formData.roles.length === 1 ? `&role=${encodeURIComponent(formData.roles[0])}` : '';
       const deptParam = selectedDepartment ? `&department_id=${encodeURIComponent(selectedDepartment)}` : '';
-      const res = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}${roleParam}${deptParam}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}${roleParam}${deptParam}`, await fetchOptions('GET'));
       const data = await res.json();
       // normalize: expect array of users
       const users = Array.isArray(data) ? data : (data?.data || []);
@@ -328,10 +297,15 @@ export function NotificationManagement() {
 
   // load departments for selector
   useEffect(() => {
-    fetch('/api/departments')
-      .then(res => res.json())
-      .then(data => setDepartments(Array.isArray(data) ? data : []))
-      .catch(err => console.error('Failed to load departments:', err));
+    (async () => {
+      try {
+        const res = await fetch('/api/departments', await fetchOptions('GET'));
+        const data = await res.json();
+        setDepartments(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Failed to load departments:', err);
+      }
+    })();
   }, []);
 
   const handleSend = async (e: React.FormEvent) => {
@@ -344,26 +318,14 @@ export function NotificationManagement() {
 
     setIsSending(true);
     try {
-      const xsrf = await getXsrfToken();
-      const res = await fetch('/api/admin/notifications/announce', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-XSRF-TOKEN': xsrf,
-        },
-        body: JSON.stringify({
-          title: formData.title,
-          message: formData.message,
-          roles: formData.roles,
-          course_id: formData.course_id || null,
-            department_id: selectedDepartment ? Number(selectedDepartment) : null,
-          target_user_ids: formData.target_user_ids && formData.target_user_ids.length > 0 ? formData.target_user_ids : null,
-        }),
-      });
+      const res = await fetch('/api/admin/notifications/announce', await fetchOptions('POST', {
+        title: formData.title,
+        message: formData.message,
+        roles: formData.roles,
+        course_id: formData.course_id || null,
+        department_id: selectedDepartment ? Number(selectedDepartment) : null,
+        target_user_ids: formData.target_user_ids && formData.target_user_ids.length > 0 ? formData.target_user_ids : null,
+      }));
 
       const data = await res.json();
 
@@ -397,9 +359,6 @@ export function NotificationManagement() {
 
     try {
       // Ensure we have a fresh CSRF cookie when not using token fallback
-      if (!token) {
-        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-      }
       const payload = {
         title: formData.title,
         message: formData.message,
@@ -409,7 +368,7 @@ export function NotificationManagement() {
       };
       console.debug('Preview announce payload', payload);
 
-      const res = await fetch('/api/admin/notifications/announce', fetchOptions('POST', payload));
+      const res = await fetch('/api/admin/notifications/announce', await fetchOptions('POST', payload));
 
       let data: any = null;
       try {
@@ -465,7 +424,6 @@ export function NotificationManagement() {
           )}
           <button
             onClick={async () => {
-              if (!token) await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
               setIsModalOpen(true);
             }}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
