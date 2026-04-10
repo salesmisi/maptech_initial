@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Notification;
+use App\Models\SentHistory;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -120,7 +121,7 @@ class NotificationController extends Controller
     }
 
     /**
-     * Delete a notification for the authenticated user
+     * Delete a notification (soft delete) for the authenticated user
      */
     public function destroy(Request $request, $id)
     {
@@ -130,8 +131,72 @@ class NotificationController extends Controller
         $notification = Notification::where('id', $id)->where('user_id', $user->id)->firstOrFail();
         $notification->delete();
 
+        // Auto-cleanup: if recently deleted count >= 50, permanently delete oldest half
+        $permanentlyDeleted = Notification::enforceTrashLimit($user->id);
+
         return response()->json([
             'message' => 'Notification deleted',
+            'permanently_deleted' => $permanentlyDeleted,
+        ]);
+    }
+
+    /**
+     * Get recently deleted notifications for the authenticated user.
+     */
+    public function getRecentlyDeletedNotifications()
+    {
+        $user = Auth::user();
+
+        $deleted = Notification::onlyTrashed()
+            ->where('user_id', $user->id)
+            ->orderByDesc('deleted_at')
+            ->get();
+
+        return response()->json([
+            'recently_deleted' => $deleted,
+        ]);
+    }
+
+    /**
+     * Restore a soft-deleted notification.
+     */
+    public function restoreNotification(int $id)
+    {
+        $user = Auth::user();
+
+        $notification = Notification::onlyTrashed()
+            ->where('id', $id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        $notification->restore();
+
+        return response()->json([
+            'message' => 'Notification restored',
+            'notification' => $notification,
+        ]);
+    }
+
+    /**
+     * Permanently delete a notification.
+     */
+    public function permanentlyDeleteNotification(int $id)
+    {
+        $user = $request->user() ?? Auth::user();
+        if (! $user) return response()->json(['message' => 'Unauthenticated'], 401);
+
+        $notification = Notification::onlyTrashed()
+            ->where('id', $id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        $notification->delete();
+
+        // Auto-cleanup: if recently deleted count >= 50, permanently delete oldest half
+        $permanentlyDeleted = Notification::enforceTrashLimit($user->id);
+
+        return response()->json([
+            'message' => 'Notification permanently deleted',
         ]);
     }
 
@@ -217,6 +282,27 @@ class NotificationController extends Controller
                 ],
             ]);
         }
+
+        // Create sent history entry
+        $targetDescription = 'Multiple Users';
+        if ($department) {
+            $targetDescription = $department . ' - ' . implode(', ', $roles);
+        } elseif (count($roles) > 0) {
+            $targetDescription = implode(', ', $roles);
+        }
+
+        SentHistory::create([
+            'sender_id' => $admin->id,
+            'title' => $title,
+            'message' => $message,
+            'target' => $targetDescription,
+            'target_roles' => $roles,
+            'department_id' => $department_id,
+            'recipients_count' => count($notifications),
+        ]);
+
+        // Enforce the 50 notification history limit
+        SentHistory::enforceHistoryLimit($admin->id);
 
         $payload = [
             'message' => 'Announcement sent successfully',
@@ -464,36 +550,115 @@ class NotificationController extends Controller
     {
         $admin = Auth::user();
 
-        // Query announcements sent by this admin, grouped by sent date
-        // Group by title, message, and date to avoid duplicate entries for the same announcement
-        $sentAnnouncements = Notification::where('type', 'announcement')
-            ->whereJsonContains('data->from_user_id', $admin->id)
-            ->select(['id', 'title', 'message', 'created_at', 'data'])
+        // Get sent history from the dedicated table (non-deleted entries)
+        $sentAnnouncements = SentHistory::where('sender_id', $admin->id)
+            ->whereNull('deleted_at')
             ->orderByDesc('created_at')
+            ->take(SentHistory::HISTORY_LIMIT)
             ->get()
-            ->groupBy(function ($notification) {
-                // Group by title, message, and date (day) to treat same announcement sent on same day as one entry
-                return $notification->title . '|' . $notification->message . '|' . $notification->created_at->toDateString();
-            })
-            ->map(function ($group) {
-                // Get first item from group (to extract title, message, created_at)
-                $first = $group->first();
-
+            ->map(function ($entry) {
                 return [
-                    'id' => $first->id,
-                    'title' => $first->title,
-                    'message' => $first->message,
-                    'target' => 'Multiple Users', // Can be enhanced to show actual target (roles, departments, etc.)
-                    'date' => $first->created_at->toIso8601String(),
+                    'id' => $entry->id,
+                    'title' => $entry->title,
+                    'message' => $entry->message,
+                    'target' => $entry->target,
+                    'date' => $entry->created_at->toIso8601String(),
                     'status' => 'Sent',
-                    'recipients_count' => $group->count(),
+                    'recipients_count' => $entry->recipients_count,
                 ];
-            })
-            ->values() // Reset keys to create a proper array
-            ->take(100); // Limit to 100 most recent announcements
+            });
 
         return response()->json([
             'sent_announcements' => $sentAnnouncements,
+            'history_limit' => SentHistory::HISTORY_LIMIT,
+        ]);
+    }
+
+    /**
+     * Admin: Get recently deleted sent announcements.
+     */
+    public function getRecentlyDeleted(Request $request)
+    {
+        $admin = Auth::user();
+
+        $recentlyDeleted = SentHistory::getRecentlyDeleted($admin->id)
+            ->map(function ($entry) {
+                return [
+                    'id' => $entry->id,
+                    'title' => $entry->title,
+                    'message' => $entry->message,
+                    'target' => $entry->target,
+                    'date' => $entry->created_at->toIso8601String(),
+                    'deleted_at' => $entry->deleted_at->toIso8601String(),
+                    'recipients_count' => $entry->recipients_count,
+                ];
+            });
+
+        return response()->json([
+            'recently_deleted' => $recentlyDeleted,
+        ]);
+    }
+
+    /**
+     * Admin: Restore a deleted sent announcement.
+     */
+    public function restoreSentHistory(int $id)
+    {
+        $admin = Auth::user();
+
+        $entry = SentHistory::onlyTrashed()
+            ->where('id', $id)
+            ->where('sender_id', $admin->id)
+            ->firstOrFail();
+
+        $entry->restore();
+
+        // Enforce limit after restoration
+        SentHistory::enforceHistoryLimit($admin->id);
+
+        return response()->json([
+            'message' => 'Announcement restored successfully',
+        ]);
+    }
+
+    /**
+     * Admin: Permanently delete a sent announcement.
+     */
+    public function permanentlyDeleteSentHistory(int $id)
+    {
+        $admin = Auth::user();
+
+        $entry = SentHistory::onlyTrashed()
+            ->where('id', $id)
+            ->where('sender_id', $admin->id)
+            ->firstOrFail();
+
+        $entry->forceDelete();
+
+        return response()->json([
+            'message' => 'Announcement permanently deleted',
+        ]);
+    }
+
+    /**
+     * Admin: Soft delete a sent announcement (move to recently deleted).
+     */
+    public function deleteSentHistory(int $id)
+    {
+        $admin = Auth::user();
+
+        $entry = SentHistory::where('id', $id)
+            ->where('sender_id', $admin->id)
+            ->firstOrFail();
+
+        $entry->delete(); // Soft delete
+
+        // Auto-cleanup: if recently deleted count >= 50, permanently delete oldest half
+        $permanentlyDeleted = SentHistory::enforceTrashLimit($admin->id);
+
+        return response()->json([
+            'message' => 'Announcement moved to recently deleted',
+            'permanently_deleted' => $permanentlyDeleted,
         ]);
     }
 }

@@ -438,6 +438,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         try {
             $query = \Illuminate\Support\Facades\DB::table('audit_logs as a')
                 ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
+                ->whereNull('a.deleted_at')
                 ->select([
                     'a.id',
                     'a.user_id',
@@ -524,9 +525,23 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             'ids.*' => 'integer|exists:audit_logs,id',
         ]);
         $ids = $request->input('ids', []);
-        $deleted = AuditLog::whereIn('id', $ids)->delete();
+        $deleted = \App\Models\AuditLog::whereIn('id', $ids)->delete();
 
-        return response()->json(['deleted' => $deleted]);
+        // Auto-cleanup: if recently deleted count >= 50, permanently delete oldest half
+        $trashedCount = \App\Models\AuditLog::onlyTrashed()->count();
+        $permanentlyDeleted = 0;
+        if ($trashedCount >= 50) {
+            $halfCount = (int) floor($trashedCount / 2);
+            $oldestIds = \App\Models\AuditLog::onlyTrashed()
+                ->orderBy('deleted_at', 'asc')
+                ->limit($halfCount)
+                ->pluck('id');
+            $permanentlyDeleted = \App\Models\AuditLog::onlyTrashed()
+                ->whereIn('id', $oldestIds)
+                ->forceDelete();
+        }
+
+        return response()->json(['deleted' => $deleted, 'permanently_deleted' => $permanentlyDeleted]);
     });
 
     // Bulk delete audit logs by user ids (delete all logs for selected users)
@@ -536,6 +551,64 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             'user_ids.*' => 'integer|exists:users,id',
         ]);
         $userIds = $request->input('user_ids', []);
+        $deleted = \App\Models\AuditLog::whereIn('user_id', $userIds)->delete();
+
+        // Auto-cleanup: if recently deleted count >= 50, permanently delete oldest half
+        $trashedCount = \App\Models\AuditLog::onlyTrashed()->count();
+        $permanentlyDeleted = 0;
+        if ($trashedCount >= 50) {
+            $halfCount = (int) floor($trashedCount / 2);
+            $oldestIds = \App\Models\AuditLog::onlyTrashed()
+                ->orderBy('deleted_at', 'asc')
+                ->limit($halfCount)
+                ->pluck('id');
+            $permanentlyDeleted = \App\Models\AuditLog::onlyTrashed()
+                ->whereIn('id', $oldestIds)
+                ->forceDelete();
+        }
+
+        return response()->json(['deleted' => $deleted, 'permanently_deleted' => $permanentlyDeleted]);
+    });
+
+    // Get recently deleted audit logs
+    Route::get('/audit-logs/recently-deleted', function (Request $request) {
+        $deleted = \App\Models\AuditLog::onlyTrashed()
+            ->with('user:id,fullname,email,role,department')
+            ->orderByDesc('deleted_at')
+            ->limit(100)
+            ->get()
+            ->map(function ($log) {
+                return [
+                    'id' => $log->id,
+                    'user_id' => $log->user_id,
+                    'action' => $log->action,
+                    'ip_address' => $log->ip_address,
+                    'created_at' => $log->created_at?->toIso8601String(),
+                    'deleted_at' => $log->deleted_at?->toIso8601String(),
+                    'user' => $log->user ? [
+                        'id' => $log->user->id,
+                        'fullname' => $log->user->fullname,
+                        'email' => $log->user->email,
+                        'role' => $log->user->role,
+                        'department' => $log->user->department,
+                    ] : null,
+                ];
+            });
+        return response()->json(['recently_deleted' => $deleted]);
+    });
+
+    // Restore a deleted audit log
+    Route::post('/audit-logs/{id}/restore', function (Request $request, int $id) {
+        $log = \App\Models\AuditLog::onlyTrashed()->findOrFail($id);
+        $log->restore();
+        return response()->json(['message' => 'Audit log restored']);
+    });
+
+    // Permanently delete an audit log
+    Route::delete('/audit-logs/{id}/permanent', function (Request $request, int $id) {
+        $log = \App\Models\AuditLog::onlyTrashed()->findOrFail($id);
+        $log->forceDelete();
+        return response()->json(['message' => 'Audit log permanently deleted']);
         $deleted = AuditLog::whereIn('user_id', $userIds)->delete();
 
         return response()->json(['deleted' => $deleted]);
@@ -546,6 +619,10 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index']);
         Route::get('/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount']);
         Route::get('/sent-history', [\App\Http\Controllers\NotificationController::class, 'getSentAnnouncements']);
+        Route::get('/recently-deleted', [\App\Http\Controllers\NotificationController::class, 'getRecentlyDeleted']);
+        Route::post('/sent-history/{id}/restore', [\App\Http\Controllers\NotificationController::class, 'restoreSentHistory']);
+        Route::delete('/sent-history/{id}', [\App\Http\Controllers\NotificationController::class, 'deleteSentHistory']);
+        Route::delete('/sent-history/{id}/permanent', [\App\Http\Controllers\NotificationController::class, 'permanentlyDeleteSentHistory']);
         Route::post('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead']);
         Route::post('/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
         Route::delete('/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy']);
@@ -783,9 +860,12 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::prefix('notifications')->group(function () {
         Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index']);
         Route::get('/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount']);
+        Route::get('/recently-deleted', [\App\Http\Controllers\NotificationController::class, 'getRecentlyDeletedNotifications']);
         Route::post('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead']);
         Route::post('/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
         Route::delete('/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy']);
+        Route::post('/{id}/restore', [\App\Http\Controllers\NotificationController::class, 'restoreNotification']);
+        Route::delete('/{id}/permanent', [\App\Http\Controllers\NotificationController::class, 'permanentlyDeleteNotification']);
         Route::post('/notify-employees', [\App\Http\Controllers\NotificationController::class, 'instructorNotify']);
     });
     // Instructor access to feedback listing (uses same controller logic)
@@ -882,9 +962,12 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
     Route::prefix('notifications')->group(function () {
         Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index']);
         Route::get('/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount']);
+        Route::get('/recently-deleted', [\App\Http\Controllers\NotificationController::class, 'getRecentlyDeletedNotifications']);
         Route::post('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead']);
         Route::post('/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
         Route::delete('/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy']);
+        Route::post('/{id}/restore', [\App\Http\Controllers\NotificationController::class, 'restoreNotification']);
+        Route::delete('/{id}/permanent', [\App\Http\Controllers\NotificationController::class, 'permanentlyDeleteNotification']);
         Route::post('/notify-instructor', [\App\Http\Controllers\NotificationController::class, 'employeeNotifyInstructor']);
         Route::post('/report-admin', [\App\Http\Controllers\NotificationController::class, 'employeeReportToAdmin']);
     });

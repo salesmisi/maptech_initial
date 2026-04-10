@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class AuditLog extends Model
 {
+    use SoftDeletes;
+
     public $timestamps = false;
 
     // Keep offset when persisting dates so timestamptz stores the correct instant.
@@ -22,6 +25,7 @@ class AuditLog extends Model
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
 
     public function user()
