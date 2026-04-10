@@ -60,6 +60,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('All');
+  const [roleFilter, setRoleFilter] = useState<'All' | 'Admin' | 'Instructor' | 'Employee'>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -75,6 +76,8 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [passwordValue, setPasswordValue] = useState('');
+  const [showAddUserDropdown, setShowAddUserDropdown] = useState(false);
+  const addUserDropdownRef = useRef<HTMLDivElement>(null);
   const [newUserNonce, setNewUserNonce] = useState(0);
 
   // Form refs
@@ -161,7 +164,9 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
       user.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesDept =
       departmentFilter === 'All' || user.department === departmentFilter;
-    return matchesSearch && matchesDept;
+    const matchesRole =
+      roleFilter === 'All' || user.role === roleFilter;
+    return matchesSearch && matchesDept && matchesRole;
   });
 
   const selectionCheckboxClass =
@@ -244,12 +249,23 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     });
   };
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (addUserDropdownRef.current && !addUserDropdownRef.current.contains(event.target as Node)) {
+        setShowAddUserDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Modal handlers
-  const handleOpenModal = (user?: User) => {
+  const handleOpenModal = (user?: User, presetRole?: 'Admin' | 'Instructor' | 'Employee') => {
     setEditingUser(user || null);
     setFormDepartment(user?.department || '');
     setFormSubdepartment(user?.subdepartment_id ? String(user.subdepartment_id) : '');
-    setFormRole(user?.role || 'Employee');
+    setFormRole(user?.role || presetRole || 'Employee');
     setFormSubdepartmentIds(user?.subdepartments?.map(s => s.id) || []);
     setFormIsHead(user?.head_of_departments && user.head_of_departments.length > 0 ? true : false);
     setFormError(null);
@@ -257,6 +273,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     setProfilePicturePreview(user?.profile_picture ? `/storage/${user.profile_picture}` : null);
     setShowPassword(false);
     setPasswordValue('');
+    setShowAddUserDropdown(false);
     if (!user) {
       setNewUserNonce((prev) => prev + 1);
     }
@@ -453,13 +470,45 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
             <Trash2 className="h-4 w-4 mr-2" />
             Delete Selected ({selectedIds.length})
           </button>
-          <button
-            onClick={() => handleOpenModal()}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-slate-950 bg-emerald-400 hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 um-action-btn"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add User
-          </button>
+          <div className="relative" ref={addUserDropdownRef}>
+            <button
+              onClick={() => setShowAddUserDropdown(!showAddUserDropdown)}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-slate-950 bg-emerald-400 hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add User
+              <svg className="ml-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showAddUserDropdown && (
+              <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-slate-800 ring-1 ring-black ring-opacity-5 z-50">
+                <div className="py-1">
+                  <button
+                    onClick={() => handleOpenModal(undefined, 'Admin')}
+                    className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-slate-700 flex items-center"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-purple-500 mr-3"></span>
+                    Add Admin
+                  </button>
+                  <button
+                    onClick={() => handleOpenModal(undefined, 'Instructor')}
+                    className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-slate-700 flex items-center"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-blue-500 mr-3"></span>
+                    Add Instructor
+                  </button>
+                  <button
+                    onClick={() => handleOpenModal(undefined, 'Employee')}
+                    className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-slate-700 flex items-center"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 mr-3"></span>
+                    Add Employee
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -477,8 +526,25 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="sm:w-56">
-          <div className="relative ui-select-wrap">
+        <div className="sm:w-48">
+          <div className="relative">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <Filter className="h-4 w-4 text-slate-400" />
+            </div>
+            <select
+              className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value as 'All' | 'Admin' | 'Instructor' | 'Employee')}
+            >
+              <option value="All">All Roles</option>
+              <option value="Admin">Admin</option>
+              <option value="Instructor">Instructor</option>
+              <option value="Employee">Employee</option>
+            </select>
+          </div>
+        </div>
+        <div className="sm:w-48">
+          <div className="relative">
             <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
               <Filter className="h-4 w-4 text-slate-400" />
             </div>
@@ -659,7 +725,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
               <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 dark:bg-slate-900">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg leading-6 font-medium text-slate-900 dark:text-slate-100">
-                    {editingUser ? 'Edit User' : 'Add New User'}
+                    {editingUser ? 'Edit User' : `Add New ${formRole}`}
                   </h3>
                   <button onClick={handleCloseModal} className="rounded-md p-1 text-slate-400 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200">
                     <X className="h-6 w-6" />
@@ -826,23 +892,40 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                       Role <span className="text-red-500">*</span>
                     </label>
-                    <div className="relative mt-1">
+                    {editingUser ? (
+                      <div className="relative mt-1">
                       <select
-                        value={formRole}
-                        onChange={(e) => {
-                          const newRole = e.target.value as 'Admin' | 'Instructor' | 'Employee';
-                          setFormRole(newRole);
-                          setFormDepartment('');
-                          setFormSubdepartment('');
-                          setFormSubdepartmentIds([]);
-                          setFormIsHead(false);
-                        }}
-                        className={`${modalSelectClass} mt-0 ui-select-custom-arrow`}
-                      >
-                        <option value="Employee">Employee</option>
-                        <option value="Instructor">Instructor</option>
-                        <option value="Admin">Admin</option>
-                      </select>
+                          value={formRole}
+                          onChange={(e) => {
+                            const newRole = e.target.value as 'Admin' | 'Instructor' | 'Employee';
+                            setFormRole(newRole);
+                            setFormDepartment('');
+                            setFormSubdepartment('');
+                            setFormSubdepartmentIds([]);
+                            setFormIsHead(false);
+                          }}
+                          className={`${modalSelectClass} mt-0 ui-select-custom-arrow`}
+                        >
+                          <option value="Employee">Employee</option>
+                          <option value="Instructor">Instructor</option>
+                          <option value="Admin">Admin</option>
+                        </select>
+                    ) : (
+                      <div className="mt-1 flex items-center">
+                        <span className={`inline-flex items-center px-3 py-2 rounded-md text-sm font-medium ${
+                          formRole === 'Admin'
+                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                            : formRole === 'Instructor'
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                            : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+                        }`}>
+                          <span className={`w-2 h-2 rounded-full mr-2 ${
+                            formRole === 'Admin' ? 'bg-purple-500' : formRole === 'Instructor' ? 'bg-blue-500' : 'bg-emerald-500'
+                          }`}></span>
+                          {formRole}
+                        </span>
+                      </div>
+                    )}
                       <ChevronDown className="ui-select-arrow pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-300" />
                     </div>
                   </div>

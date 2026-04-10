@@ -412,6 +412,40 @@ export function AuditLogs() {
     await fetchLogs(1);
   };
 
+  const deleteAllTimeLogs = async () => {
+    if (!modalUser || modalTimeLogs.length === 0) return;
+
+    let deletedCount = 0;
+    let failedCount = 0;
+
+    for (const tl of modalTimeLogs) {
+      try {
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const res = await fetch(`/api/time-logs/admin/${tl.id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'X-XSRF-TOKEN': getXsrf() },
+        });
+        if (res.ok) {
+          deletedCount++;
+        } else {
+          failedCount++;
+        }
+      } catch {
+        failedCount++;
+      }
+    }
+
+    await fetchLogs(1);
+    await fetchUserTimeLogs(modalUser.id);
+
+    if (failedCount > 0) {
+      alert(`Deleted ${deletedCount} time logs. ${failedCount} failed.`);
+    } else {
+      alert(`Deleted all ${deletedCount} time logs successfully.`);
+    }
+  };
+
   const openManageModal = (user: AuditUser | null) => {
     if (!user) return;
     setModalUser(user);
@@ -506,6 +540,18 @@ export function AuditLogs() {
                 )}
               </div>
               <div className="flex items-center gap-2">
+                {modalTimeLogs.length > 0 && (
+                  <button
+                    onClick={() => {
+                      showConfirm(`Delete all ${modalTimeLogs.length} time logs for ${modalUser?.fullname}?`, async () => {
+                        await deleteAllTimeLogs();
+                      });
+                    }}
+                    className="px-2 py-1 text-xs border rounded border-rose-300 bg-rose-100 text-rose-800 hover:bg-rose-200 dark:border-rose-700 dark:bg-rose-900/35 dark:text-rose-300 dark:hover:bg-rose-900/55"
+                  >
+                    Delete All
+                  </button>
+                )}
                 <button
                   onClick={refreshModal}
                   disabled={modalRefreshing}
