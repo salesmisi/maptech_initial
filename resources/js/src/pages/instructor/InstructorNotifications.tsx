@@ -134,7 +134,7 @@ export function InstructorNotifications() {
       setLoading(true);
       const res = await fetch('/api/instructor/notifications', fetchOptions('GET'));
       const data = await res.json();
-      setNotifications(data.notifications?.data || []);
+      setNotifications(safeArray(data?.data ?? data?.notifications?.data));
     } catch (err) {
       console.error('Failed to load notifications:', err);
     } finally {

@@ -128,8 +128,8 @@ export function NotificationManagement() {
         data = null;
       }
 
-      const list = safeArray(data?.notifications?.data);
-      if (!Array.isArray(data?.notifications?.data) && data !== null) {
+      const list = safeArray(data?.data ?? data?.notifications?.data);
+      if (!Array.isArray(data?.data) && !Array.isArray(data?.notifications?.data) && data !== null) {
         console.warn('/api/admin/notifications returned unexpected shape', data);
       }
       setNotifications(list);
