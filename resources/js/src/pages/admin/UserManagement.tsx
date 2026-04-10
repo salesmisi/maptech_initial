@@ -894,7 +894,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                     </label>
                     {editingUser ? (
                       <div className="relative mt-1">
-                      <select
+                        <select
                           value={formRole}
                           onChange={(e) => {
                             const newRole = e.target.value as 'Admin' | 'Instructor' | 'Employee';
@@ -910,6 +910,8 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                           <option value="Instructor">Instructor</option>
                           <option value="Admin">Admin</option>
                         </select>
+                        <ChevronDown className="ui-select-arrow pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-300" />
+                      </div>
                     ) : (
                       <div className="mt-1 flex items-center">
                         <span className={`inline-flex items-center px-3 py-2 rounded-md text-sm font-medium ${
@@ -926,8 +928,6 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                         </span>
                       </div>
                     )}
-                      <ChevronDown className="ui-select-arrow pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-300" />
-                    </div>
                   </div>
 
                   {/* Department and subdepartment selection */}
