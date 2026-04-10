@@ -49,7 +49,7 @@ export function NotificationManagement() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [activeTab, setActiveTab] = useState<'sent' | 'deleted'>('sent');
+  const [activeTab, setActiveTab] = useState<'received' | 'sent' | 'deleted'>('received');
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const [successToast, setSuccessToast] = useState<{ show: boolean; count: number }>({ show: false, count: 0 });
   const HISTORY_LIMIT = 50;
@@ -155,72 +155,6 @@ export function NotificationManagement() {
     } catch (err) {
       console.error('Failed to load sent announcements:', err);
     }
-  };
-
-  const fetchRecentlyDeleted = async () => {
-    try {
-      const res = await fetch('/api/admin/notifications/recently-deleted', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
-      const data = await res.json();
-      setRecentlyDeleted(data.recently_deleted || []);
-    } catch (err) {
-      console.error('Failed to load recently deleted:', err);
-    }
-  };
-
-  const deleteSentHistory = async (id: number) => {
-    showConfirm('Move this announcement to recently deleted?', async () => {
-      try {
-        await fetch(`/api/admin/notifications/sent-history/${id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json',
-          },
-        });
-        fetchSentAnnouncements();
-        fetchRecentlyDeleted();
-      } catch (err) {
-        console.error('Failed to delete sent history:', err);
-      }
-    });
-  };
-
-  const restoreFromDeleted = async (id: number) => {
-    try {
-      await fetch(`/api/admin/notifications/sent-history/${id}/restore`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
-      fetchSentAnnouncements();
-      fetchRecentlyDeleted();
-    } catch (err) {
-      console.error('Failed to restore announcement:', err);
-    }
-  };
-
-  const permanentlyDelete = async (id: number) => {
-    showConfirm('Permanently delete this announcement? This cannot be undone.', async () => {
-      try {
-        await fetch(`/api/admin/notifications/sent-history/${id}/permanent`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json',
-          },
-        });
-        fetchRecentlyDeleted();
-      } catch (err) {
-        console.error('Failed to permanently delete:', err);
-      }
-    });
   };
 
   const fetchRecentlyDeleted = async () => {
@@ -545,6 +479,16 @@ export function NotificationManagement() {
       {/* Tabs */}
       <div className="border-b border-slate-200 dark:border-slate-700">
         <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('received')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'received'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
+            }`}
+          >
+            Received ({safeArray(notifications).length})
+          </button>
           <button
             onClick={() => setActiveTab('sent')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
