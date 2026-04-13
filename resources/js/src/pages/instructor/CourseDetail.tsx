@@ -196,6 +196,7 @@ interface CourseData {
   title: string;
   description: string;
   department: string;
+  subdepartment?: { id: number; name: string } | null;
   status: string;
   deadline: string | null;
   modules: Module[];
@@ -1158,6 +1159,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   }
 
   const headerColor = DEPT_COLORS[course.department] || 'bg-slate-600';
+  const subdepartmentName = (course.subdepartment?.name || '').trim();
 
   return (
     <div className="space-y-6">
@@ -1174,9 +1176,16 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       <div className={`${headerColor} rounded-xl p-6 text-white`}>
         <div className="flex items-start justify-between">
           <div>
-            <span className="text-xs font-semibold bg-white/20 px-2 py-0.5 rounded-full mb-2 inline-block">
-              {course.department}
-            </span>
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-xs font-semibold bg-white/20 px-2 py-0.5 rounded-full inline-block">
+                {course.department}
+              </span>
+              {subdepartmentName && (
+                <span className="text-xs font-semibold bg-white/10 border border-white/25 px-2 py-0.5 rounded-full inline-block">
+                  {subdepartmentName}
+                </span>
+              )}
+            </div>
             <h1 className="text-2xl font-bold">{course.title}</h1>
             {course.description && (
               <p className="text-sm text-white/80 mt-1 max-w-xl">{course.description}</p>
