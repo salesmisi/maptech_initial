@@ -1543,15 +1543,15 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
                         {/* Add Lesson form */}
                         {addingLessonForModule === mod.id ? (
-                          <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg space-y-2">
-                            <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Add Lesson</p>
+                          <div className="mt-3 p-3 bg-green-50 border border-green-200 dark:bg-slate-800/85 dark:border-slate-700 rounded-lg space-y-2">
+                            <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide">Add Lesson</p>
                             {lessonError && <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{lessonError}</p>}
                             <input
                               type="text"
                               placeholder="Lesson title"
                               value={lessonTitle}
                               onChange={e => setLessonTitle(e.target.value)}
-                              className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                              className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                             />
                             <RichTextEditor
                               value={lessonTextContent}
@@ -1564,10 +1564,10 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                               placeholder="Text information (short summary for this lesson)"
                               value={lessonInfo}
                               onChange={e => setLessonInfo(e.target.value)}
-                              className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+                              className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
                             />
                             <div className="flex items-center gap-2">
-                              <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 rounded-md cursor-pointer hover:bg-white text-xs text-slate-600">
+                              <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md cursor-pointer bg-white/70 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900 text-xs text-slate-600 dark:text-slate-300 transition-colors">
                                 <Upload className="h-3.5 w-3.5" />
                                 {lessonFile ? lessonFile.name : 'Upload document or video (optional)'}
                                 <input
@@ -1598,7 +1598,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                               </button>
                               <button
                                 onClick={() => { setAddingLessonForModule(null); setLessonTitle(''); setLessonInfo(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
-                                className="px-3 py-1.5 border border-slate-300 text-slate-600 text-xs font-medium rounded-md hover:bg-white"
+                                className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-md bg-white/80 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900 transition-colors"
                               >
                                 Cancel
                               </button>
