@@ -58,6 +58,25 @@ function normalizeCourseStatus(status: unknown): 'Active' | 'Draft' | 'Inactive'
   return 'Draft';
 }
 
+function toUtcIsoString(value: FormDataEntryValue | null): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+function toLocalDateTimeInputValue(value?: string | null): string {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
 interface EnrolledStudent {
   id: number;
   name: string;
@@ -513,8 +532,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           description: formData.get('description'),
           department: formData.get('department'),
           subdepartment_id: formData.get('subdepartment_id') || null,
-          start_date: formData.get('start_date') || null,
-          deadline: formData.get('deadline') || null,
+          start_date: toUtcIsoString(formData.get('start_date')),
+          deadline: toUtcIsoString(formData.get('deadline')),
           instructor_id: formData.get('instructor_id') || null,
           status: formData.get('status'),
         }),
@@ -2054,6 +2073,10 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 const form = e.currentTarget;
                 const fd = new FormData(form);
                 if (createInstructorId) fd.set('instructor_id', String(createInstructorId));
+                const startDateUtc = toUtcIsoString(fd.get('start_date'));
+                const deadlineUtc = toUtcIsoString(fd.get('deadline'));
+                if (startDateUtc) fd.set('start_date', startDateUtc); else fd.delete('start_date');
+                if (deadlineUtc) fd.set('deadline', deadlineUtc); else fd.delete('deadline');
                 try {
                   await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
                   const csrf = getXsrfToken();
@@ -2327,7 +2350,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <input
                     name="start_date"
                     type="datetime-local"
-                    defaultValue={editingCourse.start_date ? new Date(editingCourse.start_date).toISOString().slice(0, 16) : ''}
+                    defaultValue={toLocalDateTimeInputValue(editingCourse.start_date)}
                     className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
                 </div>
@@ -2336,7 +2359,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <input
                     name="deadline"
                     type="datetime-local"
-                    defaultValue={editingCourse.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
+                    defaultValue={toLocalDateTimeInputValue(editingCourse.deadline)}
                     className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
                 </div>

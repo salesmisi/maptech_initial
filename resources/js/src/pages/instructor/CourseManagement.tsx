@@ -83,6 +83,25 @@ const STATUS_COLORS: Record<string, string> = {
   Inactive: 'bg-red-100 text-red-700',
 };
 
+const toUtcIsoString = (value: FormDataEntryValue | null): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+};
+
+const toLocalDateTimeInputValue = (value?: string | null): string => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
+
 let moduleCounter = 0;
 
 export function InstructorCourseManagement({ onNavigate }: Props) {
@@ -317,6 +336,11 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setFormError(null);
 
     const formData = new FormData(e.currentTarget);
+
+    const startDateUtc = toUtcIsoString(formData.get('start_date'));
+    const deadlineUtc = toUtcIsoString(formData.get('deadline'));
+    if (startDateUtc) formData.set('start_date', startDateUtc); else formData.delete('start_date');
+    if (deadlineUtc) formData.set('deadline', deadlineUtc); else formData.delete('deadline');
 
     modules.forEach((mod, idx) => {
       formData.append(`modules[${idx}][title]`, mod.title);
@@ -755,7 +779,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   <input
                     type="datetime-local"
                     name="start_date"
-                    defaultValue={editingCourse?.start_date ? new Date(editingCourse.start_date).toISOString().slice(0, 16) : ''}
+                    defaultValue={toLocalDateTimeInputValue(editingCourse?.start_date)}
                     className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
@@ -764,7 +788,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   <input
                     type="datetime-local"
                     name="deadline"
-                    defaultValue={editingCourse?.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
+                    defaultValue={toLocalDateTimeInputValue(editingCourse?.deadline)}
                     className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
