@@ -73,6 +73,7 @@ export function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(true);
   const [logoutPhase, setLogoutPhase] = useState<'idle' | 'covering' | 'revealing'>('idle');
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedCustomModuleId, setSelectedCustomModuleId] = useState<number | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
@@ -359,8 +360,11 @@ export function App() {
   // =========================
   // HANDLE LOGOUT
   // =========================
-  const handleLogout = async () => {
+  const performLogout = async () => {
     if (logoutPhase !== 'idle') return;
+
+    setIsLogoutConfirmOpen(false);
+
     setLogoutPhase('covering');
 
     try {
@@ -417,6 +421,11 @@ export function App() {
     }, 180);
   };
 
+  const handleLogout = () => {
+    if (logoutPhase !== 'idle') return;
+    setIsLogoutConfirmOpen(true);
+  };
+
   const logoutOverlay = (
     <div
       className={`ui-screen-wipe ui-screen-wipe--logout ${theme === 'dark' ? 'is-dark' : 'is-light'} ${logoutPhase === 'covering' ? 'is-covering' : ''} ${logoutPhase === 'revealing' ? 'is-revealing' : ''}`}
@@ -428,6 +437,46 @@ export function App() {
       </div>
     </div>
   );
+
+  const logoutConfirmModal = isLogoutConfirmOpen ? (
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 px-4"
+      onClick={() => {
+        if (logoutPhase === 'idle') {
+          setIsLogoutConfirmOpen(false);
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="logout-confirm-title"
+    >
+      <div
+        className={`w-full max-w-sm rounded-xl border p-5 shadow-2xl ${theme === 'dark' ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 id="logout-confirm-title" className="text-base font-semibold">Confirm Sign Out</h3>
+        <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+          Are you sure you want to sign out?
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setIsLogoutConfirmOpen(false)}
+            className={`rounded-md border px-4 py-2 text-sm font-medium ${theme === 'dark' ? 'border-slate-600 text-slate-200 hover:bg-slate-800' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={performLogout}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   const handleNavigate = (page: string, courseId?: string, quizIdOrModuleId?: number) => {
     setCurrentPage(page);
@@ -491,6 +540,7 @@ export function App() {
         </div>
         {renderThemeToggle()}
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -502,6 +552,7 @@ export function App() {
         <YTDebug />
         {renderThemeToggle()}
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -515,6 +566,7 @@ export function App() {
         <LoginPage onLogin={handleLogin} theme={theme} />
         {renderThemeToggle()}
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -566,6 +618,7 @@ export function App() {
           </div>
         </AdminLayout>
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -604,6 +657,7 @@ export function App() {
           </div>
         </InstructorLayout>
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -654,6 +708,7 @@ export function App() {
           </div>
         </EmployeeLayout>
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -663,6 +718,7 @@ export function App() {
       <LoginPage onLogin={handleLogin} theme={theme} />
       {renderThemeToggle()}
       {logoutOverlay}
+      {logoutConfirmModal}
     </>
   );
 }
