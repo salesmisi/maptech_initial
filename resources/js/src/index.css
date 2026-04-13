@@ -93,7 +93,41 @@
 }
 
 .dark .course-datetime-input::-webkit-calendar-picker-indicator {
-	filter: invert(0.85) brightness(1.15);
+	filter: invert(1) brightness(1.45) contrast(1.3);
+	opacity: 1;
+	cursor: pointer;
+}
+
+/* Fallback for datetime inputs that don't use the helper class */
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator {
+	filter: invert(1) brightness(1.45) contrast(1.3);
+	opacity: 1;
+	cursor: pointer;
+}
+
+/* Hint browsers to render native controls with dark-friendly panels */
+.dark input[type="datetime-local"],
+.dark input[type="date"],
+.dark input[type="time"] {
+	color-scheme: dark;
+}
+
+/* Use a light datetime field in dark mode so native picker icons stay visible */
+.dark .course-datetime-input {
+	background-color: #ffffff !important;
+	color: #0f172a !important;
+	border-color: #cbd5e1 !important;
+}
+
+.dark .course-datetime-input::placeholder {
+	color: #64748b !important;
+}
+
+.dark .course-datetime-input::-webkit-calendar-picker-indicator {
+	filter: none !important;
+	opacity: 1 !important;
 }
 
 @keyframes ui-fade {

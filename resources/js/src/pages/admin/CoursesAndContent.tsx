@@ -2186,7 +2186,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <input
                     name="start_date"
                     type="datetime-local"
-                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
                 </div>
                 <div>
@@ -2194,7 +2194,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <input
                     name="deadline"
                     type="datetime-local"
-                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
                 </div>
               </div>
@@ -2351,7 +2351,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     name="start_date"
                     type="datetime-local"
                     defaultValue={toLocalDateTimeInputValue(editingCourse.start_date)}
-                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
                 </div>
                 <div>
@@ -2360,7 +2360,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     name="deadline"
                     type="datetime-local"
                     defaultValue={toLocalDateTimeInputValue(editingCourse.deadline)}
-                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
                 </div>
               </div>

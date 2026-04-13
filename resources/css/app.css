@@ -65,6 +65,18 @@ html.dark select {
 	border-color: #374151 !important;
 }
 
+/* Keep course datetime controls readable with visible native picker icon in dark mode */
+html.dark .course-datetime-input {
+	background-color: #ffffff !important;
+	color: #0f172a !important;
+	border-color: #cbd5e1 !important;
+}
+
+html.dark .course-datetime-input::-webkit-calendar-picker-indicator {
+	filter: none !important;
+	opacity: 1 !important;
+}
+
 /* Global select treatment to avoid harsh native arrow panels and improve hover comfort. */
 select:not([multiple]):not(.ui-select-custom-arrow) {
 	appearance: none;
