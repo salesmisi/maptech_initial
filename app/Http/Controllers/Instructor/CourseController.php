@@ -37,6 +37,7 @@ class CourseController extends Controller
 
         $courses = Course::with([
             'instructor:id,fullname,email,profile_picture',
+            'subdepartment:id,name,department_id',
             'modules.lessons',
         ])
             ->withCount('enrollments')
@@ -357,7 +358,7 @@ class CourseController extends Controller
 
             return response()->json([
                 'message' => 'Course created successfully',
-                'course'  => $course->load('modules'),
+                'course'  => $course->load('modules', 'subdepartment:id,name,department_id'),
             ], 201);
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
@@ -478,7 +479,7 @@ class CourseController extends Controller
 
             return response()->json([
                 'message' => 'Course updated successfully',
-                'course'  => $course->load('modules'),
+                'course'  => $course->load('modules', 'subdepartment:id,name,department_id'),
             ]);
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);

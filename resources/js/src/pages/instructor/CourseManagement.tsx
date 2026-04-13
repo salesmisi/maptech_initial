@@ -57,6 +57,7 @@ interface Course {
   description: string;
   department: string;
   subdepartment_id?: number | null;
+  subdepartment?: { id: number; name: string } | null;
   status: 'Active' | 'Draft' | 'Archived' | 'Inactive';
   start_date?: string | null;
   deadline?: string | null;
@@ -141,6 +142,21 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
+
+  const getCourseSubdepartmentName = (course: Course): string | null => {
+    const relatedName = (course as any)?.subdepartment?.name;
+    if (relatedName) return relatedName;
+
+    const sid = Number(course.subdepartment_id ?? 0);
+    if (!sid) return null;
+
+    for (const dept of departments) {
+      const found = (dept.subdepartments || []).find((sub) => Number(sub.id) === sid);
+      if (found) return found.name;
+    }
+
+    return null;
+  };
 
   const loadCourses = async () => {
     try {
@@ -624,7 +640,10 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   </div>
                 </div>
                 <div className="mb-4">
-                  <span className="text-xs font-medium text-slate-400 dark:text-slate-200">{course.department}</span>
+                  <div className="text-xs text-slate-400 dark:text-slate-300">Location</div>
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-100">
+                    {course.department}{getCourseSubdepartmentName(course) ? ` / ${getCourseSubdepartmentName(course)}` : ''}
+                  </span>
                 </div>
 
                 {course.deadline && !ended && (

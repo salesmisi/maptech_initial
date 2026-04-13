@@ -24,6 +24,7 @@ interface Course {
   description: string;
   department: string;
   subdepartment_id?: number | null;
+  subdepartment?: { id: number; name: string } | null;
   start_date?: string | null;
   deadline?: string | null;
   instructor: string;
@@ -202,6 +203,21 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   // Custom module thumbnail upload
   const [uploadingThumbnailModuleId, setUploadingThumbnailModuleId] = useState<number | null>(null);
   const customModuleThumbnailRef = useRef<HTMLInputElement>(null);
+
+  const getCourseSubdepartmentName = (course: Course): string | null => {
+    const relatedName = (course as any)?.subdepartment?.name;
+    if (relatedName) return relatedName;
+
+    const sid = Number(course.subdepartment_id ?? 0);
+    if (!sid) return null;
+
+    for (const dept of departments) {
+      const found = (dept.subdepartments || []).find((sub) => Number(sub.id) === sid);
+      if (found) return found.name;
+    }
+
+    return null;
+  };
 
   // Helper to extract actual video duration from file
   const extractVideoDuration = (file: File): Promise<string> => {
@@ -1263,7 +1279,9 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   </div>
                 )}
                 <div className="text-sm text-gray-600 dark:text-slate-300">
-                  <div className="font-medium text-gray-700 dark:text-slate-200">{course.department}</div>
+                  <div className="font-medium text-gray-700 dark:text-slate-200">
+                    {course.department}{getCourseSubdepartmentName(course) ? ` / ${getCourseSubdepartmentName(course)}` : ''}
+                  </div>
                   <div>{course.instructor}</div>
                 </div>
               </div>
