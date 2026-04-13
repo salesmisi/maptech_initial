@@ -9,6 +9,7 @@ use App\Models\Module;
 use App\Models\Question;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
+use App\Models\Subdepartment;
 use App\Models\User;
 use App\Events\EnrollmentUnlocked;
 use App\Events\ModuleUnlocked;
@@ -281,6 +282,7 @@ class CourseController extends Controller
                 'title'              => 'required|string|max:255',
                 'description'        => 'nullable|string',
                 'department'         => 'required|string|max:255',
+                'subdepartment_id'   => 'required|exists:subdepartments,id',
                 'status'             => ['nullable', Rule::in(['Active', 'Inactive', 'Draft'])],
                 'start_date'         => 'nullable|date',
                 'deadline'           => 'nullable|date',
@@ -289,6 +291,39 @@ class CourseController extends Controller
                 'modules.*.title'    => 'nullable|string|max:255',
                 'modules.*.content'  => 'nullable|file|max:102400',
             ]);
+
+            $selectedSubdepartment = Subdepartment::with('department:id,name,code')->find((int) $validated['subdepartment_id']);
+            if (!$selectedSubdepartment) {
+                return response()->json([
+                    'message' => 'Invalid subdepartment selected.',
+                    'errors' => ['subdepartment_id' => ['The selected subdepartment is invalid.']],
+                ], 422);
+            }
+
+            $courseDepartment = strtolower(trim((string) ($validated['department'] ?? '')));
+            $subDeptDepartmentName = strtolower(trim((string) ($selectedSubdepartment->department->name ?? '')));
+            $subDeptDepartmentCode = strtolower(trim((string) ($selectedSubdepartment->department->code ?? '')));
+            $deptMatches = $courseDepartment === $subDeptDepartmentName
+                || ($subDeptDepartmentCode !== '' && $courseDepartment === $subDeptDepartmentCode);
+
+            if (!$deptMatches) {
+                return response()->json([
+                    'message' => 'Selected subdepartment does not belong to the selected department.',
+                    'errors' => ['subdepartment_id' => ['Subdepartment must belong to the selected department.']],
+                ], 422);
+            }
+
+            $selectedSubId = (int) $selectedSubdepartment->id;
+            $isPrimarySub = (int) ($user->subdepartment_id ?? 0) === $selectedSubId;
+            $isAssignedSub = $user->subdepartments()->where('subdepartments.id', $selectedSubId)->exists();
+            $isSubHead = (int) ($selectedSubdepartment->head_id ?? 0) === (int) $user->id;
+
+            if (!$isPrimarySub && !$isAssignedSub && !$isSubHead) {
+                return response()->json([
+                    'message' => 'You can only create courses for your assigned subdepartment(s).',
+                    'errors' => ['subdepartment_id' => ['Subdepartment is not assigned to this instructor.']],
+                ], 422);
+            }
 
             // Handle logo upload
             $logoPath = null;
@@ -300,6 +335,7 @@ class CourseController extends Controller
                 'title'         => $validated['title'],
                 'description'   => $validated['description'] ?? null,
                 'department'    => $validated['department'],
+                'subdepartment_id' => (int) $validated['subdepartment_id'],
                 'instructor_id' => $user->id,
                 'status'        => $validated['status'] ?? 'Active',
                 'start_date'    => $validated['start_date'] ?? null,
@@ -355,6 +391,7 @@ class CourseController extends Controller
                 'title'             => 'sometimes|string|max:255',
                 'description'       => 'nullable|string',
                 'department'        => 'sometimes|string|max:255',
+                'subdepartment_id'  => 'nullable|exists:subdepartments,id',
                 'status'            => ['sometimes', Rule::in(['Active', 'Inactive', 'Draft'])],
                 'start_date'        => 'nullable|date',
                 'deadline'          => 'nullable|date',
@@ -364,6 +401,50 @@ class CourseController extends Controller
                 'modules.*.title'   => 'nullable|string|max:255',
                 'modules.*.content' => 'nullable|file|max:102400',
             ]);
+
+            $effectiveDepartment = strtolower(trim((string) ($validated['department'] ?? $course->department ?? '')));
+            $effectiveSubdepartmentId = array_key_exists('subdepartment_id', $validated)
+                ? $validated['subdepartment_id']
+                : $course->subdepartment_id;
+
+            if (empty($effectiveSubdepartmentId)) {
+                return response()->json([
+                    'message' => 'Subdepartment is required for courses.',
+                    'errors' => ['subdepartment_id' => ['Subdepartment is required.']],
+                ], 422);
+            }
+
+            $selectedSubdepartment = Subdepartment::with('department:id,name,code')->find((int) $effectiveSubdepartmentId);
+            if (!$selectedSubdepartment) {
+                return response()->json([
+                    'message' => 'Invalid subdepartment selected.',
+                    'errors' => ['subdepartment_id' => ['The selected subdepartment is invalid.']],
+                ], 422);
+            }
+
+            $subDeptDepartmentName = strtolower(trim((string) ($selectedSubdepartment->department->name ?? '')));
+            $subDeptDepartmentCode = strtolower(trim((string) ($selectedSubdepartment->department->code ?? '')));
+            $deptMatches = $effectiveDepartment === $subDeptDepartmentName
+                || ($subDeptDepartmentCode !== '' && $effectiveDepartment === $subDeptDepartmentCode);
+
+            if (!$deptMatches) {
+                return response()->json([
+                    'message' => 'Selected subdepartment does not belong to the selected department.',
+                    'errors' => ['subdepartment_id' => ['Subdepartment must belong to the selected department.']],
+                ], 422);
+            }
+
+            $selectedSubId = (int) $selectedSubdepartment->id;
+            $isPrimarySub = (int) ($user->subdepartment_id ?? 0) === $selectedSubId;
+            $isAssignedSub = $user->subdepartments()->where('subdepartments.id', $selectedSubId)->exists();
+            $isSubHead = (int) ($selectedSubdepartment->head_id ?? 0) === (int) $user->id;
+
+            if (!$isPrimarySub && !$isAssignedSub && !$isSubHead) {
+                return response()->json([
+                    'message' => 'You can only assign courses to your assigned subdepartment(s).',
+                    'errors' => ['subdepartment_id' => ['Subdepartment is not assigned to this instructor.']],
+                ], 422);
+            }
 
             // Handle logo
             if ($request->hasFile('logo')) {
@@ -379,7 +460,7 @@ class CourseController extends Controller
             }
 
             $course->update(array_filter($validated, fn ($k) =>
-                in_array($k, ['title', 'description', 'department', 'status', 'start_date', 'deadline', 'logo_path']),
+                in_array($k, ['title', 'description', 'department', 'subdepartment_id', 'status', 'start_date', 'deadline', 'logo_path']),
                 ARRAY_FILTER_USE_KEY
             ));
 

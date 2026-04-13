@@ -56,12 +56,19 @@ interface Course {
   title: string;
   description: string;
   department: string;
+  subdepartment_id?: number | null;
   status: 'Active' | 'Draft' | 'Archived' | 'Inactive';
   start_date?: string | null;
   deadline?: string | null;
   modules: Array<{ id?: number; title: string; content_path?: string }>;
   // set by instructor action in UI to reflect immediate availability
   availableByInstructor?: boolean;
+}
+
+interface DepartmentOption {
+  id: number;
+  name: string;
+  subdepartments?: { id: number; name: string }[];
 }
 
 interface Props {
@@ -106,6 +113,7 @@ let moduleCounter = 0;
 
 export function InstructorCourseManagement({ onNavigate }: Props) {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [customModules, setCustomModules] = useState<CustomModule[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -115,6 +123,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [modules, setModules] = useState<ModuleInput[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [modalDepartment, setModalDepartment] = useState('');
+  const [modalSubdepartmentId, setModalSubdepartmentId] = useState<number | ''>('');
   const { pushToast } = useToast();
   // Course unlock modal state
   const [courseUnlockModalOpen, setCourseUnlockModalOpen] = useState(false);
@@ -164,6 +174,20 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       }
     } catch (e) {
       console.error('Failed to load custom modules:', e);
+    }
+  };
+
+  const loadDepartments = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/departments`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setDepartments(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error('Failed to load departments:', e);
     }
   };
 
@@ -263,6 +287,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   useEffect(() => {
     loadCourses();
     loadCustomModules();
+    loadDepartments();
   }, []);
 
   // Refresh courses list when a module is added in the CourseDetail page
@@ -283,6 +308,9 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setEditingCourse(null);
     setModules([]);
     setFormError(null);
+    const firstDepartment = departments[0]?.name ?? '';
+    setModalDepartment(firstDepartment);
+    setModalSubdepartmentId('');
     setIsModalOpen(true);
   };
 
@@ -290,6 +318,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setEditingCourse(course);
     setModules([]);
     setFormError(null);
+    setModalDepartment(course.department || '');
+    setModalSubdepartmentId(course.subdepartment_id ?? '');
     setIsModalOpen(true);
   };
 
@@ -299,6 +329,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setEditingCourse(null);
     setModules([]);
     setFormError(null);
+    setModalDepartment('');
+    setModalSubdepartmentId('');
   };
 
   const addModule = () => {
@@ -748,15 +780,18 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
                   <select
                     name="department"
-                    defaultValue={editingCourse?.department || 'IT'}
+                    value={modalDepartment}
+                    onChange={(e) => {
+                      setModalDepartment(e.target.value);
+                      setModalSubdepartmentId('');
+                    }}
                     required
                     className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
-                    <option value="IT">IT</option>
-                    <option value="HR">HR</option>
-                    <option value="Operations">Operations</option>
-                    <option value="Finance">Finance</option>
-                    <option value="Marketing">Marketing</option>
+                    <option value="">Select Department</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.name}>{dept.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -771,6 +806,23 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                     <option value="Inactive">Inactive</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Sub Department</label>
+                <select
+                  name="subdepartment_id"
+                  value={modalSubdepartmentId}
+                  onChange={(e) => setModalSubdepartmentId(e.target.value ? Number(e.target.value) : '')}
+                  required
+                  disabled={!modalDepartment}
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:bg-slate-100"
+                >
+                  <option value="">Select Sub Department</option>
+                  {(departments.find((d) => d.name === modalDepartment)?.subdepartments || []).map((sub) => (
+                    <option key={sub.id} value={sub.id}>{sub.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
