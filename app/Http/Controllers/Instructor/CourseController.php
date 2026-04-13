@@ -1147,9 +1147,10 @@ $module = $course->modules()->create($data);
             return response()->json(['message' => 'Only active employees can be enrolled'], 422);
         }
 
-        if (!$this->departmentsMatch($course->department, $targetUser->department)) {
+        $eligibilityReason = null;
+        if (!$this->employeeCanEnrollInCourse($targetUser, $course, $eligibilityReason)) {
             return response()->json([
-                'message' => 'This employee is not in the course department and cannot be enrolled here',
+                'message' => $eligibilityReason ?? 'This employee cannot be enrolled in the selected course.',
             ], 422);
         }
 
@@ -1222,5 +1223,20 @@ $module = $course->modules()->create($data);
         }
 
         return $left === $right;
+    }
+
+    private function employeeCanEnrollInCourse(User $employee, Course $course, ?string &$reason = null): bool
+    {
+        if (!$this->departmentsMatch($course->department, $employee->department)) {
+            $reason = 'This employee is not in the course department and cannot be enrolled here.';
+            return false;
+        }
+
+        if (!empty($course->subdepartment_id) && (int) ($employee->subdepartment_id ?? 0) !== (int) $course->subdepartment_id) {
+            $reason = 'This employee is not in the course subdepartment and cannot be enrolled here.';
+            return false;
+        }
+
+        return true;
     }
 }

@@ -370,6 +370,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
     // Course Enrollment Management
     Route::get('/enrollments', [AdminCourseController::class, 'allEnrollments']);
+    Route::get('/enrollments/mismatched', [AdminCourseController::class, 'mismatchedEnrollments']);
     Route::get('/courses/{id}/enrollments', [AdminCourseController::class, 'enrollments']);
     Route::get('/modules/{moduleId}/enrollment-lists', [AdminCourseController::class, 'moduleEnrollmentLists']);
     Route::post('/courses/{id}/enrollments', [AdminCourseController::class, 'enroll']);

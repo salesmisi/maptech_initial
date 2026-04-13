@@ -482,7 +482,7 @@ class CourseController extends Controller
     {
         $query = Enrollment::with([
             'user:id,fullname,email,department,role,status',
-            'course:id,title,department',
+            'course:id,title,department,subdepartment_id',
         ]);
 
         if ($request->has('status') && $request->status !== 'All') {
@@ -490,6 +490,10 @@ class CourseController extends Controller
         }
 
         $enrollments = $query->orderBy('enrolled_at', 'desc')->get()->map(function ($e) {
+            $mismatchReason = null;
+            $isMismatched = !($e->user && $e->course)
+                || !$this->employeeCanEnrollInCourse($e->user, $e->course, $mismatchReason);
+
             return [
                 'id'                => $e->id,
                 'user_id'           => $e->user_id,
@@ -502,10 +506,64 @@ class CourseController extends Controller
                 'enrolled_at'       => $e->enrolled_at?->toDateString(),
                 'progress'          => $e->progress ?? 0,
                 'status'            => $e->status ?? 'Not Started',
+                'is_mismatched'     => $isMismatched,
+                'mismatch_reason'   => $isMismatched ? ($mismatchReason ?? 'Missing employee or course record.') : null,
             ];
         });
 
+        if ($request->boolean('mismatched_only')) {
+            $enrollments = $enrollments->filter(fn ($row) => (bool) ($row['is_mismatched'] ?? false))->values();
+        }
+
         return response()->json($enrollments);
+    }
+
+    /**
+     * List only enrollment records that violate department/subdepartment policy.
+     */
+    public function mismatchedEnrollments(Request $request)
+    {
+        $query = Enrollment::with([
+            'user:id,fullname,email,department,subdepartment_id,role,status',
+            'course:id,title,department,subdepartment_id',
+        ]);
+
+        if ($request->has('status') && $request->status !== 'All') {
+            $query->where('status', $request->status);
+        }
+
+        $rows = $query->orderBy('enrolled_at', 'desc')->get()
+            ->map(function ($e) {
+                $reason = null;
+                $isValid = $e->user && $e->course && $this->employeeCanEnrollInCourse($e->user, $e->course, $reason);
+
+                if ($isValid) {
+                    return null;
+                }
+
+                return [
+                    'id' => $e->id,
+                    'user_id' => $e->user_id,
+                    'course_id' => $e->course_id,
+                    'employee_name' => $e->user->fullname ?? 'Unknown',
+                    'employee_email' => $e->user->email ?? '',
+                    'employee_department' => $e->user->department ?? '',
+                    'employee_subdepartment_id' => $e->user->subdepartment_id ?? null,
+                    'course_title' => $e->course->title ?? 'Unknown',
+                    'course_department' => $e->course->department ?? '',
+                    'course_subdepartment_id' => $e->course->subdepartment_id ?? null,
+                    'status' => $e->status ?? 'Not Started',
+                    'enrolled_at' => $e->enrolled_at?->toDateString(),
+                    'reason' => $reason ?? 'Missing employee or course record.',
+                ];
+            })
+            ->filter()
+            ->values();
+
+        return response()->json([
+            'count' => $rows->count(),
+            'data' => $rows,
+        ]);
     }
 
     /**
@@ -514,6 +572,44 @@ class CourseController extends Controller
     public function enrollments(string $id)
     {
         $course = Course::findOrFail($id);
+
+        $course->load('enrollments.user:id,department,subdepartment_id');
+
+        // Remove stale rows that became invalid after employee department/subdepartment changes.
+        $invalidUserIds = $course->enrollments
+            ->filter(function ($enrollment) use ($course) {
+                if (!$enrollment->user) {
+                    return true;
+                }
+
+                $reason = null;
+                return !$this->employeeCanEnrollInCourse($enrollment->user, $course, $reason);
+            })
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($invalidUserIds->isNotEmpty()) {
+            $course->enrollments()->whereIn('user_id', $invalidUserIds)->delete();
+
+            $moduleIds = DB::table('modules')
+                ->where('course_id', $course->id)
+                ->pluck('id');
+
+            if ($moduleIds->isNotEmpty()) {
+                DB::table('module_user')
+                    ->whereIn('user_id', $invalidUserIds)
+                    ->whereIn('module_id', $moduleIds)
+                    ->delete();
+            }
+
+            Log::info('Pruned invalid enrollments while loading admin course enrollment list.', [
+                'course_id' => $course->id,
+                'removed_user_ids' => $invalidUserIds->all(),
+                'removed_count' => $invalidUserIds->count(),
+            ]);
+        }
 
         // Recalculate progress for each enrollment
         foreach ($course->enrollments as $enrollment) {
@@ -527,6 +623,9 @@ class CourseController extends Controller
                 ]);
             }
         }
+
+        // Refresh after pruning so response and counts reflect current valid rows.
+        $course->refresh();
 
         $users = $course->enrolledUsers()
             ->select('users.id', 'users.fullname', 'users.email', 'users.department', 'users.role', 'users.status')
@@ -649,28 +748,11 @@ class CourseController extends Controller
             return response()->json(['message' => 'Only employees can be enrolled in courses.'], 422);
         }
 
-        if ($employee->department && $course->department && $employee->department !== $course->department) {
-            $courseDepartmentLower = strtolower(trim((string) $course->department));
-            $employeeDepartmentLower = strtolower(trim((string) $employee->department));
-
-            $deptRecord = DB::table('departments')
-                ->select('name', 'code')
-                ->whereRaw('LOWER(name) = ?', [$courseDepartmentLower])
-                ->orWhereRaw('LOWER(code) = ?', [$courseDepartmentLower])
-                ->first();
-
-            $acceptedDepartments = [$courseDepartmentLower];
-            if ($deptRecord) {
-                $deptName = strtolower(trim((string) ($deptRecord->name ?? '')));
-                $deptCode = strtolower(trim((string) ($deptRecord->code ?? '')));
-                if ($deptName !== '') $acceptedDepartments[] = $deptName;
-                if ($deptCode !== '') $acceptedDepartments[] = $deptCode;
-            }
-            $acceptedDepartments = array_values(array_unique($acceptedDepartments));
-
-            if (!in_array($employeeDepartmentLower, $acceptedDepartments, true)) {
-                return response()->json(['message' => 'Employee department does not match the selected course department.'], 422);
-            }
+        $eligibilityReason = null;
+        if (!$this->employeeCanEnrollInCourse($employee, $course, $eligibilityReason)) {
+            return response()->json([
+                'message' => $eligibilityReason ?? 'Employee is not eligible for the selected course.',
+            ], 422);
         }
 
         if ($course->enrollments()->where('user_id', $request->user_id)->exists()) {
@@ -687,6 +769,57 @@ class CourseController extends Controller
             'message' => 'User enrolled successfully',
             'user'    => $employee,
         ], 201);
+    }
+
+    private function normalizeDepartmentValue(?string $value): string
+    {
+        return strtolower(trim((string) $value));
+    }
+
+    private function acceptedCourseDepartments(?string $courseDepartment): array
+    {
+        $courseDepartmentLower = $this->normalizeDepartmentValue($courseDepartment);
+        if ($courseDepartmentLower === '') {
+            return [];
+        }
+
+        $deptRecord = DB::table('departments')
+            ->select('name', 'code')
+            ->whereRaw('LOWER(name) = ?', [$courseDepartmentLower])
+            ->orWhereRaw('LOWER(code) = ?', [$courseDepartmentLower])
+            ->first();
+
+        $accepted = [$courseDepartmentLower];
+        if ($deptRecord) {
+            $deptName = $this->normalizeDepartmentValue($deptRecord->name ?? '');
+            $deptCode = $this->normalizeDepartmentValue($deptRecord->code ?? '');
+            if ($deptName !== '') {
+                $accepted[] = $deptName;
+            }
+            if ($deptCode !== '') {
+                $accepted[] = $deptCode;
+            }
+        }
+
+        return array_values(array_unique($accepted));
+    }
+
+    private function employeeCanEnrollInCourse(User $employee, Course $course, ?string &$reason = null): bool
+    {
+        $employeeDepartment = $this->normalizeDepartmentValue($employee->department);
+        $acceptedDepartments = $this->acceptedCourseDepartments($course->department);
+
+        if ($employeeDepartment === '' || empty($acceptedDepartments) || !in_array($employeeDepartment, $acceptedDepartments, true)) {
+            $reason = 'Employee department does not match the selected course department.';
+            return false;
+        }
+
+        if (!empty($course->subdepartment_id) && (int) ($employee->subdepartment_id ?? 0) !== (int) $course->subdepartment_id) {
+            $reason = 'Employee subdepartment does not match the selected course subdepartment.';
+            return false;
+        }
+
+        return true;
     }
 
     /**
