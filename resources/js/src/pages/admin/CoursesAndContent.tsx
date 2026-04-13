@@ -1189,7 +1189,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
         {filteredCourses.map((course, index) => (
           <div
             key={course.id}
-            className="course-management-card group relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)]"
+            className="course-management-card group relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)] flex flex-col"
             style={{ animationDelay: `${Math.min(index * 45, 360)}ms` }}
           >
             {/* Course Icon */}
@@ -1208,7 +1208,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             </div>
 
             {/* Course Content */}
-            <div className="p-5">
+            <div className="p-5 flex flex-col flex-1">
               {/* Status Badge */}
               <div className="flex justify-between items-start mb-3">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getStatusBadge(course.status)}`}>
@@ -1289,7 +1289,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               {/* Manage Content Button */}
               <button
                 onClick={() => onNavigate?.('course-detail', String(course.id))}
-                className="course-manage-button w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                className="course-manage-button mt-auto w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
               >
                 Manage Content →
               </button>
@@ -1299,7 +1299,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
         {/* Custom Modules Cards */}
         {filteredCustomModules.map((module) => (
-          <div key={`custom-${module.id}`} className="relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)]">
+          <div key={`custom-${module.id}`} className="relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)] flex flex-col">
             {/* Custom Module Icon */}
             <div className="h-28 bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-500 dark:to-indigo-500 rounded-t-xl flex items-center justify-center relative">
               {/* Custom Module Badge */}
@@ -1333,7 +1333,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             </div>
 
             {/* Custom Module Content */}
-            <div className="p-5">
+            <div className="p-5 flex flex-col flex-1">
               {/* Status Badge */}
               <div className="flex justify-between items-start mb-3">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
@@ -1395,7 +1395,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               {/* Manage Content Button */}
               <button
                 onClick={() => onNavigate?.('custom-field', undefined, module.id)}
-                className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                className="mt-auto w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition-colors font-medium"
               >
                 Manage Content →
               </button>
