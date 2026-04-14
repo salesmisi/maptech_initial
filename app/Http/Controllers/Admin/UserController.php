@@ -161,6 +161,9 @@ class UserController extends Controller
     public function update(Request $request, string $id)
     {
         $user = User::findOrFail($id);
+        $previousRole = strtolower((string) $user->role);
+        $previousDepartment = strtolower(trim((string) ($user->department ?? '')));
+        $previousSubdepartmentId = (int) ($user->subdepartment_id ?? 0);
 
         $validated = $request->validate([
             'fullName' => 'sometimes|string|max:255',
@@ -217,6 +220,20 @@ class UserController extends Controller
         $user->fill($validated);
         $user->save();
 
+        $currentRole = strtolower((string) $user->role);
+        $currentDepartment = strtolower(trim((string) ($user->department ?? '')));
+        $currentSubdepartmentId = (int) ($user->subdepartment_id ?? 0);
+
+        $employeeAssignmentChanged = $currentRole === 'employee' && (
+            $previousRole !== 'employee'
+            || $previousDepartment !== $currentDepartment
+            || $previousSubdepartmentId !== $currentSubdepartmentId
+        );
+
+        if ($employeeAssignmentChanged) {
+            $this->removeInvalidEnrollmentsForEmployee($user);
+        }
+
         // For instructors, sync subdepartments and handle department head
         if ($effectiveRole === 'instructor') {
             if ($request->has('subdepartment_ids')) {
@@ -245,6 +262,99 @@ class UserController extends Controller
         return response()->json([
             'message' => 'User updated successfully',
             'user' => $user->load('headOfDepartments:id,name,head_id', 'subdepartments:id,name,department_id')
+        ]);
+    }
+
+    private function normalizeDepartmentValue(?string $value): string
+    {
+        return strtolower(trim((string) $value));
+    }
+
+    private function acceptedCourseDepartments(?string $courseDepartment): array
+    {
+        $courseDepartmentLower = $this->normalizeDepartmentValue($courseDepartment);
+        if ($courseDepartmentLower === '') {
+            return [];
+        }
+
+        $deptRecord = DB::table('departments')
+            ->select('name', 'code')
+            ->whereRaw('LOWER(name) = ?', [$courseDepartmentLower])
+            ->orWhereRaw('LOWER(code) = ?', [$courseDepartmentLower])
+            ->first();
+
+        $accepted = [$courseDepartmentLower];
+        if ($deptRecord) {
+            $deptName = $this->normalizeDepartmentValue($deptRecord->name ?? '');
+            $deptCode = $this->normalizeDepartmentValue($deptRecord->code ?? '');
+            if ($deptName !== '') {
+                $accepted[] = $deptName;
+            }
+            if ($deptCode !== '') {
+                $accepted[] = $deptCode;
+            }
+        }
+
+        return array_values(array_unique($accepted));
+    }
+
+    private function employeeCanStayEnrolled(User $employee, Course $course): bool
+    {
+        $employeeDepartment = $this->normalizeDepartmentValue($employee->department);
+        $acceptedDepartments = $this->acceptedCourseDepartments($course->department);
+        if ($employeeDepartment === '' || empty($acceptedDepartments) || !in_array($employeeDepartment, $acceptedDepartments, true)) {
+            return false;
+        }
+
+        if (!empty($course->subdepartment_id) && (int) ($employee->subdepartment_id ?? 0) !== (int) $course->subdepartment_id) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function removeInvalidEnrollmentsForEmployee(User $employee): void
+    {
+        $enrollments = Enrollment::with('course:id,department,subdepartment_id')
+            ->where('user_id', $employee->id)
+            ->get();
+
+        $invalidCourseIds = $enrollments
+            ->filter(function (Enrollment $enrollment) use ($employee) {
+                if (!$enrollment->course) {
+                    return true;
+                }
+
+                return !$this->employeeCanStayEnrolled($employee, $enrollment->course);
+            })
+            ->pluck('course_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($invalidCourseIds->isEmpty()) {
+            return;
+        }
+
+        Enrollment::where('user_id', $employee->id)
+            ->whereIn('course_id', $invalidCourseIds)
+            ->delete();
+
+        $moduleIds = DB::table('modules')
+            ->whereIn('course_id', $invalidCourseIds)
+            ->pluck('id');
+
+        if ($moduleIds->isNotEmpty()) {
+            DB::table('module_user')
+                ->where('user_id', $employee->id)
+                ->whereIn('module_id', $moduleIds)
+                ->delete();
+        }
+
+        Log::info('Removed invalid enrollments after employee assignment update.', [
+            'user_id' => $employee->id,
+            'invalid_course_ids' => $invalidCourseIds->all(),
+            'removed_count' => $invalidCourseIds->count(),
         ]);
     }
 

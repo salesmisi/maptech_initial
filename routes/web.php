@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\LoginController;
+use App\Http\Controllers\ReadOnlyLoginController;
 use App\Http\Controllers\YouTubeController;
 
 /*
@@ -26,7 +27,8 @@ Route::get('/login', function () {
 });
 
 // =====================
-// LOGOUT
+// READ-ONLY LOGIN (session-based)
+// Uses only DB reads; does not modify records.
 // =====================
 Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth');
 

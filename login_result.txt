@@ -1,0 +1,24 @@
+HTTP/1.1 302 Found
+Host: 127.0.0.1:8000
+Connection: close
+X-Powered-By: PHP/8.2.12
+Cache-Control: no-cache, private
+Date: Thu, 12 Mar 2026 01:33:35 GMT
+Location: http://127.0.0.1:8000/sanctum/csrf-cookie
+Content-Type: text/html; charset=utf-8
+Vary: Origin
+Set-Cookie: XSRF-TOKEN=eyJpdiI6ImVxRUZINDhHTGN4K05maVZmQlB2UUE9PSIsInZhbHVlIjoiU1lLdXZMNXB1eGtOU1orbTdyV3ROTzNlYWRDVEt3cGZ5aGNjUnp5cUJ5UXRudVZsOWsyb1JsNDJqenRrSVg4Ri9uaVRxb2U4bS9uVnkreVorUmRNaVl3UUhuenFEZkZHT241N2ZlYkZrVC9CdkFudEZYdnZQLzZBbWFqdHRocGYiLCJtYWMiOiIzOGY3MGFjZjFmNzZiNjYxNWQyMGU3Njc1NDZiNGE5OTgzMGE2YmEwODIxZTUzZDYxOGE0MjdjZWU4N2M5OTYzIiwidGFnIjoiIn0%3D; expires=Thu, 12 Mar 2026 03:33:35 GMT; Max-Age=7200; path=/; samesite=lax
+Set-Cookie: laravel-session=eyJpdiI6IkJvWWREZEdTQmFPVjNMQjBMWjdkVkE9PSIsInZhbHVlIjoiNlNjbktHenVETHF0RmhNbXBVZS9xUWlZcWMvZnZuZVMrMk5HTWRRMmtTc0N1TTR2bktodXcxK05TKyt6amtxd09yL1l3R0pWVXlSMzZiZWpZc0dFMXI0dUVldVFoT3F0SWozTlNkQURHMU0yZmdGSzRkOWIrWXcvblhUaEpUMUwiLCJtYWMiOiIxM2NkYjZhYjk2Y2MwMjUzZDczNTMyYWJlN2ZkYmE5OGFmYmUyMjY5NDllYmZlMzY2NGIwMjY0YTdmZTMyZDI5IiwidGFnIjoiIn0%3D; expires=Thu, 12 Mar 2026 03:33:35 GMT; Max-Age=7200; path=/; httponly; samesite=lax
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <meta http-equiv="refresh" content="0;url='http://127.0.0.1:8000/sanctum/csrf-cookie'" />
+
+        <title>Redirecting to http://127.0.0.1:8000/sanctum/csrf-cookie</title>
+    </head>
+    <body>
+        Redirecting to <a href="http://127.0.0.1:8000/sanctum/csrf-cookie">http://127.0.0.1:8000/sanctum/csrf-cookie</a>.
+    </body>
+</html>

@@ -229,9 +229,9 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '150p
   const isEmpty = !value || value === '<br>' || value === '<div><br></div>';
 
   return (
-    <div className="border border-slate-300 rounded-lg focus-within:ring-2 focus-within:ring-green-500 focus-within:border-green-500 relative">
+    <div className="border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-lg focus-within:ring-2 focus-within:ring-green-500 focus-within:border-green-500 relative">
       {/* Toolbar */}
-      <div className="flex items-center gap-0.5 px-2 py-1.5 bg-slate-50 border-b border-slate-200 flex-wrap rounded-t-lg">
+      <div className="flex items-center gap-0.5 px-2 py-1.5 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex-wrap rounded-t-lg">
         <ToolBtn icon={Bold} label="Bold" onAction={() => execCommand('bold')} />
         <ToolBtn icon={Italic} label="Italic" onAction={() => execCommand('italic')} />
         <ToolBtn icon={Underline} label="Underline" onAction={() => execCommand('underline')} />
@@ -251,18 +251,18 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '150p
             type="button"
             title="Insert table"
             onMouseDown={e => { e.preventDefault(); setShowTableMenu(v => !v); setUseCustomSize(false); setHoverRow(0); setHoverCol(0); }}
-            className="p-1.5 rounded hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors flex items-center gap-0.5"
+            className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white transition-colors flex items-center gap-0.5"
           >
             <Table className="h-4 w-4" />
             <ChevronDown className="h-3 w-3" />
           </button>
           {showTableMenu && (
             <div
-              className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-slate-200 p-3 z-[9999] min-w-[220px]"
+              className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-3 z-[9999] min-w-[220px]"
               onMouseDown={e => e.preventDefault()}
               style={{ maxHeight: '400px', overflowY: 'auto' }}
             >
-              <p className="text-xs font-semibold text-slate-700 mb-2">Insert Table</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-100 mb-2">Insert Table</p>
 
               {!useCustomSize ? (
                 <>
@@ -281,13 +281,13 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '150p
                             className={`w-5 h-5 border rounded-sm cursor-pointer transition-colors ${
                               isHighlighted
                                 ? 'bg-green-500 border-green-600'
-                                : 'bg-slate-50 border-slate-300 hover:border-slate-400'
+                                : 'bg-slate-50 dark:bg-slate-700 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500'
                             }`}
                           />
                         );
                       })}
                     </div>
-                    <p className="text-xs text-slate-500 mt-1.5 text-center font-medium">
+                    <p className="text-xs text-slate-500 dark:text-slate-300 mt-1.5 text-center font-medium">
                       {hoverRow > 0 && hoverCol > 0
                         ? `${hoverRow} × ${hoverCol} table`
                         : 'Hover to select size'}
@@ -296,7 +296,7 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '150p
                   <button
                     type="button"
                     onClick={() => setUseCustomSize(true)}
-                    className="w-full text-xs text-green-600 hover:text-green-800 hover:bg-green-50 py-1.5 rounded font-medium mt-1"
+                    className="w-full text-xs text-green-600 dark:text-emerald-300 hover:text-green-800 dark:hover:text-emerald-200 hover:bg-green-50 dark:hover:bg-emerald-900/25 py-1.5 rounded font-medium mt-1"
                   >
                     Custom size...
                   </button>
@@ -305,20 +305,20 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '150p
                 <>
                   {/* Manual row/col input */}
                   <div className="flex items-center gap-2 mb-2">
-                    <label htmlFor="table-rows" className="text-xs text-slate-500 w-10">Rows</label>
+                    <label htmlFor="table-rows" className="text-xs text-slate-500 dark:text-slate-300 w-10">Rows</label>
                     <input id="table-rows" name="tableRows" type="number" min={1} max={50} value={tableRows}
                       onChange={e => setTableRows(Math.max(1, Number(e.target.value)))}
-                      className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs text-center focus:ring-1 focus:ring-green-500 focus:border-green-500" />
+                      className="flex-1 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded px-2 py-1 text-xs text-center focus:ring-1 focus:ring-green-500 focus:border-green-500" />
                   </div>
                   <div className="flex items-center gap-2 mb-3">
-                    <label htmlFor="table-cols" className="text-xs text-slate-500 w-10">Cols</label>
+                    <label htmlFor="table-cols" className="text-xs text-slate-500 dark:text-slate-300 w-10">Cols</label>
                     <input id="table-cols" name="tableCols" type="number" min={1} max={20} value={tableCols}
                       onChange={e => setTableCols(Math.max(1, Number(e.target.value)))}
-                      className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs text-center focus:ring-1 focus:ring-green-500 focus:border-green-500" />
+                      className="flex-1 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded px-2 py-1 text-xs text-center focus:ring-1 focus:ring-green-500 focus:border-green-500" />
                   </div>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setUseCustomSize(false)}
-                      className="flex-1 px-2 py-1.5 border border-slate-300 text-slate-600 text-xs font-medium rounded-md hover:bg-slate-50">
+                      className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 text-xs font-medium rounded-md hover:bg-slate-50 dark:hover:bg-slate-700">
                       Grid
                     </button>
                     <button type="button" onClick={insertTable}
@@ -329,8 +329,8 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '150p
                 </>
               )}
 
-              <div className="border-t border-slate-200 mt-2.5 pt-2 space-y-0.5">
-                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1">Edit existing table:</p>
+              <div className="border-t border-slate-200 dark:border-slate-700 mt-2.5 pt-2 space-y-0.5">
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-semibold mb-1">Edit existing table:</p>
                 <SmallBtn label="+ Add Row" onClick={addTableRow} />
                 <SmallBtn label="+ Add Column" onClick={addTableCol} />
                 <SmallBtn label="− Delete Row" onClick={deleteTableRow} variant="red" />
@@ -345,7 +345,7 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '150p
       {/* Editor area */}
       <div className="relative">
         {isEmpty && placeholder && (
-          <div className="absolute top-0 left-0 px-3 py-2 text-sm text-slate-400 pointer-events-none">
+          <div className="absolute top-0 left-0 px-3 py-2 text-sm text-slate-400 dark:text-slate-500 pointer-events-none">
             {placeholder}
           </div>
         )}
@@ -356,7 +356,7 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '150p
           onPaste={handlePaste}
           onKeyDown={handleKeyDown}
           onClick={() => setShowTableMenu(false)}
-          className={`px-3 py-2 text-sm text-slate-700 outline-none prose prose-sm max-w-none ${EDITOR_STYLES}`}
+          className={`px-3 py-2 text-sm text-slate-700 dark:text-slate-100 outline-none prose prose-sm max-w-none dark:prose-invert ${EDITOR_STYLES}`}
           style={{ minHeight }}
           suppressContentEditableWarning
         />
@@ -370,18 +370,18 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '150p
 function ToolBtn({ icon: Icon, label, onAction }: { icon: React.ComponentType<{ className?: string }>; label: string; onAction: () => void }) {
   return (
     <button type="button" title={label} onMouseDown={e => { e.preventDefault(); onAction(); }}
-      className="p-1.5 rounded hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors">
+      className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white transition-colors">
       <Icon className="h-4 w-4" />
     </button>
   );
 }
 
-function Divider() { return <div className="w-px h-5 bg-slate-300 mx-1" />; }
+function Divider() { return <div className="w-px h-5 bg-slate-300 dark:bg-slate-600 mx-1" />; }
 
 function SmallBtn({ label, onClick, variant = 'default' }: { label: string; onClick: () => void; variant?: 'default' | 'red' }) {
   return (
     <button type="button" onClick={onClick}
-      className={`w-full text-left text-xs px-2 py-1 rounded ${variant === 'red' ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-slate-100'}`}>
+      className={`w-full text-left text-xs px-2 py-1 rounded ${variant === 'red' ? 'text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
       {label}
     </button>
   );
@@ -397,8 +397,8 @@ const EDITOR_STYLES = [
   '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1',
   '[&_li]:my-0.5 [&_p]:my-1',
   '[&_table]:w-full [&_table]:border-collapse [&_table]:my-3',
-  '[&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-100 [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_th]:text-slate-700',
-  '[&_td]:border [&_td]:border-slate-300 [&_td]:px-3 [&_td]:py-1.5 [&_td]:text-sm',
+  '[&_th]:border [&_th]:border-slate-300 dark:[&_th]:border-slate-600 [&_th]:bg-slate-100 dark:[&_th]:bg-slate-700 [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_th]:text-slate-700 dark:[&_th]:text-slate-100',
+  '[&_td]:border [&_td]:border-slate-300 dark:[&_td]:border-slate-600 [&_td]:px-3 [&_td]:py-1.5 [&_td]:text-sm',
 ].join(' ');
 
 export const RICH_CONTENT_STYLES = `prose prose-sm max-w-none text-slate-600 leading-relaxed ${EDITOR_STYLES}`;

@@ -9,6 +9,7 @@ use App\Models\Module;
 use App\Models\Question;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
+use App\Models\Subdepartment;
 use App\Models\User;
 use App\Events\EnrollmentUnlocked;
 use App\Events\ModuleUnlocked;
@@ -34,7 +35,11 @@ class CourseController extends Controller
         $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
         $assignedDept = $user->department;
 
-        $courses = Course::with(['modules.lessons'])
+        $courses = Course::with([
+            'instructor:id,fullname,email,profile_picture',
+            'subdepartment:id,name,department_id',
+            'modules.lessons',
+        ])
             ->withCount('enrollments')
             ->where(function ($q) use ($user, $assignedSubIds, $assignedDept) {
                 $q->where('instructor_id', $user->id);
@@ -54,7 +59,7 @@ class CourseController extends Controller
         // been reopened by the instructor.
         $courseIds = $courses->pluck('id');
         if ($courseIds->isNotEmpty()) {
-            $manualUnlockedCourseIds = \DB::table('module_user')
+            $manualUnlockedCourseIds = DB::table('module_user')
                 ->join('modules', 'module_user.module_id', '=', 'modules.id')
                 ->whereIn('modules.course_id', $courseIds)
                 ->where('module_user.unlocked', true)
@@ -69,7 +74,7 @@ class CourseController extends Controller
             $manualUnlockedLookup = array_flip($manualUnlockedCourseIds);
 
             foreach ($courses as $course) {
-                $course->setAttribute('has_manual_unlock', isset($manualUnlockedLookup[$course->id]));
+                $course->has_manual_unlock = isset($manualUnlockedLookup[$course->id]);
             }
         }
 
@@ -154,7 +159,7 @@ class CourseController extends Controller
             })
             ->withCount([
                 'enrollments',
-                'enrollments as completed_count' => fn ($q) => $q->where('status', 'completed'),
+                'enrollments as completed_count' => fn ($q) => $q->where('status', 'Completed'),
             ])
             ->get()
             ->map(fn ($c) => [
@@ -227,8 +232,11 @@ class CourseController extends Controller
 
         // Fetch the course and verify instructor has rights either by ownership
         // or because the course belongs to a department/subdepartment assigned to them
-        $course = Course::with(['modules.lessons', 'enrolledUsers:id,fullname,email,department,role,status'])
-            ->find($id);
+        $course = Course::with([
+            'instructor:id,fullname,email,profile_picture',
+            'modules.lessons',
+            'enrolledUsers:id,fullname,email,department,role,status',
+        ])->find($id);
 
         if (!$course) {
             return response()->json(['message' => 'Course not found.'], 404);
@@ -247,7 +255,15 @@ class CourseController extends Controller
 
         // Recalculate progress for each enrolled user
         foreach ($course->enrolledUsers as $eu) {
-            Enrollment::recalculateProgress($eu->id, $course->id);
+            try {
+                Enrollment::recalculateProgress($eu->id, $course->id);
+            } catch (\Throwable $exception) {
+                Log::warning('Failed to recalculate enrollment progress while loading instructor course detail.', [
+                    'course_id' => $course->id,
+                    'user_id' => $eu->id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
         }
         // Refresh to get updated pivot data
         $course->load('enrolledUsers:id,fullname,email,department,role,status');
@@ -267,6 +283,7 @@ class CourseController extends Controller
                 'title'              => 'required|string|max:255',
                 'description'        => 'nullable|string',
                 'department'         => 'required|string|max:255',
+                'subdepartment_id'   => 'required|exists:subdepartments,id',
                 'status'             => ['nullable', Rule::in(['Active', 'Inactive', 'Draft'])],
                 'start_date'         => 'nullable|date',
                 'deadline'           => 'nullable|date',
@@ -275,6 +292,39 @@ class CourseController extends Controller
                 'modules.*.title'    => 'nullable|string|max:255',
                 'modules.*.content'  => 'nullable|file|max:102400',
             ]);
+
+            $selectedSubdepartment = Subdepartment::with('department:id,name,code')->find((int) $validated['subdepartment_id']);
+            if (!$selectedSubdepartment) {
+                return response()->json([
+                    'message' => 'Invalid subdepartment selected.',
+                    'errors' => ['subdepartment_id' => ['The selected subdepartment is invalid.']],
+                ], 422);
+            }
+
+            $courseDepartment = strtolower(trim((string) ($validated['department'] ?? '')));
+            $subDeptDepartmentName = strtolower(trim((string) ($selectedSubdepartment->department->name ?? '')));
+            $subDeptDepartmentCode = strtolower(trim((string) ($selectedSubdepartment->department->code ?? '')));
+            $deptMatches = $courseDepartment === $subDeptDepartmentName
+                || ($subDeptDepartmentCode !== '' && $courseDepartment === $subDeptDepartmentCode);
+
+            if (!$deptMatches) {
+                return response()->json([
+                    'message' => 'Selected subdepartment does not belong to the selected department.',
+                    'errors' => ['subdepartment_id' => ['Subdepartment must belong to the selected department.']],
+                ], 422);
+            }
+
+            $selectedSubId = (int) $selectedSubdepartment->id;
+            $isPrimarySub = (int) ($user->subdepartment_id ?? 0) === $selectedSubId;
+            $isAssignedSub = $user->subdepartments()->where('subdepartments.id', $selectedSubId)->exists();
+            $isSubHead = (int) ($selectedSubdepartment->head_id ?? 0) === (int) $user->id;
+
+            if (!$isPrimarySub && !$isAssignedSub && !$isSubHead) {
+                return response()->json([
+                    'message' => 'You can only create courses for your assigned subdepartment(s).',
+                    'errors' => ['subdepartment_id' => ['Subdepartment is not assigned to this instructor.']],
+                ], 422);
+            }
 
             // Handle logo upload
             $logoPath = null;
@@ -286,6 +336,7 @@ class CourseController extends Controller
                 'title'         => $validated['title'],
                 'description'   => $validated['description'] ?? null,
                 'department'    => $validated['department'],
+                'subdepartment_id' => (int) $validated['subdepartment_id'],
                 'instructor_id' => $user->id,
                 'status'        => $validated['status'] ?? 'Active',
                 'start_date'    => $validated['start_date'] ?? null,
@@ -307,7 +358,7 @@ class CourseController extends Controller
 
             return response()->json([
                 'message' => 'Course created successfully',
-                'course'  => $course->load('modules'),
+                'course'  => $course->load('modules', 'subdepartment:id,name,department_id'),
             ], 201);
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
@@ -341,6 +392,7 @@ class CourseController extends Controller
                 'title'             => 'sometimes|string|max:255',
                 'description'       => 'nullable|string',
                 'department'        => 'sometimes|string|max:255',
+                'subdepartment_id'  => 'nullable|exists:subdepartments,id',
                 'status'            => ['sometimes', Rule::in(['Active', 'Inactive', 'Draft'])],
                 'start_date'        => 'nullable|date',
                 'deadline'          => 'nullable|date',
@@ -350,6 +402,50 @@ class CourseController extends Controller
                 'modules.*.title'   => 'nullable|string|max:255',
                 'modules.*.content' => 'nullable|file|max:102400',
             ]);
+
+            $effectiveDepartment = strtolower(trim((string) ($validated['department'] ?? $course->department ?? '')));
+            $effectiveSubdepartmentId = array_key_exists('subdepartment_id', $validated)
+                ? $validated['subdepartment_id']
+                : $course->subdepartment_id;
+
+            if (empty($effectiveSubdepartmentId)) {
+                return response()->json([
+                    'message' => 'Subdepartment is required for courses.',
+                    'errors' => ['subdepartment_id' => ['Subdepartment is required.']],
+                ], 422);
+            }
+
+            $selectedSubdepartment = Subdepartment::with('department:id,name,code')->find((int) $effectiveSubdepartmentId);
+            if (!$selectedSubdepartment) {
+                return response()->json([
+                    'message' => 'Invalid subdepartment selected.',
+                    'errors' => ['subdepartment_id' => ['The selected subdepartment is invalid.']],
+                ], 422);
+            }
+
+            $subDeptDepartmentName = strtolower(trim((string) ($selectedSubdepartment->department->name ?? '')));
+            $subDeptDepartmentCode = strtolower(trim((string) ($selectedSubdepartment->department->code ?? '')));
+            $deptMatches = $effectiveDepartment === $subDeptDepartmentName
+                || ($subDeptDepartmentCode !== '' && $effectiveDepartment === $subDeptDepartmentCode);
+
+            if (!$deptMatches) {
+                return response()->json([
+                    'message' => 'Selected subdepartment does not belong to the selected department.',
+                    'errors' => ['subdepartment_id' => ['Subdepartment must belong to the selected department.']],
+                ], 422);
+            }
+
+            $selectedSubId = (int) $selectedSubdepartment->id;
+            $isPrimarySub = (int) ($user->subdepartment_id ?? 0) === $selectedSubId;
+            $isAssignedSub = $user->subdepartments()->where('subdepartments.id', $selectedSubId)->exists();
+            $isSubHead = (int) ($selectedSubdepartment->head_id ?? 0) === (int) $user->id;
+
+            if (!$isPrimarySub && !$isAssignedSub && !$isSubHead) {
+                return response()->json([
+                    'message' => 'You can only assign courses to your assigned subdepartment(s).',
+                    'errors' => ['subdepartment_id' => ['Subdepartment is not assigned to this instructor.']],
+                ], 422);
+            }
 
             // Handle logo
             if ($request->hasFile('logo')) {
@@ -365,7 +461,7 @@ class CourseController extends Controller
             }
 
             $course->update(array_filter($validated, fn ($k) =>
-                in_array($k, ['title', 'description', 'department', 'status', 'start_date', 'deadline', 'logo_path']),
+                in_array($k, ['title', 'description', 'department', 'subdepartment_id', 'status', 'start_date', 'deadline', 'logo_path']),
                 ARRAY_FILTER_USE_KEY
             ));
 
@@ -383,7 +479,7 @@ class CourseController extends Controller
 
             return response()->json([
                 'message' => 'Course updated successfully',
-                'course'  => $course->load('modules'),
+                'course'  => $course->load('modules', 'subdepartment:id,name,department_id'),
             ]);
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
@@ -1133,9 +1229,10 @@ $module = $course->modules()->create($data);
             return response()->json(['message' => 'Only active employees can be enrolled'], 422);
         }
 
-        if (!$this->departmentsMatch($course->department, $targetUser->department)) {
+        $eligibilityReason = null;
+        if (!$this->employeeCanEnrollInCourse($targetUser, $course, $eligibilityReason)) {
             return response()->json([
-                'message' => 'This employee is not in the course department and cannot be enrolled here',
+                'message' => $eligibilityReason ?? 'This employee cannot be enrolled in the selected course.',
             ], 422);
         }
 
@@ -1208,5 +1305,20 @@ $module = $course->modules()->create($data);
         }
 
         return $left === $right;
+    }
+
+    private function employeeCanEnrollInCourse(User $employee, Course $course, ?string &$reason = null): bool
+    {
+        if (!$this->departmentsMatch($course->department, $employee->department)) {
+            $reason = 'This employee is not in the course department and cannot be enrolled here.';
+            return false;
+        }
+
+        if (!empty($course->subdepartment_id) && (int) ($employee->subdepartment_id ?? 0) !== (int) $course->subdepartment_id) {
+            $reason = 'This employee is not in the course subdepartment and cannot be enrolled here.';
+            return false;
+        }
+
+        return true;
     }
 }

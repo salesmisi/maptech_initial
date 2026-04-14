@@ -10,6 +10,7 @@ import {
   LogOut,
   Search,
   Menu,
+  ChevronLeft,
   Video,
   MessageCircle,
   Settings,
@@ -244,6 +245,7 @@ const iconMap: Record<string, LucideIcon> = {
 const getIconByName = (name: string): LucideIcon => {
   return iconMap[name] || Blocks;
 };
+import { safeArray } from '../../utils/safe';
 interface AdminLayoutProps {
   children: React.ReactNode;
   currentPage: string;
@@ -275,6 +277,16 @@ export function AdminLayout({
   user
 }: AdminLayoutProps) {
   const [showPicPreview, setShowPicPreview] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 768 : true));
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem('maptech_admin_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [displayName, setDisplayName] = useState<string | null>(user?.fullName ?? user?.fullname ?? user?.name ?? null);
   const [customNavItems, setCustomNavItems] = useState<any[]>([]);
   const isDark = theme === 'dark';
@@ -328,6 +340,41 @@ export function AdminLayout({
       window.removeEventListener('ui-component-changed', handleUIComponentChange);
     };
   }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem('maptech_admin_sidebar_collapsed', String(isSidebarCollapsed));
+    } catch {
+      // ignore persistence errors
+    }
+  }, [isSidebarCollapsed]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handleResize = () => {
+      const desktop = window.innerWidth >= 768;
+      setIsDesktop(desktop);
+      if (desktop) setIsMobileSidebarOpen(false);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  const isSidebarCompact = isDesktop && isSidebarCollapsed;
+  const isSidebarVisible = isDesktop ? !isSidebarCollapsed : isMobileSidebarOpen;
+  const sidebarWidthClass = isDesktop ? (isSidebarCollapsed ? 'w-20' : 'w-64') : 'w-[86vw] max-w-xs';
+  const sidebarTranslateClass = isDesktop || isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full';
+  const toggleSidebar = () => {
+    if (isDesktop) {
+      setIsSidebarCollapsed((prev) => !prev);
+      return;
+    }
+    setIsMobileSidebarOpen((prev) => !prev);
+  };
+  const handleSidebarNavigate = (page: string) => {
+    onNavigate(page);
+    if (!isDesktop) setIsMobileSidebarOpen(false);
+  };
   const navItems = [
   {
     id: 'dashboard',
@@ -409,35 +456,40 @@ export function AdminLayout({
 
   return (
     <div className={`app-theme-scope min-h-screen flex ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 dark:bg-slate-900 text-slate-900'}`}>
+      {!isDesktop && isMobileSidebarOpen && <button type="button" aria-label="Close sidebar" className="fixed inset-0 z-20 bg-slate-950/60" onClick={() => setIsMobileSidebarOpen(false)} />}
       {/* Sidebar (fixed on all viewports to avoid layout shift when zooming) */}
-      <div className={`flex w-64 flex-col fixed inset-y-0 z-10 border-r ${isDark ? 'border-slate-800/80 bg-slate-950/95 text-white' : 'border-slate-200 bg-slate-900 text-white'}`}>
+      <div className={`fixed inset-y-0 left-0 z-30 flex ${sidebarWidthClass} flex-col border-r transition-all duration-300 ${sidebarTranslateClass} ${isDark ? 'border-slate-800/80 bg-slate-950/95 text-white' : 'border-slate-200 bg-slate-900 text-white'}`}>
         <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex flex-col items-center pt-8 pb-6 px-4 bg-slate-950">
+          <div className={`flex flex-col items-center bg-slate-950 transition-all duration-300 ${isSidebarCompact ? 'px-2 pt-6 pb-4' : 'px-4 pt-8 pb-6'}`}>
             <img
-              className="h-16 w-auto mb-3 brightness-110 contrast-110"
+              className={`w-auto brightness-110 contrast-110 transition-all duration-300 ${isSidebarCompact ? 'mb-0 h-10' : 'mb-3 h-16'}`}
               src={businessDetails.logo_url}
               alt="Maptech"
             />
 
-            <p className={`text-center text-sm font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-slate-300'}`}>
-              {businessDetails.company_name}
-            </p>
+            {!isSidebarCompact && (
+              <p className={`text-center text-sm font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-slate-300'}`}>
+                {businessDetails.company_name}
+              </p>
+            )}
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
-            <nav className="mt-5 flex-1 px-2 space-y-1">
-              {allNavItems.map((item) => {
+            <nav className={`mt-5 flex-1 space-y-1 ${isSidebarCompact ? 'px-3' : 'px-2'}`}>
+              {safeArray(allNavItems).map((item) => {
                 const Icon = item.icon;
                 const isActive = currentPage === item.id || (item.id === 'courses' && currentPage === 'course-detail');
                 return (
                   <button
                     key={item.id}
-                    onClick={() => onNavigate(item.id)}
-                    className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg w-full transition-colors ${isActive ? 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}>
+                    onClick={() => handleSidebarNavigate(item.id)}
+                    title={isSidebarCompact ? item.label : undefined}
+                    aria-label={item.label}
+                    className={`sidebar-nav-item group flex w-full items-center rounded-lg text-sm font-medium transition-colors ${isSidebarCompact ? 'justify-center px-2 py-3' : 'px-3 py-2.5'} ${isActive ? 'is-active bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}>
 
                     <Icon
-                      className={`mr-3 flex-shrink-0 h-5 w-5 ${isActive ? 'text-emerald-300' : 'text-slate-400 group-hover:text-slate-200'}`} />
+                      className={`h-5 w-5 flex-shrink-0 ${isSidebarCompact ? '' : 'mr-3'} ${isActive ? 'text-emerald-300' : 'text-slate-400 group-hover:text-slate-200'}`} />
 
-                    {item.label}
+                    {!isSidebarCompact && item.label}
                   </button>);
 
               })}
@@ -445,7 +497,7 @@ export function AdminLayout({
           </div>
           <div className={`flex-shrink-0 flex border-t p-4 ${isDark ? 'border-slate-800/80' : 'border-slate-800'}`}>
             <div className="flex-shrink-0 w-full group block">
-              <div className="flex items-center">
+              <div className={isSidebarCompact ? 'flex flex-col items-center gap-3' : 'flex items-center'}>
                 {user.profile_picture ? (
                   <img
                     src={user.profile_picture}
@@ -458,15 +510,17 @@ export function AdminLayout({
                     {(displayName?.charAt(0) ?? 'U').toUpperCase()}
                   </div>
                 )}
-                <div className="ml-3">
-                  <p className={`text-sm font-medium ${isDark ? 'text-slate-100' : 'text-white'}`}>{displayName ?? 'Unknown'}</p>
-                  <p className="text-xs font-medium text-slate-400">
-                    Administrator
-                  </p>
-                </div>
+                {!isSidebarCompact && (
+                  <div className="ml-3 min-w-0">
+                    <p className={`truncate text-sm font-medium ${isDark ? 'text-slate-100' : 'text-white'}`}>{displayName ?? 'Unknown'}</p>
+                    <p className="text-xs font-medium text-slate-400">
+                      Administrator
+                    </p>
+                  </div>
+                )}
                 <button
                   onClick={onLogout}
-                  className="ml-auto text-slate-400 hover:text-white"
+                  className={`${isSidebarCompact ? '' : 'ml-auto'} text-slate-400 hover:text-white`}
                   title="Logout">
 
                   <LogOut className="h-5 w-5" />
@@ -478,17 +532,21 @@ export function AdminLayout({
       </div>
 
       {/* Main content */}
-      <div className="flex flex-col w-full pl-64">
-        <div className={`sticky top-0 z-10 flex-shrink-0 flex h-16 items-center border-b ${isDark ? 'bg-slate-900/75 backdrop-blur-md border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+      <div
+        className="flex w-full flex-col transition-[padding] duration-300"
+        style={isDesktop ? { paddingLeft: isSidebarCollapsed ? '5rem' : '16rem' } : undefined}
+      >
+        <div className={`sticky top-0 z-10 flex min-h-16 flex-wrap items-center border-b ${isDark ? 'bg-slate-900/75 backdrop-blur-md border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
           <button
             type="button"
-            className={`px-4 border-r focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 md:hidden ${isDark ? 'border-slate-800 text-slate-300' : 'border-slate-200 text-slate-500'}`}>
+            onClick={toggleSidebar}
+            className={`inline-flex min-h-16 items-center justify-center self-stretch px-4 focus:outline-none ${isSidebarVisible ? isDark ? 'bg-slate-800/80 text-white' : 'bg-slate-100 text-slate-800' : isDark ? 'text-slate-300 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
 
-            <span className="sr-only">Open sidebar</span>
-            <Menu className="h-6 w-6" />
+            <span className="sr-only">{isDesktop ? (isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar') : isMobileSidebarOpen ? 'Close sidebar' : 'Open sidebar'}</span>
+            {isSidebarVisible ? <ChevronLeft className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
-          <div className="flex-1 px-4 flex items-center justify-between gap-4">
-            <div className="flex-1 flex items-center">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4">
+            <div className="order-2 flex w-full items-center md:order-1 md:flex-1">
               <form
                 className="w-full max-w-4xl md:ml-0"
                 onSubmit={(e) => {
@@ -515,7 +573,7 @@ export function AdminLayout({
                 </div>
               </form>
             </div>
-            <div className="ml-4 flex items-center md:ml-6">
+            <div className="order-1 ml-auto flex items-center gap-2 md:order-2 md:ml-6 md:gap-0">
               <button
                 onClick={onToggleTheme}
                 aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -544,7 +602,7 @@ export function AdminLayout({
           </div>
         </div>
 
-        <main className={`flex-1 overflow-y-auto p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50 dark:bg-slate-900'}`}>
+        <main className={`flex-1 overflow-y-auto p-4 sm:p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50 dark:bg-slate-900'}`}>
           {children}
         </main>
       </div>

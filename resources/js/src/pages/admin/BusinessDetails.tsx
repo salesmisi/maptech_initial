@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Building2, ImagePlus, Save, Trash2, CheckCircle, AlertCircle, Mail, Phone, Smartphone, Globe, MapPin } from 'lucide-react';
+import { resolveImageUrl } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 interface BusinessDetailsResponse {
   company_name: string;
@@ -26,6 +28,7 @@ async function getCsrf() {
 export function BusinessDetails() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isPageVisible, setIsPageVisible] = useState(false);
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -39,6 +42,16 @@ export function BusinessDetails() {
   const [removeLogo, setRemoveLogo] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setIsPageVisible(true);
+    }, 90);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,7 +73,7 @@ export function BusinessDetails() {
           setAddress(data.address || '');
           setWebsite(data.website || '');
           setVatRegTin(data.vat_reg_tin || '');
-          setLogoUrl(data.logo_url || '/assets/Maptech-Official-Logo.png');
+          setLogoUrl(resolveImageUrl(data.logo_url, { fallback: '/assets/Maptech-Official-Logo.png' }));
         }
       } catch {
         if (!cancelled) {
@@ -140,11 +153,20 @@ export function BusinessDetails() {
       setAddress(data.address || '');
       setWebsite(data.website || '');
       setVatRegTin(data.vat_reg_tin || '');
-      setLogoUrl(data.logo_url || '/assets/Maptech-Official-Logo.png');
+      setLogoUrl(resolveImageUrl(data.logo_url, { fallback: '/assets/Maptech-Official-Logo.png' }));
       setSelectedLogo(null);
       setRemoveLogo(false);
       if (fileRef.current) fileRef.current.value = '';
       setMessage({ type: 'success', text: data?.message || 'Business details updated.' });
+
+      // Force a full refresh so all mounted components immediately pick up
+      // the latest business logo/details from the server.
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 250);
+      window.dispatchEvent(new CustomEvent('business-details-changed', {
+        detail: { logo_url: data.logo_url || '/assets/Maptech-Official-Logo.png' },
+      }));
     } catch (err: any) {
       // Network-level failures surface as TypeError("Failed to fetch") in browsers.
       const text = String(err?.message || '').toLowerCase();
@@ -162,25 +184,28 @@ export function BusinessDetails() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-        <span className="ml-3 text-slate-600">Loading business details...</span>
-      </div>
+      <LoadingState message="Loading business details" size="lg" className="min-h-[40vh]" />
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Business Details</h1>
+    <div
+      className={`business-page-enter max-w-4xl mx-auto space-y-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
+    >
+      <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 transition-all duration-500 delay-75">Business Details</h1>
 
       {message && (
-        <div className={`flex items-center gap-2 p-4 rounded-lg text-sm font-medium ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800/50' : 'bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800/50'}`}>
+        <div className={`flex items-center gap-2 p-4 rounded-lg text-sm font-medium transition-all duration-300 animate-pulse ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800/50' : 'bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800/50'}`}>
           {message.type === 'success' ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
           {message.text}
         </div>
       )}
 
-      <form onSubmit={onSave} className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-6">
+      <form
+        onSubmit={onSave}
+        className={`business-form-enter bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
+        style={{ transitionDelay: isPageVisible ? '120ms' : '0ms' }}
+      >
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
             Company Name
@@ -325,14 +350,21 @@ export function BusinessDetails() {
 
           <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
             <div className="h-20 w-28 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex items-center justify-center overflow-hidden">
-              <img src={logoUrl} alt="Company logo preview" className="max-h-16 max-w-24 object-contain" />
+              <img
+                src={logoUrl}
+                alt="Company logo preview"
+                className="max-h-16 max-w-24 object-contain"
+                onError={(e) => {
+                  e.currentTarget.src = '/assets/Maptech-Official-Logo.png';
+                }}
+              />
             </div>
 
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-200 hover:-translate-y-0.5"
               >
                 <ImagePlus className="h-4 w-4" />
                 Upload Logo
@@ -346,7 +378,7 @@ export function BusinessDetails() {
                   setLogoUrl('/assets/Maptech-Official-Logo.png');
                   if (fileRef.current) fileRef.current.value = '';
                 }}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-red-200 dark:border-red-800/60 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-red-200 dark:border-red-800/60 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200 hover:-translate-y-0.5"
               >
                 <Trash2 className="h-4 w-4" />
                 Reset to Default Logo
@@ -368,7 +400,7 @@ export function BusinessDetails() {
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60 transition-all duration-200 hover:-translate-y-0.5"
           >
             <Save className="h-4 w-4" />
             {saving ? 'Saving...' : 'Save Business Details'}

@@ -5,6 +5,7 @@ import {
   Lock,
   Camera,
   Save,
+  Upload,
   Shield,
   Building2,
   CheckCircle,
@@ -13,6 +14,7 @@ import {
   EyeOff,
   PenTool,
 } from 'lucide-react';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 const API_BASE = '/api';
 
@@ -21,6 +23,7 @@ interface ProfileData {
   fullName: string;
   email: string;
   role: string;
+  company_role: string | null;
   department: string | null;
   status: string;
   profile_picture: string | null;
@@ -40,6 +43,7 @@ async function getCsrf() {
 export function ProfileSettings() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isPageVisible, setIsPageVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingPic, setUploadingPic] = useState(false);
   const [uploadingSignature, setUploadingSignature] = useState(false);
@@ -47,6 +51,7 @@ export function ProfileSettings() {
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [companyRole, setCompanyRole] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -64,6 +69,16 @@ export function ProfileSettings() {
     loadProfile();
   }, []);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setIsPageVisible(true);
+    }, 90);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, []);
+
   const loadProfile = async () => {
     try {
       const res = await fetch(`${API_BASE}/profile`, {
@@ -75,6 +90,7 @@ export function ProfileSettings() {
         setProfile(data);
         setFullName(data.fullName);
         setEmail(data.email);
+        setCompanyRole(data.company_role ?? '');
       }
     } catch (err) {
       console.error('Failed to load profile:', err);
@@ -93,6 +109,9 @@ export function ProfileSettings() {
       const body: Record<string, string> = {};
       if (fullName !== profile?.fullName) body.fullName = fullName;
       if (email !== profile?.email) body.email = email;
+      if (profile?.role?.toLowerCase() === 'admin' && companyRole !== (profile?.company_role ?? '')) {
+        body.company_role = companyRole;
+      }
       if (password) {
         if (password.length < 8) {
           setMessage({ type: 'error', text: 'Password must be at least 8 characters.' });
@@ -132,7 +151,13 @@ export function ProfileSettings() {
         setMessage({ type: 'error', text: errors || 'Failed to update profile.' });
       } else {
         setMessage({ type: 'success', text: 'Profile updated successfully!' });
-        setProfile((prev) => prev ? { ...prev, fullName: data.user.fullName, email: data.user.email } : prev);
+        setProfile((prev) => prev ? {
+          ...prev,
+          fullName: data.user.fullName,
+          email: data.user.email,
+          company_role: data.user.company_role ?? prev.company_role,
+        } : prev);
+        setCompanyRole(data.user.company_role ?? '');
         setPassword('');
         setPasswordConfirmation('');
       }
@@ -173,6 +198,7 @@ export function ProfileSettings() {
       } else {
         setMessage({ type: 'success', text: 'Profile picture updated!' });
         setProfile((prev) => prev ? { ...prev, profile_picture: data.profile_picture } : prev);
+        window.dispatchEvent(new CustomEvent('profile-picture-updated', { detail: { profile_picture: data.profile_picture } }));
       }
     } catch (err) {
       setMessage({ type: 'error', text: 'Failed to upload picture.' });
@@ -250,6 +276,20 @@ export function ProfileSettings() {
     };
   };
 
+  const initializeSignatureCanvas = () => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  };
+
   const startSignatureDraw = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (uploadingSignature) return;
     const canvas = signatureCanvasRef.current;
@@ -289,11 +329,7 @@ export function ProfileSettings() {
   };
 
   const clearSignaturePad = () => {
-    const canvas = signatureCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    initializeSignatureCanvas();
     setHasDrawnSignature(false);
   };
 
@@ -335,12 +371,23 @@ export function ProfileSettings() {
     }
   };
 
+  const normalizedRole = profile?.role?.toLowerCase() ?? '';
+  const canManageSignature = ['admin', 'instructor'].includes(normalizedRole);
+  const signatureOwnerLabel = normalizedRole === 'admin' ? 'Admin' : 'Instructor';
+
+  useEffect(() => {
+    if (!canManageSignature) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      initializeSignatureCanvas();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [canManageSignature]);
+
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-        <span className="ml-3 text-slate-600">Loading profile...</span>
-      </div>
+      <LoadingState message="Loading profile" size="lg" className="min-h-[40vh]" />
     );
   }
 
@@ -354,19 +401,24 @@ export function ProfileSettings() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div
+      className={`settings-page-enter max-w-3xl mx-auto space-y-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
+    >
       <h1 className="text-2xl font-bold text-slate-900">Profile Settings</h1>
 
       {/* Message Banner */}
       {message && (
-        <div className={`flex items-center gap-2 p-4 rounded-lg text-sm font-medium ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+        <div className={`flex items-center gap-2 p-4 rounded-lg text-sm font-medium transition-all duration-300 ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
           {message.type === 'success' ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
           {message.text}
         </div>
       )}
 
       {/* Profile Picture Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+      <div
+        className={`settings-card-enter settings-card-delay-1 bg-white rounded-lg shadow-sm border border-slate-200 p-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
+        style={{ transitionDelay: isPageVisible ? '90ms' : '0ms' }}
+      >
         <h2 className="text-lg font-semibold text-slate-900 mb-4">Profile Picture</h2>
         <div className="flex items-center gap-6">
           <div className="relative">
@@ -385,7 +437,7 @@ export function ProfileSettings() {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadingPic}
-              className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-green-600 text-white flex items-center justify-center hover:bg-green-700 transition-colors shadow-md"
+              className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-green-600 text-white flex items-center justify-center hover:bg-green-700 transition-all duration-200 shadow-md hover:scale-105"
             >
               <Camera className="h-4 w-4" />
             </button>
@@ -416,14 +468,18 @@ export function ProfileSettings() {
         </div>
       </div>
 
-      {/* Instructor Signature Section */}
-      {profile.role.toLowerCase() === 'instructor' && (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Certificate Signature</h2>
+      {/* Signature Section */}
+      {canManageSignature && (
+        <div
+          className={`settings-card-enter settings-card-delay-2 bg-white rounded-lg shadow-sm border border-slate-200 p-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
+          style={{ transitionDelay: isPageVisible ? '150ms' : '0ms' }}
+        >
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">{signatureOwnerLabel} Signature</h2>
           <div className="flex flex-col sm:flex-row sm:items-center gap-6">
             <div className="w-full sm:w-72">
               <div
-                className="h-24 rounded-md border border-slate-200 bg-slate-50 flex items-center justify-center cursor-pointer overflow-hidden"
+                className="h-24 rounded-md border border-slate-300 bg-white flex items-center justify-center cursor-pointer overflow-hidden shadow-[inset_0_1px_2px_rgba(15,23,42,0.08)]"
+                style={{ backgroundColor: '#ffffff' }}
                 onClick={() => profile.signature_path && setShowSignaturePreview(true)}
               >
                 {profile.signature_path ? (
@@ -441,20 +497,21 @@ export function ProfileSettings() {
             </div>
 
             <div className="flex-1">
-              <p className="text-sm text-slate-700">
-                Upload your signature once and it will be used automatically for all generated certificates.
+              <p className="text-sm text-slate-700 dark:text-slate-200">
+                Upload your signature once or draw it using a mouse, touch input, or pen tablet.
               </p>
-              <p className="text-xs text-slate-500 mt-1">
-                PNG/JPG only, max 2MB. Uploading again replaces the previous signature.
+              <p className="text-xs text-slate-500 mt-1 dark:text-slate-300">
+                PNG/JPG only, max 2MB. Saving a new one replaces the current {signatureOwnerLabel.toLowerCase()} signature.
               </p>
 
-              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs text-slate-600">Draw signature using mouse, touch, or pen tablet.</p>
+              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/80">
+                <p className="text-xs text-slate-600 dark:text-slate-200">Draw signature using mouse, touch, or pen tablet.</p>
                 <canvas
                   ref={signatureCanvasRef}
                   width={900}
                   height={260}
-                  className="mt-2 w-full h-28 rounded-md border border-dashed border-slate-300 bg-white cursor-crosshair touch-none"
+                  className="mt-2 block w-full h-28 rounded-md border-2 border-slate-400 bg-white cursor-crosshair touch-none shadow-[0_0_0_1px_rgba(255,255,255,0.9),inset_0_1px_2px_rgba(15,23,42,0.08)] dark:border-slate-300 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.75),0_0_0_2px_rgba(16,185,129,0.2),inset_0_1px_2px_rgba(15,23,42,0.14)]"
+                  style={{ backgroundColor: '#ffffff', backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)' }}
                   onPointerDown={startSignatureDraw}
                   onPointerMove={moveSignatureDraw}
                   onPointerUp={endSignatureDraw}
@@ -466,7 +523,7 @@ export function ProfileSettings() {
                     type="button"
                     onClick={clearSignaturePad}
                     disabled={uploadingSignature}
-                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-500 dark:text-slate-100 dark:hover:bg-slate-700 transition-all duration-200 hover:-translate-y-0.5"
                   >
                     Clear Drawing
                   </button>
@@ -474,7 +531,7 @@ export function ProfileSettings() {
                     type="button"
                     onClick={uploadDrawnSignature}
                     disabled={uploadingSignature}
-                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 transition-all duration-200 hover:-translate-y-0.5"
                   >
                     <Save className="h-3.5 w-3.5 mr-1.5" />
                     Save Drawn Signature
@@ -482,15 +539,16 @@ export function ProfileSettings() {
                 </div>
               </div>
 
-              <div className="mt-3">
+              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/80">
+                <p className="text-xs text-slate-600 dark:text-slate-200">Or upload an e-signature image file.</p>
                 <button
                   type="button"
                   onClick={() => signatureInputRef.current?.click()}
                   disabled={uploadingSignature}
-                  className="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                  className="mt-2 inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 transition-all duration-200 hover:-translate-y-0.5"
                 >
-                  <PenTool className="h-4 w-4 mr-2" />
-                  {profile.signature_path ? 'Replace Signature' : 'Upload Signature'}
+                  <Upload className="h-4 w-4 mr-2" />
+                  {profile.signature_path ? 'Replace E-Signature' : 'Upload E-Signature'}
                 </button>
                 <input
                   ref={signatureInputRef}
@@ -513,7 +571,10 @@ export function ProfileSettings() {
       )}
 
       {/* Account Information */}
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+      <div
+        className={`settings-card-enter settings-card-delay-3 bg-white rounded-lg shadow-sm border border-slate-200 p-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
+        style={{ transitionDelay: isPageVisible ? '210ms' : '0ms' }}
+      >
         <h2 className="text-lg font-semibold text-slate-900 mb-4">Account Information</h2>
 
         {/* Read-only fields */}
@@ -554,6 +615,21 @@ export function ProfileSettings() {
               />
             </div>
           </div>
+
+          {profile.role.toLowerCase() === 'admin' && (
+            <div>
+              <label htmlFor="company_role" className="block text-sm font-medium text-slate-700 mb-1">Company Role</label>
+              <input
+                id="company_role"
+                type="text"
+                value={companyRole}
+                onChange={(e) => setCompanyRole(e.target.value)}
+                placeholder="e.g. Training Director"
+                className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+              />
+              <p className="mt-1 text-xs text-slate-500">This will appear on employee completion certificates below your signature.</p>
+            </div>
+          )}
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
@@ -700,7 +776,7 @@ export function ProfileSettings() {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 transition-all duration-200 hover:-translate-y-0.5"
             >
               {saving ? (
                 <>

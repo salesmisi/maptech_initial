@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, Plus, Users, ChevronRight, X, Trash2 } from 'lucide-react';
+import { safeArray } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
+import { Building2, Plus, Trash2, Users, BookOpen, X } from 'lucide-react';
 
 interface EmployeeRecord {
   id: number;
   fullname: string;
-  email?: string;
-  department?: string;
+  email?: string | null;
+  department?: string | null;
   subdepartment_id?: number | null;
 }
 
@@ -15,6 +17,7 @@ interface Subdepartment {
   head_id: number | null;
   employee_id: number | null;
   head_user?: { id: number; fullname: string } | null;
+  employee?: { id: number; fullname: string } | null;
   employees?: EmployeeRecord[];
 }
 
@@ -27,7 +30,7 @@ interface Department {
   head_id: number | null;
   head_user?: { id: number; fullname: string } | null;
   employee_count: number;
-  course_count: number;
+  instructor_count?: number;
   status: 'Active' | 'Inactive';
   subdepartments: Subdepartment[];
 }
@@ -52,6 +55,7 @@ export default function DepartmentManagement() {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
     if (parts.length === 2) return parts.pop()?.split(';').shift();
+    return '';
   };
 
   const getHeaders = () => ({
@@ -73,6 +77,12 @@ export default function DepartmentManagement() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showManageModal, setShowManageModal] = useState(false);
   const [activeDeptId, setActiveDeptId] = useState<number | null>(null);
+
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [employeeToMove, setEmployeeToMove] = useState<EmployeeRecord | null>(null);
+  const [moveDepartment, setMoveDepartment] = useState('');
+  const [moveSubdepartmentId, setMoveSubdepartmentId] = useState('');
+
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>({
     open: false,
     title: '',
@@ -80,11 +90,6 @@ export default function DepartmentManagement() {
     action: null,
   });
   const [confirmBusy, setConfirmBusy] = useState(false);
-
-  const [showMoveModal, setShowMoveModal] = useState(false);
-  const [employeeToMove, setEmployeeToMove] = useState<EmployeeRecord | null>(null);
-  const [moveDepartment, setMoveDepartment] = useState('');
-  const [moveSubdepartmentId, setMoveSubdepartmentId] = useState('');
 
   const [createForm, setCreateForm] = useState({
     name: '',
@@ -114,7 +119,11 @@ export default function DepartmentManagement() {
       credentials: 'include',
       headers: getHeaders(),
     });
-    if (!res.ok) throw new Error('Failed to load departments.');
+
+    if (!res.ok) {
+      throw new Error('Failed to load departments.');
+    }
+
     const data = await res.json();
     setDepartments(Array.isArray(data) ? data : []);
   };
@@ -171,11 +180,11 @@ export default function DepartmentManagement() {
     setDeptHeadId(activeDepartment.head_id ? String(activeDepartment.head_id) : '');
 
     const nextDrafts: Record<number, string> = {};
-    for (const sub of activeDepartment.subdepartments || []) {
+    for (const sub of safeArray(activeDepartment.subdepartments)) {
       nextDrafts[sub.id] = sub.head_id ? String(sub.head_id) : '';
     }
     setSubHeadDrafts(nextDrafts);
-  }, [activeDepartment?.id, activeDepartment?.head_id, activeDepartment?.subdepartments]);
+  }, [activeDepartment]);
 
   const openManageModal = (dept: Department) => {
     setActiveDeptId(dept.id);
@@ -189,16 +198,12 @@ export default function DepartmentManagement() {
   };
 
   const askConfirm = (title: string, message: string, action: () => Promise<void>) => {
-    setConfirmDialog({
-      open: true,
-      title,
-      message,
-      action,
-    });
+    setConfirmDialog({ open: true, title, message, action });
   };
 
   const runConfirmAction = async () => {
     if (!confirmDialog.action) return;
+
     setConfirmBusy(true);
     try {
       await confirmDialog.action();
@@ -215,6 +220,7 @@ export default function DepartmentManagement() {
       alert('Department Name is required.');
       return;
     }
+
     if (!createForm.code.trim()) {
       alert('Department Code is required.');
       return;
@@ -335,11 +341,12 @@ export default function DepartmentManagement() {
   };
 
   const handleSaveSubHead = async (sub: Subdepartment) => {
-    const headId = subHeadDrafts[sub.id] ?? '';
+    if (!activeDepartment) return;
 
     setSaving(true);
     try {
       const xsrfToken = await getXsrfToken();
+      const draft = subHeadDrafts[sub.id] ?? '';
       const res = await fetch(`${API}/subdepartments/${sub.id}`, {
         method: 'PUT',
         credentials: 'include',
@@ -351,8 +358,8 @@ export default function DepartmentManagement() {
         },
         body: JSON.stringify({
           name: sub.name,
-          head_id: headId ? Number(headId) : null,
-          employee_id: sub.employee_id ?? null,
+          head_id: draft ? Number(draft) : null,
+          employee_id: sub.employee_id,
         }),
       });
 
@@ -398,47 +405,38 @@ export default function DepartmentManagement() {
   };
 
   const handleDeleteSubdepartment = (sub: Subdepartment) => {
-    askConfirm(
-      'Delete Subdepartment',
-      `Are you sure you want to delete ${sub.name}?`,
-      async () => {
-        const xsrfToken = await getXsrfToken();
-        const res = await fetch(`${API}/subdepartments/${sub.id}`, {
-          method: 'DELETE',
-          credentials: 'include',
-          headers: {
-            Accept: 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-XSRF-TOKEN': xsrfToken,
-          },
-        });
+    askConfirm('Delete Subdepartment', `Are you sure you want to delete ${sub.name}?`, async () => {
+      const xsrfToken = await getXsrfToken();
+      const res = await fetch(`${API}/subdepartments/${sub.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrfToken,
+        },
+      });
 
-        if (!res.ok) {
-          const txt = await res.text();
-          throw new Error(txt || 'Failed to delete subdepartment.');
-        }
-
-        await reloadAndKeepActive();
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || 'Failed to delete subdepartment.');
       }
-    );
+
+      await reloadAndKeepActive();
+    });
   };
 
-  const openMoveEmployeeModal = (emp: EmployeeRecord) => {
-    if (!activeDepartment) return;
-    setEmployeeToMove(emp);
-    setMoveDepartment(activeDepartment.name);
-    setMoveSubdepartmentId(emp.subdepartment_id ? String(emp.subdepartment_id) : '');
+  const openMoveEmployeeModal = (employee: EmployeeRecord) => {
+    setEmployeeToMove(employee);
+    setMoveDepartment(employee.department || activeDepartment?.name || '');
+    setMoveSubdepartmentId(employee.subdepartment_id ? String(employee.subdepartment_id) : '');
     setShowMoveModal(true);
   };
 
   const handleMoveEmployee = async () => {
     if (!employeeToMove) return;
     if (!moveDepartment) {
-      alert('Please select a target department.');
-      return;
-    }
-    if (!moveSubdepartmentId) {
-      alert('Please select a target subdepartment.');
+      alert('Please select a department.');
       return;
     }
 
@@ -456,7 +454,7 @@ export default function DepartmentManagement() {
         },
         body: JSON.stringify({
           department: moveDepartment,
-          subdepartment_id: Number(moveSubdepartmentId),
+          subdepartment_id: moveSubdepartmentId ? Number(moveSubdepartmentId) : null,
         }),
       });
 
@@ -467,8 +465,6 @@ export default function DepartmentManagement() {
 
       setShowMoveModal(false);
       setEmployeeToMove(null);
-      setMoveDepartment('');
-      setMoveSubdepartmentId('');
       await reloadAndKeepActive();
     } catch (err: any) {
       alert(err.message || 'Failed to move employee.');
@@ -477,33 +473,29 @@ export default function DepartmentManagement() {
     }
   };
 
-  if (loading) {
-    return <div className="p-6 text-slate-600 dark:text-slate-300">Loading departments...</div>;
-  }
-
-  if (error) {
-    return <div className="p-6 text-rose-600">{error}</div>;
-  }
+  if (loading) return <LoadingState message="Loading departments" className="p-6" />;
+  if (error) return <div className="p-6 text-red-600">{error}</div>;
 
   return (
     <div className="p-6 text-slate-900 dark:text-slate-100">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Department Management</h1>
+      <div className="department-toolbar-animate mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Department Management</h1>
+
         <button
           onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-950 transition-colors hover:bg-emerald-400"
+          className="department-cta-button flex items-center rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-950 transition-colors hover:bg-emerald-400"
         >
           <Plus className="mr-2 h-4 w-4" />
           Add Department
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-        {departments.map((dept) => (
-          <button
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {departments.map((dept, deptIndex) => (
+          <div
             key={dept.id}
-            onClick={() => openManageModal(dept)}
-            className="group rounded-xl border border-slate-200 bg-white p-5 text-left shadow transition-all hover:border-emerald-400 hover:shadow-md dark:border-slate-700/80 dark:bg-slate-900/80"
+            className="department-card rounded-xl border border-slate-200 bg-white p-5 shadow dark:border-slate-700/80 dark:bg-slate-900/80 dark:shadow-[0_10px_30px_rgba(2,6,23,0.35)]"
+            style={{ animationDelay: `${Math.min(deptIndex * 55, 440)}ms` }}
           >
             <div className="mb-4 flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -515,16 +507,52 @@ export default function DepartmentManagement() {
                   <p className="text-xs text-slate-500 dark:text-slate-400">{dept.code}</p>
                 </div>
               </div>
-              <ChevronRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-1" />
             </div>
 
             <p className="mb-1 text-sm text-slate-600 dark:text-slate-300">
-              Head: <span className="font-medium text-slate-900 dark:text-slate-100">{dept.head_user?.fullname || 'Unassigned'}</span>
+              Head:{' '}
+              <span className="font-medium text-slate-900 dark:text-slate-100">
+                {dept.head_user?.fullname || 'Unassigned'}
+              </span>
             </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {dept.subdepartments?.length || 0} subdepartment(s)
-            </p>
-          </button>
+
+            {dept.description && <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">{dept.description}</p>}
+
+            <div className="mb-4 grid grid-cols-2 gap-3 text-xs">
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+                <div className="mb-1 flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                  <Users className="h-3.5 w-3.5" /> Employees
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{dept.employee_count ?? 0}</div>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+                <div className="mb-1 flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                  <BookOpen className="h-3.5 w-3.5" /> Instructor
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{dept.instructor_count ?? 0}</div>
+              </div>
+            </div>
+
+            <div className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+              Subdepartments: <span className="font-medium text-slate-700 dark:text-slate-200">{safeArray(dept.subdepartments).length}</span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => openManageModal(dept)}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Manage
+              </button>
+
+              <button
+                onClick={() => handleDeleteDepartment(dept)}
+                className="inline-flex items-center rounded-md border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40"
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete
+              </button>
+            </div>
+          </div>
         ))}
       </div>
 
@@ -542,10 +570,11 @@ export default function DepartmentManagement() {
             onChange={(v) => setCreateForm((s) => ({ ...s, code: v }))}
           />
           <TextInput
-            placeholder="Description (optional)"
+            placeholder="Description"
             value={createForm.description}
             onChange={(v) => setCreateForm((s) => ({ ...s, description: v }))}
           />
+
           <button
             onClick={handleCreateDepartment}
             disabled={saving}
@@ -558,29 +587,17 @@ export default function DepartmentManagement() {
 
       {showManageModal && activeDepartment && (
         <Modal onClose={() => setShowManageModal(false)} maxWidthClass="max-w-4xl">
-          <div className="mb-4 flex items-start justify-between gap-3 border-b border-slate-200 pb-3 dark:border-slate-700">
-            <div>
-              <h2 className="text-xl font-semibold">{activeDepartment.name}</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Manage heads and subdepartments</p>
-            </div>
-            <button
-              onClick={() => handleDeleteDepartment(activeDepartment)}
-              className="inline-flex items-center rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40"
-            >
-              <Trash2 className="mr-1 h-4 w-4" />
-              Delete Department
-            </button>
-          </div>
+          <h2 className="mb-4 text-lg font-semibold">Manage {activeDepartment.name}</h2>
 
           <div className="mb-6 rounded-lg border border-slate-200 p-4 dark:border-slate-700">
-            <p className="mb-2 text-sm font-medium">Department Head (Admin / Instructor)</p>
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <p className="mb-2 text-sm font-semibold">Department Head</p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <select
                 value={deptHeadId}
                 onChange={(e) => setDeptHeadId(e.target.value)}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none sm:w-80 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
-                <option value="">Select head</option>
+                <option value="">Select Department Head</option>
                 {headCandidates.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.fullname} ({u.role})
@@ -590,7 +607,7 @@ export default function DepartmentManagement() {
               <button
                 onClick={handleSaveDepartmentHead}
                 disabled={saving}
-                className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Save Head
               </button>
@@ -598,13 +615,12 @@ export default function DepartmentManagement() {
           </div>
 
           <div className="mb-6 rounded-lg border border-slate-200 p-4 dark:border-slate-700">
-            <p className="mb-2 text-sm font-medium">Create Subdepartment</p>
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+            <p className="mb-2 text-sm font-semibold">Add Subdepartment</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <input
-                type="text"
-                placeholder="Subdepartment name"
                 value={newSubForm.name}
                 onChange={(e) => setNewSubForm((s) => ({ ...s, name: e.target.value }))}
+                placeholder="Subdepartment name"
                 className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               />
               <select
@@ -612,33 +628,38 @@ export default function DepartmentManagement() {
                 onChange={(e) => setNewSubForm((s) => ({ ...s, head_id: e.target.value }))}
                 className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
-                <option value="">Assign subdepartment head</option>
+                <option value="">Select Head</option>
                 {headCandidates.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.fullname} ({u.role})
+                    {u.fullname}
                   </option>
                 ))}
               </select>
               <button
                 onClick={handleCreateSubdepartment}
                 disabled={saving}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+                className="rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Add Subdepartment
               </button>
             </div>
           </div>
 
-          <div className="space-y-4">
-            {activeDepartment.subdepartments?.length ? (
-              activeDepartment.subdepartments.map((sub) => (
+          <div className="space-y-3">
+            {safeArray(activeDepartment.subdepartments).length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                No subdepartments yet.
+              </div>
+            ) : (
+              safeArray(activeDepartment.subdepartments).map((sub) => (
                 <div key={sub.id} className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
-                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <p className="font-semibold text-slate-900 dark:text-slate-100">{sub.name}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Subdepartment Head (Admin / Instructor)</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Subdepartment Head</p>
                     </div>
-                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <select
                         value={subHeadDrafts[sub.id] ?? ''}
                         onChange={(e) => setSubHeadDrafts((prev) => ({ ...prev, [sub.id]: e.target.value }))}
@@ -656,7 +677,7 @@ export default function DepartmentManagement() {
                         disabled={saving}
                         className="rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        Save
+                        Save Head
                       </button>
                       <button
                         onClick={() => handleDeleteSubdepartment(sub)}
@@ -668,13 +689,10 @@ export default function DepartmentManagement() {
                   </div>
 
                   <div className="rounded-md bg-slate-50 p-3 dark:bg-slate-800/70">
-                    <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      <Users className="h-4 w-4" />
-                      Employee Records
-                    </div>
-                    {sub.employees && sub.employees.length > 0 ? (
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Employee Records</div>
+                    {safeArray(sub.employees).length > 0 ? (
                       <div className="space-y-1">
-                        {sub.employees.map((emp) => (
+                        {safeArray(sub.employees).map((emp) => (
                           <div key={emp.id} className="flex items-center justify-between rounded border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
                             <span className="font-medium text-slate-900 dark:text-slate-100">{emp.fullname}</span>
                             <div className="flex items-center gap-2">
@@ -690,15 +708,11 @@ export default function DepartmentManagement() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-500 dark:text-slate-400">No employees assigned in User Management yet.</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">No employees assigned yet.</p>
                     )}
                   </div>
                 </div>
               ))
-            ) : (
-              <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                No subdepartments yet. Create one above.
-              </div>
             )}
           </div>
         </Modal>
@@ -714,7 +728,7 @@ export default function DepartmentManagement() {
         >
           <h3 className="mb-1 text-lg font-semibold">Move Employee</h3>
           <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-            Move <span className="font-semibold text-slate-900 dark:text-slate-100">{employeeToMove.fullname}</span> to the correct department and subdepartment.
+            Move <span className="font-semibold text-slate-900 dark:text-slate-100">{employeeToMove.fullname}</span> to another department/subdepartment.
           </p>
 
           <div className="space-y-3">
@@ -730,7 +744,9 @@ export default function DepartmentManagement() {
               >
                 <option value="">Select department</option>
                 {departments.map((d) => (
-                  <option key={d.id} value={d.name}>{d.name}</option>
+                  <option key={d.id} value={d.name}>
+                    {d.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -744,7 +760,9 @@ export default function DepartmentManagement() {
               >
                 <option value="">Select subdepartment</option>
                 {moveDepartmentSubdepartments.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -815,7 +833,7 @@ function Modal({
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-sm">
       <div className="flex h-full items-center justify-center px-4 py-4 sm:py-8">
-        <div className={`relative w-full ${maxWidthClass} max-h-[92dvh] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900`}>
+        <div className={`relative max-h-[92dvh] w-full ${maxWidthClass} overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900`}>
           <button
             onClick={onClose}
             className="absolute right-6 top-4 z-20 inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300/70 bg-white/90 text-slate-500 shadow-sm backdrop-blur transition hover:text-slate-800 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-400 dark:hover:text-slate-100"
@@ -823,9 +841,7 @@ function Modal({
             <X className="h-5 w-5" />
           </button>
 
-          <div className="max-h-[92dvh] overflow-y-auto p-6 pr-5 pt-12">
-            {children}
-          </div>
+          <div className="max-h-[92dvh] overflow-y-auto p-6 pr-5 pt-12">{children}</div>
         </div>
       </div>
     </div>

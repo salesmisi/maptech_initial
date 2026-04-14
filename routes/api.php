@@ -1,70 +1,16 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
+use App\Models\AuditLog;
 use App\Models\Department;
 use App\Models\Subdepartment;
-use App\Models\AuditLog;
-use App\Rules\MaptechEmail;
-use App\Rules\StrongPassword;
+use App\Models\TimeLog;
+use App\Models\User;
+use App\Support\AuditDate;
+use App\Http\Controllers\LoginController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-
-if (!function_exists('maptech_audit_storage_timezone')) {
-    function maptech_audit_storage_timezone(): string
-    {
-        $tz = (string) config('app.audit_log_storage_timezone', 'Asia/Manila');
-        return $tz !== '' ? $tz : 'Asia/Manila';
-    }
-}
-
-if (!function_exists('maptech_parse_storage_datetime')) {
-    function maptech_parse_storage_datetime($value): ?Carbon
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
-
-        try {
-            if ($value instanceof Carbon) {
-                return $value->copy();
-            }
-
-            return Carbon::parse((string) $value, maptech_audit_storage_timezone());
-        } catch (\Throwable $e) {
-            return null;
-        }
-    }
-}
-
-if (!function_exists('maptech_model_storage_datetime')) {
-    function maptech_model_storage_datetime($model, string $field): ?Carbon
-    {
-        if (!$model) {
-            return null;
-        }
-
-        $raw = null;
-        if (is_object($model) && method_exists($model, 'getRawOriginal')) {
-            $raw = $model->getRawOriginal($field);
-        }
-
-        if (($raw === null || $raw === '') && is_object($model) && isset($model->{$field})) {
-            $raw = $model->{$field};
-        }
-
-        return maptech_parse_storage_datetime($raw);
-    }
-}
-
-if (!function_exists('maptech_model_field_utc_iso')) {
-    function maptech_model_field_utc_iso($model, string $field): ?string
-    {
-        $dt = maptech_model_storage_datetime($model, $field);
-        return $dt ? $dt->utc()->toIso8601String() : null;
-    }
-}
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -72,14 +18,40 @@ if (!function_exists('maptech_model_field_utc_iso')) {
 |--------------------------------------------------------------------------
 */
 
-// GET ALL DEPARTMENTS (with subdepartments and head user)
 Route::get('/departments', function () {
-    return Department::with([
+    $departments = Department::with([
         'subdepartments.headUser:id,fullname',
         'subdepartments.employee:id,fullname',
         'subdepartments.employees:id,fullname,email,department,subdepartment_id',
-        'headUser:id,fullname'
+        'headUser:id,fullname',
     ])->get();
+
+    return $departments->map(function (Department $department) {
+        $name = strtolower(trim((string) $department->name));
+        $code = strtolower(trim((string) ($department->code ?? '')));
+
+        $acceptedDepartments = array_values(array_unique(array_filter([$name, $code])));
+
+        $department->employee_count = User::query()
+            ->whereRaw('LOWER(role) = ?', ['employee'])
+            ->where(function ($q) use ($acceptedDepartments) {
+                foreach ($acceptedDepartments as $dept) {
+                    $q->orWhereRaw('LOWER(TRIM(department)) = ?', [$dept]);
+                }
+            })
+            ->count();
+
+        $department->instructor_count = User::query()
+            ->whereRaw('LOWER(role) = ?', ['instructor'])
+            ->where(function ($q) use ($acceptedDepartments) {
+                foreach ($acceptedDepartments as $dept) {
+                    $q->orWhereRaw('LOWER(TRIM(department)) = ?', [$dept]);
+                }
+            })
+            ->count();
+
+        return $department;
+    })->values();
 });
 
 // CREATE DEPARTMENT
@@ -154,10 +126,9 @@ Route::delete('/departments/{id}', function ($id) {
     Department::findOrFail($id)->delete();
 
     return response()->json([
-        'message' => 'Department deleted successfully'
+        'message' => 'Department deleted successfully',
     ]);
 });
-
 
 /*
 |--------------------------------------------------------------------------
@@ -233,18 +204,15 @@ Route::delete('/subdepartments/{id}', function ($id) {
     Subdepartment::findOrFail($id)->delete();
 
     return response()->json([
-        'message' => 'Subdepartment deleted successfully'
+        'message' => 'Subdepartment deleted successfully',
     ]);
 });
-
 
 /*
 |--------------------------------------------------------------------------
 | AUTHENTICATION ROUTES
 |--------------------------------------------------------------------------
 */
-
-use App\Http\Controllers\LoginController;
 
 // API Token Login (JWT-like)
 Route::post('/login', [LoginController::class, 'apiLogin']);
@@ -260,7 +228,7 @@ Route::post('/logout', [LoginController::class, 'logout'])
 // Current user's audit logs (authenticated users)
 Route::get('/me/audit-logs', function (Request $request) {
     $user = $request->user();
-    if (!$user) {
+    if (! $user) {
         return response()->json(['message' => 'Unauthenticated'], 401);
     }
 
@@ -272,31 +240,45 @@ Route::get('/me/audit-logs', function (Request $request) {
     // For each audit entry, attempt to attach the matching time_log (same logic as admin endpoint)
     $logs = $logs->map(function ($log) {
         $timeLog = null;
-        $logAt = maptech_model_storage_datetime($log, 'created_at');
-        if ($logAt) {
+
+        // Exact deterministic linkage for newly written rows.
+        if ($log->action === 'login') {
+            $timeLog = TimeLog::where('login_audit_log_id', $log->id)->first();
+        } elseif ($log->action === 'logout') {
+            $timeLog = TimeLog::where('logout_audit_log_id', $log->id)->first();
+        }
+
+        // Legacy fallback: match by user + tight time window.
+        $logAt = AuditDate::modelStorageDateTime($log, 'created_at');
+        if (!$timeLog && $logAt) {
             $start = $logAt->copy()->subMinutes(2)->toDateTimeString();
             $end = $logAt->copy()->addMinutes(2)->toDateTimeString();
             if ($log->action === 'login') {
-                    $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
+                $candidates = TimeLog::where('user_id', $log->user_id)
                     ->whereBetween('time_in', [$start, $end])
-                        ->get();
-                    $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
-                        $timeIn = maptech_model_storage_datetime($tl, 'time_in');
-                        if (!$timeIn || !$logAt) return PHP_INT_MAX;
-                        return abs($timeIn->diffInSeconds($logAt, false));
-                    })->first();
+                    ->get();
+                $timeLog = $candidates->sortBy(function ($tl) use ($log) {
+                    if (! $tl->time_in || ! $log->created_at) {
+                        return PHP_INT_MAX;
+                    }
+
+                    return abs(Carbon::parse($tl->time_in)->diffInSeconds($log->created_at, false));
+                })->first();
             } elseif ($log->action === 'logout') {
-                    $candidates = \App\Models\TimeLog::where('user_id', $log->user_id)
+                $candidates = TimeLog::where('user_id', $log->user_id)
                     ->whereBetween('time_out', [$start, $end])
-                        ->get();
-                    $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
-                        $timeOut = maptech_model_storage_datetime($tl, 'time_out');
-                        if (!$timeOut || !$logAt) return PHP_INT_MAX;
-                        return abs($timeOut->diffInSeconds($logAt, false));
-                    })->first();
+                    ->get();
+                $timeLog = $candidates->sortBy(function ($tl) use ($log) {
+                    if (! $tl->time_out || ! $log->created_at) {
+                        return PHP_INT_MAX;
+                    }
+
+                    return abs(Carbon::parse($tl->time_out)->diffInSeconds($log->created_at, false));
+                })->first();
             }
         }
         $log->time_log = $timeLog;
+
         return $log;
     });
 
@@ -307,12 +289,12 @@ Route::get('/me/audit-logs', function (Request $request) {
             'user_id' => $log->user_id,
             'action' => $log->action,
             'ip_address' => $log->ip_address,
-            'created_at' => maptech_model_field_utc_iso($log, 'created_at'),
-            'updated_at' => maptech_model_field_utc_iso($log, 'updated_at'),
+            'created_at' => AuditDate::modelFieldUtcIso($log, 'created_at'),
+            'updated_at' => AuditDate::modelFieldUtcIso($log, 'updated_at'),
             'time_log' => $log->time_log ? [
                 'id' => $log->time_log->id,
-                'time_in' => maptech_model_field_utc_iso($log->time_log, 'time_in'),
-                'time_out' => maptech_model_field_utc_iso($log->time_log, 'time_out'),
+                'time_in' => AuditDate::modelFieldUtcIso($log->time_log, 'time_in'),
+                'time_out' => AuditDate::modelFieldUtcIso($log->time_log, 'time_out'),
             ] : null,
         ];
     });
@@ -320,24 +302,24 @@ Route::get('/me/audit-logs', function (Request $request) {
     return response()->json(['data' => $data]);
 })->middleware(['auth:sanctum', 'status']);
 
-
 /*
 |--------------------------------------------------------------------------
 | ADMIN ROUTES - Role: Admin Only
 |--------------------------------------------------------------------------
 */
 
-use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\BusinessDetailsController;
 use App\Http\Controllers\Admin\CourseController as AdminCourseController;
 use App\Http\Controllers\Admin\ProductLogoManagerController;
-use App\Http\Controllers\Admin\BusinessDetailsController;
-use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\QuizController as AdminQuizController;
+use App\Http\Controllers\Admin\ReportController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AnalyticsController;
 
 // Test route for debugging
-Route::get('/test-auth', function () {
-    $user = request()->user();
+Route::get('/test-auth', function (Request $request) {
+    $user = $request->user();
+
     return response()->json([
         'message' => 'API is working',
         'timestamp' => Carbon::now()->utc()->toIso8601String(),
@@ -346,7 +328,7 @@ Route::get('/test-auth', function () {
             'name' => $user->fullname,
             'role' => $user->role,
             'status' => $user->status,
-        ] : null
+        ] : null,
     ]);
 });
 
@@ -388,6 +370,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
     // Course Enrollment Management
     Route::get('/enrollments', [AdminCourseController::class, 'allEnrollments']);
+    Route::get('/enrollments/mismatched', [AdminCourseController::class, 'mismatchedEnrollments']);
     Route::get('/courses/{id}/enrollments', [AdminCourseController::class, 'enrollments']);
     Route::get('/modules/{moduleId}/enrollment-lists', [AdminCourseController::class, 'moduleEnrollmentLists']);
     Route::post('/courses/{id}/enrollments', [AdminCourseController::class, 'enroll']);
@@ -444,8 +427,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::get('/audit-logs', function (Request $request) {
         $roleFilter = null;
         if ($request->filled('role')) {
-            $roleFilter = strtolower((string) $request->input('role'));
-            if (!in_array($roleFilter, ['admin', 'instructor', 'employee'], true)) {
+            $roleFilter = strtolower($request->input('role'));
+            if (! in_array($roleFilter, ['admin', 'instructor', 'employee'])) {
                 return response()->json(['message' => 'Invalid role filter'], 422);
             }
         }
@@ -454,7 +437,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         $page = max(1, (int) $request->input('page', 1));
 
         try {
-            $query = DB::table('audit_logs as a')
+            $query = \Illuminate\Support\Facades\DB::table('audit_logs as a')
                 ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
                 ->whereNull('a.deleted_at')
                 ->select([
@@ -477,47 +460,54 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             if ($request->filled('user_id')) {
                 $query->where('a.user_id', (int) $request->input('user_id'));
             }
-
-            $total = (clone $query)->count('a.id');
-            $rows = $query
+            $paginator = $query
                 ->orderByDesc('a.created_at')
-                ->forPage($page, $perPage)
-                ->get();
+                ->paginate($perPage, ['*'], 'page', $page);
 
-            $data = collect($rows)->map(function ($row) {
-                $createdAt = maptech_parse_storage_datetime($row->created_at);
-                $hasUser = !empty($row->user_ref_id);
+            $data = collect($paginator->items())->map(function ($row) {
+                $createdAt = null;
+                if (!empty($row->created_at)) {
+                    try {
+                        $createdAt = Carbon::parse($row->created_at)->setTimezone('UTC')->toIso8601String();
+                    } catch (\Throwable $e) {
+                        $createdAt = (string) $row->created_at;
+                    }
+                }
 
                 return [
                     'id' => $row->id,
                     'user_id' => $row->user_id,
                     'action' => $row->action,
                     'ip_address' => $row->ip_address,
-                    'created_at' => $createdAt ? $createdAt->utc()->toIso8601String() : null,
-                    'user' => $hasUser ? [
+                    'created_at' => $createdAt,
+                    'user' => $row->user_ref_id ? [
                         'id' => $row->user_ref_id,
                         'fullname' => $row->user_fullname,
                         'email' => $row->user_email,
                         'role' => $row->user_role,
                         'department' => $row->user_department,
                     ] : null,
-                    'time_log' => null,
                 ];
             })->values();
 
             return response()->json([
                 'data' => $data,
-                'current_page' => $page,
-                'last_page' => (int) ceil($total / $perPage),
-                'total' => $total,
-                'per_page' => $perPage,
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'total' => $paginator->total(),
+                'per_page' => $paginator->perPage(),
             ]);
         } catch (\Throwable $e) {
             Log::error('Admin audit logs stable query failed', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
             ]);
+
+            $errorDetail = config('app.debug')
+                ? $e->getMessage()
+                : 'Audit logs are temporarily unavailable.';
 
             return response()->json([
                 'data' => [],
@@ -525,15 +515,15 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 'last_page' => 1,
                 'total' => 0,
                 'per_page' => $perPage,
-                'message' => 'Audit logs are temporarily unavailable.',
-            ], 200);
+                'message' => $errorDetail,
+            ], 500);
         }
     });
     // Bulk delete audit logs by id
     Route::post('/audit-logs/bulk-delete', function (Request $request) {
         $request->validate([
             'ids' => 'required|array|min:1',
-            'ids.*' => 'integer|exists:audit_logs,id'
+            'ids.*' => 'integer|exists:audit_logs,id',
         ]);
         $ids = $request->input('ids', []);
         $deleted = \App\Models\AuditLog::whereIn('id', $ids)->delete();
@@ -559,7 +549,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::post('/audit-logs/bulk-delete-by-users', function (Request $request) {
         $request->validate([
             'user_ids' => 'required|array|min:1',
-            'user_ids.*' => 'integer|exists:users,id'
+            'user_ids.*' => 'integer|exists:users,id',
         ]);
         $userIds = $request->input('user_ids', []);
         $deleted = \App\Models\AuditLog::whereIn('user_id', $userIds)->delete();
@@ -620,6 +610,9 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         $log = \App\Models\AuditLog::onlyTrashed()->findOrFail($id);
         $log->forceDelete();
         return response()->json(['message' => 'Audit log permanently deleted']);
+        $deleted = AuditLog::whereIn('user_id', $userIds)->delete();
+
+        return response()->json(['deleted' => $deleted]);
     });
 
     // Notification Management (Admin)
@@ -694,7 +687,7 @@ Route::get('/admin/lesson-events', [AnalyticsController::class, 'recentLessonEve
 if (env('APP_ENV') === 'local') {
     Route::get('/dev/create-it-test', function () {
         $u = \App\Models\User::firstOrCreate([
-            'email' => 'it-test@example.com'
+            'email' => 'it-test@example.com',
         ], [
             'fullname' => 'IT Tester',
             'password' => bcrypt('password'),
@@ -704,7 +697,7 @@ if (env('APP_ENV') === 'local') {
         ]);
 
         $s = \App\Models\User::firstOrCreate([
-            'email' => 'student-test@example.com'
+            'email' => 'student-test@example.com',
         ], [
             'fullname' => 'Student Tester',
             'password' => bcrypt('password'),
@@ -714,14 +707,14 @@ if (env('APP_ENV') === 'local') {
         ]);
 
         $course = \App\Models\Course::firstOrCreate([
-            'title' => 'IT Test Course'
+            'title' => 'IT Test Course',
         ], [
             'description' => 'Test course',
             'department' => 'IT',
             'status' => 'Active',
         ]);
 
-        if (!\App\Models\Enrollment::where('course_id', $course->id)->where('user_id', $s->id)->exists()) {
+        if (! \App\Models\Enrollment::where('course_id', $course->id)->where('user_id', $s->id)->exists()) {
             $course->enrollments()->create([
                 'user_id' => $s->id,
                 'progress' => 0,
@@ -743,7 +736,7 @@ if (env('APP_ENV') === 'local') {
     // Create a dev admin and two test users, return admin token and test user IDs
     Route::post('/dev/create-admin-and-test-users', function () {
         $admin = \App\Models\User::firstOrCreate([
-            'email' => 'dev-admin@example.com'
+            'email' => 'dev-admin@example.com',
         ], [
             'fullname' => 'Dev Admin',
             'password' => bcrypt('password'),
@@ -753,7 +746,7 @@ if (env('APP_ENV') === 'local') {
         ]);
 
         $u1 = \App\Models\User::firstOrCreate([
-            'email' => 'dev-user1@example.com'
+            'email' => 'dev-user1@example.com',
         ], [
             'fullname' => 'Dev User 1',
             'password' => bcrypt('password'),
@@ -763,7 +756,7 @@ if (env('APP_ENV') === 'local') {
         ]);
 
         $u2 = \App\Models\User::firstOrCreate([
-            'email' => 'dev-user2@example.com'
+            'email' => 'dev-user2@example.com',
         ], [
             'fullname' => 'Dev User 2',
             'password' => bcrypt('password'),
@@ -780,7 +773,6 @@ if (env('APP_ENV') === 'local') {
         ]);
     });
 }
-
 
 /*
 |--------------------------------------------------------------------------
@@ -881,7 +873,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::get('/feedbacks', [\App\Http\Controllers\Admin\FeedbackController::class, 'index']);
 
     // Custom Modules (read-only access for instructors)
-    Route::get('/custom-modules', function (\Illuminate\Http\Request $request) {
+    Route::get('/custom-modules', function (Request $request) {
         // Instructors can only view published learning modules (not UI components)
         return \App\Models\CustomModule::with(['creator:id,fullname,email', 'lessons'])
             ->where('status', 'published')
@@ -889,7 +881,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
             ->orderBy('order')
             ->get();
     });
-    Route::get('/custom-modules/{id}', function (\Illuminate\Http\Request $request, int $id) {
+    Route::get('/custom-modules/{id}', function (Request $request, int $id) {
         // Instructors can only view published learning modules (not UI components)
         return \App\Models\CustomModule::with(['creator:id,fullname,email', 'lessons'])
             ->where('status', 'published')
@@ -909,9 +901,9 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
 |--------------------------------------------------------------------------
 */
 
+use App\Http\Controllers\Employee\CertificateController;
 use App\Http\Controllers\Employee\DashboardController;
 use App\Http\Controllers\Employee\QuizController as EmployeeQuizController;
-use App\Http\Controllers\Employee\CertificateController;
 
 Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee', 'department'])->group(function () {
 
@@ -1002,9 +994,9 @@ use App\Http\Controllers\ContentController;
 // Serve module content for authenticated users
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/modules/{module}/content', function (\App\Models\Module $module) {
-        $path = storage_path('app/public/' . $module->content_path);
+        $path = storage_path('app/public/'.$module->content_path);
 
-        if (!file_exists($path)) {
+        if (! file_exists($path)) {
             return response()->json(['message' => 'File not found'], 404);
         }
 
@@ -1025,16 +1017,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // ── Profile Settings ──
     Route::get('/profile', function (Request $request) {
         $user = $request->user();
+
         return response()->json([
             'id' => $user->id,
             // Prefer camelCase DB column `fullName` but fall back to `fullname` if present
             'fullName' => $user->fullName ?? $user->fullname,
             'email' => $user->email,
             'role' => $user->role,
+            'company_role' => $user->company_role,
             'department' => $user->department,
             'status' => $user->status,
-            'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
-            'signature_path' => $user->signature_path ? asset('storage/' . $user->signature_path) : null,
+            'profile_picture' => $user->profile_picture ? asset('storage/'.$user->profile_picture) : null,
+            'signature_path' => $user->signature_path ? asset('storage/'.$user->signature_path) : null,
         ]);
     });
 
@@ -1047,8 +1041,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // Only admins can change email and password
         if ($user->isAdmin()) {
-            $rules['email'] = ['sometimes', 'email', new MaptechEmail, 'max:255', 'unique:users,email,' . $user->id];
-            $rules['password'] = ['sometimes', 'string', new StrongPassword, 'confirmed'];
+            $rules['email'] = 'sometimes|email|max:255|unique:users,email,'.$user->id;
+            $rules['password'] = 'sometimes|string|min:8|confirmed';
+            $rules['company_role'] = 'sometimes|nullable|string|max:255';
         }
 
         $validated = $request->validate($rules);
@@ -1061,7 +1056,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         }
 
         // Strip email and password if a non-admin somehow submitted them
-        if (!$user->isAdmin()) {
+        if (! $user->isAdmin()) {
             unset($validated['email']);
             unset($validated['password']);
         }
@@ -1075,8 +1070,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // Record an audit log for profile updates (non-fatal if DB/table missing)
         try {
-            $ts = \Illuminate\Support\Carbon::now()->utc();
-            $log = \App\Models\AuditLog::create([
+            $ts = Carbon::now()->utc();
+            $log = AuditLog::create([
                 'user_id' => $user->id,
                 'action' => 'profile_updated',
                 'ip_address' => $request->ip(),
@@ -1085,7 +1080,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             event(new \App\Events\AuditLogCreated($log));
         } catch (\Exception $e) {
             // Log and continue — do not break the profile update flow
-            \Illuminate\Support\Facades\Log::warning('Failed to create AuditLog for profile update', ['error' => $e->getMessage()]);
+            Log::warning('Failed to create AuditLog for profile update', ['error' => $e->getMessage()]);
         }
 
         return response()->json([
@@ -1096,9 +1091,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
                 'fullName' => $user->fullName ?? $user->fullname,
                 'email' => $user->email,
                 'role' => $user->role,
+                'company_role' => $user->company_role,
                 'department' => $user->department,
-                'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
-                'signature_path' => $user->signature_path ? asset('storage/' . $user->signature_path) : null,
+                'profile_picture' => $user->profile_picture ? asset('storage/'.$user->profile_picture) : null,
+                'signature_path' => $user->signature_path ? asset('storage/'.$user->signature_path) : null,
             ],
         ]);
     });
@@ -1120,14 +1116,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         return response()->json([
             'message' => 'Profile picture updated successfully.',
-            'profile_picture' => asset('storage/' . $path),
+            'profile_picture' => asset('storage/'.$path),
         ]);
     });
 
     Route::post('/profile/signature', function (Request $request) {
         $user = $request->user();
-        if (!$user || !$user->isInstructor()) {
-            return response()->json(['message' => 'Only instructors can upload a certificate signature.'], 403);
+        if (!$user || !($user->isInstructor() || $user->isAdmin())) {
+            return response()->json(['message' => 'Only admins and instructors can upload a certificate signature.'], 403);
         }
 
         $request->validate([
@@ -1141,14 +1137,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         }
 
         $ext = strtolower($request->file('signature')->getClientOriginalExtension());
-        $filename = (string) \Illuminate\Support\Str::uuid() . '.' . $ext;
+        $filename = (string) \Illuminate\Support\Str::uuid().'.'.$ext;
         $path = $request->file('signature')->storeAs('signatures', $filename, 'public');
 
         $user->update(['signature_path' => $path]);
 
         return response()->json([
             'message' => 'Signature uploaded successfully.',
-            'signature_path' => asset('storage/' . $path),
+            'signature_path' => asset('storage/'.$path),
         ]);
     });
 
@@ -1167,4 +1163,3 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/admin/bulk-delete', [\App\Http\Controllers\TimeLogController::class, 'bulkDelete'])->middleware(['auth:sanctum', 'status']);
     });
 });
-

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { resolveImageUrl } from '../utils/safe';
 
 export interface BusinessDetails {
   company_name: string;
@@ -17,6 +18,16 @@ const DEFAULT_DETAILS: BusinessDetails = {
   logo_url: '/assets/Maptech-Official-Logo.png',
 };
 
+function updateFavicon(url: string) {
+  // Remove all existing icon link elements so the browser is forced to re-fetch.
+  document.querySelectorAll<HTMLLinkElement>('link[rel="icon"], link[rel="shortcut icon"]').forEach(el => el.remove());
+  const link = document.createElement('link');
+  link.rel = 'icon';
+  link.type = url.endsWith('.svg') ? 'image/svg+xml' : url.endsWith('.ico') ? 'image/x-icon' : 'image/png';
+  link.href = url + '?v=' + Date.now();
+  document.head.appendChild(link);
+}
+
 export function useBusinessDetails() {
   const [businessDetails, setBusinessDetails] = useState<BusinessDetails>(DEFAULT_DETAILS);
 
@@ -32,9 +43,10 @@ export function useBusinessDetails() {
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) {
+          const logoUrl = data?.logo_url || DEFAULT_DETAILS.logo_url;
           setBusinessDetails({
             company_name: data?.company_name || DEFAULT_DETAILS.company_name,
-            logo_url: data?.logo_url || DEFAULT_DETAILS.logo_url,
+            logo_url: resolveImageUrl(data?.logo_url, { fallback: DEFAULT_DETAILS.logo_url }),
             email: data?.email || undefined,
             phone: data?.phone || undefined,
             mobile_phone: data?.mobile_phone || undefined,
@@ -43,6 +55,7 @@ export function useBusinessDetails() {
             website: data?.website || undefined,
             vat_reg_tin: data?.vat_reg_tin || undefined,
           });
+          updateFavicon(logoUrl);
         }
       } catch {
         // Keep defaults when request fails.
@@ -51,8 +64,18 @@ export function useBusinessDetails() {
 
     load();
 
+    const handleChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ logo_url?: string }>).detail;
+      if (detail?.logo_url) {
+        updateFavicon(detail.logo_url);
+      }
+      load();
+    };
+    window.addEventListener('business-details-changed', handleChange);
+
     return () => {
       cancelled = true;
+      window.removeEventListener('business-details-changed', handleChange);
     };
   }, []);
 

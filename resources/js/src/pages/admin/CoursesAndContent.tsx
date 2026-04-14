@@ -15,12 +15,18 @@ import {
   XMarkIcon,
   CameraIcon,
 } from '@heroicons/react/24/outline';
+import { safeArray } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 interface Course {
-  id: number;
+  id: string;
   title: string;
   description: string;
   department: string;
+  subdepartment_id?: number | null;
+  subdepartment?: { id: number; name: string } | null;
+  start_date?: string | null;
+  deadline?: string | null;
   instructor: string;
   instructor_id: number | null;
   instructor_profile_picture?: string | null;
@@ -35,7 +41,15 @@ interface InstructorOption {
   fullname: string;
   email: string;
   department: string | null;
+  subdepartment_id?: number | null;
+  subdepartments?: { id: number; name: string; department_id?: number | null }[];
   profile_picture?: string | null;
+}
+
+interface DepartmentOption {
+  id: number;
+  name: string;
+  subdepartments?: { id: number; name: string; head_id?: number | null }[];
 }
 
 function normalizeCourseStatus(status: unknown): 'Active' | 'Draft' | 'Inactive' {
@@ -43,6 +57,25 @@ function normalizeCourseStatus(status: unknown): 'Active' | 'Draft' | 'Inactive'
   if (status.toLowerCase() === 'active') return 'Active';
   if (status.toLowerCase() === 'inactive' || status.toLowerCase() === 'archived') return 'Inactive';
   return 'Draft';
+}
+
+function toUtcIsoString(value: FormDataEntryValue | null): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+function toLocalDateTimeInputValue(value?: string | null): string {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
 }
 
 interface EnrolledStudent {
@@ -118,15 +151,18 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [departments, setDepartments] = useState<{id: number; name: string}[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
-  const [selectedCourseIds, setSelectedCourseIds] = useState<number[]>([]);
+  const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
   const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
   const [bulkInstructorId, setBulkInstructorId] = useState<number | null>(null);
   const [isBulkAssigning, setIsBulkAssigning] = useState(false);
   const [editInstructorId, setEditInstructorId] = useState<number | null>(null);
   const [createInstructorId, setCreateInstructorId] = useState<number | null>(null);
+  const [createDepartment, setCreateDepartment] = useState('');
+  const [createSubdepartmentId, setCreateSubdepartmentId] = useState<number | ''>('');
   const [editDepartment, setEditDepartment] = useState('');
+  const [editSubdepartmentId, setEditSubdepartmentId] = useState<number | ''>('');
   // Instructor photo upload in edit modal
   const [editInstructorPhotoFile, setEditInstructorPhotoFile] = useState<File | null>(null);
   const [editInstructorPhotoPreview, setEditInstructorPhotoPreview] = useState<string | null>(null);
@@ -167,6 +203,21 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   // Custom module thumbnail upload
   const [uploadingThumbnailModuleId, setUploadingThumbnailModuleId] = useState<number | null>(null);
   const customModuleThumbnailRef = useRef<HTMLInputElement>(null);
+
+  const getCourseSubdepartmentName = (course: Course): string | null => {
+    const relatedName = (course as any)?.subdepartment?.name;
+    if (relatedName) return relatedName;
+
+    const sid = Number(course.subdepartment_id ?? 0);
+    if (!sid) return null;
+
+    for (const dept of departments) {
+      const found = (dept.subdepartments || []).find((sub) => Number(sub.id) === sid);
+      if (found) return found.name;
+    }
+
+    return null;
+  };
 
   // Helper to extract actual video duration from file
   const extractVideoDuration = (file: File): Promise<string> => {
@@ -247,13 +298,46 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   useEffect(() => {
     fetch('/api/departments')
       .then(res => res.json())
-      .then(data => setDepartments(Array.isArray(data) ? data : []))
+      .then(data => setDepartments(Array.isArray(data) ? data.map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        subdepartments: Array.isArray(d.subdepartments)
+          ? d.subdepartments.map((s: any) => ({ id: s.id, name: s.name, head_id: s.head_id ?? null }))
+          : [],
+      })) : []))
       .catch(err => console.error('Failed to load departments:', err));
     fetch('/api/admin/users?role=Instructor', { credentials: 'include', headers: { Accept: 'application/json' } })
       .then(res => res.json())
-      .then(data => setInstructors(Array.isArray(data) ? data.map((u: any) => ({ id: u.id, fullname: u.fullname, email: u.email, department: u.department, profile_picture: u.profile_picture ? `/storage/${u.profile_picture}` : null })) : []))
+      .then(data => setInstructors(safeArray<any>(data).map((u: any) => ({
+        id: u.id,
+        fullname: u.fullname,
+        email: u.email,
+        department: u.department,
+        subdepartment_id: u.subdepartment_id ?? null,
+        subdepartments: Array.isArray(u.subdepartments)
+          ? u.subdepartments.map((s: any) => ({ id: s.id, name: s.name, department_id: s.department_id ?? null }))
+          : [],
+        profile_picture: u.profile_picture ? `/storage/${u.profile_picture}` : null,
+      }))))
       .catch(err => console.error('Failed to load instructors:', err));
   }, []);
+
+  const normalizeText = (value?: string | null) => (value || '').trim().toLowerCase();
+
+  const getEligibleInstructors = (departmentName: string, subdepartmentId: number | '') => {
+    const dept = normalizeText(departmentName);
+    const subId = subdepartmentId ? Number(subdepartmentId) : null;
+
+    return instructors.filter((i) => {
+      const deptMatches = !dept || normalizeText(i.department) === dept;
+      if (!deptMatches) return false;
+      if (!subId) return true;
+
+      const primarySubMatch = Number(i.subdepartment_id) === subId;
+      const assignedSubMatch = Array.isArray(i.subdepartments) && i.subdepartments.some((s) => Number(s.id) === subId);
+      return primarySubMatch || assignedSubMatch;
+    });
+  };
 
   // Fetch current profile to determine role (used for preview actions)
   useEffect(() => {
@@ -308,6 +392,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       setCourses(rawCourses.map((c: any) => ({
         ...c,
         status: normalizeCourseStatus(c.status),
+        subdepartment_id: c.subdepartment_id ?? null,
         instructor_id: c.instructor_id ?? (c.instructor?.id ?? null),
         instructor: typeof c.instructor === 'object' && c.instructor !== null
           ? c.instructor.fullname || 'Unassigned'
@@ -323,19 +408,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       console.error('CoursesAndContent: Load courses error:', err);
       setError(err.message);
       // Set some default courses if API fails
-      setCourses([
-        {
-          id: 1,
-          title: 'Fundamentals of Networking',
-          description: 'Learn the basics of networking',
-          department: 'IT',
-          instructor: 'Admin',
-          status: 'Active' as const,
-          modules_count: 2,
-          enrolled_count: 0,
-          created_at: new Date().toISOString()
-        }
-      ]);
+      setCourses([]);
     } finally {
       setLoading(false);
       console.log('CoursesAndContent: Load courses completed');
@@ -442,6 +515,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     setEditingCourse(course);
     setEditInstructorId(course.instructor_id);
     setEditDepartment(course.department);
+    setEditSubdepartmentId(course.subdepartment_id ?? '');
     // Pre-load existing instructor photo preview
     const assigned = instructors.find(i => i.id === course.instructor_id);
     setEditInstructorPhotoPreview(assigned?.profile_picture ?? null);
@@ -473,6 +547,9 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           title: formData.get('title'),
           description: formData.get('description'),
           department: formData.get('department'),
+          subdepartment_id: formData.get('subdepartment_id') || null,
+          start_date: toUtcIsoString(formData.get('start_date')),
+          deadline: toUtcIsoString(formData.get('deadline')),
           instructor_id: formData.get('instructor_id') || null,
           status: formData.get('status'),
         }),
@@ -570,7 +647,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       });
       if (res.ok) {
         const data = await res.json();
-        setCourseModules(data.map((m: any) => ({ ...m, isOpen: false })));
+        setCourseModules(safeArray<any>(data).map((m: any) => ({ ...m, isOpen: false })));
       }
     } catch (err) {
       console.error('Failed to load modules:', err);
@@ -826,7 +903,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       });
       if (res.ok) {
         const data = await res.json();
-        setAvailableUsers(Array.isArray(data) ? data : []);
+        setAvailableUsers(safeArray<any>(data));
       }
     } catch (err) {
       console.error('Failed to load users:', err);
@@ -921,7 +998,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     }
   };
 
-  const filteredCourses = courses.filter(course => {
+  const filteredCourses = safeArray<Course>(courses).filter(course => {
     const matchesSearch = course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          course.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          course.instructor.toLowerCase().includes(searchTerm.toLowerCase());
@@ -963,9 +1040,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   if (loading) {
     return (
       <div className="p-6">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 dark:bg-slate-800/80 dark:border-slate-700">
-          <h3 className="text-blue-800 font-medium dark:text-slate-100">Loading Courses...</h3>
-          <p className="text-blue-600 mt-1 dark:text-slate-300">Please wait while we fetch your course data.</p>
+        <div className="bg-white border border-slate-200 rounded-lg p-4 mb-4">
+          <LoadingState message="Loading courses" />
         </div>
         <div className="animate-pulse">
           <div className="h-8 bg-gray-200 dark:bg-slate-700 rounded mb-4"></div>
@@ -1069,10 +1145,23 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Course Management</h1>
+        <button
+          type="button"
+          onClick={() => {
+            setCreateDepartment('');
+            setCreateSubdepartmentId('');
+            setCreateInstructorId(null);
+            setShowCreateModal(true);
+          }}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition-colors"
+        >
+          <PlusIcon className="h-5 w-5" />
+          Create Course
+        </button>
       </div>
 
       {/* Search and Filter */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+      <div className="course-toolbar-animate flex flex-col sm:flex-row gap-4 mb-6">
         <div className="flex-1 relative">
           <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-3 text-gray-400 dark:text-slate-400" />
           <input
@@ -1097,8 +1186,12 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
       {/* Courses Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredCourses.map((course) => (
-          <div key={course.id} className="relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)]">
+        {filteredCourses.map((course, index) => (
+          <div
+            key={course.id}
+            className="course-management-card group relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)] flex flex-col"
+            style={{ animationDelay: `${Math.min(index * 45, 360)}ms` }}
+          >
             {/* Course Icon */}
             <div className="h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-teal-500 rounded-t-xl flex items-center justify-center">
               <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md">
@@ -1115,7 +1208,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             </div>
 
             {/* Course Content */}
-            <div className="p-5">
+            <div className="p-5 flex flex-col flex-1">
               {/* Status Badge */}
               <div className="flex justify-between items-start mb-3">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getStatusBadge(course.status)}`}>
@@ -1124,8 +1217,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 <div className="flex space-x-1">
                   <button
                     onClick={() => onNavigate?.('course-detail', String(course.id))}
-                    className="p-1.5 rounded-md text-gray-600 hover:text-blue-700 hover:bg-blue-50 dark:text-slate-300 dark:hover:text-sky-300 dark:hover:bg-slate-800"
-                    title="View Course Details"
+                    className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-blue-700 hover:bg-blue-50 dark:text-slate-300 dark:hover:text-sky-300 dark:hover:bg-slate-800"
+                    title="Manage Content"
                   >
                     <EyeIcon className="h-4 w-4" />
                   </button>
@@ -1138,14 +1231,14 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   </button>
                   <button
                     onClick={() => handleEditCourse(course)}
-                    className="p-1.5 rounded-md text-gray-600 hover:text-amber-700 hover:bg-amber-50 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800"
+                    className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-amber-700 hover:bg-amber-50 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800"
                     title="Edit"
                   >
                     <PencilIcon className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteCourse(course)}
-                    className="p-1.5 rounded-md text-gray-600 hover:text-rose-700 hover:bg-rose-50 dark:text-slate-300 dark:hover:text-rose-300 dark:hover:bg-slate-800"
+                    className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-rose-700 hover:bg-rose-50 dark:text-slate-300 dark:hover:text-rose-300 dark:hover:bg-slate-800"
                     title="Delete"
                   >
                     <TrashIcon className="h-4 w-4" />
@@ -1186,15 +1279,17 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   </div>
                 )}
                 <div className="text-sm text-gray-600 dark:text-slate-300">
-                  <div className="font-medium text-gray-700 dark:text-slate-200">{course.department}</div>
+                  <div className="font-medium text-gray-700 dark:text-slate-200">
+                    {course.department}{getCourseSubdepartmentName(course) ? ` / ${getCourseSubdepartmentName(course)}` : ''}
+                  </div>
                   <div>{course.instructor}</div>
                 </div>
               </div>
 
               {/* Manage Content Button */}
               <button
-                onClick={() => onNavigate?.('course-content-editor', String(course.id))}
-                className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                onClick={() => onNavigate?.('course-detail', String(course.id))}
+                className="course-manage-button mt-auto w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
               >
                 Manage Content →
               </button>
@@ -1204,7 +1299,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
         {/* Custom Modules Cards */}
         {filteredCustomModules.map((module) => (
-          <div key={`custom-${module.id}`} className="relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)]">
+          <div key={`custom-${module.id}`} className="relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)] flex flex-col">
             {/* Custom Module Icon */}
             <div className="h-28 bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-500 dark:to-indigo-500 rounded-t-xl flex items-center justify-center relative">
               {/* Custom Module Badge */}
@@ -1238,7 +1333,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             </div>
 
             {/* Custom Module Content */}
-            <div className="p-5">
+            <div className="p-5 flex flex-col flex-1">
               {/* Status Badge */}
               <div className="flex justify-between items-start mb-3">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
@@ -1300,7 +1395,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               {/* Manage Content Button */}
               <button
                 onClick={() => onNavigate?.('custom-field', undefined, module.id)}
-                className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                className="mt-auto w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition-colors font-medium"
               >
                 Manage Content →
               </button>
@@ -1401,13 +1496,13 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   </div>
 
                   {loadingModules ? (
-                    <div className="text-center py-8 text-gray-500 dark:text-slate-300">Loading modules...</div>
+                    <LoadingState message="Loading modules" />
                   ) : courseModules.length === 0 ? (
                     <div className="text-center py-8 text-gray-500 dark:text-slate-300">No modules yet. Add one above.</div>
                   ) : (
                     <div className="space-y-3">
-                      {courseModules.map((mod) => (
-                        <div key={mod.id} className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden bg-white dark:bg-slate-900">
+                      {safeArray(courseModules).map((mod) => (
+                        <div key={mod.id} className="border border-gray-200 rounded-lg overflow-hidden">
                           {/* Module Header */}
                           <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
                             onClick={() => setCourseModules(prev => prev.map(m => m.id === mod.id ? { ...m, isOpen: !m.isOpen } : m))}
@@ -1433,7 +1528,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                               )}
                             </div>
                             <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                              <span className="text-xs text-gray-500 dark:text-slate-300">{mod.lessons?.length || 0} lessons</span>
+                              <span className="text-xs text-gray-500">{safeArray(mod.lessons).length || 0} lessons</span>
                               <button
                                 onClick={() => { setSelectedModuleId(mod.id); setActivePanel('upload'); }}
                                 className="p-1 text-gray-400 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-300"
@@ -1459,16 +1554,16 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                           </div>
                           {/* Module Lessons */}
                           {mod.isOpen && (
-                            <div className="p-4 space-y-2 bg-white dark:bg-slate-900">
-                              {mod.pre_assessment && mod.pre_assessment.length > 0 && (
-                                <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-emerald-900/25 rounded text-sm text-green-700 dark:text-emerald-300">
+                            <div className="p-4 space-y-2">
+                              {safeArray(mod.pre_assessment).length > 0 && (
+                                <div className="flex items-center gap-2 p-2 bg-green-50 rounded text-sm text-green-700">
                                   <AcademicCapIcon className="h-4 w-4" />
-                                  Quiz: {mod.pre_assessment.length} question{mod.pre_assessment.length !== 1 ? 's' : ''}
+                                  Quiz: {safeArray(mod.pre_assessment).length} question{safeArray(mod.pre_assessment).length !== 1 ? 's' : ''}
                                 </div>
                               )}
-                              {mod.lessons && mod.lessons.length > 0 ? (
-                                mod.lessons.map((lesson: any) => (
-                                  <div key={lesson.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-700 rounded cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors" onClick={() => setPreviewLesson(lesson)}>
+                              {safeArray(mod.lessons).length > 0 ? (
+                                safeArray(mod.lessons).map((lesson: any) => (
+                                  <div key={lesson.id} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setPreviewLesson(lesson)}>
                                     <div className="flex items-center gap-2">
                                       {lesson.type === 'Video' ? (
                                         <VideoCameraIcon className="h-4 w-4 text-purple-500" />
@@ -1550,7 +1645,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                         className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                       >
                         <option value="">-- Choose a module --</option>
-                        {courseModules.map(m => (
+                        {safeArray(courseModules).map(m => (
                           <option key={m.id} value={m.id}>{m.title}</option>
                         ))}
                       </select>
@@ -1694,7 +1789,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                       className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     >
                       <option value="">-- Choose a module --</option>
-                      {courseModules.map(m => (
+                      {safeArray(courseModules).map(m => (
                         <option key={m.id} value={m.id}>{m.title}</option>
                       ))}
                     </select>
@@ -1725,7 +1820,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                           className="w-full border border-gray-300 rounded-md py-2 px-3 mb-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                         />
                         <div className="space-y-2">
-                          {q.options.map((opt: string, oi: number) => (
+                          {safeArray(q.options).map((opt: string, oi: number) => (
                             <div key={oi} className="flex items-center gap-2">
                               <input
                                 type="radio"
@@ -1792,7 +1887,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                       >
                         <option value="">-- Select module with quiz --</option>
                         {courseModules
-                          .filter(m => m.pre_assessment && m.pre_assessment.length > 0)
+                          .filter(m => (Array.isArray(m.pre_assessment) ? m.pre_assessment.length > 0 : false))
                           .map(m => (
                             <option key={m.id} value={m.id}>
                               {m.title} ({m.pre_assessment.length} question{m.pre_assessment.length !== 1 ? 's' : ''})
@@ -1807,7 +1902,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                         {sendingQuiz ? 'Sending...' : 'Send Quiz'}
                       </button>
                     </div>
-                    {courseModules.filter(m => m.pre_assessment && m.pre_assessment.length > 0).length === 0 && (
+                    {safeArray<ModuleDetail>(courseModules).filter(m => (Array.isArray(m.pre_assessment) ? m.pre_assessment.length > 0 : false)).length === 0 && (
                       <p className="text-xs text-blue-600 mt-2">No modules have quizzes yet. Create one in the "Create Quiz" tab first.</p>
                     )}
                   </div>
@@ -1835,7 +1930,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                             const term = enrollSearchTerm.toLowerCase();
                             const alreadyEnrolled = enrolledStudents.some(s => s.id === u.id);
                             return !alreadyEnrolled && (
-                              (u.fullName || u.name || '').toLowerCase().includes(term) ||
+                              (u.fullName || '').toLowerCase().includes(term) ||
                               u.email.toLowerCase().includes(term)
                             );
                           })
@@ -1846,15 +1941,15 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                               onClick={() => { handleEnrollStudent(u.id); setEnrollSearchTerm(''); }}
                               className="w-full text-left px-3 py-2 hover:bg-orange-50 border-b border-gray-100 last:border-0"
                             >
-                              <div className="text-sm font-medium text-gray-900">{u.fullName || u.name}</div>
+                              <div className="text-sm font-medium text-gray-900">{u.fullName}</div>
                               <div className="text-xs text-gray-500">{u.email} &middot; {u.department || 'No Dept'}</div>
                             </button>
                           ))}
-                        {availableUsers.filter(u => {
+                        {safeArray<UserOption>(availableUsers).filter(u => {
                           const term = enrollSearchTerm.toLowerCase();
                           const alreadyEnrolled = enrolledStudents.some(s => s.id === u.id);
                           return !alreadyEnrolled && (
-                            (u.fullName || u.name || '').toLowerCase().includes(term) ||
+                            (u.fullName || '').toLowerCase().includes(term) ||
                             u.email.toLowerCase().includes(term)
                           );
                         }).length === 0 && (
@@ -1983,7 +2078,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             <div className="p-6 border-b flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-900">Create New Course</h2>
               <button
-                onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); }}
+                onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); setCreateDepartment(''); setCreateSubdepartmentId(''); }}
                 className="text-gray-400 hover:text-gray-600 text-xl"
               >
                 <XMarkIcon className="h-6 w-6" />
@@ -1996,6 +2091,10 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 const form = e.currentTarget;
                 const fd = new FormData(form);
                 if (createInstructorId) fd.set('instructor_id', String(createInstructorId));
+                const startDateUtc = toUtcIsoString(fd.get('start_date'));
+                const deadlineUtc = toUtcIsoString(fd.get('deadline'));
+                if (startDateUtc) fd.set('start_date', startDateUtc); else fd.delete('start_date');
+                if (deadlineUtc) fd.set('deadline', deadlineUtc); else fd.delete('deadline');
                 try {
                   await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
                   const csrf = getXsrfToken();
@@ -2014,6 +2113,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   }
                   setShowCreateModal(false);
                   setCreateInstructorId(null);
+                  setCreateDepartment('');
+                  setCreateSubdepartmentId('');
                   await loadCourses();
                 } catch (err: any) {
                   alert(err.message);
@@ -2048,16 +2149,22 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <select
                     name="department"
                     required
+                    value={createDepartment}
+                    onChange={(e) => {
+                      setCreateDepartment(e.target.value);
+                      setCreateSubdepartmentId('');
+                      setCreateInstructorId(null);
+                    }}
                     className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
-                    <option value="" disabled selected>Select Department</option>
+                    <option value="" disabled>Select Department</option>
                     {departments.map(dept => (
                       <option key={dept.id} value={dept.name}>{dept.name}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Active Status</label>
                   <select
                     name="status"
                     defaultValue="Active"
@@ -2070,9 +2177,49 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sub Department</label>
+                <select
+                  name="subdepartment_id"
+                  required
+                  value={createSubdepartmentId}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setCreateSubdepartmentId(value ? Number(value) : '');
+                    setCreateInstructorId(null);
+                  }}
+                  disabled={!createDepartment}
+                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="">Select Sub Department</option>
+                  {(departments.find(d => d.name === createDepartment)?.subdepartments || []).map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date & Time</label>
+                  <input
+                    name="start_date"
+                    type="datetime-local"
+                    className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date & Time</label>
+                  <input
+                    name="deadline"
+                    type="datetime-local"
+                    className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+              </div>
+
               {/* Assign Instructor */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assign Instructor</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
                 {createInstructorId !== null && (() => {
                   const sel = instructors.find(i => i.id === createInstructorId);
                   return sel ? (
@@ -2100,10 +2247,11 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 <select
                   value={createInstructorId ?? ''}
                   onChange={(e) => setCreateInstructorId(e.target.value ? Number(e.target.value) : null)}
+                  disabled={!createDepartment || !createSubdepartmentId}
                   className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
-                  <option value="">Select Instructor</option>
-                  {instructors.map(i => (
+                  <option value="">{!createDepartment || !createSubdepartmentId ? 'Select department and sub department first' : 'Select Instructor'}</option>
+                  {(!createDepartment || !createSubdepartmentId ? [] : getEligibleInstructors(createDepartment, createSubdepartmentId)).map(i => (
                     <option key={i.id} value={i.id}>{i.fullname}</option>
                   ))}
                 </select>
@@ -2118,7 +2266,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); }}
+                  onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); setCreateDepartment(''); setCreateSubdepartmentId(''); }}
                   className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-md hover:bg-gray-50"
                 >
                   Cancel
@@ -2168,7 +2316,11 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <select
                     name="department"
                     value={editDepartment}
-                    onChange={(e) => { setEditDepartment(e.target.value); setEditInstructorId(null); }}
+                    onChange={(e) => {
+                      setEditDepartment(e.target.value);
+                      setEditSubdepartmentId('');
+                      setEditInstructorId(null);
+                    }}
                     required
                     className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
@@ -2189,6 +2341,45 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     <option value="Draft">Draft</option>
                     <option value="Inactive">Inactive</option>
                   </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sub Department</label>
+                <select
+                  name="subdepartment_id"
+                  value={editSubdepartmentId}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setEditSubdepartmentId(value ? Number(value) : '');
+                    setEditInstructorId(null);
+                  }}
+                  disabled={!editDepartment}
+                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="">Select Sub Department</option>
+                  {(departments.find(d => d.name === editDepartment)?.subdepartments || []).map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date & Time</label>
+                  <input
+                    name="start_date"
+                    type="datetime-local"
+                    defaultValue={toLocalDateTimeInputValue(editingCourse.start_date)}
+                    className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date & Time</label>
+                  <input
+                    name="deadline"
+                    type="datetime-local"
+                    defaultValue={toLocalDateTimeInputValue(editingCourse.deadline)}
+                    className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
                 </div>
               </div>
               <div>
@@ -2261,9 +2452,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">Unassigned</option>
-                  {instructors
-                    .filter(i => !editDepartment || !i.department || i.department === editDepartment)
-                    .map(i => (
+                  {getEligibleInstructors(editDepartment, editSubdepartmentId).map(i => (
                       <option key={i.id} value={i.id}>{i.fullname} ({i.email})</option>
                     ))}
                 </select>

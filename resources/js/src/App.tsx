@@ -9,7 +9,7 @@ import { EmployeeLayout } from './components/layout/EmployeeLayout';
 
 // Admin Pages
 import { AdminDashboard } from './pages/admin/AdminDashboard';
-import DepartmentManagement from './pages/admin/DepartmentManagement';
+import DepartmentManagement from './pages/admin/DepartmentManagement.tsx';
 import { UserManagement } from './pages/admin/UserManagement';
 import { CoursesAndContent } from './pages/admin/CoursesAndContent';
 import { CourseContentEditor } from './pages/admin/CourseContentEditor';
@@ -49,6 +49,7 @@ import { EmployeeNotifications } from './pages/employee/EmployeeNotifications';
 // Shared Pages
 import { ProfileSettings } from './pages/shared/ProfileSettings';
 import { YTDebug } from './pages/debug/YTDebug';
+import { resolveImageUrl } from './utils/safe';
 
 interface User {
   id?: number;
@@ -71,6 +72,8 @@ export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(true);
+  const [logoutPhase, setLogoutPhase] = useState<'idle' | 'covering' | 'revealing'>('idle');
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedCustomModuleId, setSelectedCustomModuleId] = useState<number | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
@@ -267,7 +270,7 @@ export function App() {
             fullName: data.fullName ?? data.fullname ?? data.name,
             email: data.email,
             department: data.department,
-            profile_picture: data.profile_picture,
+            profile_picture: resolveImageUrl(data.profile_picture || null) || null,
           });
           // persist display name as a quick fallback for UI components
           try { localStorage.setItem('maptech_user_name', (data.fullName ?? data.fullname ?? data.name) || ''); } catch (e) { /* ignore */ }
@@ -311,17 +314,35 @@ export function App() {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
+  useEffect(() => {
+    const onPicUpdated = (e: Event) => {
+      const { profile_picture } = (e as CustomEvent<{ profile_picture: string }>).detail;
+      setUser((prev) => prev ? { ...prev, profile_picture } : prev);
+    };
+    window.addEventListener('profile-picture-updated', onPicUpdated);
+    return () => window.removeEventListener('profile-picture-updated', onPicUpdated);
+  }, []);
+
   // =========================
   // HANDLE LOGIN
   // =========================
   const handleLogin = async (
+    id: number | undefined,
     role: 'admin' | 'instructor' | 'employee',
     name: string,
     email: string,
     department?: string,
     profile_picture?: string | null
   ) => {
-    setUser({ role, name, fullName: name, email, department, profile_picture });
+    setUser({
+      id,
+      role,
+      name,
+      fullName: name,
+      email,
+      department,
+      profile_picture: resolveImageUrl(profile_picture || null) || null,
+    });
     try { localStorage.setItem('maptech_user_name', name || ''); } catch (e) { /* ignore */ }
     setCurrentPage('dashboard');
     localStorage.setItem(`maptech_page_${role}`, 'dashboard');
@@ -339,7 +360,13 @@ export function App() {
   // =========================
   // HANDLE LOGOUT
   // =========================
-  const handleLogout = async () => {
+  const performLogout = async () => {
+    if (logoutPhase !== 'idle') return;
+
+    setIsLogoutConfirmOpen(false);
+
+    setLogoutPhase('covering');
+
     try {
       // Get CSRF token
       await fetch('/sanctum/csrf-cookie', {
@@ -361,9 +388,95 @@ export function App() {
       console.error('Logout failed:', error);
     }
 
+    // Always clear client-side auth/session artifacts, even if server logout fails.
+    try {
+      localStorage.removeItem('token');
+      localStorage.removeItem('maptech_user_name');
+      ['admin', 'instructor', 'employee'].forEach((role) => {
+        localStorage.removeItem(`maptech_courseId_${role}`);
+        localStorage.removeItem(`maptech_quizId_${role}`);
+      });
+      sessionStorage.removeItem('last_time_log');
+
+      // Remove deep-link state so a fresh login starts from default page.
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    } catch (err) {
+      // Ignore storage errors (private mode, quota, etc.).
+    }
+
+    // Let the cover animation complete before switching to login.
+    await new Promise((resolve) => window.setTimeout(resolve, 260));
+
     setUser(null);
     setCurrentPage('dashboard');
+    setSelectedCourseId(null);
+    setGlobalSearch('');
+
+    // Reveal login screen smoothly.
+    setLogoutPhase('revealing');
+    window.setTimeout(() => {
+      setLogoutPhase('idle');
+    }, 180);
   };
+
+  const handleLogout = () => {
+    if (logoutPhase !== 'idle') return;
+    setIsLogoutConfirmOpen(true);
+  };
+
+  const logoutOverlay = (
+    <div
+      className={`ui-screen-wipe ui-screen-wipe--logout ${theme === 'dark' ? 'is-dark' : 'is-light'} ${logoutPhase === 'covering' ? 'is-covering' : ''} ${logoutPhase === 'revealing' ? 'is-revealing' : ''}`}
+      aria-hidden="true"
+    >
+      <div className="ui-screen-wipe__panel">
+        <span className="ui-screen-wipe__spinner" />
+        <span className="ui-screen-wipe__text">Signing out</span>
+      </div>
+    </div>
+  );
+
+  const logoutConfirmModal = isLogoutConfirmOpen ? (
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 px-4"
+      onClick={() => {
+        if (logoutPhase === 'idle') {
+          setIsLogoutConfirmOpen(false);
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="logout-confirm-title"
+    >
+      <div
+        className={`w-full max-w-sm rounded-xl border p-5 shadow-2xl ${theme === 'dark' ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 id="logout-confirm-title" className="text-base font-semibold">Confirm Sign Out</h3>
+        <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+          Are you sure you want to sign out?
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setIsLogoutConfirmOpen(false)}
+            className={`rounded-md border px-4 py-2 text-sm font-medium ${theme === 'dark' ? 'border-slate-600 text-slate-200 hover:bg-slate-800' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={performLogout}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   const handleNavigate = (page: string, courseId?: string, quizIdOrModuleId?: number) => {
     setCurrentPage(page);
@@ -426,6 +539,8 @@ export function App() {
           </div>
         </div>
         {renderThemeToggle()}
+        {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -436,6 +551,8 @@ export function App() {
       <>
         <YTDebug />
         {renderThemeToggle()}
+        {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -448,6 +565,8 @@ export function App() {
       <>
         <LoginPage onLogin={handleLogin} theme={theme} />
         {renderThemeToggle()}
+        {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -456,6 +575,8 @@ export function App() {
   // ADMIN
   // =========================
   if (user.role === 'admin') {
+    const transitionKey = `${currentPage}:${selectedCourseId ?? ''}`;
+
     return (
       <>
         <AdminLayout
@@ -469,27 +590,35 @@ export function App() {
           onGlobalSearch={setGlobalSearch}
           onGlobalSearchSubmit={handleGlobalSearchSubmit}
         >
-          {currentPage === 'dashboard' && <AdminDashboard onNavigate={handleNavigate} />}
-          {currentPage === 'departments' && <DepartmentManagement />}
-          {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
-          {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
-          {currentPage === 'custom-field' && <CustomFieldBuilder onNavigate={handleNavigate} initialExpandedModuleId={selectedCustomModuleId} />}
-          {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
-          {currentPage === 'course-content-editor' && <CourseContentEditor courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} />}
-          {currentPage === 'enrollments' && <EnrollmentManagement />}
-          {currentPage === 'reports' && <ReportsAnalytics />}
-          {currentPage === 'notifications' && <NotificationManagement />}
-          {currentPage === 'qa' && <AdminQADiscussion userId={user.id} />}
-          {currentPage === 'audit-logs' && <AuditLogs />}
-          {currentPage === 'business-details' && <BusinessDetails />}
-          {currentPage === 'feedbacks' && <AdminFeedback />}
-          {currentPage === 'product-logos' && <ProductLogoManager />}
-          {currentPage === 'settings' && <ProfileSettings />}
+          <div key={transitionKey} className="page-open-transition">
+            {currentPage === 'dashboard' && <AdminDashboard onNavigate={handleNavigate} />}
+            {currentPage === 'departments' && <DepartmentManagement />}
+            {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
+            {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
+            {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
+            {currentPage === 'enrollments' && <EnrollmentManagement />}
+            {currentPage === 'reports' && <ReportsAnalytics />}
+            {currentPage === 'notifications' && <NotificationManagement />}
+            {currentPage === 'qa' && <AdminQADiscussion userId={user.id} />}
+            {currentPage === 'audit-logs' && <AuditLogs />}
+            {currentPage === 'business-details' && <BusinessDetails />}
+            {currentPage === 'feedbacks' && <AdminFeedback />}
+            {currentPage === 'product-logos' && <ProductLogoManager />}
+            {currentPage === 'custom-field' && (
+              <CustomFieldBuilder
+                onNavigate={handleNavigate}
+                initialExpandedModuleId={selectedCustomModuleId}
+              />
+            )}
+            {currentPage === 'settings' && <ProfileSettings />}
           {/* Fallback to custom module page for any unmatched route */}
           {!['dashboard', 'departments', 'users', 'courses', 'custom-field', 'course-detail', 'course-content-editor', 'enrollments', 'reports', 'notifications', 'qa', 'audit-logs', 'business-details', 'feedbacks', 'product-logos', 'settings'].includes(currentPage) && (
             <CustomModulePage routePath={currentPage} />
           )}
+          </div>
         </AdminLayout>
+        {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -498,6 +627,8 @@ export function App() {
   // INSTRUCTOR
   // =========================
   if (user.role === 'instructor') {
+    const transitionKey = `${currentPage}:${selectedCourseId ?? ''}`;
+
     return (
       <>
         <InstructorLayout
@@ -511,18 +642,22 @@ export function App() {
           onGlobalSearch={setGlobalSearch}
           onGlobalSearchSubmit={handleGlobalSearchSubmit}
         >
-          {currentPage === 'dashboard' && <InstructorDashboard />}
-          {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
-          {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} />}
-          {currentPage === 'quiz-management' && <QuizAssessmentManagement />}
-          {currentPage === 'lessons' && <LessonVideoUpload />}
-          {currentPage === 'quizzes' && <QuizAssessmentManagement />}
-          {currentPage === 'evaluation' && <QuizEvaluation />}
-          {currentPage === 'qa-discussion' && <InstructorQADiscussion userId={user.id} />}
-          {currentPage === 'notifications' && <InstructorNotifications />}
-          {currentPage === 'feedbacks' && <InstructorFeedback />}
-          {currentPage === 'settings' && <ProfileSettings />}
+          <div key={transitionKey} className="page-open-transition">
+            {currentPage === 'dashboard' && <InstructorDashboard />}
+            {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
+            {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} />}
+            {currentPage === 'quiz-management' && <QuizAssessmentManagement />}
+            {currentPage === 'lessons' && <LessonVideoUpload />}
+            {currentPage === 'quizzes' && <QuizAssessmentManagement />}
+            {currentPage === 'evaluation' && <QuizEvaluation />}
+            {currentPage === 'qa-discussion' && <InstructorQADiscussion userId={user.id} />}
+            {currentPage === 'notifications' && <InstructorNotifications />}
+            {currentPage === 'feedbacks' && <InstructorFeedback />}
+            {currentPage === 'settings' && <ProfileSettings />}
+          </div>
         </InstructorLayout>
+        {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -531,6 +666,8 @@ export function App() {
   // EMPLOYEE
   // =========================
   if (user.role === 'employee') {
+    const transitionKey = `${currentPage}:${selectedCourseId ?? ''}`;
+
     return (
       <>
         <EmployeeLayout
@@ -544,37 +681,34 @@ export function App() {
           onGlobalSearch={setGlobalSearch}
           onGlobalSearchSubmit={handleGlobalSearchSubmit}
         >
-          {currentPage === 'dashboard' && <EmployeeDashboard onNavigate={handleNavigate} />}
-          {currentPage === 'my-courses' && (
-            <MyCourses onNavigate={handleNavigate} globalSearch={globalSearch} />
-          )}
-          {currentPage === 'course-enroll' && (
-            <CourseEnrollDetail
-              courseId={selectedCourseId || ''}
-              onNavigate={handleNavigate}
-              onBack={() => handleNavigate('my-courses')}
-            />
-          )}
-          {currentPage === 'course-viewer' && (
-            <CourseViewer
-              courseId={selectedCourseId || undefined}
-              onBack={() => handleNavigate('my-courses')}
-              onViewCertificates={() => handleNavigate('certificates')}
-            />
-          )}
-          {currentPage === 'custom-module-viewer' && selectedCustomModuleId && (
-            <CustomModuleViewer
-              moduleId={selectedCustomModuleId}
-              onBack={() => handleNavigate('dashboard')}
-            />
-          )}
-          {currentPage === 'progress' && <MyProgress />}
-          {currentPage === 'certificates' && <MyCertificates />}
-          {currentPage === 'qa' && <QAModule userId={user.id} />}
-          {currentPage === 'feedback' && <MyFeedback />}
-          {currentPage === 'notifications' && <EmployeeNotifications />}
-          {currentPage === 'settings' && <ProfileSettings />}
+          <div key={transitionKey} className="page-open-transition">
+            {currentPage === 'dashboard' && <EmployeeDashboard onNavigate={handleNavigate} />}
+            {currentPage === 'my-courses' && (
+              <MyCourses onNavigate={handleNavigate} globalSearch={globalSearch} />
+            )}
+            {currentPage === 'course-enroll' && (
+              <CourseEnrollDetail
+                courseId={selectedCourseId || ''}
+                onNavigate={handleNavigate}
+                onBack={() => handleNavigate('my-courses')}
+              />
+            )}
+            {currentPage === 'course-viewer' && (
+              <CourseViewer
+                courseId={selectedCourseId || undefined}
+                onBack={() => handleNavigate('my-courses')}
+              />
+            )}
+            {currentPage === 'progress' && <MyProgress />}
+            {currentPage === 'certificates' && <MyCertificates />}
+            {currentPage === 'qa' && <QAModule userId={user.id} />}
+            {currentPage === 'feedback' && <MyFeedback />}
+            {currentPage === 'notifications' && <EmployeeNotifications />}
+            {currentPage === 'settings' && <ProfileSettings />}
+          </div>
         </EmployeeLayout>
+        {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -583,6 +717,8 @@ export function App() {
     <>
       <LoginPage onLogin={handleLogin} theme={theme} />
       {renderThemeToggle()}
+      {logoutOverlay}
+      {logoutConfirmModal}
     </>
   );
 }

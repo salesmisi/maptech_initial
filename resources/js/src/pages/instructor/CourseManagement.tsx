@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { useToast } from '../../components/ToastProvider';
 import { createPortal } from 'react-dom';
+import { safeArray } from '../../utils/safe';
 import {
   Search,
   Plus,
@@ -55,12 +56,20 @@ interface Course {
   title: string;
   description: string;
   department: string;
+  subdepartment_id?: number | null;
+  subdepartment?: { id: number; name: string } | null;
   status: 'Active' | 'Draft' | 'Archived' | 'Inactive';
   start_date?: string | null;
   deadline?: string | null;
   modules: Array<{ id?: number; title: string; content_path?: string }>;
   // set by instructor action in UI to reflect immediate availability
   availableByInstructor?: boolean;
+}
+
+interface DepartmentOption {
+  id: number;
+  name: string;
+  subdepartments?: { id: number; name: string }[];
 }
 
 interface Props {
@@ -82,10 +91,30 @@ const STATUS_COLORS: Record<string, string> = {
   Inactive: 'bg-red-100 text-red-700',
 };
 
+const toUtcIsoString = (value: FormDataEntryValue | null): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+};
+
+const toLocalDateTimeInputValue = (value?: string | null): string => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
+
 let moduleCounter = 0;
 
 export function InstructorCourseManagement({ onNavigate }: Props) {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [customModules, setCustomModules] = useState<CustomModule[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -95,6 +124,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [modules, setModules] = useState<ModuleInput[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [modalDepartment, setModalDepartment] = useState('');
+  const [modalSubdepartmentId, setModalSubdepartmentId] = useState<number | ''>('');
   const { pushToast } = useToast();
   // Course unlock modal state
   const [courseUnlockModalOpen, setCourseUnlockModalOpen] = useState(false);
@@ -111,6 +142,21 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
+
+  const getCourseSubdepartmentName = (course: Course): string | null => {
+    const relatedName = (course as any)?.subdepartment?.name;
+    if (relatedName) return relatedName;
+
+    const sid = Number(course.subdepartment_id ?? 0);
+    if (!sid) return null;
+
+    for (const dept of departments) {
+      const found = (dept.subdepartments || []).find((sub) => Number(sub.id) === sid);
+      if (found) return found.name;
+    }
+
+    return null;
+  };
 
   const loadCourses = async () => {
     try {
@@ -144,6 +190,20 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       }
     } catch (e) {
       console.error('Failed to load custom modules:', e);
+    }
+  };
+
+  const loadDepartments = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/departments`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setDepartments(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error('Failed to load departments:', e);
     }
   };
 
@@ -243,6 +303,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   useEffect(() => {
     loadCourses();
     loadCustomModules();
+    loadDepartments();
   }, []);
 
   // Refresh courses list when a module is added in the CourseDetail page
@@ -263,6 +324,9 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setEditingCourse(null);
     setModules([]);
     setFormError(null);
+    const firstDepartment = departments[0]?.name ?? '';
+    setModalDepartment(firstDepartment);
+    setModalSubdepartmentId('');
     setIsModalOpen(true);
   };
 
@@ -270,6 +334,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setEditingCourse(course);
     setModules([]);
     setFormError(null);
+    setModalDepartment(course.department || '');
+    setModalSubdepartmentId(course.subdepartment_id ?? '');
     setIsModalOpen(true);
   };
 
@@ -279,6 +345,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setEditingCourse(null);
     setModules([]);
     setFormError(null);
+    setModalDepartment('');
+    setModalSubdepartmentId('');
   };
 
   const addModule = () => {
@@ -316,6 +384,11 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setFormError(null);
 
     const formData = new FormData(e.currentTarget);
+
+    const startDateUtc = toUtcIsoString(formData.get('start_date'));
+    const deadlineUtc = toUtcIsoString(formData.get('deadline'));
+    if (startDateUtc) formData.set('start_date', startDateUtc); else formData.delete('start_date');
+    if (deadlineUtc) formData.set('deadline', deadlineUtc); else formData.delete('deadline');
 
     modules.forEach((mod, idx) => {
       formData.append(`modules[${idx}][title]`, mod.title);
@@ -567,7 +640,10 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   </div>
                 </div>
                 <div className="mb-4">
-                  <span className="text-xs font-medium text-slate-400 dark:text-slate-200">{course.department}</span>
+                  <div className="text-xs text-slate-400 dark:text-slate-300">Location</div>
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-100">
+                    {course.department}{getCourseSubdepartmentName(course) ? ` / ${getCourseSubdepartmentName(course)}` : ''}
+                  </span>
                 </div>
 
                 {course.deadline && !ended && (
@@ -723,15 +799,18 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
                   <select
                     name="department"
-                    defaultValue={editingCourse?.department || 'IT'}
+                    value={modalDepartment}
+                    onChange={(e) => {
+                      setModalDepartment(e.target.value);
+                      setModalSubdepartmentId('');
+                    }}
                     required
                     className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
-                    <option value="IT">IT</option>
-                    <option value="HR">HR</option>
-                    <option value="Operations">Operations</option>
-                    <option value="Finance">Finance</option>
-                    <option value="Marketing">Marketing</option>
+                    <option value="">Select Department</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.name}>{dept.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -748,27 +827,40 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Sub Department</label>
+                <select
+                  name="subdepartment_id"
+                  value={modalSubdepartmentId}
+                  onChange={(e) => setModalSubdepartmentId(e.target.value ? Number(e.target.value) : '')}
+                  required
+                  disabled={!modalDepartment}
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:bg-slate-100"
+                >
+                  <option value="">Select Sub Department</option>
+                  {(departments.find((d) => d.name === modalDepartment)?.subdepartments || []).map((sub) => (
+                    <option key={sub.id} value={sub.id}>{sub.name}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Start Date <span className="text-slate-400 text-xs">(optional)</span>
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
                   <input
                     type="datetime-local"
                     name="start_date"
-                    defaultValue={editingCourse?.start_date ? new Date(editingCourse.start_date).toISOString().slice(0, 16) : ''}
-                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                    defaultValue={toLocalDateTimeInputValue(editingCourse?.start_date)}
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    End Date <span className="text-slate-400 text-xs">(optional)</span>
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Due Date</label>
                   <input
                     type="datetime-local"
                     name="deadline"
-                    defaultValue={editingCourse?.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
-                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                    defaultValue={toLocalDateTimeInputValue(editingCourse?.deadline)}
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
               </div>
@@ -804,7 +896,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   <p className="text-sm text-slate-500 italic">No modules added yet.</p>
                 ) : (
                   <div className="space-y-3">
-                    {modules.map((mod, idx) => (
+                    {safeArray(modules).map((mod, idx) => (
                       <div key={mod.id} className="p-3 bg-slate-50 rounded-md border border-slate-200">
                         <div className="flex gap-2 items-start">
                           <div className="flex-1 space-y-2">

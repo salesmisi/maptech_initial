@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ArrowLeft,
   BookOpen,
@@ -28,6 +28,7 @@ import YouTubePlayer from '../../components/YouTubePlayer';
 import UnlockModuleModal from '../../components/UnlockModuleModal';
 import DepartmentSelectModal from '../../components/DepartmentSelectModal';
 import useConfirm from '../../hooks/useConfirm';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 
@@ -195,6 +196,7 @@ interface CourseData {
   title: string;
   description: string;
   department: string;
+  subdepartment?: { id: number; name: string } | null;
   status: string;
   deadline: string | null;
   modules: Module[];
@@ -348,6 +350,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   const [deletingQuizId, setDeletingQuizId] = useState<number | null>(null);
   const confirm = useConfirm();
   const { showConfirm } = confirm;
+  const [unenrollConfirm, setUnenrollConfirm] = useState<{ userId: number; name: string } | null>(null);
   const [unlockModalAction, setUnlockModalAction] = useState<'unlock' | 'lock'>('unlock');
   const [unlockModalOpen, setUnlockModalOpen] = useState(false);
   const [unlockModalUserId, setUnlockModalUserId] = useState<number | null>(null);
@@ -402,7 +405,10 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
-      if (!res.ok) throw new Error('Course not found.');
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.message || `Failed to load course (${res.status})`);
+      }
       const data = await res.json();
       setCourse({
         ...data,
@@ -420,7 +426,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
         })),
       });
     } catch (e: any) {
-      setError(e.message);
+      setError(e?.message || 'Failed to load course.');
     } finally {
       setLoading(false);
     }
@@ -646,7 +652,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       });
       if (!res.ok) return;
       const data: AllUser[] = await res.json();
-      setAllUsers(data.filter(u => u.status === 'Active'));
+      setAllUsers(safeArray<AllUser>(data).filter(u => u.status === 'Active'));
     } catch {
       // ignore
     }
@@ -1017,7 +1023,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token },
-        body: JSON.stringify({ order: modules.map(m => m.id) }),
+        body: JSON.stringify({ order: safeArray(modules).map(m => m.id) }),
       });
     } catch {
       await loadCourse();
@@ -1109,8 +1115,14 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
     }
   };
 
-  const handleUnenroll = async (userId: number, name: string) => {
-    showConfirm(`Remove ${name} from this course?`, async () => {
+  const handleUnenroll = (userId: number, name: string) => {
+    setUnenrollConfirm({ userId, name });
+  };
+
+  const confirmUnenroll = async () => {
+    if (!unenrollConfirm) return;
+    const { userId } = unenrollConfirm;
+    setUnenrollConfirm(null);
     try {
       const xsrf = await getXsrfToken();
       const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/enrollments/${userId}`, {
@@ -1123,7 +1135,6 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
     } catch (e: any) {
       alert(e.message || 'Failed to unenroll user');
     }
-    });
   };
 
   if (loading) {
@@ -1148,6 +1159,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   }
 
   const headerColor = DEPT_COLORS[course.department] || 'bg-slate-600';
+  const subdepartmentName = (course.subdepartment?.name || '').trim();
 
   return (
     <div className="space-y-6">
@@ -1164,9 +1176,16 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       <div className={`${headerColor} rounded-xl p-6 text-white`}>
         <div className="flex items-start justify-between">
           <div>
-            <span className="text-xs font-semibold bg-white/20 px-2 py-0.5 rounded-full mb-2 inline-block">
-              {course.department}
-            </span>
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-xs font-semibold bg-white/20 px-2 py-0.5 rounded-full inline-block">
+                {course.department}
+              </span>
+              {subdepartmentName && (
+                <span className="text-xs font-semibold bg-white/10 border border-white/25 px-2 py-0.5 rounded-full inline-block">
+                  {subdepartmentName}
+                </span>
+              )}
+            </div>
             <h1 className="text-2xl font-bold">{course.title}</h1>
             {course.description && (
               <p className="text-sm text-white/80 mt-1 max-w-xl">{course.description}</p>
@@ -1213,7 +1232,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
         >
           <span className="flex items-center gap-1.5">
             <Users className="h-4 w-4" />
-            Enrolled Students
+            Enrolled Employees
             <span className="text-xs bg-slate-100 text-slate-600 rounded-full px-1.5 py-0.5">{course.enrolled_users.length}</span>
           </span>
         </button>
@@ -1296,7 +1315,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
               No modules yet. Click <strong>Add Module</strong> to get started.
             </div>
           ) : (
-            course.modules.map((mod, idx) => {
+            safeArray(course.modules).map((mod, idx) => {
               const quiz = quizByModule[mod.id];
               const isExpanded = expandedModules.has(mod.id);
               const isEditingMod = editingModuleId === mod.id;
@@ -1377,29 +1396,6 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                     )}
 
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleUnlockModuleForAll(mod.id); }}
-                      className="p-1 text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 rounded flex-shrink-0"
-                      title="Unlock this module for all enrolled students"
-                    >
-                      <Users className="h-3.5 w-3.5" />
-                    </button>
-
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleUnlockModuleForDepartment(mod.id); }}
-                      className="p-1 text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 rounded flex-shrink-0"
-                      title="Unlock this module for a department"
-                    >
-                      <Unlock className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleLockModuleForDepartment(mod.id); }}
-                      className="p-1 text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 rounded flex-shrink-0"
-                      title="Lock this module for a department"
-                    >
-                      <Lock className="h-3.5 w-3.5" />
-                    </button>
-
-                    <button
                       onClick={(e) => { e.stopPropagation(); handleDeleteModule(mod.id); }}
                       disabled={deletingModuleId === mod.id}
                       className="p-1.5 text-red-400 dark:text-rose-300 hover:text-red-600 dark:hover:text-rose-200 hover:bg-red-50 dark:hover:bg-rose-900/25 rounded disabled:opacity-40 flex-shrink-0"
@@ -1420,18 +1416,18 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                           <p className="text-xs text-slate-400 italic">No lessons yet. Add one below.</p>
                         ) : (
                           <div className="space-y-2">
-                            {mod.lessons.map((lesson, li) => {
+                            {safeArray(mod.lessons).map((lesson, li) => {
                               const isEditingThisLesson = editingLessonId === lesson.id;
                               return (
                                 <div key={lesson.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/35 overflow-hidden">
                                   {isEditingThisLesson ? (
                                     /* ── EDIT LESSON FORM ── */
-                                    <div className="p-3 space-y-2 bg-amber-50 border-amber-200">
-                                      <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Edit Lesson</p>
+                                    <div className="p-3 space-y-2 bg-amber-50/70 dark:bg-slate-800 border border-amber-200 dark:border-slate-700 rounded-md">
+                                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide">Edit Lesson</p>
                                       <input
                                         type="text" value={editLessonTitle}
                                         onChange={e => setEditLessonTitle(e.target.value)}
-                                        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-1.5 px-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                         placeholder="Lesson title"
                                       />
                                       <RichTextEditor
@@ -1444,11 +1440,11 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                         value={editLessonInfo}
                                         onChange={e => setEditLessonInfo(e.target.value)}
                                         rows={2}
-                                        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+                                        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-1.5 px-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
                                         placeholder="Text information (short summary for this lesson)"
                                       />
                                       <div className="flex items-center gap-2">
-                                        <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 rounded-md cursor-pointer hover:bg-white text-xs text-slate-600">
+                                        <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md cursor-pointer hover:bg-white dark:hover:bg-slate-700 text-xs text-slate-600 dark:text-slate-200 bg-white/60 dark:bg-slate-900">
                                           <Upload className="h-3.5 w-3.5" />
                                           {editLessonFile ? editLessonFile.name : 'Replace file (optional)'}
                                           <input ref={editLessonFileRef} type="file" accept="video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
@@ -1456,7 +1452,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                         </label>
                                         {editLessonFile && (
                                           <button onClick={() => { setEditLessonFile(null); if (editLessonFileRef.current) editLessonFileRef.current.value = ''; }}
-                                            className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                                            className="text-xs text-red-500 dark:text-red-300 hover:text-red-700 dark:hover:text-red-200">Remove</button>
                                         )}
                                       </div>
                                       <div className="flex gap-2">
@@ -1466,7 +1462,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                           {savingLesson ? 'Saving...' : 'Save Changes'}
                                         </button>
                                         <button onClick={cancelEditLesson}
-                                          className="px-3 py-1.5 border border-slate-300 text-slate-600 text-xs font-medium rounded-md hover:bg-white">
+                                          className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 text-xs font-medium rounded-md hover:bg-white dark:hover:bg-slate-700">
                                           Cancel
                                         </button>
                                       </div>
@@ -1522,49 +1518,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                             <div className="space-y-2">
                                               <div
                                                 className={`${RICH_CONTENT_STYLES} cursor-text`}
-                                                title="Click a specific sentence to add/view definition"
-                                                onClick={(e) => startWordDefinitionEditor(e, lesson)}
                                                 dangerouslySetInnerHTML={{ __html: sanitizeHtml(stripLessonMetaBlocks(lesson.text_content)) }}
                                               />
-                                              <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                                                <span>Click a sentence to add or view its definition.</span>
-                                                <button
-                                                  onClick={() => startQuickEditLessonText(lesson)}
-                                                  className="px-2 py-1 border border-slate-300 rounded hover:bg-white text-slate-600"
-                                                >
-                                                  Edit Text Info
-                                                </button>
-                                              </div>
-
-                                              {wordEditorLessonId === lesson.id && (
-                                                <div className="rounded-md border border-indigo-200 bg-indigo-50 p-2.5 space-y-2">
-                                                  <p className="text-xs text-indigo-800">
-                                                    <strong>Sentence:</strong> {wordEditorWord}
-                                                  </p>
-                                                  <textarea
-                                                    value={wordEditorDefinition}
-                                                    onChange={(e) => setWordEditorDefinition(e.target.value)}
-                                                    rows={2}
-                                                    className="w-full border border-indigo-300 rounded-md py-1.5 px-2 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
-                                                    placeholder="Type the definition for this sentence"
-                                                  />
-                                                  <div className="flex items-center gap-2">
-                                                    <button
-                                                      onClick={() => handleSaveWordDefinition(mod.id, lesson)}
-                                                      disabled={savingWordDefinition}
-                                                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded disabled:opacity-50"
-                                                    >
-                                                      {savingWordDefinition ? 'Saving...' : 'Save Definition'}
-                                                    </button>
-                                                    <button
-                                                      onClick={() => { setWordEditorLessonId(null); setWordEditorWord(''); setWordEditorDefinition(''); }}
-                                                      className="px-2.5 py-1 border border-slate-300 text-slate-600 text-xs rounded hover:bg-white"
-                                                    >
-                                                      Close
-                                                    </button>
-                                                  </div>
-                                                </div>
-                                              )}
                                             </div>
                                           )}
                                         </div>
@@ -1597,15 +1552,15 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
                         {/* Add Lesson form */}
                         {addingLessonForModule === mod.id ? (
-                          <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg space-y-2">
-                            <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Add Lesson</p>
+                          <div className="mt-3 p-3 bg-green-50 border border-green-200 dark:bg-slate-800/85 dark:border-slate-700 rounded-lg space-y-2">
+                            <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide">Add Lesson</p>
                             {lessonError && <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{lessonError}</p>}
                             <input
                               type="text"
                               placeholder="Lesson title"
                               value={lessonTitle}
                               onChange={e => setLessonTitle(e.target.value)}
-                              className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                              className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                             />
                             <RichTextEditor
                               value={lessonTextContent}
@@ -1618,10 +1573,10 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                               placeholder="Text information (short summary for this lesson)"
                               value={lessonInfo}
                               onChange={e => setLessonInfo(e.target.value)}
-                              className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+                              className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
                             />
                             <div className="flex items-center gap-2">
-                              <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 rounded-md cursor-pointer hover:bg-white text-xs text-slate-600">
+                              <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md cursor-pointer bg-white/70 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900 text-xs text-slate-600 dark:text-slate-300 transition-colors">
                                 <Upload className="h-3.5 w-3.5" />
                                 {lessonFile ? lessonFile.name : 'Upload document or video (optional)'}
                                 <input
@@ -1652,7 +1607,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                               </button>
                               <button
                                 onClick={() => { setAddingLessonForModule(null); setLessonTitle(''); setLessonInfo(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
-                                className="px-3 py-1.5 border border-slate-300 text-slate-600 text-xs font-medium rounded-md hover:bg-white"
+                                className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-md bg-white/80 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900 transition-colors"
                               >
                                 Cancel
                               </button>
@@ -1669,24 +1624,24 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                       </div>
 
                       {/* Quiz section */}
-                      <div className="border-t border-slate-100 px-6 py-3">
-                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Quiz</p>
+                      <div className="border-t border-slate-100 dark:border-slate-700 px-6 py-3">
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wide mb-2">Quiz</p>
                         {quiz ? (
-                          <div className="bg-indigo-50 rounded-lg p-3">
+                          <div className="bg-indigo-50 dark:bg-slate-700/50 border border-indigo-100 dark:border-slate-600 rounded-lg p-3">
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex items-start gap-3">
-                                <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                                  <HelpCircle className="h-4 w-4 text-indigo-600" />
+                                <div className="h-8 w-8 rounded-full bg-indigo-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
+                                  <HelpCircle className="h-4 w-4 text-indigo-600 dark:text-indigo-300" />
                                 </div>
                                 <div>
-                                  <p className="text-sm font-semibold text-slate-900">{quiz.title}</p>
-                                  {quiz.description && <p className="text-xs text-slate-500 mt-0.5">{quiz.description}</p>}
-                                  <div className="flex gap-3 mt-1 text-xs text-slate-500">
+                                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{quiz.title}</p>
+                                  {quiz.description && <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5">{quiz.description}</p>}
+                                  <div className="flex gap-3 mt-1 text-xs text-slate-500 dark:text-slate-300">
                                     <span>{quiz.question_count} question{quiz.question_count !== 1 ? 's' : ''}</span>
                                     <span>·</span>
                                     <span className="flex items-center gap-1">
                                       <Lock className="h-3 w-3 text-amber-500" />
-                                      Must score <strong className="text-amber-700 mx-0.5">{quiz.pass_percentage}%</strong> to unlock next module
+                                      Must score <strong className="text-amber-700 dark:text-amber-300 mx-0.5">{quiz.pass_percentage}%</strong> to unlock next module
                                     </span>
                                   </div>
                                 </div>
@@ -1694,14 +1649,14 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                               <div className="flex items-center gap-2 flex-shrink-0">
                                 <button
                                   onClick={() => onManageQuiz(quiz.id, courseId)}
-                                  className="text-xs font-medium text-green-600 hover:text-green-800 px-3 py-1.5 border border-green-200 rounded-md hover:bg-green-50 transition-colors"
+                                  className="text-xs font-medium text-green-600 dark:text-emerald-300 hover:text-green-800 dark:hover:text-emerald-200 px-3 py-1.5 border border-green-200 dark:border-emerald-700 rounded-md hover:bg-green-50 dark:hover:bg-emerald-900/30 transition-colors"
                                 >
                                   Manage Quiz
                                 </button>
                                 <button
                                   onClick={() => handleDeleteQuiz(quiz.id)}
                                   disabled={deletingQuizId === quiz.id}
-                                  className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-100 rounded disabled:opacity-40"
+                                  className="p-1.5 text-red-400 dark:text-rose-300 hover:text-red-600 dark:hover:text-rose-200 hover:bg-red-100 dark:hover:bg-rose-900/25 rounded disabled:opacity-40"
                                 >
                                   {deletingQuizId === quiz.id
                                     ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -1754,9 +1709,9 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       {activeTab === 'students' && (
         <div className="space-y-4">
           {/* Enroll User Form */}
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
-              <Users className="h-4 w-4 text-green-600" />
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
+              <Users className="h-4 w-4 text-green-600 dark:text-emerald-400" />
               Enroll an Employee
             </h3>
             {enrollError && (
@@ -1777,13 +1732,13 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                   type="text"
                   value={enrollSearch}
                   onChange={e => setEnrollSearch(e.target.value)}
-                  className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   placeholder={course.department ? `Search ${course.department} employees by name or email` : 'Search employees by name or email'}
                 />
                 <select
                   value={selectedUserId}
                   onChange={e => setSelectedUserId(e.target.value)}
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   {filteredAvailableUsers.length === 0 && (
                     <option disabled>
@@ -1811,39 +1766,39 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
           </div>
 
           {/* Enrolled Students Table */}
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
             {course.enrolled_users.length === 0 ? (
-              <div className="p-8 text-center text-slate-500">
-                <Users className="h-10 w-10 mx-auto mb-2 text-slate-300" />
-                <p className="text-sm">No students enrolled yet.</p>
+              <div className="p-8 text-center text-slate-500 dark:text-slate-400">
+                <Users className="h-10 w-10 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                <p className="text-sm">No employees enrolled yet.</p>
               </div>
             ) : (
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
+              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                <thead className="bg-slate-50 dark:bg-slate-700/60">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Student</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Department</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Progress</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Enrolled</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Employee</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Department</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Progress</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Enrolled</th>
                     <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-slate-200">
+                <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
                   {course.enrolled_users.map(user => (
-                    <tr key={user.id} className="hover:bg-slate-50">
+                    <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-sm flex-shrink-0">
                             {(user.fullname || '?').charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-slate-900">{user.fullname}</p>
-                            <p className="text-xs text-slate-500">{user.email}</p>
+                            <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{user.fullname}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{user.email}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{user.department || '—'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{user.department || '—'}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-2 bg-slate-200 rounded-full max-w-[80px]">
@@ -1858,7 +1813,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                               style={{ width: `${Math.min(user.progress, 100)}%` }}
                             />
                           </div>
-                          <span className="text-xs text-slate-500">{user.progress}%</span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400">{user.progress}%</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -1874,52 +1829,18 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                           {user.enrollment_status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-xs text-slate-500">
+                      <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">
                         {user.enrolled_at
                           ? new Date(user.enrolled_at).toLocaleDateString()
                           : '—'}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {user.locked ? (
-                            <button
-                              onClick={() => handleUnlock(user.id)}
-                              className="p-1 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded"
-                              title="Unlock access"
-                            >
-                              <Unlock className="h-4 w-4" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleLock(user.id)}
-                              className="p-1 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded"
-                              title="Lock access"
-                            >
-                              <Lock className="h-4 w-4" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleUnlockModuleForUser(user.id)}
-                            className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded"
-                            title="Unlock specific module for user"
-                          >
-                            <BookOpen className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleLockModuleForUser(user.id)}
-                            className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded"
-                            title="Lock specific module for user"
-                          >
-                            <Lock className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleUnenroll(user.id, user.fullname)}
-                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
-                            title="Remove from course"
-                          >
-                            <UserMinus className="h-4 w-4" />
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => handleUnenroll(user.id, user.fullname)}
+                          className="px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-md transition-colors"
+                        >
+                          Unenroll
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1948,6 +1869,32 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       />
 
       {confirm.ConfirmModalRenderer()}
+
+      {/* Unenroll Confirmation Modal */}
+      {unenrollConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-2">Unenroll Employee</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-6">
+              Are you sure you want to unenroll <span className="font-medium text-slate-900 dark:text-slate-100">{unenrollConfirm.name}</span>?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setUnenrollConfirm(null)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmUnenroll}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+              >
+                Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

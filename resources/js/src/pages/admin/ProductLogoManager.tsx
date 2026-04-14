@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ImagePlus, RefreshCw, Trash2, AlertTriangle, Search } from 'lucide-react';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 interface CourseLogoItem {
   id: string;
@@ -308,7 +309,9 @@ export function ProductLogoManager() {
       <div className="text-xs text-slate-500">Allowed formats: PNG/JPG. Maximum file size: 2MB.</div>
 
       {loading ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-500">Loading courses...</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-10">
+          <LoadingState message="Loading modules" />
+        </div>
       ) : filteredItems.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-500">No courses found.</div>
       ) : (

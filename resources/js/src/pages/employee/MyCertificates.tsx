@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Award, Calendar, ExternalLink } from 'lucide-react';
+import { Download, Award, Calendar, ExternalLink, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 const MAPTECH_LOGO_URL = '/assets/Maptech-Official-Logo.png';
@@ -17,11 +19,18 @@ interface Certificate {
   logo_url: string | null;
   instructor_name: string;
   instructor_signature_url: string | null;
+  signer_name?: string | null;
+  signer_title?: string | null;
+  admin_signature_url?: string | null;
 }
 
 export function MyCertificates() {
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewCert, setPreviewCert] = useState<Certificate | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const loadCertificates = async () => {
     try {
@@ -43,7 +52,7 @@ export function MyCertificates() {
     loadCertificates();
   }, []);
 
-  const handleDownloadPdf = async (cert: Certificate) => {
+  const generateCertificateImage = async (cert: Certificate): Promise<string | null> => {
     const loadImage = async (url?: string | null): Promise<HTMLImageElement | null> => {
       if (!url) return null;
       return new Promise<HTMLImageElement | null>((resolve) => {
@@ -55,9 +64,14 @@ export function MyCertificates() {
       });
     };
 
-    const [maptechLogoImg, partnerLogoImg, signatureImg] = await Promise.all([
+    const presidentName  = cert.signer_name  || null;
+    const presidentTitle = cert.signer_title || null;
+    const instructorName = cert.instructor_name || 'Instructor';
+
+    const [maptechLogoImg, partnerLogoImg, adminSigImg, instructorSigImg] = await Promise.all([
       loadImage(MAPTECH_LOGO_URL),
       loadImage(cert.logo_url),
+      loadImage(cert.admin_signature_url),
       loadImage(cert.instructor_signature_url),
     ]);
 
@@ -221,36 +235,63 @@ export function MyCertificates() {
     ctx.strokeStyle = '#6b7280';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(110, footerY);
-    ctx.lineTo(350, footerY);
-    ctx.moveTo(640, footerY);
-    ctx.lineTo(890, footerY);
+    // Left underline (date)
+    ctx.moveTo(70, footerY);
+    ctx.lineTo(310, footerY);
+    // Center underline (president) — only if admin signer exists
+    if (presidentName) {
+      ctx.moveTo(360, footerY);
+      ctx.lineTo(640, footerY);
+    }
+    // Right underline (instructor)
+    ctx.moveTo(700, footerY);
+    ctx.lineTo(940, footerY);
     ctx.stroke();
 
-    // Date block (left)
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#334155';
-    ctx.font = 'italic 22px Georgia';
-    ctx.fillText(`Date: ${cert.completed_date}`, 112, footerY - 6);
-
-    // Signature + instructor block (right)
-    if (signatureImg) {
-      const maxSigW = 220;
-      const maxSigH = 58;
-      const ratio = Math.min(maxSigW / signatureImg.width, maxSigH / signatureImg.height);
-      const sigW = signatureImg.width * ratio;
-      const sigH = signatureImg.height * ratio;
-      ctx.drawImage(signatureImg, 765 - sigW / 2, footerY - 74, sigW, sigH);
-    }
-
+    // Date block (left): date above line, label centered below line
+    const dateCenterX = 190;
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#1f2937';
-    ctx.font = '700 20px Georgia';
-    ctx.fillText(cert.instructor_name || 'Instructor', 765, footerY - 8);
-
     ctx.fillStyle = '#334155';
     ctx.font = 'italic 20px Georgia';
-    ctx.fillText('Instructor', 765, footerY + 30);
+    ctx.fillText(cert.completed_date, dateCenterX, footerY - 8);
+    ctx.font = 'italic 18px Georgia';
+    ctx.fillText('Date of Completion', dateCenterX, footerY + 22);
+
+    // Helper to draw a signer block (signature image + name + role) centered at given x
+    const drawSignerBlock = (
+      sigImg: HTMLImageElement | null,
+      name: string,
+      title: string,
+      centerX: number,
+    ) => {
+      if (sigImg) {
+        const maxSigW = 200;
+        const maxSigH = 52;
+        const ratio = Math.min(maxSigW / sigImg.width, maxSigH / sigImg.height);
+        const sigW = sigImg.width * ratio;
+        const sigH = sigImg.height * ratio;
+        // Use multiply blend: white background becomes transparent, dark ink stays dark
+        ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.drawImage(sigImg, centerX - sigW / 2, footerY - 68, sigW, sigH);
+        ctx.restore();
+      }
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#1f2937';
+      ctx.font = '700 18px Georgia';
+      ctx.fillText(name, centerX, footerY - 10);
+      ctx.fillStyle = '#334155';
+      ctx.font = 'italic 17px Georgia';
+      ctx.fillText(title, centerX, footerY + 26);
+    };
+
+    // Center block — President (only if admin signer exists)
+    if (presidentName) {
+      drawSignerBlock(adminSigImg, presidentName, presidentTitle ?? 'Administrator', 500);
+    }
+
+    // Right block — Instructor
+    drawSignerBlock(instructorSigImg, instructorName, 'Instructor', 820);
 
     // Certificate code
     const certIdY = Math.min(648, footerY + 46);
@@ -268,11 +309,26 @@ export function MyCertificates() {
     ctx.font = '600 13px Arial';
     ctx.fillText(`Certificate ID: ${cert.certificate_code}`, 500, certIdY);
 
-    // Download as image (PNG pretending as PDF for simplicity)
+    // Return image data for preview/download consumers.
+    return canvas.toDataURL('image/png');
+  };
+
+  const handleDownloadPdf = async (cert: Certificate) => {
+    const dataUrl = await generateCertificateImage(cert);
+    if (!dataUrl) return;
     const link = document.createElement('a');
     link.download = `${cert.certificate_code}.png`;
-    link.href = canvas.toDataURL('image/png');
+    link.href = dataUrl;
     link.click();
+  };
+
+  const handlePreview = async (cert: Certificate) => {
+    setPreviewLoading(true);
+    setPreviewCert(cert);
+    setPreviewOpen(true);
+    const dataUrl = await generateCertificateImage(cert);
+    setPreviewImage(dataUrl);
+    setPreviewLoading(false);
   };
 
   if (loading) {
@@ -301,7 +357,7 @@ export function MyCertificates() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {certificates.map((cert) => (
+          {safeArray(certificates).map((cert) => (
             <div
               key={cert.id}
               className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group"
@@ -329,14 +385,14 @@ export function MyCertificates() {
                   </p>
                   <div className="mt-auto pt-2 border-t border-slate-100 w-full flex justify-between text-[8px] text-slate-400">
                     <span>{cert.completed_date}</span>
-                    <span>{cert.instructor_name || 'Instructor'}</span>
+                    <span>{cert.signer_name || cert.instructor_name || 'Instructor'}</span>
                   </div>
                 </div>
 
                 {/* Overlay on Hover */}
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={() => handleDownloadPdf(cert)}
+                    onClick={() => handlePreview(cert)}
                     className="bg-white text-slate-900 px-4 py-2 rounded-md font-medium text-sm flex items-center shadow-lg hover:bg-slate-50"
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
@@ -373,6 +429,36 @@ export function MyCertificates() {
             </div>
           ))}
         </div>
+      )}
+
+      {previewOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4" onClick={() => { setPreviewOpen(false); setPreviewImage(null); setPreviewCert(null); }}>
+          <div className="relative w-full max-w-5xl max-h-[92vh] bg-white rounded-xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+              <h3 className="text-sm sm:text-base font-semibold text-slate-900 truncate pr-2">
+                {previewCert ? `${previewCert.title} Certificate Preview` : 'Certificate Preview'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => { setPreviewOpen(false); setPreviewImage(null); setPreviewCert(null); }}
+                className="p-1.5 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                aria-label="Close preview"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="bg-slate-100 p-0 overflow-auto max-h-[calc(92vh-58px)] flex items-start justify-center">
+              {previewLoading && (
+                <div className="text-slate-600 text-sm p-4">Rendering certificate preview...</div>
+              )}
+              {!previewLoading && previewImage && (
+                <img src={previewImage} alt="Certificate Preview" className="w-full h-auto max-w-4xl shadow-lg border border-slate-200" />
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

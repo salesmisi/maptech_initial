@@ -10,6 +10,7 @@ import {
   Layers,
   User,
 } from 'lucide-react';
+import { safeArray } from '../../utils/safe';
 
 const API_BASE = '/api';
 
@@ -168,7 +169,7 @@ export function CourseEnrollDetail({ courseId, onNavigate, onBack }: CourseEnrol
           <div className="flex flex-col items-center justify-center py-5 gap-1">
             <Layers className="h-5 w-5 text-indigo-500" />
             <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">Modules</span>
-            <span className="text-sm font-semibold text-slate-800">{course.modules.length}</span>
+            <span className="text-sm font-semibold text-slate-800">{safeArray(course?.modules).length}</span>
           </div>
         </div>
 
@@ -201,7 +202,7 @@ export function CourseEnrollDetail({ courseId, onNavigate, onBack }: CourseEnrol
           <div className="px-6 py-5">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Course Modules</h3>
             <ul className="space-y-2">
-              {course.modules.map((mod, idx) => (
+              {safeArray(course?.modules).map((mod, idx) => (
                 <li key={mod.id} className="flex items-center gap-2 text-sm text-slate-700">
                   <span className="flex-shrink-0 h-5 w-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-bold">
                     {idx + 1}

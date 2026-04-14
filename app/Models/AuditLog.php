@@ -11,10 +11,14 @@ class AuditLog extends Model
 
     public $timestamps = false;
 
+    // Keep offset when persisting dates so timestamptz stores the correct instant.
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'user_id',
         'action',
         'ip_address',
+        'session_key',
         'created_at',
     ];
 

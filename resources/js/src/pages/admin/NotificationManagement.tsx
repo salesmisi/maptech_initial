@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X, RotateCcw, Archive } from 'lucide-react';
+import { safeArray } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 interface Notification {
   id: number;
@@ -47,7 +49,7 @@ export function NotificationManagement() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [activeTab, setActiveTab] = useState<'sent' | 'deleted'>('sent');
+  const [activeTab, setActiveTab] = useState<'received' | 'sent' | 'deleted'>('received');
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const [successToast, setSuccessToast] = useState<{ show: boolean; count: number }>({ show: false, count: 0 });
   const HISTORY_LIMIT = 50;
@@ -70,7 +72,6 @@ export function NotificationManagement() {
   const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
 
-  const token = localStorage.getItem('token');
   const confirm = useConfirm();
   const { showConfirm } = confirm;
 
@@ -86,8 +87,28 @@ export function NotificationManagement() {
     return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
   };
 
+  const fetchOptions = async (method: 'GET' | 'POST' | 'DELETE', body?: unknown): Promise<RequestInit> => {
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    };
+
+    if (method !== 'GET') {
+      headers['X-XSRF-TOKEN'] = await getXsrfToken();
+    }
+
+    return {
+      method,
+      credentials: 'include',
+      headers,
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    };
+  };
+
   // Load notifications and sent history
   useEffect(() => {
+    console.debug('NotificationManagement mounted', { formData });
     fetchNotifications();
     fetchUnreadCount();
     fetchSentAnnouncements();
@@ -97,14 +118,21 @@ export function NotificationManagement() {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/notifications', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
-      const data = await res.json();
-      setNotifications(data.notifications?.data || []);
+      const res = await fetch('/api/admin/notifications', await fetchOptions('GET'));
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        const text = await res.text().catch(() => null);
+        console.error('Failed to parse /api/admin/notifications response as JSON', { status: res.status, text });
+        data = null;
+      }
+
+      const list = safeArray(data?.data ?? data?.notifications?.data);
+      if (!Array.isArray(data?.data) && !Array.isArray(data?.notifications?.data) && data !== null) {
+        console.warn('/api/admin/notifications returned unexpected shape', data);
+      }
+      setNotifications(list);
     } catch (err) {
       console.error('Failed to load notifications:', err);
     } finally {
@@ -114,12 +142,7 @@ export function NotificationManagement() {
 
   const fetchUnreadCount = async () => {
     try {
-      const res = await fetch('/api/admin/notifications/unread-count', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/admin/notifications/unread-count', await fetchOptions('GET'));
       const data = await res.json();
       setUnreadCount(data.count || 0);
     } catch (err) {
@@ -129,12 +152,7 @@ export function NotificationManagement() {
 
   const fetchSentAnnouncements = async () => {
     try {
-      const res = await fetch('/api/admin/notifications/sent-history', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/admin/notifications/sent-history', await fetchOptions('GET'));
       const data = await res.json();
       setSentHistory(data.sent_announcements || []);
     } catch (err) {
@@ -144,12 +162,7 @@ export function NotificationManagement() {
 
   const fetchRecentlyDeleted = async () => {
     try {
-      const res = await fetch('/api/admin/notifications/recently-deleted', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/admin/notifications/recently-deleted', await fetchOptions('GET'));
       const data = await res.json();
       setRecentlyDeleted(data.recently_deleted || []);
     } catch (err) {
@@ -160,13 +173,7 @@ export function NotificationManagement() {
   const deleteSentHistory = async (id: number) => {
     showConfirm('Move this announcement to recently deleted?', async () => {
       try {
-        await fetch(`/api/admin/notifications/sent-history/${id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json',
-          },
-        });
+        await fetch(`/api/admin/notifications/sent-history/${id}`, await fetchOptions('DELETE'));
         fetchSentAnnouncements();
         fetchRecentlyDeleted();
       } catch (err) {
@@ -177,13 +184,7 @@ export function NotificationManagement() {
 
   const restoreFromDeleted = async (id: number) => {
     try {
-      await fetch(`/api/admin/notifications/sent-history/${id}/restore`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch(`/api/admin/notifications/sent-history/${id}/restore`, await fetchOptions('POST'));
       fetchSentAnnouncements();
       fetchRecentlyDeleted();
     } catch (err) {
@@ -194,13 +195,7 @@ export function NotificationManagement() {
   const permanentlyDelete = async (id: number) => {
     showConfirm('Permanently delete this announcement? This cannot be undone.', async () => {
       try {
-        await fetch(`/api/admin/notifications/sent-history/${id}/permanent`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json',
-          },
-        });
+        await fetch(`/api/admin/notifications/sent-history/${id}/permanent`, await fetchOptions('DELETE'));
         fetchRecentlyDeleted();
       } catch (err) {
         console.error('Failed to permanently delete:', err);
@@ -210,13 +205,7 @@ export function NotificationManagement() {
 
   const markAsRead = async (id: number) => {
     try {
-      await fetch(`/api/admin/notifications/${id}/read`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch(`/api/admin/notifications/${id}/read`, await fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
@@ -226,13 +215,7 @@ export function NotificationManagement() {
 
   const markAllAsRead = async () => {
     try {
-      await fetch('/api/admin/notifications/read-all', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch('/api/admin/notifications/read-all', await fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
@@ -243,13 +226,7 @@ export function NotificationManagement() {
   const deleteNotification = async (id: number) => {
     showConfirm('Delete this notification?', async () => {
       try {
-        await fetch(`/api/admin/notifications/${id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json',
-          },
-        });
+        await fetch(`/api/admin/notifications/${id}`, await fetchOptions('DELETE'));
         fetchNotifications();
       } catch (err) {
         console.error('Failed to delete notification:', err);
@@ -297,12 +274,7 @@ export function NotificationManagement() {
       setIsSearchingUsers(true);
       const roleParam = formData.roles.length === 1 ? `&role=${encodeURIComponent(formData.roles[0])}` : '';
       const deptParam = selectedDepartment ? `&department_id=${encodeURIComponent(selectedDepartment)}` : '';
-      const res = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}${roleParam}${deptParam}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}${roleParam}${deptParam}`, await fetchOptions('GET'));
       const data = await res.json();
       // normalize: expect array of users
       const users = Array.isArray(data) ? data : (data?.data || []);
@@ -325,41 +297,36 @@ export function NotificationManagement() {
 
   // load departments for selector
   useEffect(() => {
-    fetch('/api/departments')
-      .then(res => res.json())
-      .then(data => setDepartments(Array.isArray(data) ? data : []))
-      .catch(err => console.error('Failed to load departments:', err));
+    (async () => {
+      try {
+        const res = await fetch('/api/departments', await fetchOptions('GET'));
+        const data = await res.json();
+        setDepartments(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Failed to load departments:', err);
+      }
+    })();
   }, []);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.roles.length === 0) {
-      alert('Please select at least one target audience');
+    const rolesArray = Array.isArray(formData.roles) ? formData.roles : (formData.roles ? [formData.roles] : []);
+    const hasSelectedUsers = Array.isArray(formData.target_user_ids) && formData.target_user_ids.length > 0;
+    if (!hasSelectedUsers && rolesArray.length === 0) {
+      alert('Please select at least one target role or choose specific users.');
       return;
     }
 
     setIsSending(true);
     try {
-      const xsrf = await getXsrfToken();
-      const res = await fetch('/api/admin/notifications/announce', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-XSRF-TOKEN': xsrf,
-        },
-        body: JSON.stringify({
-          title: formData.title,
-          message: formData.message,
-          roles: formData.roles,
-          course_id: formData.course_id || null,
-            department_id: selectedDepartment ? Number(selectedDepartment) : null,
-          target_user_ids: formData.target_user_ids && formData.target_user_ids.length > 0 ? formData.target_user_ids : null,
-        }),
-      });
+      const res = await fetch('/api/admin/notifications/announce', await fetchOptions('POST', {
+        title: formData.title,
+        message: formData.message,
+        roles: rolesArray,
+        course_id: formData.course_id || null,
+        department_id: selectedDepartment ? Number(selectedDepartment) : null,
+        target_user_ids: formData.target_user_ids && formData.target_user_ids.length > 0 ? formData.target_user_ids : null,
+      }));
 
       const data = await res.json();
 
@@ -373,13 +340,56 @@ export function NotificationManagement() {
         // Refresh sent history from server
         fetchSentAnnouncements();
       } else {
-        alert(data.message || 'Failed to send announcement');
+        const msg = data?.message || `Failed to send announcement (status ${res.status})`;
+        alert(msg);
       }
     } catch (err) {
       console.error('Failed to send announcement:', err);
       alert('Failed to send announcement');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handlePreview = async () => {
+    const rolesArray = Array.isArray(formData.roles) ? formData.roles : (formData.roles ? [formData.roles] : []);
+    const hasSelectedUsers = Array.isArray(formData.target_user_ids) && formData.target_user_ids.length > 0;
+    if (!hasSelectedUsers && rolesArray.length === 0) {
+      alert('Please select at least one target role or choose specific users.');
+      return;
+    }
+
+    try {
+      // Ensure we have a fresh CSRF cookie when not using token fallback
+      const payload = {
+        title: formData.title,
+        message: formData.message,
+        roles: rolesArray,
+        course_id: formData.course_id || null,
+        department_id: selectedDepartment ? Number(selectedDepartment) : null,
+        target_user_ids: hasSelectedUsers ? formData.target_user_ids : null,
+        preview: true,
+      };
+      console.debug('Preview announce payload', payload);
+
+      const res = await fetch('/api/admin/notifications/announce', await fetchOptions('POST', payload));
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        const text = await res.text().catch(() => null);
+        console.error('Failed to parse preview response JSON', { status: res.status, text });
+      }
+
+      if (res.ok) {
+        alert(`Preview: ${data?.recipients_count ?? 'unknown'} recipients`);
+      } else {
+        alert(data?.message || `Failed to preview recipients (status ${res.status})`);
+      }
+    } catch (err) {
+      console.error('Preview failed:', err);
+      alert('Preview failed');
     }
   };
 
@@ -406,7 +416,7 @@ export function NotificationManagement() {
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+          <div className="flex gap-2">
           {unreadCount > 0 && (
             <button
               onClick={markAllAsRead}
@@ -417,7 +427,9 @@ export function NotificationManagement() {
             </button>
           )}
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={async () => {
+              setIsModalOpen(true);
+            }}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -430,6 +442,16 @@ export function NotificationManagement() {
       <div className="border-b border-slate-200 dark:border-slate-700">
         <nav className="-mb-px flex space-x-8">
           <button
+            onClick={() => setActiveTab('received')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'received'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
+            }`}
+          >
+            Received ({safeArray(notifications).length})
+          </button>
+          <button
             onClick={() => setActiveTab('sent')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'sent'
@@ -437,7 +459,7 @@ export function NotificationManagement() {
                 : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
             }`}
           >
-            Sent History ({sentHistory.length}/{HISTORY_LIMIT})
+            Sent History ({safeArray(sentHistory).length}/{HISTORY_LIMIT})
           </button>
           <button
             onClick={() => setActiveTab('deleted')}
@@ -451,6 +473,89 @@ export function NotificationManagement() {
           </button>
         </nav>
       </div>
+
+      {/* Received Notifications */}
+      {activeTab === 'received' && (
+        <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
+          {loading ? (
+            <LoadingState message="Loading notifications" className="p-8" />
+          ) : safeArray(notifications).length === 0 ? (
+            <div className="p-8 text-center text-slate-500">
+              <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300" />
+              <p>No notifications yet</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-200">
+              {safeArray(notifications).map((notification) => (
+                <div
+                  key={notification.id}
+                  onClick={() => setSelectedNotification(notification)}
+                  className={`p-4 cursor-pointer transition-colors ${
+                    !notification.read_at
+                      ? 'bg-emerald-50 dark:bg-emerald-950 border-l-4 border-emerald-500'
+                      : 'bg-white dark:bg-slate-900 border-l-4 border-transparent'
+                  } hover:bg-slate-100 dark:hover:bg-slate-800`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-3 flex-1">
+                      <div className={`mt-1 p-2 rounded-full flex-shrink-0 ${
+                        notification.type === 'announcement' ? 'bg-blue-100 dark:bg-blue-900' :
+                        notification.type === 'employee_message' ? 'bg-yellow-100 dark:bg-yellow-900' :
+                        'bg-slate-100 dark:bg-slate-700'
+                      }`}>
+                        {notification.type === 'announcement' ? (
+                          <Bell className="h-4 w-4 text-blue-600 dark:text-blue-300" />
+                        ) : notification.type === 'employee_message' ? (
+                          <Users className="h-4 w-4 text-yellow-600 dark:text-yellow-300" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-medium text-slate-900 dark:text-white">
+                          {notification.title}
+                          {!notification.read_at && (
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
+                              New
+                            </span>
+                          )}
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{notification.message}</p>
+                        {notification.data?.from_user_name && (
+                          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                            From: {notification.data.from_user_name} ({notification.data.from_role})
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                          {formatDate(notification.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2 flex-shrink-0 ml-4" onClick={(e) => e.stopPropagation()}>
+                      {!notification.read_at && (
+                        <button
+                          onClick={() => markAsRead(notification.id)}
+                          className="text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400"
+                          title="Mark as read"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => deleteNotification(notification.id)}
+                        className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Sent History */}
       {activeTab === 'sent' && (
@@ -473,10 +578,10 @@ export function NotificationManagement() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
-                  {sentHistory.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
+                <tbody className="bg-white divide-y divide-slate-200">
+                  {safeArray(sentHistory).map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
                         {item.title}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-200 truncate max-w-xs">
@@ -706,6 +811,13 @@ export function NotificationManagement() {
                       className="w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 sm:text-sm"
                     >
                       Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePreview}
+                      className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 sm:text-sm mr-2"
+                    >
+                      Preview Recipients
                     </button>
                     <button
                       type="submit"

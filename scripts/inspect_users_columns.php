@@ -1,10 +1,12 @@
 <?php
-$pdo = new PDO('sqlite:' . __DIR__ . '/../database/database.sqlite');
-$res = $pdo->query("PRAGMA table_info('users')");
-if (!$res) {
-    echo "no result\n";
+$dbFile = __DIR__ . '/../database/database.sqlite';
+if (!file_exists($dbFile)) { echo "ERROR: database file not found\n"; exit(1); }
+try {
+    $pdo = new PDO('sqlite:' . $dbFile);
+    $stmt = $pdo->query("PRAGMA table_info('users')");
+    $cols = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    echo json_encode($cols, JSON_PRETTY_PRINT) . "\n";
+} catch (Exception $e) {
+    echo "ERROR: " . $e->getMessage() . "\n";
     exit(1);
-}
-foreach ($res as $row) {
-    echo implode('|', [$row['cid'], $row['name'], $row['type'], $row['notnull'], $row['dflt_value'], $row['pk']]) . PHP_EOL;
 }

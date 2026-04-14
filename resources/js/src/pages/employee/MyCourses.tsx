@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { safeArray } from '../../utils/safe';
 import {
   Search,
   PlayCircle,
@@ -25,6 +26,11 @@ interface Course {
   deadline?: string | null;
   locked?: boolean;
   has_manual_unlock?: boolean;
+}
+
+interface Department {
+  id: number;
+  name: string;
 }
 
 interface MyCoursesProps {
@@ -96,7 +102,7 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
     });
     if (!res.ok) throw new Error('Failed to load enrolled courses');
     const data = await res.json();
-    setMyCourses(data.map(mapCourse));
+    setMyCourses(safeArray(data).map(mapCourse));
   };
 
   const loadAllCourses = async () => {
@@ -106,7 +112,7 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
     });
     if (!res.ok) throw new Error('Failed to load all courses');
     const data = await res.json();
-    setAllCourses(data.map(mapCourse));
+    setAllCourses(safeArray(data).map(mapCourse));
   };
 
   useEffect(() => {
@@ -131,13 +137,13 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
 
   // --- Browse mode: all dept courses filtered by globalSearch ---
   const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, '');
-  const browseResults = allCourses.filter((c) =>
+  const browseResults = safeArray<Course>(allCourses).filter((c) =>
     normalize(c.title).includes(normalize(globalSearch)) ||
     normalize(c.description).includes(normalize(globalSearch))
   );
 
   // --- My Courses mode: enrolled only, filtered by localSearch + status ---
-  const myFiltered = myCourses.filter((c) => {
+  const myFiltered = safeArray<Course>(myCourses).filter((c) => {
     const matchSearch = normalize(c.title).includes(normalize(localSearch));
     const matchFilter = filter === 'All' || c.status === filter;
     return matchSearch && matchFilter;

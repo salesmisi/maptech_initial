@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle, RotateCcw, Archive } from 'lucide-react';
+import { safeArray } from '../../utils/safe';
+import { LoadingState } from '../../components/ui/LoadingState';
 
 interface Notification {
   id: number;
@@ -58,6 +60,16 @@ export function InstructorNotifications() {
   const confirm = useConfirm();
   const { showConfirm } = confirm;
 
+  const fetchOptions = (method: 'GET' | 'POST', body?: unknown): RequestInit => ({
+    method,
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+
   useEffect(() => {
     fetchNotifications();
     fetchUnreadCount();
@@ -99,12 +111,7 @@ export function InstructorNotifications() {
 
   const fetchCourses = async () => {
     try {
-      const res = await fetch('/api/instructor/courses', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/instructor/courses', fetchOptions('GET'));
       const data = await res.json();
       setCourses(Array.isArray(data) ? data : data.data || []);
     } catch (err) {
@@ -125,14 +132,9 @@ export function InstructorNotifications() {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/instructor/notifications', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/instructor/notifications', fetchOptions('GET'));
       const data = await res.json();
-      setNotifications(data.notifications?.data || []);
+      setNotifications(safeArray(data?.data ?? data?.notifications?.data));
     } catch (err) {
       console.error('Failed to load notifications:', err);
     } finally {
@@ -142,12 +144,7 @@ export function InstructorNotifications() {
 
   const fetchUnreadCount = async () => {
     try {
-      const res = await fetch('/api/instructor/notifications/unread-count', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      const res = await fetch('/api/instructor/notifications/unread-count', fetchOptions('GET'));
       const data = await res.json();
       setUnreadCount(data.count || 0);
     } catch (err) {
@@ -157,13 +154,7 @@ export function InstructorNotifications() {
 
   const markAsRead = async (id: number) => {
     try {
-      await fetch(`/api/instructor/notifications/${id}/read`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch(`/api/instructor/notifications/${id}/read`, fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
@@ -173,13 +164,7 @@ export function InstructorNotifications() {
 
   const markAllAsRead = async () => {
     try {
-      await fetch('/api/instructor/notifications/read-all', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+      await fetch('/api/instructor/notifications/read-all', fetchOptions('POST'));
       fetchNotifications();
       fetchUnreadCount();
     } catch (err) {
