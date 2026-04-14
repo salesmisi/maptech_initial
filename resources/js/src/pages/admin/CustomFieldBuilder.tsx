@@ -20,6 +20,7 @@ import {
   ClockIcon,
   TagIcon,
   FolderIcon,
+  EyeIcon,
 } from '@heroicons/react/24/outline';
 
 // Types
@@ -1232,16 +1233,15 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                       >
                         <TrashIcon className="w-5 h-5" />
                       </button>
-                      <button
-                        onClick={() => toggleModuleExpand(module.id)}
-                        className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-slate-700 transition-colors"
-                      >
-                        {expandedModules.has(module.id) ? (
-                          <ChevronDownIcon className="w-5 h-5" />
-                        ) : (
-                          <ChevronRightIcon className="w-5 h-5" />
-                        )}
-                      </button>
+                      {module.module_type === 'learning' && (
+                        <button
+                          onClick={() => toggleModuleExpand(module.id)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                        >
+                          <EyeIcon className="w-4 h-4" />
+                          View Lesson
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
