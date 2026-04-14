@@ -461,7 +461,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       };
       const xsrf = getCookie('XSRF-TOKEN');
       await fetch(`${API_BASE}/employee/notifications/${id}/read`, {
-        method: 'PUT',
+        method: 'POST',
         credentials: 'include',
         headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': xsrf },
       });

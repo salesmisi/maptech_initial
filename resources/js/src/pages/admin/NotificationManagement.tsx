@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X, RotateCcw, Archive } from 'lucide-react';
-import { safeArray } from '../../utils/safe';
+import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
+import InfoModal from '../../components/InfoModal';
 
 interface Notification {
   id: number;
@@ -15,6 +16,8 @@ interface Notification {
     from_user_id?: number;
     from_user_name?: string;
     from_role?: string;
+    from_user_profile_picture?: string | null;
+    from_department?: string | null;
     course_title?: string;
   } | null;
   read_at: string | null;
@@ -52,6 +55,7 @@ export function NotificationManagement() {
   const [activeTab, setActiveTab] = useState<'received' | 'sent' | 'deleted'>('received');
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const [successToast, setSuccessToast] = useState<{ show: boolean; count: number }>({ show: false, count: 0 });
+  const [previewModal, setPreviewModal] = useState<{ open: boolean; recipientCount: number | null; error?: string }>({ open: false, recipientCount: null });
   const HISTORY_LIMIT = 50;
 
   // Form state
@@ -113,6 +117,45 @@ export function NotificationManagement() {
     fetchUnreadCount();
     fetchSentAnnouncements();
     fetchRecentlyDeleted();
+
+    // Subscribe to realtime notifications if Echo is available
+    let cleanup: (() => void) | undefined;
+    (async () => {
+      try {
+        const Echo = (window as any).Echo;
+        if (!Echo || typeof Echo.private !== 'function') return;
+        // Fetch current user id
+        const res = await fetch('/user', { credentials: 'include', headers: { 'Accept': 'application/json' } });
+        if (!res.ok) return;
+        const me = await res.json();
+        if (!me?.id) return;
+        const channel = Echo.private('notifications.' + me.id);
+        const createdHandler = (payload: any) => {
+          const n = payload?.notification || payload;
+          if (!n) return;
+          setNotifications(prev => [n, ...prev.filter(p => p.id !== n.id)]);
+          setUnreadCount(c => c + 1);
+        };
+        const countHandler = (payload: any) => {
+          setUnreadCount(payload?.count ?? 0);
+        };
+        channel.listen('NotificationCreated', createdHandler);
+        channel.listen('NotificationCountUpdated', countHandler);
+
+        cleanup = () => {
+          try {
+            channel.stopListening('NotificationCreated');
+            channel.stopListening('NotificationCountUpdated');
+          } catch (e) {}
+        };
+      } catch (e) {
+        // ignore
+      }
+    })();
+
+    return () => {
+      if (cleanup) cleanup();
+    };
   }, []);
 
   const fetchNotifications = async () => {
@@ -383,13 +426,13 @@ export function NotificationManagement() {
       }
 
       if (res.ok) {
-        alert(`Preview: ${data?.recipients_count ?? 'unknown'} recipients`);
+        setPreviewModal({ open: true, recipientCount: data?.recipients_count ?? null });
       } else {
-        alert(data?.message || `Failed to preview recipients (status ${res.status})`);
+        setPreviewModal({ open: true, recipientCount: null, error: data?.message || `Failed to preview recipients (status ${res.status})` });
       }
     } catch (err) {
       console.error('Preview failed:', err);
-      alert('Preview failed');
+      setPreviewModal({ open: true, recipientCount: null, error: 'Preview failed' });
     }
   };
 
@@ -498,19 +541,30 @@ export function NotificationManagement() {
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3 flex-1">
-                      <div className={`mt-1 p-2 rounded-full flex-shrink-0 ${
-                        notification.type === 'announcement' ? 'bg-blue-100 dark:bg-blue-900' :
-                        notification.type === 'employee_message' ? 'bg-yellow-100 dark:bg-yellow-900' :
-                        'bg-slate-100 dark:bg-slate-700'
-                      }`}>
-                        {notification.type === 'announcement' ? (
-                          <Bell className="h-4 w-4 text-blue-600 dark:text-blue-300" />
-                        ) : notification.type === 'employee_message' ? (
-                          <Users className="h-4 w-4 text-yellow-600 dark:text-yellow-300" />
-                        ) : (
-                          <AlertCircle className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-                        )}
-                      </div>
+                      {notification.data?.from_user_profile_picture ? (
+                        <img
+                          src={resolveImageUrl(notification.data.from_user_profile_picture)}
+                          alt={notification.data.from_user_name || 'User'}
+                          className="mt-1 h-10 w-10 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600 flex-shrink-0"
+                        />
+                      ) : (
+                        <div className={`mt-1 p-2 rounded-full flex-shrink-0 ${
+                          notification.type === 'announcement' ? 'bg-blue-100 dark:bg-blue-900' :
+                          notification.type === 'employee_message' ? 'bg-yellow-100 dark:bg-yellow-900' :
+                          ['feedback', 'issue', 'suggestion'].includes(notification.type) ? 'bg-purple-100 dark:bg-purple-900' :
+                          'bg-slate-100 dark:bg-slate-700'
+                        }`}>
+                          {notification.type === 'announcement' ? (
+                            <Bell className="h-4 w-4 text-blue-600 dark:text-blue-300" />
+                          ) : notification.type === 'employee_message' ? (
+                            <Users className="h-4 w-4 text-yellow-600 dark:text-yellow-300" />
+                          ) : ['feedback', 'issue', 'suggestion'].includes(notification.type) ? (
+                            <Send className="h-4 w-4 text-purple-600 dark:text-purple-300" />
+                          ) : (
+                            <AlertCircle className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                          )}
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-medium text-slate-900 dark:text-white">
                           {notification.title}
@@ -524,6 +578,9 @@ export function NotificationManagement() {
                         {notification.data?.from_user_name && (
                           <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                             From: {notification.data.from_user_name} ({notification.data.from_role})
+                            {notification.data.from_department && (
+                              <span className="ml-1">• {notification.data.from_department}</span>
+                            )}
                           </p>
                         )}
                         <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
@@ -855,12 +912,15 @@ export function NotificationManagement() {
                   <div className={`p-3 rounded-full flex-shrink-0 ${
                     selectedNotification.type === 'announcement' ? 'bg-blue-100 dark:bg-blue-900' :
                     selectedNotification.type === 'employee_message' ? 'bg-yellow-100 dark:bg-yellow-900' :
+                    ['feedback', 'issue', 'suggestion'].includes(selectedNotification.type) ? 'bg-purple-100 dark:bg-purple-900' :
                     'bg-slate-100 dark:bg-slate-700'
                   }`}>
                     {selectedNotification.type === 'announcement' ? (
                       <Bell className="h-6 w-6 text-blue-600 dark:text-blue-300" />
                     ) : selectedNotification.type === 'employee_message' ? (
                       <Users className="h-6 w-6 text-yellow-600 dark:text-yellow-300" />
+                    ) : ['feedback', 'issue', 'suggestion'].includes(selectedNotification.type) ? (
+                      <Send className="h-6 w-6 text-purple-600 dark:text-purple-300" />
                     ) : (
                       <AlertCircle className="h-6 w-6 text-slate-600 dark:text-slate-300" />
                     )}
@@ -906,6 +966,13 @@ export function NotificationManagement() {
                     <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                       <p className="font-medium text-slate-900 dark:text-white">{selectedNotification.data.from_user_name}</p>
                       <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{selectedNotification.data.from_role}</p>
+                      {selectedNotification.data.from_department && (
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                            {selectedNotification.data.from_department}
+                          </span>
+                        </p>
+                      )}
                       {selectedNotification.data.course_title && (
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">Course: {selectedNotification.data.course_title}</p>
                       )}
@@ -951,6 +1018,20 @@ export function NotificationManagement() {
       )}
 
       {confirm.ConfirmModalRenderer()}
+
+      {/* Preview Recipients Modal */}
+      <InfoModal
+        open={previewModal.open}
+        onClose={() => setPreviewModal({ open: false, recipientCount: null })}
+        title={previewModal.error ? 'Preview Failed' : 'Preview Recipients'}
+        message={
+          previewModal.error
+            ? previewModal.error
+            : `This announcement will be sent to ${previewModal.recipientCount ?? 'unknown'} recipient${previewModal.recipientCount !== 1 ? 's' : ''}.`
+        }
+        variant={previewModal.error ? 'error' : 'info'}
+        icon={previewModal.error ? undefined : <Users className="w-6 h-6" />}
+      />
     </div>
   );
 }

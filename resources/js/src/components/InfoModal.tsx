@@ -1,0 +1,98 @@
+import React from 'react';
+import { XMarkIcon, InformationCircleIcon, CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/outline';
+
+interface InfoModalProps {
+  open: boolean;
+  onClose: () => void;
+  title?: string;
+  message: string;
+  buttonText?: string;
+  variant?: 'info' | 'success' | 'warning' | 'error';
+  icon?: React.ReactNode;
+}
+
+export default function InfoModal({
+  open,
+  onClose,
+  title = 'Information',
+  message,
+  buttonText = 'OK',
+  variant = 'info',
+  icon,
+}: InfoModalProps) {
+  if (!open) return null;
+
+  const variantStyles = {
+    info: {
+      iconBg: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+      button: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500',
+      Icon: InformationCircleIcon,
+    },
+    success: {
+      iconBg: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
+      button: 'bg-green-600 hover:bg-green-700 focus:ring-green-500',
+      Icon: CheckCircleIcon,
+    },
+    warning: {
+      iconBg: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+      button: 'bg-amber-600 hover:bg-amber-700 focus:ring-amber-500',
+      Icon: ExclamationTriangleIcon,
+    },
+    error: {
+      iconBg: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
+      button: 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
+      Icon: XCircleIcon,
+    },
+  };
+
+  const styles = variantStyles[variant];
+  const IconComponent = styles.Icon;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md transform transition-all animate-in fade-in zoom-in-95 duration-200">
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+        >
+          <XMarkIcon className="w-5 h-5" />
+        </button>
+
+        <div className="p-6">
+          {/* Icon and Title */}
+          <div className="flex items-start gap-4">
+            <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${styles.iconBg}`}>
+              {icon || <IconComponent className="w-6 h-6" />}
+            </div>
+            <div className="flex-1 pt-1">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {title}
+              </h3>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                {message}
+              </p>
+            </div>
+          </div>
+
+          {/* Action */}
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={onClose}
+              className={`px-4 py-2.5 text-sm font-medium text-white rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-800 ${styles.button}`}
+            >
+              {buttonText}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

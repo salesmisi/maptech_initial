@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
-import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle, RotateCcw, Archive } from 'lucide-react';
-import { safeArray } from '../../utils/safe';
+import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle, RotateCcw, Archive, CheckCircle } from 'lucide-react';
+import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
 
 interface Notification {
@@ -15,6 +15,7 @@ interface Notification {
     from_user_id?: number;
     from_user_name?: string;
     from_role?: string;
+    from_user_profile_picture?: string | null;
     course_title?: string;
   } | null;
   read_at: string | null;
@@ -47,6 +48,7 @@ export function InstructorNotifications() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [departments, setDepartments] = useState<{id:number;name:string}[]>([]);
   const [activeTab, setActiveTab] = useState<'received' | 'deleted'>('received');
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
     title: '',
@@ -417,15 +419,24 @@ export function InstructorNotifications() {
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
+                  onClick={() => setSelectedNotification(notification)}
+                  className={`p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
                     !notification.read_at ? 'bg-emerald-50 dark:bg-emerald-950/35' : 'bg-white dark:bg-slate-900'
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3">
-                      <div className={`mt-1 p-2 rounded-full ${getNotificationBg(notification.type)}`}>
-                        {getNotificationIcon(notification.type)}
-                      </div>
+                      {notification.data?.from_user_profile_picture ? (
+                        <img
+                          src={resolveImageUrl(notification.data.from_user_profile_picture)}
+                          alt={notification.data.from_user_name || 'User'}
+                          className="mt-1 h-10 w-10 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600"
+                        />
+                      ) : (
+                        <div className={`mt-1 p-2 rounded-full ${getNotificationBg(notification.type)}`}>
+                          {getNotificationIcon(notification.type)}
+                        </div>
+                      )}
                       <div>
                         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">
                           {notification.title}
@@ -447,7 +458,7 @@ export function InstructorNotifications() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
                       {!notification.read_at && (
                         <button
                           onClick={() => markAsRead(notification.id)}
@@ -491,9 +502,17 @@ export function InstructorNotifications() {
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3">
-                      <div className={`mt-1 p-2 rounded-full opacity-60 ${getNotificationBg(notification.type)}`}>
-                        {getNotificationIcon(notification.type)}
-                      </div>
+                      {notification.data?.from_user_profile_picture ? (
+                        <img
+                          src={resolveImageUrl(notification.data.from_user_profile_picture)}
+                          alt={notification.data.from_user_name || 'User'}
+                          className="mt-1 h-10 w-10 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600 opacity-60"
+                        />
+                      ) : (
+                        <div className={`mt-1 p-2 rounded-full opacity-60 ${getNotificationBg(notification.type)}`}>
+                          {getNotificationIcon(notification.type)}
+                        </div>
+                      )}
                       <div>
                         <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
                           {notification.title}
@@ -648,6 +667,128 @@ export function InstructorNotifications() {
           </div>
         </div>
       )}
+
+      {/* Notification Detail Modal */}
+      {selectedNotification && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div
+                className="absolute inset-0 bg-slate-900/70"
+                onClick={() => setSelectedNotification(null)}
+              ></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white dark:bg-slate-800 rounded-lg text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+              <div className="absolute top-4 right-4">
+                <button
+                  onClick={() => setSelectedNotification(null)}
+                  className="text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="bg-white dark:bg-slate-800 px-6 py-8">
+                {/* Icon and Header */}
+                <div className="flex items-start space-x-4 mb-6">
+                  {selectedNotification.data?.from_user_profile_picture ? (
+                    <img
+                      src={resolveImageUrl(selectedNotification.data.from_user_profile_picture)}
+                      alt={selectedNotification.data.from_user_name || 'User'}
+                      className="h-14 w-14 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600"
+                    />
+                  ) : (
+                    <div className={`p-3 rounded-full flex-shrink-0 ${getNotificationBg(selectedNotification.type)}`}>
+                      {getNotificationIcon(selectedNotification.type)}
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                      {selectedNotification.title}
+                    </h2>
+                    {!selectedNotification.read_at && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 mt-2">
+                        New
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Main Message */}
+                <div className="mb-8">
+                  <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">Message</h3>
+                  <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                    <p className="text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
+                      {selectedNotification.message}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Details */}
+                <div className="mb-8 grid grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Received</h3>
+                    <p className="text-slate-900 dark:text-white">{formatDate(selectedNotification.created_at)}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Type</h3>
+                    <p className="text-slate-900 dark:text-white capitalize">{selectedNotification.type.replace(/_/g, ' ')}</p>
+                  </div>
+                </div>
+
+                {/* Sender Info */}
+                {selectedNotification.data?.from_user_name && (
+                  <div className="mb-8 pb-8 border-b border-slate-200 dark:border-slate-700">
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">From</h3>
+                    <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                      <p className="font-medium text-slate-900 dark:text-white">{selectedNotification.data.from_user_name}</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{selectedNotification.data.from_role}</p>
+                      {selectedNotification.data.course_title && (
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">Course: {selectedNotification.data.course_title}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex justify-between">
+                  <div className="flex space-x-3">
+                    {!selectedNotification.read_at && (
+                      <button
+                        onClick={() => {
+                          markAsRead(selectedNotification.id);
+                          setSelectedNotification({ ...selectedNotification, read_at: new Date().toISOString() });
+                        }}
+                        className="inline-flex items-center px-4 py-2 border border-emerald-300 dark:border-emerald-700 rounded-md shadow-sm text-sm font-medium text-emerald-700 dark:text-emerald-200 bg-white dark:bg-slate-700 hover:bg-emerald-50 dark:hover:bg-slate-600"
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Mark as Read
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        deleteNotification(selectedNotification.id);
+                        setSelectedNotification(null);
+                      }}
+                      className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-700 rounded-md shadow-sm text-sm font-medium text-red-700 dark:text-red-200 bg-white dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-slate-600"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setSelectedNotification(null)}
+                    className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirm.ConfirmModalRenderer()}
     </div>
   );

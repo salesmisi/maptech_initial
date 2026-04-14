@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { Bell, Send, Eye, Trash2, MessageCircle, AlertCircle, X, User, RotateCcw, Archive } from 'lucide-react';
-import { safeArray } from '../../utils/safe';
+import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
+import InfoModal from '../../components/InfoModal';
 
 interface Notification {
   id: number;
@@ -15,6 +16,7 @@ interface Notification {
     from_user_id?: number;
     from_user_name?: string;
     from_role?: string;
+    from_user_profile_picture?: string | null;
     course_title?: string;
   } | null;
   read_at: string | null;
@@ -39,6 +41,9 @@ export function EmployeeNotifications() {
   const [modalType, setModalType] = useState<'instructor' | 'admin'>('instructor');
   const [isSending, setIsSending] = useState(false);
   const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]);
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const [employeeDepartment, setEmployeeDepartment] = useState<string>('');
+  const [infoModal, setInfoModal] = useState<{ open: boolean; title: string; message: string; variant: 'info' | 'success' | 'warning' | 'error' }>({ open: false, title: '', message: '', variant: 'info' });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -52,6 +57,18 @@ export function EmployeeNotifications() {
   const confirm = useConfirm();
   const { showConfirm } = confirm;
 
+  // Helper to read cookie value
+  const getCookie = (name: string) => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
+  };
+
+  const getXsrfToken = async (): Promise<string> => {
+    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+    return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
+  };
+
   const fetchOptions = (method: 'GET' | 'POST', body?: unknown): RequestInit => ({
     method,
     credentials: 'include',
@@ -62,12 +79,42 @@ export function EmployeeNotifications() {
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
+  const fetchOptionsWithCsrf = async (method: 'GET' | 'POST', body?: unknown): Promise<RequestInit> => {
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    };
+
+    if (method !== 'GET') {
+      headers['X-XSRF-TOKEN'] = await getXsrfToken();
+    }
+
+    return {
+      method,
+      credentials: 'include',
+      headers,
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    };
+  };
+
   useEffect(() => {
     fetchNotifications();
     fetchUnreadCount();
     fetchRecentlyDeleted();
     fetchEnrolledCourses();
+    fetchEmployeeProfile();
   }, []);
+
+  const fetchEmployeeProfile = async () => {
+    try {
+      const res = await fetch('/api/profile', fetchOptions('GET'));
+      const data = await res.json();
+      setEmployeeDepartment(data.department || '');
+    } catch (err) {
+      console.error('Failed to load employee profile:', err);
+    }
+  };
 
   const fetchEnrolledCourses = async () => {
     try {
@@ -109,6 +156,14 @@ export function EmployeeNotifications() {
       fetchUnreadCount();
     } catch (err) {
       console.error('Failed to mark as read:', err);
+    }
+  };
+
+  const openNotificationDetail = async (notification: Notification) => {
+    setSelectedNotification(notification);
+    // Mark as read when opening if not already read
+    if (!notification.read_at) {
+      await markAsRead(notification.id);
     }
   };
 
@@ -207,7 +262,7 @@ export function EmployeeNotifications() {
     e.preventDefault();
 
     if (modalType === 'instructor' && !formData.course_id) {
-      alert('Please select a course');
+      setInfoModal({ open: true, title: 'Missing Course', message: 'Please select a course', variant: 'warning' });
       return;
     }
 
@@ -224,25 +279,24 @@ export function EmployeeNotifications() {
             course_id: formData.course_id,
           }
         : {
-            title: formData.title,
             message: formData.message,
             type: formData.type,
           };
 
-      const res = await fetch(endpoint, fetchOptions('POST', body));
+      const res = await fetch(endpoint, await fetchOptionsWithCsrf('POST', body));
 
       const data = await res.json();
 
       if (res.ok) {
-        alert(data.message || 'Message sent successfully!');
         setIsModalOpen(false);
         setFormData({ title: '', message: '', course_id: '', type: 'feedback' });
+        setInfoModal({ open: true, title: 'Success', message: data.message || 'Message sent successfully!', variant: 'success' });
       } else {
-        alert(data.message || 'Failed to send message');
+        setInfoModal({ open: true, title: 'Error', message: data.message || 'Failed to send message', variant: 'error' });
       }
     } catch (err) {
       console.error('Failed to send message:', err);
-      alert('Failed to send message');
+      setInfoModal({ open: true, title: 'Error', message: 'Failed to send message', variant: 'error' });
     } finally {
       setIsSending(false);
     }
@@ -369,15 +423,24 @@ export function EmployeeNotifications() {
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
+                  onClick={() => openNotificationDetail(notification)}
+                  className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer ${
                     !notification.read_at ? 'bg-emerald-50 dark:bg-emerald-950/40' : 'bg-white dark:bg-slate-900'
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3">
-                      <div className={`mt-1 p-2 rounded-full ${getNotificationBg(notification.type, notification.data?.from_role)}`}>
-                        {getNotificationIcon(notification.type, notification.data?.from_role)}
-                      </div>
+                      {notification.data?.from_user_profile_picture ? (
+                        <img
+                          src={resolveImageUrl(notification.data.from_user_profile_picture)}
+                          alt={notification.data.from_user_name || 'User'}
+                          className="mt-1 h-10 w-10 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600"
+                        />
+                      ) : (
+                        <div className={`mt-1 p-2 rounded-full ${getNotificationBg(notification.type, notification.data?.from_role)}`}>
+                          {getNotificationIcon(notification.type, notification.data?.from_role)}
+                        </div>
+                      )}
                       <div>
                         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">
                           {notification.title}
@@ -436,9 +499,17 @@ export function EmployeeNotifications() {
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3">
-                      <div className={`mt-1 p-2 rounded-full opacity-60 ${getNotificationBg(notification.type, notification.data?.from_role)}`}>
-                        {getNotificationIcon(notification.type, notification.data?.from_role)}
-                      </div>
+                      {notification.data?.from_user_profile_picture ? (
+                        <img
+                          src={resolveImageUrl(notification.data.from_user_profile_picture)}
+                          alt={notification.data.from_user_name || 'User'}
+                          className="mt-1 h-10 w-10 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600 opacity-60"
+                        />
+                      ) : (
+                        <div className={`mt-1 p-2 rounded-full opacity-60 ${getNotificationBg(notification.type, notification.data?.from_role)}`}>
+                          {getNotificationIcon(notification.type, notification.data?.from_role)}
+                        </div>
+                      )}
                       <div>
                         <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
                           {notification.title}
@@ -527,34 +598,44 @@ export function EmployeeNotifications() {
                     </div>
                   )}
                   {modalType === 'admin' && (
+                    <>
+                      <div>
+                        <label htmlFor="notify-type" className="block text-sm font-medium text-slate-700">Type</label>
+                        <select
+                          id="notify-type"
+                          name="type"
+                          value={formData.type}
+                          onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                          className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm"
+                        >
+                          <option value="feedback">Feedback</option>
+                          <option value="issue">Report Issue</option>
+                          <option value="suggestion">Suggestion</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700">Department</label>
+                        <div className="mt-1 block w-full border border-slate-200 bg-slate-50 rounded-md py-2 px-3 text-sm text-slate-600">
+                          {employeeDepartment || 'No department assigned'}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {modalType === 'instructor' && (
                     <div>
-                      <label htmlFor="notify-type" className="block text-sm font-medium text-slate-700">Type</label>
-                      <select
-                        id="notify-type"
-                        name="type"
-                        value={formData.type}
-                        onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                      <label htmlFor="notify-title" className="block text-sm font-medium text-slate-700">Subject *</label>
+                      <input
+                        id="notify-title"
+                        name="title"
+                        type="text"
+                        required
+                        value={formData.title}
+                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                         className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                      >
-                        <option value="feedback">Feedback</option>
-                        <option value="issue">Report Issue</option>
-                        <option value="suggestion">Suggestion</option>
-                      </select>
+                        placeholder="Message subject"
+                      />
                     </div>
                   )}
-                  <div>
-                    <label htmlFor="notify-title" className="block text-sm font-medium text-slate-700">Subject *</label>
-                    <input
-                      id="notify-title"
-                      name="title"
-                      type="text"
-                      required
-                      value={formData.title}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                      placeholder="Message subject"
-                    />
-                  </div>
                   <div>
                     <label htmlFor="notify-message" className="block text-sm font-medium text-slate-700">Message *</label>
                     <textarea
@@ -593,6 +674,113 @@ export function EmployeeNotifications() {
           </div>
         </div>
       )}
+
+      {/* Notification Detail Modal */}
+      {selectedNotification && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div
+              className="fixed inset-0 transition-opacity"
+              aria-hidden="true"
+              onClick={() => setSelectedNotification(null)}
+            >
+              <div className="absolute inset-0 bg-slate-500 dark:bg-slate-900 opacity-75"></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white dark:bg-slate-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="absolute top-4 right-4">
+                <button
+                  onClick={() => setSelectedNotification(null)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="bg-white dark:bg-slate-800 px-4 pt-5 pb-4 sm:p-6">
+                {/* Header */}
+                <div className="flex items-start space-x-3 mb-4">
+                  {selectedNotification.data?.from_user_profile_picture ? (
+                    <img
+                      src={resolveImageUrl(selectedNotification.data.from_user_profile_picture)}
+                      alt={selectedNotification.data.from_user_name || 'User'}
+                      className="h-12 w-12 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600"
+                    />
+                  ) : (
+                    <div className={`p-3 rounded-full ${getNotificationBg(selectedNotification.type, selectedNotification.data?.from_role)}`}>
+                      {getNotificationIcon(selectedNotification.type, selectedNotification.data?.from_role)}
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                      {selectedNotification.title}
+                    </h3>
+                    {selectedNotification.data?.from_user_name && (
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        From: <span className="font-medium">{selectedNotification.data.from_user_name}</span>
+                        {selectedNotification.data.from_role && (
+                          <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                            selectedNotification.data.from_role === 'Admin'
+                              ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200'
+                              : 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200'
+                          }`}>
+                            {selectedNotification.data.from_role}
+                          </span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Course info if available */}
+                {selectedNotification.data?.course_title && (
+                  <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Related Course</p>
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{selectedNotification.data.course_title}</p>
+                  </div>
+                )}
+
+                {/* Message content */}
+                <div className="mb-4">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Message</p>
+                  <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                    <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
+                      {selectedNotification.message}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Date */}
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <span>Received: {formatDate(selectedNotification.created_at)}</span>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300">
+                    <Eye className="h-3 w-3 mr-1" />
+                    Read
+                  </span>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="bg-slate-50 dark:bg-slate-700/50 px-4 py-3 sm:px-6 flex justify-end">
+                <button
+                  onClick={() => setSelectedNotification(null)}
+                  className="inline-flex justify-center rounded-md border border-slate-300 dark:border-slate-600 shadow-sm px-4 py-2 bg-white dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Info Modal for success/error messages */}
+      <InfoModal
+        open={infoModal.open}
+        onClose={() => setInfoModal({ ...infoModal, open: false })}
+        title={infoModal.title}
+        message={infoModal.message}
+        variant={infoModal.variant}
+      />
     </div>
   );
 }

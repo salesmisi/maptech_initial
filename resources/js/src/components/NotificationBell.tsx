@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Bell } from 'lucide-react';
 import { LoadingState } from './ui/LoadingState';
+import { resolveImageUrl } from '../utils/safe';
 
 export type NotificationBellRole = 'Admin' | 'Instructor' | 'Employee';
 
@@ -19,6 +20,7 @@ type NotificationItem = {
   data?: {
     from_user_name?: string;
     from_role?: string;
+    from_user_profile_picture?: string | null;
     course_title?: string;
   } | null;
   read_at: string | null;
@@ -29,57 +31,61 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const isCancelledRef = useRef(false);
+
+  const prefix = role === 'Admin' ? 'admin' : role === 'Instructor' ? 'instructor' : 'employee';
+  const prefixLabel = role === 'Admin' ? 'Admin' : role === 'Instructor' ? 'Instructor' : 'Employee';
+
+  const fetchUnread = useCallback(async () => {
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+    try {
+      const res = await fetch(`/api/${prefix}/notifications/unread-count`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Accept: 'application/json',
+        },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!isCancelledRef.current) {
+        setUnreadCount(data.count || 0);
+      }
+    } catch {
+      // ignore
+    }
+  }, [prefix]);
+
+  const fetchRecent = useCallback(async () => {
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/${prefix}/notifications?per_page=5`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Accept: 'application/json',
+        },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const list: NotificationItem[] = data.notifications?.data || data.notifications || [];
+      if (!isCancelledRef.current) {
+        setItems(list);
+      }
+    } catch {
+      // ignore
+    } finally {
+      if (!isCancelledRef.current) setLoading(false);
+    }
+  }, [prefix]);
 
   useEffect(() => {
-    let isCancelled = false;
-    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
-
-    const prefix = role === 'Admin' ? 'admin' : role === 'Instructor' ? 'instructor' : 'employee';
-
-    const fetchUnread = async () => {
-      try {
-        const res = await fetch(`/api/${prefix}/notifications/unread-count`, {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            Accept: 'application/json',
-          },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!isCancelled) {
-          setUnreadCount(data.count || 0);
-        }
-      } catch {
-        // ignore
-      }
-    };
-
-    const fetchRecent = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch(`/api/${prefix}/notifications?per_page=5`, {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            Accept: 'application/json',
-          },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        const list: NotificationItem[] = data.notifications?.data || data.notifications || [];
-        if (!isCancelled) {
-          setItems(list);
-        }
-      } catch {
-        // ignore
-      } finally {
-        if (!isCancelled) setLoading(false);
-      }
-    };
+    isCancelledRef.current = false;
 
     fetchUnread();
     fetchRecent();
 
     // Subscribe to realtime updates via Echo if available
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
     (async () => {
       try {
         const Echo = (window as any).Echo;
@@ -124,18 +130,21 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
     })();
 
     return () => {
-      isCancelled = true;
+      isCancelledRef.current = true;
     };
-  }, [role]);
+  }, [role, fetchUnread, fetchRecent]);
 
   const hasUnread = unreadCount > 0;
   const displayCount = unreadCount > 9 ? '9+' : unreadCount.toString();
 
-  const prefixLabel = role === 'Admin' ? 'Admin' : role === 'Instructor' ? 'Instructor' : 'Employee';
-  const prefix = role === 'Admin' ? 'admin' : role === 'Instructor' ? 'instructor' : 'employee';
-
   const toggleOpen = () => {
-    setOpen((prev) => !prev);
+    const nextOpen = !open;
+    setOpen(nextOpen);
+    // Refresh data when opening dropdown to ensure count is up-to-date
+    if (nextOpen) {
+      fetchUnread();
+      fetchRecent();
+    }
   };
 
   const handleViewAll = () => {
@@ -212,23 +221,40 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
                     }`}
                     onClick={() => handleItemClick(n)}
                   >
-                    <p
-                      className={`text-xs font-semibold line-clamp-1 ${
-                        n.read_at ? 'text-slate-700' : 'text-slate-900'
-                      }`}
-                    >
-                      {n.title}
-                    </p>
-                    {n.data?.from_user_name && (
-                      <p className="text-[11px] text-slate-400">
-                        From {n.data.from_user_name}
-                        {n.data.from_role ? ` \\ ${n.data.from_role}` : ''}
-                      </p>
-                    )}
-                    <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{n.message}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      {new Date(n.created_at).toLocaleString()}
-                    </p>
+                    <div className="flex items-start space-x-2">
+                      {n.data?.from_user_profile_picture ? (
+                        <img
+                          src={resolveImageUrl(n.data.from_user_profile_picture)}
+                          alt={n.data.from_user_name || 'User'}
+                          className="h-8 w-8 rounded-full object-cover border border-slate-200 flex-shrink-0"
+                        />
+                      ) : n.data?.from_user_name ? (
+                        <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-medium text-slate-600">
+                            {n.data.from_user_name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      ) : null}
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className={`text-xs font-semibold line-clamp-1 ${
+                            n.read_at ? 'text-slate-700' : 'text-slate-900'
+                          }`}
+                        >
+                          {n.title}
+                        </p>
+                        {n.data?.from_user_name && (
+                          <p className="text-[11px] text-slate-400">
+                            From {n.data.from_user_name}
+                            {n.data.from_role ? ` \\ ${n.data.from_role}` : ''}
+                          </p>
+                        )}
+                        <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{n.message}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          {new Date(n.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
                   </li>
                 ))}
               </ul>

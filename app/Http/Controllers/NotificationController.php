@@ -290,6 +290,7 @@ class NotificationController extends Controller
                     'from_user_id' => $admin->id,
                     'from_user_name' => $admin->fullname,
                     'from_role' => 'Admin',
+                    'from_user_profile_picture' => $admin->profile_picture,
                 ],
             ]);
         }
@@ -357,6 +358,7 @@ class NotificationController extends Controller
                 'from_user_id' => $admin->id,
                 'from_user_name' => $admin->fullname,
                 'from_role' => 'Admin',
+                'from_user_profile_picture' => $admin->profile_picture,
             ],
         ]);
 
@@ -460,6 +462,7 @@ class NotificationController extends Controller
                     'from_user_id' => $instructor->id,
                     'from_user_name' => $instructor->fullname,
                     'from_role' => 'Instructor',
+                    'from_user_profile_picture' => $instructor->profile_picture,
                     'course_title' => $courseTitle,
                 ],
             ]);
@@ -510,6 +513,7 @@ class NotificationController extends Controller
                 'from_user_id' => $employee->id,
                 'from_user_name' => $employee->fullname,
                 'from_role' => 'Employee',
+                'from_user_profile_picture' => $employee->profile_picture,
                 'course_title' => $course->title,
             ],
         ]);
@@ -526,28 +530,43 @@ class NotificationController extends Controller
     public function employeeReportToAdmin(Request $request)
     {
         $request->validate([
-            'title' => 'required|string|max:255',
             'message' => 'required|string',
             'type' => 'nullable|string|in:feedback,issue,suggestion',
         ]);
 
         $employee = Auth::user();
+        $type = $request->input('type', 'feedback');
 
-        // Get all admins
-        $admins = User::where('role', 'Admin')->get();
+        // Build dynamic title based on type and employee's department
+        $typeLabels = [
+            'feedback' => 'Feedback',
+            'issue' => 'Issue Report',
+            'suggestion' => 'Suggestion',
+        ];
+        $typeLabel = $typeLabels[$type] ?? 'Report';
+
+        $departmentName = $employee->department;
+
+        $title = $departmentName
+            ? "{$typeLabel} from {$employee->fullname} ({$departmentName})"
+            : "{$typeLabel} from {$employee->fullname}";
+
+        // Get all admins (role is stored lowercase in DB due to mutator)
+        $admins = User::where('role', 'admin')->get();
 
         $notifications = [];
         foreach ($admins as $admin) {
             $notifications[] = Notification::create([
                 'user_id' => $admin->id,
-                'type' => $request->input('type', 'feedback'),
-                'title' => $request->input('title'),
+                'type' => $type,
+                'title' => $title,
                 'message' => $request->input('message'),
                 'data' => [
                     'from_user_id' => $employee->id,
                     'from_user_name' => $employee->fullname,
                     'from_role' => 'Employee',
-                    'from_department' => $employee->department,
+                    'from_user_profile_picture' => $employee->profile_picture,
+                    'from_department' => $departmentName,
                 ],
             ]);
         }

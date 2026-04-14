@@ -32,6 +32,16 @@ class Notification extends Model
         'deleted_at' => 'datetime',
     ];
 
+    protected $appends = ['read'];
+
+    /**
+     * Get the read attribute as a boolean.
+     */
+    public function getReadAttribute(): bool
+    {
+        return $this->read_at !== null;
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
