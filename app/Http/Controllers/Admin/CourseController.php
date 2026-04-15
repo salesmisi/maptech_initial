@@ -864,6 +864,41 @@ class CourseController extends Controller
 
         $module = $course->modules()->create($data);
 
+        // Notify enrolled users about new module
+        try {
+            $user = $request->user();
+            $enrolledUserIds = Enrollment::where('course_id', $course->id)
+                ->where('status', '!=', 'Dropped')
+                ->pluck('user_id');
+
+            foreach ($enrolledUserIds as $userId) {
+                Notification::create([
+                    'user_id' => $userId,
+                    'course_id' => $course->id,
+                    'module_id' => $module->id,
+                    'type' => 'new_module',
+                    'title' => 'New Module Available',
+                    'message' => "A new module \"{$module->title}\" has been added to course \"{$course->title}\".",
+                    'data' => [
+                        'from_user_id' => $user?->id,
+                        'from_user_name' => $user?->fullname ?? 'Admin',
+                        'from_role' => 'Admin',
+                        'from_user_profile_picture' => $user?->profile_picture,
+                        'module_id' => $module->id,
+                        'module_title' => $module->title,
+                    ],
+                ]);
+            }
+
+            Log::info('Admin::addModule created module with notifications', [
+                'course_id' => $course->id,
+                'module_id' => $module->id,
+                'notified_users' => $enrolledUserIds->count(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send module notifications', ['error' => $e->getMessage()]);
+        }
+
         return response()->json([
             'message' => 'Module added successfully',
             'module'  => $module,
@@ -923,6 +958,42 @@ class CourseController extends Controller
         }
 
         $lesson = $module->lessons()->create($data);
+
+        // Notify enrolled users about new lesson
+        try {
+            $user = $request->user();
+            $course = $module->course;
+            $enrolledUserIds = Enrollment::where('course_id', $course->id)
+                ->where('status', '!=', 'Dropped')
+                ->pluck('user_id');
+
+            foreach ($enrolledUserIds as $userId) {
+                Notification::create([
+                    'user_id' => $userId,
+                    'course_id' => $course->id,
+                    'module_id' => $module->id,
+                    'type' => 'new_lesson',
+                    'title' => 'New Lesson Available',
+                    'message' => "A new lesson \"{$lesson->title}\" has been added to module \"{$module->title}\" in course \"{$course->title}\".",
+                    'data' => [
+                        'from_user_id' => $user?->id,
+                        'from_user_name' => $user?->fullname ?? 'Admin',
+                        'from_role' => 'Admin',
+                        'from_user_profile_picture' => $user?->profile_picture,
+                        'module_id' => $module->id,
+                        'lesson_id' => $lesson->id,
+                        'lesson_title' => $lesson->title,
+                    ],
+                ]);
+            }
+
+            Log::info('Admin::addLesson created lesson with notifications', [
+                'lesson_id' => $lesson->id,
+                'notified_users' => $enrolledUserIds->count(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send lesson notifications', ['error' => $e->getMessage()]);
+        }
 
         return response()->json(['message' => 'Lesson added', 'lesson' => $lesson], 201);
     }

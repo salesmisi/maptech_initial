@@ -7,9 +7,11 @@ import {
   Link as LinkIcon,
   Download,
   Loader,
+  Presentation,
 } from 'lucide-react';
 import { sanitizeHtml } from '../../components/RichTextEditor';
 import YouTubePlayer from '../../components/YouTubePlayer';
+import PresentationViewer from '../../components/PresentationViewer';
 
 const API_BASE = '/api';
 
@@ -157,6 +159,38 @@ export function CustomModuleViewer({ moduleId, onBack }: Props) {
       }
     }
 
+    // Presentation Content (PPT/PPTX)
+    if (contentType === 'presentation') {
+      const presUrl = currentLesson.content_full_url || currentLesson.content_url;
+
+      if (presUrl) {
+        return (
+          <PresentationViewer
+            url={presUrl}
+            title={currentLesson.title}
+            fileName={currentLesson.file_name || undefined}
+            fileSize={currentLesson.formatted_file_size || undefined}
+          />
+        );
+      }
+
+      return (
+        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center gap-4">
+            <Presentation className="h-12 w-12 text-orange-500" />
+            <div className="flex-1">
+              <h4 className="font-medium text-slate-900 dark:text-slate-100">
+                {currentLesson.file_name || currentLesson.title}
+              </h4>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Presentation file not available
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // Document/PDF Content
     if (contentType === 'document') {
       const docUrl = currentLesson.content_full_url || currentLesson.content_url;
@@ -230,6 +264,121 @@ export function CustomModuleViewer({ moduleId, onBack }: Props) {
               </a>
             </div>
           </div>
+        </div>
+      );
+    }
+
+    // File Content (generic file upload)
+    if (contentType === 'file') {
+      const fileUrl = currentLesson.content_full_url || currentLesson.content_url;
+      const fileType = currentLesson.file_type || '';
+      const fileName = currentLesson.file_name || '';
+      const isImage = fileType.startsWith('image/');
+      const isPdf = fileType === 'application/pdf';
+      const isAudio = fileType.startsWith('audio/');
+      const isVideo = fileType.startsWith('video/');
+      const isPpt = fileType.includes('presentation') ||
+                    fileType.includes('powerpoint') ||
+                    fileName.toLowerCase().endsWith('.ppt') ||
+                    fileName.toLowerCase().endsWith('.pptx');
+
+      if (fileUrl) {
+        // PowerPoint presentation
+        if (isPpt) {
+          return (
+            <PresentationViewer
+              url={fileUrl}
+              title={currentLesson.title}
+              fileName={currentLesson.file_name || undefined}
+              fileSize={currentLesson.formatted_file_size || undefined}
+            />
+          );
+        }
+
+        return (
+          <div className="space-y-4">
+            {/* Image preview */}
+            {isImage && (
+              <div className="flex justify-center">
+                <img
+                  src={fileUrl}
+                  alt={currentLesson.file_name || currentLesson.title}
+                  className="max-w-full max-h-[70vh] rounded-lg shadow-md"
+                />
+              </div>
+            )}
+
+            {/* PDF preview */}
+            {isPdf && (
+              <div className="aspect-[8.5/11] w-full border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                <iframe
+                  src={`${fileUrl}#view=FitH`}
+                  className="w-full h-full"
+                  title={currentLesson.title}
+                />
+              </div>
+            )}
+
+            {/* Audio preview */}
+            {isAudio && (
+              <div className="bg-slate-100 dark:bg-slate-700 rounded-lg p-6">
+                <audio controls className="w-full">
+                  <source src={fileUrl} type={fileType} />
+                  Your browser does not support the audio element.
+                </audio>
+              </div>
+            )}
+
+            {/* Video preview */}
+            {isVideo && (
+              <div className="aspect-video w-full bg-black rounded-lg overflow-hidden">
+                <video controls className="w-full h-full" src={fileUrl}>
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+            )}
+
+            {/* Download section */}
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-4">
+                <FileText className="h-12 w-12 text-blue-500" />
+                <div className="flex-1">
+                  <h4 className="font-medium text-slate-900 dark:text-slate-100">
+                    {currentLesson.file_name || currentLesson.title}
+                  </h4>
+                  {currentLesson.formatted_file_size && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      Size: {currentLesson.formatted_file_size}
+                    </p>
+                  )}
+                  {fileType && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      Type: {fileType}
+                    </p>
+                  )}
+                </div>
+                <a
+                  href={fileUrl}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </a>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // No file URL available
+      return (
+        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
+          <p className="text-slate-600 dark:text-slate-400">
+            File not available for download.
+          </p>
         </div>
       );
     }

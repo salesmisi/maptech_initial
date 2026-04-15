@@ -11,6 +11,7 @@ use App\Models\Quiz;
 use App\Models\QuizAttempt;
 use App\Models\Subdepartment;
 use App\Models\User;
+use App\Models\Notification;
 use App\Events\EnrollmentUnlocked;
 use App\Events\ModuleUnlocked;
 use Carbon\Carbon;
@@ -552,15 +553,41 @@ if ($request->hasFile('content')) {
 }
 
 $module = $course->modules()->create($data);
+
+        // Notify enrolled users about new module
         try {
-                Log::info('Instructor::addModule created module', [
+            $enrolledUserIds = Enrollment::where('course_id', $course->id)
+                ->where('status', '!=', 'Dropped')
+                ->pluck('user_id');
+
+            foreach ($enrolledUserIds as $userId) {
+                Notification::create([
+                    'user_id' => $userId,
+                    'course_id' => $course->id,
+                    'module_id' => $module->id,
+                    'type' => 'new_module',
+                    'title' => 'New Module Available',
+                    'message' => "A new module \"{$module->title}\" has been added to course \"{$course->title}\".",
+                    'data' => [
+                        'from_user_id' => $user->id,
+                        'from_user_name' => $user->fullname,
+                        'from_role' => ucfirst($user->role),
+                        'from_user_profile_picture' => $user->profile_picture,
+                        'module_id' => $module->id,
+                        'module_title' => $module->title,
+                    ],
+                ]);
+            }
+
+            Log::info('Instructor::addModule created module with notifications', [
                 'user_id' => $user->id,
                 'course_id' => $course->id,
                 'module_id' => $module->id,
                 'module_title' => $module->title,
+                'notified_users' => $enrolledUserIds->count(),
             ]);
         } catch (\Exception $e) {
-            // ignore
+            Log::error('Failed to send module notifications', ['error' => $e->getMessage()]);
         }
 
         return response()->json(['message' => 'Module added successfully', 'module' => $module], 201);
@@ -645,6 +672,41 @@ $module = $course->modules()->create($data);
         }
 
         $lesson = $module->lessons()->create($data);
+
+        // Notify enrolled users about new lesson
+        try {
+            $course = $module->course;
+            $enrolledUserIds = Enrollment::where('course_id', $course->id)
+                ->where('status', '!=', 'Dropped')
+                ->pluck('user_id');
+
+            foreach ($enrolledUserIds as $userId) {
+                Notification::create([
+                    'user_id' => $userId,
+                    'course_id' => $course->id,
+                    'module_id' => $module->id,
+                    'type' => 'new_lesson',
+                    'title' => 'New Lesson Available',
+                    'message' => "A new lesson \"{$lesson->title}\" has been added to module \"{$module->title}\" in course \"{$course->title}\".",
+                    'data' => [
+                        'from_user_id' => $user->id,
+                        'from_user_name' => $user->fullname,
+                        'from_role' => ucfirst($user->role),
+                        'from_user_profile_picture' => $user->profile_picture,
+                        'module_id' => $module->id,
+                        'lesson_id' => $lesson->id,
+                        'lesson_title' => $lesson->title,
+                    ],
+                ]);
+            }
+
+            Log::info('Instructor::addLesson created lesson with notifications', [
+                'lesson_id' => $lesson->id,
+                'notified_users' => $enrolledUserIds->count(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send lesson notifications', ['error' => $e->getMessage()]);
+        }
 
         return response()->json(['message' => 'Lesson added', 'lesson' => $lesson], 201);
     }

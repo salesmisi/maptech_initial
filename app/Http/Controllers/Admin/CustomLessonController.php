@@ -176,6 +176,18 @@ class CustomLessonController extends Controller
                 $validated['file_type'] = $file->getMimeType();
                 $validated['file_size'] = $file->getSize();
             }
+            // Handle file removal (without uploading new file)
+            elseif ($request->input('remove_file')) {
+                // Delete existing file
+                if ($lesson->content_path && !preg_match('#^https?://#i', $lesson->content_path)) {
+                    Storage::disk('public')->delete($lesson->content_path);
+                }
+
+                $validated['content_path'] = null;
+                $validated['file_name'] = null;
+                $validated['file_type'] = null;
+                $validated['file_size'] = null;
+            }
 
             $lesson->update($validated);
 

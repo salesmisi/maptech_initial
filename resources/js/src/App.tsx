@@ -760,6 +760,12 @@ export function App() {
                 onBack={() => handleNavigate('my-courses')}
               />
             )}
+            {currentPage === 'custom-module-viewer' && selectedCustomModuleId && (
+              <CustomModuleViewer
+                moduleId={selectedCustomModuleId}
+                onBack={() => handleNavigate('dashboard')}
+              />
+            )}
             {currentPage === 'progress' && <MyProgress />}
             {currentPage === 'certificates' && <MyCertificates />}
             {currentPage === 'qa' && <QAModule userId={user.id} />}

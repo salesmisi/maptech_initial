@@ -188,6 +188,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
     status: 'draft' as 'draft' | 'published',
   });
   const [contentFile, setContentFile] = useState<File | null>(null);
+  const [removeCurrentFile, setRemoveCurrentFile] = useState(false);
   const [savingLesson, setSavingLesson] = useState(false);
 
   // Version history modal
@@ -775,6 +776,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
       status: lesson.status,
     });
     setContentFile(null);
+    setRemoveCurrentFile(false);
     setShowLessonModal(true);
   };
 
@@ -799,6 +801,11 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
 
       if (contentFile && (lessonForm.content_type === 'file' || lessonForm.content_type === 'video')) {
         formData.append('content_file', contentFile);
+      }
+
+      // Send flag to remove current file if requested
+      if (removeCurrentFile && !contentFile) {
+        formData.append('remove_file', '1');
       }
 
       const url = editingLesson
@@ -2077,7 +2084,12 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                     </label>
                     <input
                       type="file"
-                      onChange={(e) => setContentFile(e.target.files?.[0] || null)}
+                      onChange={(e) => {
+                        setContentFile(e.target.files?.[0] || null);
+                        if (e.target.files?.[0]) {
+                          setRemoveCurrentFile(false);
+                        }
+                      }}
                       accept={lessonForm.content_type === 'video' ? 'video/*' : '*'}
                       className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
@@ -2086,8 +2098,49 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                         Supported formats: MP4, AVI, MOV, etc. Maximum file size: 5GB. No video length limit.
                       </p>
                     )}
-                    {editingLesson?.file_name && (
-                      <p className="mt-1 text-sm text-gray-500">Current: {editingLesson.file_name}</p>
+                    {editingLesson?.file_name && !removeCurrentFile && !contentFile && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Current: </span>
+                        <a
+                          href={editingLesson.content_full_url || editingLesson.content_url || undefined}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+                        >
+                          {editingLesson.file_name}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => setRemoveCurrentFile(true)}
+                          className="text-xs px-2 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
+                    {removeCurrentFile && !contentFile && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-sm text-amber-600 dark:text-amber-400">File will be removed on save</span>
+                        <button
+                          type="button"
+                          onClick={() => setRemoveCurrentFile(false)}
+                          className="text-xs px-2 py-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                        >
+                          Undo
+                        </button>
+                      </div>
+                    )}
+                    {contentFile && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-sm text-green-600 dark:text-green-400">New file: {contentFile.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setContentFile(null)}
+                          className="text-xs px-2 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                        >
+                          Clear
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}
