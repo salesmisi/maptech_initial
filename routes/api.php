@@ -891,6 +891,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
         Route::post('/{id}/restore', [\App\Http\Controllers\NotificationController::class, 'restoreNotification']);
         Route::delete('/{id}/permanent', [\App\Http\Controllers\NotificationController::class, 'permanentlyDeleteNotification']);
         Route::post('/notify-employees', [\App\Http\Controllers\NotificationController::class, 'instructorNotify']);
+        Route::post('/notify-admin', [\App\Http\Controllers\NotificationController::class, 'instructorNotifyAdmin']);
     });
     // Instructor access to feedback listing (uses same controller logic)
     Route::get('/feedbacks', [\App\Http\Controllers\Admin\FeedbackController::class, 'index']);

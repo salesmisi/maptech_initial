@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
-import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle, RotateCcw, Archive, CheckCircle } from 'lucide-react';
+import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle, RotateCcw, Archive, CheckCircle, Shield } from 'lucide-react';
 import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
+import { useToast } from '../../components/ToastProvider';
+
+// Helper to get cookie value
+const getCookie = (name: string) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift();
+  return undefined;
+};
 
 interface Notification {
   id: number;
@@ -29,7 +38,6 @@ interface Course {
 }
 
 interface FormData {
-  title: string;
   message: string;
   course_id: string;
   department_id: string | number;
@@ -44,6 +52,7 @@ export function InstructorNotifications() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
   const [departments, setDepartments] = useState<{id:number;name:string}[]>([]);
@@ -51,16 +60,21 @@ export function InstructorNotifications() {
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
-    title: '',
     message: '',
     course_id: '',
     department_id: '',
     type: 'announcement',
   });
 
+  const [adminFormData, setAdminFormData] = useState({
+    message: '',
+    type: 'report',
+  });
+
   const token = localStorage.getItem('token');
   const confirm = useConfirm();
   const { showConfirm } = confirm;
+  const { pushToast } = useToast();
 
   const fetchOptions = (method: 'GET' | 'POST', body?: unknown): RequestInit => ({
     method,
@@ -272,14 +286,22 @@ export function InstructorNotifications() {
 
     // allow either department or course selection
     if (!formData.course_id && !formData.department_id) {
-      alert('Please select a department or a course');
+      pushToast('Missing Selection', 'Please select a department or a course', 'warning');
       return;
     }
+
+    // Auto-generate title from type
+    const typeLabels: Record<string, string> = {
+      announcement: 'Announcement',
+      lesson_update: 'Lesson Update',
+      quiz_reminder: 'Quiz Reminder',
+    };
+    const title = typeLabels[formData.type] || 'Announcement';
 
     setIsSending(true);
     try {
       const payload: any = {
-        title: formData.title,
+        title: title,
         message: formData.message,
         type: formData.type,
       };
@@ -299,15 +321,69 @@ export function InstructorNotifications() {
       const data = await res.json();
 
       if (res.ok) {
-        alert(`Notification sent to ${data.recipients_count} enrolled employees!`);
+        pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} enrolled employees!`, 'success');
         setIsModalOpen(false);
-        setFormData({ title: '', message: '', course_id: '', department_id: '', type: 'announcement' });
+        setFormData({ message: '', course_id: '', department_id: '', type: 'announcement' });
       } else {
-        alert(data.message || 'Failed to send notification');
+        pushToast('Failed', data.message || 'Failed to send notification', 'error');
       }
     } catch (err) {
       console.error('Failed to send notification:', err);
-      alert('Failed to send notification');
+      pushToast('Error', 'Failed to send notification', 'error');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleSendToAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!adminFormData.message.trim()) {
+      pushToast('Missing Message', 'Please fill in the message', 'warning');
+      return;
+    }
+
+    // Auto-generate title from type
+    const typeLabels: Record<string, string> = {
+      report: 'Report',
+      feedback: 'Feedback',
+      issue: 'Issue',
+      suggestion: 'Suggestion',
+    };
+    const title = typeLabels[adminFormData.type] || 'Report';
+
+    setIsSending(true);
+    try {
+      // Fetch CSRF cookie first
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+
+      // Get XSRF token from cookie
+      const xsrfToken = getCookie('XSRF-TOKEN');
+
+      const res = await fetch('/api/instructor/notifications/notify-admin', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
+        },
+        body: JSON.stringify({ ...adminFormData, title }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} admin(s)!`, 'success');
+        setIsAdminModalOpen(false);
+        setAdminFormData({ message: '', type: 'report' });
+      } else {
+        pushToast('Failed', data.message || 'Failed to send notification', 'error');
+      }
+    } catch (err) {
+      console.error('Failed to send notification to admin:', err);
+      pushToast('Error', 'Failed to send notification', 'error');
     } finally {
       setIsSending(false);
     }
@@ -371,6 +447,13 @@ export function InstructorNotifications() {
           >
             <Users className="h-4 w-4 mr-2" />
             Notify Employees
+          </button>
+          <button
+            onClick={() => setIsAdminModalOpen(true)}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
+          >
+            <Shield className="h-4 w-4 mr-2" />
+            Notify Admin
           </button>
         </div>
       </div>
@@ -619,19 +702,6 @@ export function InstructorNotifications() {
                     </select>
                   </div>
                   <div>
-                    <label htmlFor="notify-title" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Title *</label>
-                    <input
-                      id="notify-title"
-                      name="title"
-                      type="text"
-                      required
-                      value={formData.title}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                      placeholder="Notification title"
-                    />
-                  </div>
-                  <div>
                     <label htmlFor="notify-message" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Message *</label>
                     <textarea
                       id="notify-message"
@@ -664,6 +734,66 @@ export function InstructorNotifications() {
                 </form>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Send to Admin Modal */}
+      {isAdminModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setIsAdminModalOpen(false)}></div>
+          <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md p-6">
+            <button
+              onClick={() => setIsAdminModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-green-100 dark:bg-green-900/50 rounded-lg">
+                <Shield className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-slate-900 dark:text-white">Contact Admin</h3>
+            </div>
+
+            <form onSubmit={handleSendToAdmin} className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                {['report', 'feedback', 'issue', 'suggestion'].map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setAdminFormData({ ...adminFormData, type })}
+                    className={`py-2 px-3 rounded-lg text-sm font-medium capitalize transition-colors ${
+                      adminFormData.type === type
+                        ? 'bg-green-600 text-white'
+                        : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+
+              <textarea
+                name="message"
+                rows={4}
+                required
+                value={adminFormData.message}
+                onChange={(e) => setAdminFormData({ ...adminFormData, message: e.target.value })}
+                className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+                placeholder="Write your message to admin..."
+              />
+
+              <button
+                type="submit"
+                disabled={isSending || !adminFormData.message.trim()}
+                className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium rounded-lg flex items-center justify-center gap-2 transition-colors"
+              >
+                <Send className="h-4 w-4" />
+                {isSending ? 'Sending...' : 'Send to Admin'}
+              </button>
+            </form>
           </div>
         </div>
       )}

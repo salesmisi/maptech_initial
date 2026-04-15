@@ -695,4 +695,67 @@ class NotificationController extends Controller
             'permanently_deleted' => $permanentlyDeleted,
         ]);
     }
+
+    /**
+     * Instructor: Send notification/report to all admins.
+     */
+    public function instructorNotifyAdmin(Request $request)
+    {
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'message' => 'required|string',
+            'type' => 'nullable|string|in:feedback,issue,suggestion,report',
+        ]);
+
+        $instructor = Auth::user();
+        if (!$instructor) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $type = $request->input('type', 'report');
+
+        // Build dynamic title based on type and instructor's department
+        $typeLabels = [
+            'feedback' => 'Feedback',
+            'issue' => 'Issue Report',
+            'suggestion' => 'Suggestion',
+            'report' => 'Report',
+        ];
+        $typeLabel = $typeLabels[$type] ?? 'Report';
+
+        $departmentName = $instructor->department;
+
+        $title = $request->input('title');
+
+        // Get all admins
+        $admins = User::where('role', 'admin')->get();
+
+        if ($admins->isEmpty()) {
+            return response()->json([
+                'message' => 'No admins found to notify',
+            ], 404);
+        }
+
+        $notifications = [];
+        foreach ($admins as $admin) {
+            $notifications[] = Notification::create([
+                'user_id' => $admin->id,
+                'type' => $type,
+                'title' => $title,
+                'message' => $request->input('message'),
+                'data' => [
+                    'from_user_id' => $instructor->id,
+                    'from_user_name' => $instructor->fullname,
+                    'from_role' => 'Instructor',
+                    'from_user_profile_picture' => $instructor->profile_picture,
+                    'from_department' => $departmentName,
+                ],
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Notification sent to admin(s)',
+            'recipients_count' => count($notifications),
+        ]);
+    }
 }

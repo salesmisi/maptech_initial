@@ -1,7 +1,15 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Bell } from 'lucide-react';
+import { Bell, CheckCheck } from 'lucide-react';
 import { LoadingState } from './ui/LoadingState';
 import { resolveImageUrl } from '../utils/safe';
+
+// Helper to get cookie value
+const getCookie = (name: string) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift();
+  return undefined;
+};
 
 export type NotificationBellRole = 'Admin' | 'Instructor' | 'Employee';
 
@@ -31,6 +39,7 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [marking, setMarking] = useState(false);
   const isCancelledRef = useRef(false);
 
   const prefix = role === 'Admin' ? 'admin' : role === 'Instructor' ? 'instructor' : 'employee';
@@ -147,6 +156,34 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
     }
   };
 
+  const handleMarkAllAsRead = async () => {
+    if (unreadCount === 0 || marking) return;
+    setMarking(true);
+    try {
+      // Fetch CSRF cookie first
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+      const xsrfToken = getCookie('XSRF-TOKEN');
+      await fetch(`/api/${prefix}/notifications/read-all`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
+        },
+      });
+      // Update UI immediately
+      setUnreadCount(0);
+      setItems((prev) => prev.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })));
+    } catch {
+      // Silently ignore errors
+    } finally {
+      setMarking(false);
+    }
+  };
+
   const handleViewAll = () => {
     if (onOpenAll) onOpenAll();
     setOpen(false);
@@ -201,6 +238,18 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
                 {hasUnread ? `${unreadCount} unread` : 'No unread notifications'}
               </p>
             </div>
+            {hasUnread && (
+              <button
+                type="button"
+                onClick={handleMarkAllAsRead}
+                disabled={marking}
+                className="flex items-center gap-1 text-[11px] font-medium text-green-600 hover:text-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Mark all as read"
+              >
+                <CheckCheck className="h-3.5 w-3.5" />
+                {marking ? 'Marking...' : 'Mark all read'}
+              </button>
+            )}
           </div>
           <div className="max-h-80 overflow-y-auto">
             {loading && (

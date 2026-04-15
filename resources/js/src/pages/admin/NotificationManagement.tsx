@@ -568,6 +568,12 @@ export function NotificationManagement() {
                       <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-medium text-slate-900 dark:text-white">
                           {notification.title}
+                          {notification.data?.from_user_name && !notification.title.includes('from ') && (
+                            <span className="font-normal text-slate-600 dark:text-slate-400">
+                              {' '}from {notification.data.from_user_name}
+                              {notification.data.from_department ? ` (${notification.data.from_department})` : ''}
+                            </span>
+                          )}
                           {!notification.read_at && (
                             <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
                               New
@@ -575,12 +581,9 @@ export function NotificationManagement() {
                           )}
                         </h3>
                         <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{notification.message}</p>
-                        {notification.data?.from_user_name && (
+                        {notification.data?.from_role && (
                           <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                            From: {notification.data.from_user_name} ({notification.data.from_role})
-                            {notification.data.from_department && (
-                              <span className="ml-1">• {notification.data.from_department}</span>
-                            )}
+                            {notification.data.from_role}
                           </p>
                         )}
                         <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">

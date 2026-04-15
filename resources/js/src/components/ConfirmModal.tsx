@@ -1,7 +1,7 @@
 import React from 'react';
-import { ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ExclamationTriangleIcon, XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 
-export default function ConfirmModal({ open, message, onConfirm, onCancel, title = 'Confirm Action', confirmText = 'Yes, Proceed', cancelText = 'Cancel', variant = 'danger' }: {
+export default function ConfirmModal({ open, message, onConfirm, onCancel, title = 'Confirm Action', confirmText = 'Yes, Proceed', cancelText = 'Cancel', variant = 'primary' }: {
   open: boolean;
   message: string;
   onConfirm: () => void | Promise<void>;
@@ -9,7 +9,7 @@ export default function ConfirmModal({ open, message, onConfirm, onCancel, title
   title?: string;
   confirmText?: string;
   cancelText?: string;
-  variant?: 'danger' | 'warning' | 'info';
+  variant?: 'danger' | 'warning' | 'info' | 'primary';
 }) {
   if (!open) return null;
 
@@ -25,6 +25,10 @@ export default function ConfirmModal({ open, message, onConfirm, onCancel, title
     info: {
       icon: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
       button: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500',
+    },
+    primary: {
+      icon: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
+      button: 'bg-green-600 hover:bg-green-700 focus:ring-green-500',
     },
   };
 
@@ -52,7 +56,11 @@ export default function ConfirmModal({ open, message, onConfirm, onCancel, title
           {/* Icon and Title */}
           <div className="flex items-start gap-4">
             <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${styles.icon}`}>
-              <ExclamationTriangleIcon className="w-6 h-6" />
+              {variant === 'primary' ? (
+                <CheckCircleIcon className="w-6 h-6" />
+              ) : (
+                <ExclamationTriangleIcon className="w-6 h-6" />
+              )}
             </div>
             <div className="flex-1 pt-1">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">

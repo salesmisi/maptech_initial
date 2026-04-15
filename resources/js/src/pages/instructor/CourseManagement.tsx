@@ -132,6 +132,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [courseUnlockTargetId, setCourseUnlockTargetId] = useState<string | null>(null);
   const [unlockDurationMinutes, setUnlockDurationMinutes] = useState<number>(1440);
   const [unlockPermanent, setUnlockPermanent] = useState<boolean>(false);
+  const [unlockStartDate, setUnlockStartDate] = useState<string>('');
+  const [unlockEndDate, setUnlockEndDate] = useState<string>('');
   const [unlocking, setUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
 
@@ -293,6 +295,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setCourseUnlockTargetId(courseId);
     setUnlockDurationMinutes(1440);
     setUnlockPermanent(false);
+    setUnlockStartDate('');
+    setUnlockEndDate('');
     setUnlockError(null);
     setCourseUnlockModalOpen(true);
   };
@@ -433,8 +437,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     }
   };
 
-  const handleUnlockCourse = async (courseId: string, durationMinutes?: number | null) => {
-    showConfirm('Unlock this course for enrolled users?', async () => {
+  const handleUnlockCourse = async (courseId: string, durationMinutes?: number | null, startDate?: string, endDate?: string) => {
     try {
       setUnlockError(null);
       setUnlocking(true);
@@ -455,15 +458,18 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         if (depts.length === 0 && course.department) depts.push(course.department);
         for (const dept of depts) {
           try {
+            const bodyData: any = { department: dept };
+            if (endDate) {
+              bodyData.expires_at = endDate;
+            } else if (durationMinutes && !isNaN(durationMinutes)) {
+              bodyData.duration_minutes = Number(durationMinutes);
+            }
             const deptOpts: any = {
               method: 'POST',
               credentials: 'include',
               headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ department: dept }),
+              body: JSON.stringify(bodyData),
             };
-            if (durationMinutes && !isNaN(durationMinutes)) {
-              deptOpts.body = JSON.stringify({ department: dept, duration_minutes: Number(durationMinutes) });
-            }
             await fetch(`${API_BASE}/instructor/courses/${courseId}/unlock-department-all`, deptOpts);
           } catch (err) {
             console.warn('unlock-department-all failed for', dept, err);
@@ -475,15 +481,18 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
       for (const u of users) {
         try {
+          const bodyData: any = {};
+          if (endDate) {
+            bodyData.expires_at = endDate;
+          } else if (durationMinutes && !isNaN(durationMinutes)) {
+            bodyData.duration_minutes = Number(durationMinutes);
+          }
           const opts: any = {
             method: 'POST',
             credentials: 'include',
-            headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+            headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token, 'Content-Type': 'application/json' },
+            body: JSON.stringify(bodyData),
           };
-          if (durationMinutes && !isNaN(durationMinutes)) {
-            opts.headers['Content-Type'] = 'application/json';
-            opts.body = JSON.stringify({ duration_minutes: Number(durationMinutes) });
-          }
           const r = await fetch(`${API_BASE}/instructor/courses/${courseId}/enrollments/${u.id}/unlock`, opts);
           if (!r.ok) {
             const text = await r.text();
@@ -503,6 +512,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       setCourseUnlockTargetId(null);
       setUnlockDurationMinutes(1440);
       setUnlockPermanent(false);
+      setUnlockStartDate('');
+      setUnlockEndDate('');
       await loadCourses();
     } catch (e: any) {
       console.error(e);
@@ -512,7 +523,6 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     } finally {
       setUnlocking(false);
     }
-    });
   };
 
   const filtered = courses.filter((c) => {
@@ -955,36 +965,64 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
             className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50"
             onClick={(e) => { if (e.target === e.currentTarget) { setCourseUnlockModalOpen(false); setCourseUnlockTargetId(null); } }}
           >
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-lg font-semibold mb-3">Unlock Course</h3>
-              <p className="text-sm text-slate-600 mb-3">Set a temporary unlock duration (minutes) or make it permanent.</p>
-              {unlockError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded px-3 py-2 mb-3">{unlockError}</div>}
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Duration (minutes)</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={unlockDurationMinutes}
-                  onChange={(e) => setUnlockDurationMinutes(Number(e.target.value))}
-                  disabled={unlockPermanent}
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 text-sm"
-                />
-                <p className="text-xs text-slate-400 mt-1">Leave as 1440 for 24 hours.</p>
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-white">Unlock Course</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Set the unlock period for enrolled employees.</p>
+              {unlockError && <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm rounded px-3 py-2 mb-3">{unlockError}</div>}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    value={unlockStartDate}
+                    onChange={(e) => setUnlockStartDate(e.target.value)}
+                    disabled={unlockPermanent}
+                    className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Leave empty to start immediately.</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">End Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    value={unlockEndDate}
+                    onChange={(e) => setUnlockEndDate(e.target.value)}
+                    disabled={unlockPermanent}
+                    className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">When the course will be locked again.</p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    id="perm"
+                    type="checkbox"
+                    checked={unlockPermanent}
+                    onChange={(e) => setUnlockPermanent(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-500"
+                  />
+                  <label htmlFor="perm" className="text-sm text-slate-700 dark:text-slate-300">Permanent unlock (no expiration)</label>
+                </div>
               </div>
-              <div className="flex items-center gap-2 mb-4">
-                <input id="perm" type="checkbox" checked={unlockPermanent} onChange={(e) => setUnlockPermanent(e.target.checked)} className="h-4 w-4" />
-                <label htmlFor="perm" className="text-sm text-slate-700">Permanent unlock</label>
-              </div>
-              <div className="flex gap-3 justify-end">
-                <button onClick={() => { setCourseUnlockModalOpen(false); setCourseUnlockTargetId(null); }} className="px-4 py-2 border rounded text-sm">Cancel</button>
+
+              <div className="flex gap-3 justify-end mt-6">
+                <button
+                  onClick={() => { setCourseUnlockModalOpen(false); setCourseUnlockTargetId(null); }}
+                  className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                >
+                  Cancel
+                </button>
                 <button
                   onClick={() => {
                     if (!courseUnlockTargetId) return;
-                    const dur = unlockPermanent ? null : unlockDurationMinutes;
-                    handleUnlockCourse(courseUnlockTargetId, dur ?? null);
+                    const endDateValue = unlockPermanent ? undefined : unlockEndDate || undefined;
+                    const dur = unlockPermanent ? null : (!unlockEndDate ? unlockDurationMinutes : null);
+                    handleUnlockCourse(courseUnlockTargetId, dur ?? null, unlockStartDate || undefined, endDateValue);
                   }}
                   disabled={unlocking}
-                  className="px-4 py-2 bg-green-600 text-white rounded text-sm"
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm disabled:opacity-50"
                 >
                   {unlocking ? 'Unlocking...' : 'Confirm'}
                 </button>
