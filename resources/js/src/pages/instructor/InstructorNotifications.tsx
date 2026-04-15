@@ -191,11 +191,17 @@ export function InstructorNotifications() {
   const deleteNotification = async (id: number) => {
     showConfirm('Delete this notification?', async () => {
       try {
+        // Fetch CSRF cookie first
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const xsrfToken = getCookie('XSRF-TOKEN');
+
         await fetch(`/api/instructor/notifications/${id}`, {
           method: 'DELETE',
+          credentials: 'include',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/json',
+            'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
           },
         });
         fetchNotifications();
@@ -223,11 +229,17 @@ export function InstructorNotifications() {
 
   const restoreNotification = async (id: number) => {
     try {
+      // Fetch CSRF cookie first
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      const xsrfToken = getCookie('XSRF-TOKEN');
+
       await fetch(`/api/instructor/notifications/${id}/restore`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
+          'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
         },
       });
       fetchNotifications();
@@ -241,11 +253,17 @@ export function InstructorNotifications() {
   const permanentlyDeleteNotification = async (id: number) => {
     showConfirm('Permanently delete this notification? This cannot be undone.', async () => {
       try {
+        // Fetch CSRF cookie first
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const xsrfToken = getCookie('XSRF-TOKEN');
+
         await fetch(`/api/instructor/notifications/${id}/permanent`, {
           method: 'DELETE',
+          credentials: 'include',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/json',
+            'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
           },
         });
         fetchRecentlyDeleted();
@@ -523,6 +541,12 @@ export function InstructorNotifications() {
                       <div>
                         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">
                           {notification.title}
+                          {notification.data?.from_user_name && !notification.title.includes('from ') && (
+                            <span className="font-normal text-slate-600 dark:text-slate-400">
+                              {' '}from {notification.data.from_user_name}
+                              {notification.data.course_title ? ` (${notification.data.course_title})` : ''}
+                            </span>
+                          )}
                           {!notification.read_at && (
                             <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
                               New
@@ -530,10 +554,9 @@ export function InstructorNotifications() {
                           )}
                         </h3>
                         <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{notification.message}</p>
-                        {notification.data?.from_user_name && (
+                        {notification.data?.from_role && (
                           <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                            From: {notification.data.from_user_name} ({notification.data.from_role})
-                            {notification.data.course_title && ` • ${notification.data.course_title}`}
+                            {notification.data.from_role}
                           </p>
                         )}
                         <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
@@ -599,12 +622,17 @@ export function InstructorNotifications() {
                       <div>
                         <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
                           {notification.title}
+                          {notification.data?.from_user_name && !notification.title.includes('from ') && (
+                            <span className="font-normal text-slate-500 dark:text-slate-400">
+                              {' '}from {notification.data.from_user_name}
+                              {notification.data.course_title ? ` (${notification.data.course_title})` : ''}
+                            </span>
+                          )}
                         </h3>
                         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{notification.message}</p>
-                        {notification.data?.from_user_name && (
+                        {notification.data?.from_role && (
                           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            From: {notification.data.from_user_name} ({notification.data.from_role})
-                            {notification.data.course_title && ` • ${notification.data.course_title}`}
+                            {notification.data.from_role}
                           </p>
                         )}
                         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">

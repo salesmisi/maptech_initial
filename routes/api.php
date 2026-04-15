@@ -650,6 +650,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         Route::post('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead']);
         Route::post('/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
         Route::delete('/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy']);
+        Route::post('/{id}/restore', [\App\Http\Controllers\NotificationController::class, 'restoreNotification']);
+        Route::delete('/{id}/permanent', [\App\Http\Controllers\NotificationController::class, 'permanentlyDeleteNotification']);
         Route::post('/announce', [\App\Http\Controllers\NotificationController::class, 'adminAnnounce']);
         Route::post('/notify-user', [\App\Http\Controllers\NotificationController::class, 'adminNotifyUser']);
     });

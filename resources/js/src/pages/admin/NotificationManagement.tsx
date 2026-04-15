@@ -38,10 +38,17 @@ interface RecentlyDeletedNotification {
   id: number;
   title: string;
   message: string;
-  target: string;
+  target: string | null;
   date: string;
   deleted_at: string;
-  recipients_count: number;
+  recipients_count: number | null;
+  item_type: 'sent' | 'received';
+  data?: {
+    from_user_name?: string;
+    from_role?: string;
+    from_department?: string | null;
+  } | null;
+  type?: string;
 }
 
 export function NotificationManagement() {
@@ -246,6 +253,27 @@ export function NotificationManagement() {
     });
   };
 
+  const restoreReceivedNotification = async (id: number) => {
+    try {
+      await fetch(`/api/admin/notifications/${id}/restore`, await fetchOptions('POST'));
+      fetchNotifications();
+      fetchRecentlyDeleted();
+    } catch (err) {
+      console.error('Failed to restore notification:', err);
+    }
+  };
+
+  const permanentlyDeleteReceived = async (id: number) => {
+    showConfirm('Permanently delete this notification? This cannot be undone.', async () => {
+      try {
+        await fetch(`/api/admin/notifications/${id}/permanent`, await fetchOptions('DELETE'));
+        fetchRecentlyDeleted();
+      } catch (err) {
+        console.error('Failed to permanently delete:', err);
+      }
+    });
+  };
+
   const markAsRead = async (id: number) => {
     try {
       await fetch(`/api/admin/notifications/${id}/read`, await fetchOptions('POST'));
@@ -271,6 +299,7 @@ export function NotificationManagement() {
       try {
         await fetch(`/api/admin/notifications/${id}`, await fetchOptions('DELETE'));
         fetchNotifications();
+        fetchRecentlyDeleted();
       } catch (err) {
         console.error('Failed to delete notification:', err);
       }
@@ -688,18 +717,27 @@ export function NotificationManagement() {
               <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
                 <thead className="bg-slate-50 dark:bg-slate-800">
                   <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Type</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Title</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Message</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Target</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Recipients</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Sent Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">From/Target</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Date</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Deleted Date</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
                   {recentlyDeleted.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <tr key={`${item.item_type}-${item.id}`} className="hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-xs">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-medium ${
+                          item.item_type === 'sent'
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                            : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                        }`}>
+                          {item.item_type === 'sent' ? 'Sent' : 'Received'}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
                         {item.title}
                       </td>
@@ -707,28 +745,33 @@ export function NotificationManagement() {
                         {item.message}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
-                        {item.target}
+                        {item.item_type === 'sent'
+                          ? (item.target || '-')
+                          : (item.data?.from_user_name
+                              ? `${item.data.from_user_name}${item.data.from_department ? ` (${item.data.from_department})` : ''}`
+                              : '-')
+                        }
+                        {item.item_type === 'sent' && item.recipients_count && (
+                          <span className="ml-1 text-xs text-slate-400">({item.recipients_count} users)</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
-                        {item.recipients_count} users
+                        {new Date(item.date).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
-                        {item.date}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
-                        {item.deleted_at}
+                        {new Date(item.deleted_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={() => restoreFromDeleted(item.id)}
+                            onClick={() => item.item_type === 'sent' ? restoreFromDeleted(item.id) : restoreReceivedNotification(item.id)}
                             className="text-slate-400 dark:text-slate-500 hover:text-green-600 dark:hover:text-green-400"
                             title="Restore"
                           >
                             <RotateCcw className="h-5 w-5" />
                           </button>
                           <button
-                            onClick={() => permanentlyDelete(item.id)}
+                            onClick={() => item.item_type === 'sent' ? permanentlyDelete(item.id) : permanentlyDeleteReceived(item.id)}
                             className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
                             title="Permanently Delete"
                           >

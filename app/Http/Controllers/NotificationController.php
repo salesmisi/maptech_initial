@@ -609,13 +609,14 @@ class NotificationController extends Controller
     }
 
     /**
-     * Admin: Get recently deleted sent announcements.
+     * Admin: Get recently deleted sent announcements and received notifications.
      */
     public function getRecentlyDeleted(Request $request)
     {
         $admin = Auth::user();
 
-        $recentlyDeleted = SentHistory::getRecentlyDeleted($admin->id)
+        // Get deleted sent announcements
+        $deletedSent = SentHistory::getRecentlyDeleted($admin->id)
             ->map(function ($entry) {
                 return [
                     'id' => $entry->id,
@@ -625,8 +626,34 @@ class NotificationController extends Controller
                     'date' => $entry->created_at->toIso8601String(),
                     'deleted_at' => $entry->deleted_at->toIso8601String(),
                     'recipients_count' => $entry->recipients_count,
+                    'item_type' => 'sent',
                 ];
             });
+
+        // Get deleted received notifications
+        $deletedReceived = Notification::onlyTrashed()
+            ->where('user_id', $admin->id)
+            ->orderByDesc('deleted_at')
+            ->get()
+            ->map(function ($notification) {
+                return [
+                    'id' => $notification->id,
+                    'title' => $notification->title,
+                    'message' => $notification->message,
+                    'target' => null,
+                    'date' => $notification->created_at->toIso8601String(),
+                    'deleted_at' => $notification->deleted_at->toIso8601String(),
+                    'recipients_count' => null,
+                    'item_type' => 'received',
+                    'data' => $notification->data,
+                    'type' => $notification->type,
+                ];
+            });
+
+        // Merge and sort by deleted_at descending
+        $recentlyDeleted = $deletedSent->merge($deletedReceived)
+            ->sortByDesc('deleted_at')
+            ->values();
 
         return response()->json([
             'recently_deleted' => $recentlyDeleted,
