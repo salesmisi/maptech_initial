@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { LoginPage } from './pages/LoginPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { VerifyOTPPage } from './pages/VerifyOTPPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { QADiscussion as InstructorQADiscussion } from './pages/instructor/QADiscussion';
 import { QADiscussion as AdminQADiscussion } from './pages/admin/QADiscussion';
 import { AdminLayout } from './components/layout/AdminLayout';
@@ -77,6 +80,12 @@ export function App() {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedCustomModuleId, setSelectedCustomModuleId] = useState<number | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
+
+  // Password reset flow state
+  const [authPage, setAuthPage] = useState<'login' | 'forgotPassword' | 'verifyOTP' | 'resetPassword'>('login');
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetMaskedEmail, setResetMaskedEmail] = useState('');
+  const [resetToken, setResetToken] = useState('');
 
   const matches = (value: string | null | undefined, query: string) =>
     (value ?? '').toLowerCase().includes(query);
@@ -561,9 +570,61 @@ export function App() {
   // NOT AUTHENTICATED
   // =========================
   if (!user) {
+    // Password reset flow handlers
+    const handleForgotPassword = () => setAuthPage('forgotPassword');
+    const handleBackToLogin = () => {
+      setAuthPage('login');
+      setResetEmail('');
+      setResetMaskedEmail('');
+      setResetToken('');
+    };
+    const handleOTPSent = (email: string, maskedEmail?: string) => {
+      setResetEmail(email);
+      setResetMaskedEmail(maskedEmail || '');
+      setAuthPage('verifyOTP');
+    };
+    const handleOTPVerified = (email: string, token: string) => {
+      setResetEmail(email);
+      setResetToken(token);
+      setAuthPage('resetPassword');
+    };
+    const handlePasswordResetSuccess = () => {
+      setAuthPage('login');
+      setResetEmail('');
+      setResetMaskedEmail('');
+      setResetToken('');
+    };
+
     return (
       <>
-        <LoginPage onLogin={handleLogin} theme={theme} />
+        {authPage === 'login' && (
+          <LoginPage onLogin={handleLogin} onForgotPassword={handleForgotPassword} theme={theme} />
+        )}
+        {authPage === 'forgotPassword' && (
+          <ForgotPasswordPage
+            onBackToLogin={handleBackToLogin}
+            onOTPSent={handleOTPSent}
+            theme={theme}
+          />
+        )}
+        {authPage === 'verifyOTP' && (
+          <VerifyOTPPage
+            email={resetEmail}
+            maskedEmail={resetMaskedEmail}
+            onBack={() => setAuthPage('forgotPassword')}
+            onVerified={handleOTPVerified}
+            theme={theme}
+          />
+        )}
+        {authPage === 'resetPassword' && (
+          <ResetPasswordPage
+            email={resetEmail}
+            resetToken={resetToken}
+            onSuccess={handlePasswordResetSuccess}
+            onBackToLogin={handleBackToLogin}
+            theme={theme}
+          />
+        )}
         {renderThemeToggle()}
         {logoutOverlay}
         {logoutConfirmModal}
@@ -715,7 +776,7 @@ export function App() {
 
   return (
     <>
-      <LoginPage onLogin={handleLogin} theme={theme} />
+      <LoginPage onLogin={handleLogin} onForgotPassword={() => setAuthPage('forgotPassword')} theme={theme} />
       {renderThemeToggle()}
       {logoutOverlay}
       {logoutConfirmModal}

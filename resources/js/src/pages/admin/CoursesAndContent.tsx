@@ -1163,7 +1163,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       {/* Search and Filter */}
       <div className="course-toolbar-animate flex flex-col sm:flex-row gap-4 mb-6">
         <div className="flex-1 relative">
-          <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-3 text-gray-400 dark:text-slate-400" />
+          <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-400" />
           <input
             type="text"
             placeholder="Search courses..."

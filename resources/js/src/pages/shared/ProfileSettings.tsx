@@ -24,6 +24,7 @@ interface ProfileData {
   email: string;
   role: string;
   company_role: string | null;
+  personal_gmail: string | null;
   department: string | null;
   status: string;
   profile_picture: string | null;
@@ -52,6 +53,7 @@ export function ProfileSettings() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [companyRole, setCompanyRole] = useState('');
+  const [personalGmail, setPersonalGmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -91,6 +93,7 @@ export function ProfileSettings() {
         setFullName(data.fullName);
         setEmail(data.email);
         setCompanyRole(data.company_role ?? '');
+        setPersonalGmail(data.personal_gmail ?? '');
       }
     } catch (err) {
       console.error('Failed to load profile:', err);
@@ -111,6 +114,9 @@ export function ProfileSettings() {
       if (email !== profile?.email) body.email = email;
       if (profile?.role?.toLowerCase() === 'admin' && companyRole !== (profile?.company_role ?? '')) {
         body.company_role = companyRole;
+      }
+      if (profile?.role?.toLowerCase() === 'admin' && personalGmail !== (profile?.personal_gmail ?? '')) {
+        body.personal_gmail = personalGmail;
       }
       if (password) {
         if (password.length < 8) {
@@ -628,6 +634,26 @@ export function ProfileSettings() {
                 className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
               />
               <p className="mt-1 text-xs text-slate-500">This will appear on employee completion certificates below your signature.</p>
+            </div>
+          )}
+
+          {profile.role.toLowerCase() === 'admin' && (
+            <div>
+              <label htmlFor="personal_gmail" className="block text-sm font-medium text-slate-700 mb-1">Personal Gmail Account</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-4 w-4 text-slate-400" />
+                </div>
+                <input
+                  id="personal_gmail"
+                  type="email"
+                  value={personalGmail}
+                  onChange={(e) => setPersonalGmail(e.target.value)}
+                  placeholder="e.g. yourname@gmail.com"
+                  className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                />
+              </div>
+              <p className="mt-1 text-xs text-slate-500">Your personal Gmail address for notifications and recovery.</p>
             </div>
           )}
 

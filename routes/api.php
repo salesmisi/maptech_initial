@@ -7,10 +7,33 @@ use App\Models\TimeLog;
 use App\Models\User;
 use App\Support\AuditDate;
 use App\Http\Controllers\LoginController;
+use App\Http\Controllers\PasswordResetController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| PASSWORD RESET ROUTES
+|--------------------------------------------------------------------------
+| These routes handle the password reset flow with OTP verification.
+| Rate limiting is handled in the controller for security.
+*/
+
+Route::prefix('password')->group(function () {
+    // Send OTP to email for password reset
+    Route::post('/forgot', [PasswordResetController::class, 'sendResetOTP']);
+
+    // Verify the OTP code
+    Route::post('/verify-otp', [PasswordResetController::class, 'verifyOTP']);
+
+    // Reset password with verified token
+    Route::post('/reset', [PasswordResetController::class, 'resetPassword']);
+
+    // Resend OTP (same as forgot, but semantically different)
+    Route::post('/resend-otp', [PasswordResetController::class, 'resendOTP']);
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -1025,6 +1048,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             'email' => $user->email,
             'role' => $user->role,
             'company_role' => $user->company_role,
+            'personal_gmail' => $user->personal_gmail,
             'department' => $user->department,
             'status' => $user->status,
             'profile_picture' => $user->profile_picture ? asset('storage/'.$user->profile_picture) : null,
@@ -1044,6 +1068,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             $rules['email'] = 'sometimes|email|max:255|unique:users,email,'.$user->id;
             $rules['password'] = 'sometimes|string|min:8|confirmed';
             $rules['company_role'] = 'sometimes|nullable|string|max:255';
+            $rules['personal_gmail'] = 'sometimes|nullable|email|max:255';
         }
 
         $validated = $request->validate($rules);
@@ -1092,6 +1117,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
                 'email' => $user->email,
                 'role' => $user->role,
                 'company_role' => $user->company_role,
+                'personal_gmail' => $user->personal_gmail,
                 'department' => $user->department,
                 'profile_picture' => $user->profile_picture ? asset('storage/'.$user->profile_picture) : null,
                 'signature_path' => $user->signature_path ? asset('storage/'.$user->signature_path) : null,

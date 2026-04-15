@@ -36,6 +36,7 @@ class User extends Authenticatable
         'role',
         'department',
         'company_role',
+        'personal_gmail',
         'subdepartment_id',
         'status',
         'profile_picture',
