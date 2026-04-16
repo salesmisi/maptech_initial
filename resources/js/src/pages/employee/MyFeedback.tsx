@@ -302,7 +302,7 @@ export function MyFeedback() {
                     <Edit2 className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => handleDelete(fb.id)}
+                    onClick={() => handleDelete(fb)}
                     className="p-2 text-slate-400 hover:text-red-600 rounded-full hover:bg-red-50"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -417,6 +417,7 @@ export function MyFeedback() {
           </div>
         </div>
       )}
+      {confirm.ConfirmModalRenderer()}
     </div>
   );
 }

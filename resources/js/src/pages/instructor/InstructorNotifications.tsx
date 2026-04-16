@@ -57,6 +57,7 @@ export function InstructorNotifications() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [departments, setDepartments] = useState<{id:number;name:string}[]>([]);
   const [activeTab, setActiveTab] = useState<'received' | 'deleted'>('received');
+  const [visibleCount, setVisibleCount] = useState(5);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
@@ -517,7 +518,7 @@ export function InstructorNotifications() {
             </div>
           ) : (
             <div className="divide-y divide-slate-200 dark:divide-slate-700">
-              {notifications.map((notification) => (
+              {notifications.slice(0, visibleCount).map((notification) => (
                 <div
                   key={notification.id}
                   onClick={() => setSelectedNotification(notification)}
@@ -586,6 +587,14 @@ export function InstructorNotifications() {
                 </div>
               ))}
             </div>
+          )}
+          {!loading && notifications.length > visibleCount && (
+            <button
+              onClick={() => setVisibleCount((c) => c + 5)}
+              className="w-full py-3 text-sm text-green-600 dark:text-green-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-200 dark:border-slate-700 transition-colors font-medium"
+            >
+              See previous notifications ({notifications.length - visibleCount} more)
+            </button>
           )}
         </div>
       )}
