@@ -508,10 +508,10 @@ export function App() {
 
     updateUrlRouteState(page, courseId);
 
-    // Handle custom module ID for custom-field page and custom-module-viewer
-    if ((page === 'custom-field' || page === 'custom-module-viewer') && typeof quizIdOrModuleId === 'number') {
+    // Handle custom module ID for custom-field page, custom-module-viewer, and custom-module-detail
+    if ((page === 'custom-field' || page === 'custom-module-viewer' || page === 'custom-module-detail') && typeof quizIdOrModuleId === 'number') {
       setSelectedCustomModuleId(quizIdOrModuleId);
-    } else if (page !== 'custom-field' && page !== 'custom-module-viewer') {
+    } else if (page !== 'custom-field' && page !== 'custom-module-viewer' && page !== 'custom-module-detail') {
       setSelectedCustomModuleId(null);
     }
 
@@ -709,6 +709,7 @@ export function App() {
             {currentPage === 'dashboard' && <InstructorDashboard />}
             {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
             {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} />}
+            {currentPage === 'custom-module-detail' && selectedCustomModuleId && <CustomModuleViewer moduleId={selectedCustomModuleId} apiPath="instructor/custom-modules" editApiPath="instructor/custom-modules" allowEdit={true} onBack={() => handleNavigate('courses')} />}
             {currentPage === 'quiz-management' && <QuizAssessmentManagement />}
             {currentPage === 'lessons' && <LessonVideoUpload />}
             {currentPage === 'quizzes' && <QuizAssessmentManagement />}

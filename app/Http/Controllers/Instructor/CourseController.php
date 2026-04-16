@@ -779,7 +779,14 @@ $module = $course->modules()->create($data);
         $user = $request->user();
         $module = Module::with('course')->findOrFail($moduleId);
 
-        if ($module->course->instructor_id !== $user->id) {
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
+        $assignedDept = $user->department;
+
+        $allowed = ($module->course->instructor_id == $user->id)
+            || (!empty($assignedSubIds) && in_array($module->course->subdepartment_id, $assignedSubIds))
+            || ($assignedDept && $module->course->department === $assignedDept);
+
+        if (!$allowed) {
             abort(403, 'Forbidden.');
         }
 

@@ -915,6 +915,9 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
             ->findOrFail($id);
     });
 
+    // Custom Module lesson editing (instructors can edit lesson title/description/content)
+    Route::put('/custom-modules/{moduleId}/lessons/{lessonId}', [\App\Http\Controllers\Admin\CustomLessonController::class, 'update']);
+
     // Custom Module assignment to department
     Route::post('/custom-modules/{id}/push-to-department', [\App\Http\Controllers\Instructor\CustomModuleController::class, 'pushToDepartment']);
     Route::get('/custom-modules/{id}/department-employees', [\App\Http\Controllers\Instructor\CustomModuleController::class, 'getDepartmentEmployees']);

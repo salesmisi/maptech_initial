@@ -737,7 +737,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
                 <div className="mt-auto pt-3 border-t border-slate-100 space-y-2">
                   <button
-                    onClick={() => onNavigate?.('custom-module-detail', String(module.id))}
+                    onClick={() => onNavigate?.('custom-module-detail', undefined, module.id)}
                     className="w-full text-sm font-medium text-purple-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-purple-200 text-left"
                   >
                     View Content &rarr;
