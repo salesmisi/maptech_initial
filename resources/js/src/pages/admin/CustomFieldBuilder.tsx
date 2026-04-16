@@ -1004,7 +1004,6 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
           <option value="">All Status</option>
           <option value="draft">Draft</option>
           <option value="published">Published</option>
-          <option value="unpublished">Unpublished</option>
         </select>
 
         {/* Category Filter */}
@@ -1197,13 +1196,6 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                           <ArrowsUpDownIcon className="w-5 h-5" />
                         </button>
                       )}
-                      <button
-                        onClick={() => viewVersionHistory(module)}
-                        className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-slate-700 transition-colors"
-                        title="Version History"
-                      >
-                        <ClockIcon className="w-5 h-5" />
-                      </button>
                       <button
                         onClick={() => openEditModule(module)}
                         className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
@@ -1932,7 +1924,6 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                   >
                     <option value="draft">Draft</option>
                     <option value="published">Published</option>
-                    <option value="unpublished">Unpublished</option>
                   </select>
                   {moduleForm.module_type === 'ui_component' && (
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -2190,70 +2181,6 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                   {savingLesson ? 'Saving...' : editingLesson ? 'Update' : 'Save'}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Version History Modal */}
-      {showVersionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Version History</h2>
-                <button
-                  onClick={() => setShowVersionModal(false)}
-                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                >
-                  <XMarkIcon className="w-5 h-5" />
-                </button>
-              </div>
-
-              {loadingVersions ? (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                </div>
-              ) : versions.length === 0 ? (
-                <p className="text-center py-8 text-gray-500 dark:text-gray-400">No version history available.</p>
-              ) : (
-                <div className="space-y-4">
-                  {versions.map((version) => (
-                    <div
-                      key={version.id}
-                      className="p-4 bg-gray-50 dark:bg-slate-700/50 rounded-lg border border-gray-200 dark:border-slate-600"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium text-gray-900 dark:text-white">
-                          Version {version.version_number}
-                        </span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          {new Date(version.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-300">{version.title}</p>
-                      {version.changes && Object.keys(version.changes).length > 0 && (
-                        <div className="mt-2 text-sm">
-                          <p className="font-medium text-gray-700 dark:text-gray-300">Changes:</p>
-                          <ul className="mt-1 space-y-1">
-                            {Object.entries(version.changes).map(([field, change]) => (
-                              <li key={field} className="text-gray-500 dark:text-gray-400">
-                                <span className="capitalize">{field}</span>: {String(change.old || '(empty)')} →{' '}
-                                {String(change.new || '(empty)')}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {version.creator && (
-                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                          By {version.creator.fullname}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         </div>
