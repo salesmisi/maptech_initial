@@ -1044,14 +1044,6 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
             <PlusIcon className="w-5 h-5" />
             New Learning Module
           </button>
-          <button
-            onClick={() => openCreateModule('ui_component')}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
-            title="Create a custom sidebar navigation item (admin-only, not visible to instructors or employees)"
-          >
-            <PlusIcon className="w-5 h-5" />
-            New UI Component
-          </button>
         </div>
       </div>
 
