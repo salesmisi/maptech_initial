@@ -224,6 +224,22 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   const [uploadingThumbnailModuleId, setUploadingThumbnailModuleId] = useState<number | null>(null);
   const customModuleThumbnailRef = useRef<HTMLInputElement>(null);
   const minDateTimeInput = getMinDateTimeInputValue();
+  const hasOpenModal = Boolean(selectedCourse || showEnrollments || showCreateModal || showEditModal || showBulkAssignModal);
+
+  useEffect(() => {
+    if (!hasOpenModal) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [hasOpenModal]);
 
   const getCourseSubdepartmentName = (course: Course): string | null => {
     const relatedName = (course as any)?.subdepartment?.name;
@@ -2101,12 +2117,12 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       {/* Create Course Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="course-editor-modal bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-900">Create New Course</h2>
+          <div className="course-editor-modal bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-700">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">Create New Course</h2>
               <button
                 onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); setCreateDepartment(''); setCreateSubdepartmentId(''); }}
-                className="text-gray-400 hover:text-gray-600 text-xl"
+                className="text-gray-400 hover:text-gray-600 dark:text-slate-400 dark:hover:text-slate-200 text-xl"
               >
                 <XMarkIcon className="h-6 w-6" />
               </button>

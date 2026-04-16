@@ -173,6 +173,21 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   const [selectedInstructorId, setSelectedInstructorId] = useState<number | string>('');
   const minDateTimeInput = getMinDateTimeInputValue();
 
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [isModalOpen]);
+
   // Debug: Monitor modules state changes
   useEffect(() => {
     console.log('Modules state updated:', safeArray(modules).map(m => ({ id: m.id, title: m.title, hasFile: !!m.file, fileName: m.file?.name })));
