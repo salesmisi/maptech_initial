@@ -78,6 +78,26 @@ function toLocalDateTimeInputValue(value?: string | null): string {
   return local.toISOString().slice(0, 16);
 }
 
+function getMinDateTimeInputValue(): string {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function isPastDateTimeInput(value: FormDataEntryValue | null): boolean {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  const selected = new Date(trimmed);
+  if (Number.isNaN(selected.getTime())) return false;
+
+  const now = new Date();
+  now.setSeconds(0, 0);
+  return selected.getTime() < now.getTime();
+}
+
 interface EnrolledStudent {
   id: number;
   name: string;
@@ -203,6 +223,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   // Custom module thumbnail upload
   const [uploadingThumbnailModuleId, setUploadingThumbnailModuleId] = useState<number | null>(null);
   const customModuleThumbnailRef = useRef<HTMLInputElement>(null);
+  const minDateTimeInput = getMinDateTimeInputValue();
 
   const getCourseSubdepartmentName = (course: Course): string | null => {
     const relatedName = (course as any)?.subdepartment?.name;
@@ -530,6 +551,12 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
     const form = e.currentTarget;
     const formData = new FormData(form);
+
+    if (isPastDateTimeInput(formData.get('start_date')) || isPastDateTimeInput(formData.get('deadline'))) {
+      alert('Start Date & Time and Due Date & Time must be current or future.');
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
@@ -2091,6 +2118,13 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 const form = e.currentTarget;
                 const fd = new FormData(form);
                 if (createInstructorId) fd.set('instructor_id', String(createInstructorId));
+
+                if (isPastDateTimeInput(fd.get('start_date')) || isPastDateTimeInput(fd.get('deadline'))) {
+                  alert('Start Date & Time and Due Date & Time must be current or future.');
+                  setIsSubmitting(false);
+                  return;
+                }
+
                 const startDateUtc = toUtcIsoString(fd.get('start_date'));
                 const deadlineUtc = toUtcIsoString(fd.get('deadline'));
                 if (startDateUtc) fd.set('start_date', startDateUtc); else fd.delete('start_date');
@@ -2204,6 +2238,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <input
                     name="start_date"
                     type="datetime-local"
+                    min={minDateTimeInput}
                     className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
                 </div>
@@ -2212,6 +2247,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <input
                     name="deadline"
                     type="datetime-local"
+                    min={minDateTimeInput}
                     className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
                 </div>
@@ -2369,6 +2405,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     name="start_date"
                     type="datetime-local"
                     defaultValue={toLocalDateTimeInputValue(editingCourse.start_date)}
+                    min={minDateTimeInput}
                     className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
                 </div>
@@ -2378,6 +2415,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     name="deadline"
                     type="datetime-local"
                     defaultValue={toLocalDateTimeInputValue(editingCourse.deadline)}
+                    min={minDateTimeInput}
                     className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
                 </div>

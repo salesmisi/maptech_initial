@@ -110,6 +110,26 @@ const toLocalDateTimeInputValue = (value?: string | null): string => {
   return local.toISOString().slice(0, 16);
 };
 
+const getMinDateTimeInputValue = (): string => {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
+
+const isPastDateTimeInput = (value: FormDataEntryValue | null): boolean => {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  const selected = new Date(trimmed);
+  if (Number.isNaN(selected.getTime())) return false;
+
+  const now = new Date();
+  now.setSeconds(0, 0);
+  return selected.getTime() < now.getTime();
+};
+
 let moduleCounter = 0;
 
 export function InstructorCourseManagement({ onNavigate }: Props) {
@@ -144,6 +164,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
+  const minDateTimeInput = getMinDateTimeInputValue();
 
   const getCourseSubdepartmentName = (course: Course): string | null => {
     const relatedName = (course as any)?.subdepartment?.name;
@@ -388,6 +409,12 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setFormError(null);
 
     const formData = new FormData(e.currentTarget);
+
+    if (isPastDateTimeInput(formData.get('start_date')) || isPastDateTimeInput(formData.get('deadline'))) {
+      setFormError('Start Date and Due Date must be current or future.');
+      setIsSubmitting(false);
+      return;
+    }
 
     const startDateUtc = toUtcIsoString(formData.get('start_date'));
     const deadlineUtc = toUtcIsoString(formData.get('deadline'));
@@ -861,6 +888,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                     type="datetime-local"
                     name="start_date"
                     defaultValue={toLocalDateTimeInputValue(editingCourse?.start_date)}
+                    min={minDateTimeInput}
                     className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
@@ -870,6 +898,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                     type="datetime-local"
                     name="deadline"
                     defaultValue={toLocalDateTimeInputValue(editingCourse?.deadline)}
+                    min={minDateTimeInput}
                     className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
@@ -977,6 +1006,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                     type="datetime-local"
                     value={unlockStartDate}
                     onChange={(e) => setUnlockStartDate(e.target.value)}
+                    min={minDateTimeInput}
                     disabled={unlockPermanent}
                     className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                   />
@@ -989,6 +1019,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                     type="datetime-local"
                     value={unlockEndDate}
                     onChange={(e) => setUnlockEndDate(e.target.value)}
+                    min={unlockStartDate || minDateTimeInput}
                     disabled={unlockPermanent}
                     className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                   />
