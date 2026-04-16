@@ -123,11 +123,6 @@ export function InstructorLayout({
     icon: Bell
   },
   {
-    id: 'file-converter',
-    label: 'File Converter',
-    icon: FileText
-  },
-  {
     id: 'settings',
     label: 'Settings',
     icon: Settings

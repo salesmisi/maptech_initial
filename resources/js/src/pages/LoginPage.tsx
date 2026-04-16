@@ -248,12 +248,6 @@ export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) 
         >
           Sign in to LearnHub
         </h2>
-        <p
-          className={`mt-2 text-center text-sm ${isDark ? 'text-slate-200' : 'text-slate-100'}`}
-          style={{ textShadow: '0 2px 12px rgba(2, 6, 23, 0.7)' }}
-        >
-          Maptech Information Solutions Inc.
-        </p>
       </div>
 
       <div

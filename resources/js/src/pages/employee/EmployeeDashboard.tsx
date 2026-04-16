@@ -741,7 +741,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-slate-500">Certificates</p>
-              <p className="text-2xl font-bold text-slate-900">3</p>
+              <p className="text-2xl font-bold text-slate-900">{certificates.length}</p>
             </div>
           </div>
         </div>
@@ -887,29 +887,30 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                       pushToast('Module Viewer', 'Custom module viewer coming soon!', 'info');
                     }}
                   >
-                    <div className="flex items-start justify-between mb-2">
-                      <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-tight">
                         {module.title}
                       </h4>
                       {module.category && (
-                        <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full dark:bg-purple-900/50 dark:text-purple-300">
+                        <span className="flex-shrink-0 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full dark:bg-purple-900/50 dark:text-purple-300">
                           {module.category}
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between text-xs text-slate-600 mb-2 dark:text-slate-400">
-                      <span className="flex items-center gap-1">
-                        <BookOpen className="h-3 w-3" />
-                        {module.lessons_count} lesson{module.lessons_count !== 1 ? 's' : ''}
-                      </span>
+                    <div className="flex items-center gap-1 text-xs text-slate-600 mb-2 dark:text-slate-400">
+                      <BookOpen className="h-3 w-3 flex-shrink-0" />
+                      <span>{module.lessons_count} lesson{module.lessons_count !== 1 ? 's' : ''}</span>
                       {module.creator && (
-                        <span>by {module.creator.fullname}</span>
+                        <>
+                          <span className="text-slate-300 dark:text-slate-600">·</span>
+                          <span className="truncate">by {module.creator.fullname}</span>
+                        </>
                       )}
                     </div>
 
                     <div className="mb-2">
-                      <div className="flex justify-between text-xs text-slate-600 mb-1 dark:text-slate-400">
+                      <div className="flex items-center justify-between text-xs text-slate-600 mb-1 dark:text-slate-400">
                         <span>{module.progress}% Complete</span>
                         <span className="text-purple-600 font-medium dark:text-purple-400">
                           {module.progress === 100 ? 'Completed ✓' : 'In Progress'}
