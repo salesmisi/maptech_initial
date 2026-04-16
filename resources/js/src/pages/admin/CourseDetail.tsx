@@ -28,6 +28,8 @@ import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../compone
 import UnlockModuleModal from '../../components/UnlockModuleModal';
 import ConfirmModal from '../../components/ConfirmModal';
 import { safeArray } from '../../utils/safe';
+import PDFViewer from '../../components/PDFViewer';
+import PresentationViewer from '../../components/PresentationViewer';
 
 const API_BASE = '/api';
 
@@ -997,7 +999,21 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                                         )}
                                         {lesson.content_url && lesson.file_type === 'pdf' && (
                                           <div className="px-4 pb-3 pt-1 border-t border-slate-200">
-                                            <iframe src={lesson.content_url} className="w-full h-96 rounded-md border border-slate-300" title={lesson.title} />
+                                            <PDFViewer
+                                              url={lesson.content_url}
+                                              title={lesson.title}
+                                              lessonId={lesson.id}
+                                              moduleId={mod.id}
+                                              showConvertButton={false}
+                                            />
+                                          </div>
+                                        )}
+                                        {lesson.content_url && lesson.file_type === 'presentation' && (
+                                          <div className="px-4 pb-3 pt-1 border-t border-slate-200">
+                                            <PresentationViewer
+                                              url={lesson.content_url}
+                                              title={lesson.title}
+                                            />
                                           </div>
                                         )}
                                       </>

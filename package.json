@@ -27,6 +27,8 @@
         "jszip": "^3.10.1",
         "laravel-echo": "^1.11.0",
         "lucide-react": "^0.575.0",
+        "pdfjs-dist": "^5.6.205",
+        "pptxgenjs": "^4.0.1",
         "pusher-js": "^8.0.0",
         "react": "^19.2.4",
         "react-dom": "^19.2.4",

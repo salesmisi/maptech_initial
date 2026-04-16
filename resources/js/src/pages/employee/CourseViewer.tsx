@@ -24,6 +24,8 @@ import {
 import { sanitizeHtml } from '../../components/RichTextEditor';
 import YouTubePlayer from '../../components/YouTubePlayer';
 import { safeArray } from '../../utils/safe';
+import PDFViewer from '../../components/PDFViewer';
+import PresentationViewer from '../../components/PresentationViewer';
 
 const API_BASE = '/api';
 
@@ -681,26 +683,86 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       return (
         <div className="space-y-4">
           {textBlock}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden" style={{ height: '70vh' }}>
-            <iframe src={content_url} className="w-full h-full" title={title} />
+          <PDFViewer
+            url={content_url || ''}
+            title={title}
+            fileName={getFileName(content_url)}
+            lessonId={currentLesson.id}
+            moduleId={currentModule?.id}
+            showConvertButton={false}
+          />
+        </div>
+      );
+    }
+
+    // Handle presentations (PPTX, PPT) with interactive PresentationViewer
+    if (file_type === 'presentation') {
+      const ext = getFileExtension(content_url);
+      const isPptx = ext === 'pptx' || ext === 'ppt';
+
+      if (isPptx) {
+        return (
+          <div className="space-y-4">
+            {textBlock}
+            <PresentationViewer
+              url={content_url || ''}
+              title={title}
+              fileName={getFileName(content_url)}
+            />
           </div>
-          {/* Download option for PDF */}
-          <div className="flex justify-center">
-            <a
-              href={content_url || undefined}
-              download
-              className="inline-flex items-center px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Download PDF
-            </a>
+        );
+      }
+
+      // Fallback to Office Online viewer for other presentation formats
+      const absoluteUrl = content_url?.startsWith('http')
+        ? content_url
+        : `${window.location.origin}${content_url}`;
+      const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absoluteUrl || '')}`;
+      const fileName = getFileName(content_url);
+      const fileTypeDisplay = getFileTypeDisplay(file_type, content_url);
+
+      return (
+        <div className="space-y-4">
+          {textBlock}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 p-3 bg-slate-100 dark:bg-slate-700 rounded-lg">
+                  {getLargeFileIcon(file_type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 truncate">{fileName}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Type: {fileTypeDisplay}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 flex flex-wrap items-center gap-3">
+              <a
+                href={officeViewerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-md"
+              >
+                <Eye className="h-5 w-5 mr-2" />View / Study
+              </a>
+              <a
+                href={content_url || undefined}
+                download
+                className="inline-flex items-center px-5 py-2.5 border border-green-600 text-green-600 dark:text-green-400 rounded-lg font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+              >
+                <Download className="h-5 w-5 mr-2" />Download
+              </a>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden" style={{ height: '70vh' }}>
+            <iframe src={officeViewerUrl} className="w-full h-full" title={title} frameBorder="0" />
           </div>
         </div>
       );
     }
 
-    // Handle presentations (PPTX, PPT) and documents (DOCX, DOC) with Office Online viewer
-    if (file_type === 'presentation' || file_type === 'document') {
+    // Handle documents (DOCX, DOC) with Office Online viewer
+    if (file_type === 'document') {
       // Get absolute URL for Office Online viewer
       const absoluteUrl = content_url?.startsWith('http')
         ? content_url

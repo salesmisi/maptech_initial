@@ -1017,6 +1017,14 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
 
 use App\Http\Controllers\ContentController;
 
+// ── File Conversion Routes (public for course viewing) ──
+Route::prefix('convert')->group(function () {
+    Route::get('/availability', [\App\Http\Controllers\FileConversionController::class, 'checkAvailability']);
+    Route::post('/pdf-to-pptx', [\App\Http\Controllers\FileConversionController::class, 'convertPdfToPptx']);
+    Route::post('/pptx-to-pdf', [\App\Http\Controllers\FileConversionController::class, 'convertPptxToPdf']);
+    Route::post('/pptx-as-pdf', [\App\Http\Controllers\FileConversionController::class, 'getPptxAsPdf']);
+});
+
 // Serve module content for authenticated users
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/modules/{module}/content', function (\App\Models\Module $module) {
@@ -1190,5 +1198,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/admin/{logId}', [\App\Http\Controllers\TimeLogController::class, 'deleteLog'])->middleware(['auth:sanctum', 'status']);
         // Admin: bulk delete time logs for multiple users
         Route::post('/admin/bulk-delete', [\App\Http\Controllers\TimeLogController::class, 'bulkDelete'])->middleware(['auth:sanctum', 'status']);
+    });
+
+    // ── Lesson/Module Specific Conversion Routes (require auth) ──
+    Route::prefix('convert')->group(function () {
+        Route::post('/lessons/{lessonId}/pdf-to-pptx', [\App\Http\Controllers\FileConversionController::class, 'convertLessonPdfToPptx']);
+        Route::post('/modules/{moduleId}/pdf-to-pptx', [\App\Http\Controllers\FileConversionController::class, 'convertModulePdfToPptx']);
     });
 });

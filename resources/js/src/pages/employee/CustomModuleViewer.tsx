@@ -12,6 +12,7 @@ import {
 import { sanitizeHtml } from '../../components/RichTextEditor';
 import YouTubePlayer from '../../components/YouTubePlayer';
 import PresentationViewer from '../../components/PresentationViewer';
+import PDFViewer from '../../components/PDFViewer';
 
 const API_BASE = '/api';
 
@@ -194,8 +195,23 @@ export function CustomModuleViewer({ moduleId, onBack }: Props) {
     // Document/PDF Content
     if (contentType === 'document') {
       const docUrl = currentLesson.content_full_url || currentLesson.content_url;
+      const isPdf = currentLesson.file_type === 'application/pdf' ||
+                    currentLesson.file_name?.toLowerCase().endsWith('.pdf');
 
       if (docUrl) {
+        // Use PDFViewer for PDF files (presentation mode)
+        if (isPdf) {
+          return (
+            <PDFViewer
+              url={docUrl}
+              title={currentLesson.title}
+              fileName={currentLesson.file_name || undefined}
+              fileSize={currentLesson.formatted_file_size || undefined}
+            />
+          );
+        }
+
+        // Other document types
         return (
           <div className="space-y-4">
             <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
@@ -223,16 +239,6 @@ export function CustomModuleViewer({ moduleId, onBack }: Props) {
                 </a>
               </div>
             </div>
-
-            {currentLesson.file_type === 'application/pdf' && (
-              <div className="aspect-[8.5/11] w-full border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                <iframe
-                  src={`${docUrl}#view=FitH`}
-                  className="w-full h-full"
-                  title={currentLesson.title}
-                />
-              </div>
-            )}
           </div>
         );
       }
@@ -308,15 +314,14 @@ export function CustomModuleViewer({ moduleId, onBack }: Props) {
               </div>
             )}
 
-            {/* PDF preview */}
+            {/* PDF preview - presentation mode */}
             {isPdf && (
-              <div className="aspect-[8.5/11] w-full border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                <iframe
-                  src={`${fileUrl}#view=FitH`}
-                  className="w-full h-full"
-                  title={currentLesson.title}
-                />
-              </div>
+              <PDFViewer
+                url={fileUrl}
+                title={currentLesson.title}
+                fileName={currentLesson.file_name || undefined}
+                fileSize={currentLesson.formatted_file_size || undefined}
+              />
             )}
 
             {/* Audio preview */}

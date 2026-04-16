@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   Bell,
   Settings,
+  FileText,
   Moon,
   Sun } from
 'lucide-react';
@@ -120,6 +121,11 @@ export function InstructorLayout({
     id: 'notifications',
     label: 'Notifications',
     icon: Bell
+  },
+  {
+    id: 'file-converter',
+    label: 'File Converter',
+    icon: FileText
   },
   {
     id: 'settings',
