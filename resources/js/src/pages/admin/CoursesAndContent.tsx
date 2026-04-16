@@ -17,6 +17,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { safeArray } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
+import PDFViewer from '../../components/PDFViewer';
+import PresentationViewer from '../../components/PresentationViewer';
 
 interface Course {
   id: string;
@@ -2584,10 +2586,15 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 {previewLesson.type === 'Document' && previewLesson.content_url && (
                   <div className="space-y-4">
                     {previewLesson.content_url.match(/\.pdf$/i) ? (
-                      <iframe
-                        src={previewLesson.content_url}
-                        className="w-full rounded-lg border border-gray-200"
-                        style={{ height: '70vh' }}
+                      <PDFViewer
+                        url={previewLesson.content_url}
+                        title={previewLesson.title}
+                        lessonId={previewLesson.id}
+                        showConvertButton={true}
+                      />
+                    ) : previewLesson.content_url.match(/\.pptx?$/i) ? (
+                      <PresentationViewer
+                        url={previewLesson.content_url}
                         title={previewLesson.title}
                       />
                     ) : (

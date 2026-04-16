@@ -51,6 +51,7 @@ import { EmployeeNotifications } from './pages/employee/EmployeeNotifications';
 
 // Shared Pages
 import { ProfileSettings } from './pages/shared/ProfileSettings';
+import { FileConverterPage } from './pages/shared/FileConverterPage';
 import { YTDebug } from './pages/debug/YTDebug';
 import { resolveImageUrl } from './utils/safe';
 
@@ -672,8 +673,9 @@ export function App() {
               />
             )}
             {currentPage === 'settings' && <ProfileSettings />}
+            {currentPage === 'file-converter' && <FileConverterPage onBack={() => handleNavigate('dashboard')} />}
           {/* Fallback to custom module page for any unmatched route */}
-          {!['dashboard', 'departments', 'users', 'courses', 'custom-field', 'course-detail', 'course-content-editor', 'enrollments', 'reports', 'notifications', 'qa', 'audit-logs', 'business-details', 'feedbacks', 'product-logos', 'settings'].includes(currentPage) && (
+          {!['dashboard', 'departments', 'users', 'courses', 'custom-field', 'course-detail', 'course-content-editor', 'enrollments', 'reports', 'notifications', 'qa', 'audit-logs', 'business-details', 'feedbacks', 'product-logos', 'settings', 'file-converter'].includes(currentPage) && (
             <CustomModulePage routePath={currentPage} />
           )}
           </div>
@@ -715,6 +717,7 @@ export function App() {
             {currentPage === 'notifications' && <InstructorNotifications />}
             {currentPage === 'feedbacks' && <InstructorFeedback />}
             {currentPage === 'settings' && <ProfileSettings />}
+            {currentPage === 'file-converter' && <FileConverterPage onBack={() => handleNavigate('dashboard')} />}
           </div>
         </InstructorLayout>
         {logoutOverlay}
@@ -772,6 +775,7 @@ export function App() {
             {currentPage === 'feedback' && <MyFeedback />}
             {currentPage === 'notifications' && <EmployeeNotifications />}
             {currentPage === 'settings' && <ProfileSettings />}
+            {currentPage === 'file-converter' && <FileConverterPage onBack={() => handleNavigate('dashboard')} />}
           </div>
         </EmployeeLayout>
         {logoutOverlay}
