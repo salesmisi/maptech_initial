@@ -533,14 +533,14 @@ export default function DepartmentManagement() {
               </div>
             </div>
 
-            <div className="mb-3 text-xs text-slate-500 dark:text-slate-400">
-              Subdepartments: <span className="font-medium text-slate-700 dark:text-slate-200">{safeArray(dept.subdepartments).length}</span>
+            <div className="mb-4 text-sm font-semibold text-slate-700 dark:text-slate-300">
+              Subdepartments: <span className="text-emerald-600 dark:text-emerald-400">{safeArray(dept.subdepartments).length}</span>
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <button
                 onClick={() => openManageModal(dept)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
               >
                 Manage
               </button>
