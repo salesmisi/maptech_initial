@@ -709,10 +709,10 @@ export function LessonVideoUpload() {
 
       {/* ═══════════════════ ADD MODULE MODAL ═══════════════════ */}
       {showAddModule && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4">
+        <div className="fixed inset-0 z-50">
+          <div className="flex items-center justify-center min-h-screen px-4 overflow-y-auto">
             <div className="fixed inset-0 bg-slate-500 opacity-75" onClick={() => setShowAddModule(false)} />
-            <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6 z-10">
+            <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6 z-10 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-slate-900">Add New Module</h3>
                 <button onClick={() => setShowAddModule(false)} className="text-slate-400 hover:text-slate-600">
@@ -758,10 +758,10 @@ export function LessonVideoUpload() {
 
       {/* ═══════════════════ UPLOAD CONTENT MODAL ═══════════════════ */}
       {showUpload && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4">
+        <div className="fixed inset-0 z-50">
+          <div className="flex items-center justify-center min-h-screen px-4 overflow-y-auto">
             <div className="fixed inset-0 bg-slate-500 opacity-75" onClick={() => !uploading && setShowUpload(false)} />
-            <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full p-6 z-10">
+            <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full p-6 z-10 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-slate-900">Upload Learning Content</h3>
                 <button
@@ -964,10 +964,10 @@ export function LessonVideoUpload() {
 
       {/* ═══════════════════ PREVIEW LESSON MODAL ═══════════════════ */}
       {previewLesson && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4">
+        <div className="fixed inset-0 z-50">
+          <div className="flex items-center justify-center min-h-screen px-4 overflow-y-auto">
             <div className="fixed inset-0 bg-slate-500 opacity-75" onClick={() => setPreviewLesson(null)} />
-            <div className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full z-10 max-h-[90vh] flex flex-col">
+            <div className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full z-10 max-h-[90vh] overflow-y-auto flex flex-col">
               <div className="flex justify-between items-center p-6 border-b border-slate-200">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">{previewLesson.title}</h3>

@@ -2536,10 +2536,10 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
       {/* ═══════════════════ PREVIEW LESSON MODAL ═══════════════════ */}
       {previewLesson && (
-        <div className="fixed inset-0 z-[60] overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4">
+        <div className="fixed inset-0 z-[60]">
+          <div className="flex items-center justify-center min-h-screen px-4 overflow-y-auto">
             <div className="fixed inset-0 bg-slate-500 opacity-75" onClick={() => setPreviewLesson(null)} />
-            <div className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full z-10 max-h-[90vh] flex flex-col">
+            <div className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full z-10 max-h-[90vh] overflow-y-auto flex flex-col">
               <div className="flex justify-between items-center p-6 border-b border-gray-200">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">{previewLesson.title}</h3>
