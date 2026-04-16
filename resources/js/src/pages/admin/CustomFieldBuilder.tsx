@@ -281,6 +281,23 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
     }
   }, [initialExpandedModuleId, modules]);
 
+  // Lock body scroll when any modal is open
+  useEffect(() => {
+    const hasOpenModal = showModuleModal || showLessonModal || showVersionModal || showPushModal;
+    if (!hasOpenModal) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [showModuleModal, showLessonModal, showVersionModal, showPushModal]);
+
   // Toggle module expansion
   const toggleModuleExpand = (moduleId: number) => {
     setExpandedModules((prev) => {

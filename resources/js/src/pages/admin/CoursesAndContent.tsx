@@ -2117,12 +2117,12 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       {/* Create Course Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="course-editor-modal bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-700">
-            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">Create New Course</h2>
+          <div className="course-editor-modal bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-slate-900">Create New Course</h2>
               <button
                 onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); setCreateDepartment(''); setCreateSubdepartmentId(''); }}
-                className="text-gray-400 hover:text-gray-600 dark:text-slate-400 dark:hover:text-slate-200 text-xl"
+                className="text-slate-400 hover:text-slate-600 p-1"
               >
                 <XMarkIcon className="h-6 w-6" />
               </button>
@@ -2175,27 +2175,27 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               className="p-6 space-y-4"
             >
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Course Title <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Course Title</label>
                 <input
                   name="title"
                   type="text"
                   required
                   placeholder="e.g. Introduction to Cybersecurity"
-                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
                 <textarea
                   name="description"
                   rows={3}
                   placeholder="Brief course description..."
-                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Department <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
                   <select
                     name="department"
                     required
@@ -2205,20 +2205,20 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                       setCreateSubdepartmentId('');
                       setCreateInstructorId(null);
                     }}
-                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
-                    <option value="" disabled>Select Department</option>
+                    <option value="">Select Department</option>
                     {departments.map(dept => (
                       <option key={dept.id} value={dept.name}>{dept.name}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Active Status</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
                   <select
                     name="status"
                     defaultValue="Active"
-                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="Active">Active</option>
                     <option value="Draft">Draft</option>
@@ -2228,7 +2228,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Sub Department</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Sub Department</label>
                 <select
                   name="subdepartment_id"
                   required
@@ -2239,7 +2239,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     setCreateInstructorId(null);
                   }}
                   disabled={!createDepartment}
-                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:bg-slate-100"
                 >
                   <option value="">Select Sub Department</option>
                   {(departments.find(d => d.name === createDepartment)?.subdepartments || []).map((s) => (
@@ -2250,28 +2250,27 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date & Time</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
                   <input
                     name="start_date"
                     type="datetime-local"
                     min={minDateTimeInput}
-                    className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="course-datetime-input w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date & Time</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Due Date</label>
                   <input
                     name="deadline"
                     type="datetime-local"
                     min={minDateTimeInput}
-                    className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="course-datetime-input w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900"
                   />
                 </div>
               </div>
 
-              {/* Assign Instructor */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Assign To</label>
                 {createInstructorId !== null && (() => {
                   const sel = instructors.find(i => i.id === createInstructorId);
                   return sel ? (
@@ -2290,7 +2289,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                         </div>
                       )}
                       <div>
-                        <p className="text-sm font-semibold text-gray-800">{sel.fullname}</p>
+                        <p className="text-sm font-semibold text-slate-800">{sel.fullname}</p>
                         <p className="text-xs text-green-600">Assigned Instructor</p>
                       </div>
                     </div>
@@ -2300,7 +2299,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   value={createInstructorId ?? ''}
                   onChange={(e) => setCreateInstructorId(e.target.value ? Number(e.target.value) : null)}
                   disabled={!createDepartment || !createSubdepartmentId}
-                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">{!createDepartment || !createSubdepartmentId ? 'Select department and sub department first' : 'Select Instructor'}</option>
                   {(!createDepartment || !createSubdepartmentId ? [] : getEligibleInstructors(createDepartment, createSubdepartmentId)).map(i => (
@@ -2308,20 +2307,21 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   ))}
                 </select>
               </div>
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 bg-green-600 text-white py-2 rounded-md hover:bg-green-700 disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Creating...' : 'Create Course'}
-                </button>
+
+              <div className="flex gap-3 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); setCreateDepartment(''); setCreateSubdepartmentId(''); }}
-                  className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-md hover:bg-gray-50"
+                  className="flex-1 py-2 px-4 border border-slate-300 rounded-md text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
                 >
                   Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 py-2 px-4 border border-transparent rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Creating...' : 'Publish Course'}
                 </button>
               </div>
             </form>
