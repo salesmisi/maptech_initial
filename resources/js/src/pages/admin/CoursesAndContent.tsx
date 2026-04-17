@@ -61,6 +61,11 @@ function normalizeCourseStatus(status: unknown): 'Active' | 'Draft' | 'Inactive'
   return 'Draft';
 }
 
+function formatLocalDateTimeInput(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function toUtcIsoString(value: FormDataEntryValue | null): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -73,18 +78,27 @@ function toUtcIsoString(value: FormDataEntryValue | null): string | null {
 
 function toLocalDateTimeInputValue(value?: string | null): string {
   if (!value) return '';
+  const trimmed = value.trim();
+
+  const naiveMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::(\d{2}))?(?:\.\d+)?$/);
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(trimmed);
+  if (naiveMatch && !hasTimezone) {
+    const seconds = naiveMatch[3] ?? '00';
+    const parsedUtc = new Date(`${naiveMatch[1]}T${naiveMatch[2]}:${seconds}Z`);
+    if (Number.isNaN(parsedUtc.getTime())) return '';
+    return formatLocalDateTimeInput(parsedUtc);
+  }
+
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '';
 
-  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
+  return formatLocalDateTimeInput(parsed);
 }
 
 function getMinDateTimeInputValue(): string {
   const now = new Date();
   now.setSeconds(0, 0);
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
+  return formatLocalDateTimeInput(now);
 }
 
 function isPastDateTimeInput(value: FormDataEntryValue | null): boolean {
@@ -2143,10 +2157,10 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   return;
                 }
 
-                const startDateUtc = toUtcIsoString(fd.get('start_date'));
-                const deadlineUtc = toUtcIsoString(fd.get('deadline'));
-                if (startDateUtc) fd.set('start_date', startDateUtc); else fd.delete('start_date');
-                if (deadlineUtc) fd.set('deadline', deadlineUtc); else fd.delete('deadline');
+                const startDateValue = toUtcIsoString(fd.get('start_date'));
+                const deadlineValue = toUtcIsoString(fd.get('deadline'));
+                if (startDateValue) fd.set('start_date', startDateValue); else fd.delete('start_date');
+                if (deadlineValue) fd.set('deadline', deadlineValue); else fd.delete('deadline');
                 try {
                   await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
                   const csrf = getXsrfToken();
