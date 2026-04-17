@@ -76,20 +76,25 @@ function toUtcIsoString(value: FormDataEntryValue | null): string | null {
   return parsed.toISOString();
 }
 
-function toLocalDateTimeInputValue(value?: string | null): string {
-  if (!value) return '';
+function normalizeApiDateTime(value?: string | null): string | null {
+  if (typeof value !== 'string') return null;
   const trimmed = value.trim();
+  if (!trimmed) return null;
 
-  const naiveMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::(\d{2}))?(?:\.\d+)?$/);
   const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(trimmed);
-  if (naiveMatch && !hasTimezone) {
-    const seconds = naiveMatch[3] ?? '00';
-    const parsedUtc = new Date(`${naiveMatch[1]}T${naiveMatch[2]}:${seconds}Z`);
-    if (Number.isNaN(parsedUtc.getTime())) return '';
-    return formatLocalDateTimeInput(parsedUtc);
-  }
+  const normalizedInput = hasTimezone
+    ? trimmed
+    : `${trimmed.replace(' ', 'T').replace(/\.\d+$/, '')}Z`;
 
-  const parsed = new Date(value);
+  const parsed = new Date(normalizedInput);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+function toLocalDateTimeInputValue(value?: string | null): string {
+  const normalized = normalizeApiDateTime(value);
+  if (!normalized) return '';
+  const parsed = new Date(normalized);
   if (Number.isNaN(parsed.getTime())) return '';
 
   return formatLocalDateTimeInput(parsed);
@@ -445,6 +450,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       setCourses(rawCourses.map((c: any) => ({
         ...c,
         status: normalizeCourseStatus(c.status),
+        start_date: normalizeApiDateTime(c.start_date),
+        deadline: normalizeApiDateTime(c.deadline),
         subdepartment_id: c.subdepartment_id ?? null,
         instructor_id: c.instructor_id ?? (c.instructor?.id ?? null),
         instructor: typeof c.instructor === 'object' && c.instructor !== null
