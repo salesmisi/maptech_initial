@@ -4,6 +4,7 @@ import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle, RotateCc
 import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ToastProvider';
+import { sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
 
 // Helper to get cookie value
 const getCookie = (name: string) => {
@@ -25,7 +26,10 @@ interface Notification {
     from_user_name?: string;
     from_role?: string;
     from_user_profile_picture?: string | null;
+    from_department?: string | null;
     course_title?: string;
+    image_url?: string | null;
+    image_urls?: string[];
   } | null;
   read_at: string | null;
   created_at: string;
@@ -418,6 +422,13 @@ export function InstructorNotifications() {
     });
   };
 
+  const messagePreviewText = (value: string) => {
+    const html = String(value || '');
+    if (!html) return '';
+    const plain = new DOMParser().parseFromString(html, 'text/html').body.textContent || '';
+    return plain.replace(/\s+/g, ' ').trim();
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'announcement':
@@ -554,7 +565,7 @@ export function InstructorNotifications() {
                             </span>
                           )}
                         </h3>
-                        <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{notification.message}</p>
+                        <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{messagePreviewText(notification.message)}</p>
                         {notification.data?.from_role && (
                           <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
                             {notification.data.from_role}
@@ -613,7 +624,8 @@ export function InstructorNotifications() {
               {recentlyDeleted.map((notification) => (
                 <div
                   key={notification.id}
-                  className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors bg-slate-50 dark:bg-slate-800/50"
+                  onClick={() => setSelectedNotification(notification)}
+                  className="p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors bg-slate-50 dark:bg-slate-800/50"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3">
@@ -638,7 +650,7 @@ export function InstructorNotifications() {
                             </span>
                           )}
                         </h3>
-                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{notification.message}</p>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{messagePreviewText(notification.message)}</p>
                         {notification.data?.from_role && (
                           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                             {notification.data.from_role}
@@ -651,14 +663,14 @@ export function InstructorNotifications() {
                     </div>
                     <div className="flex items-center space-x-2">
                       <button
-                        onClick={() => restoreNotification(notification.id)}
+                        onClick={(e) => { e.stopPropagation(); restoreNotification(notification.id); }}
                         className="text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-300"
                         title="Restore"
                       >
                         <RotateCcw className="h-5 w-5" />
                       </button>
                       <button
-                        onClick={() => permanentlyDeleteNotification(notification.id)}
+                        onClick={(e) => { e.stopPropagation(); permanentlyDeleteNotification(notification.id); }}
                         className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"
                         title="Delete permanently"
                       >
@@ -885,22 +897,63 @@ export function InstructorNotifications() {
                 <div className="mb-8">
                   <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">Message</h3>
                   <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                    <p className="text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
-                      {selectedNotification.message}
-                    </p>
+                    <div
+                      className={RICH_CONTENT_STYLES}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedNotification.message || '') }}
+                    />
+                    {(() => {
+                      const images = selectedNotification.data?.image_urls?.length
+                        ? selectedNotification.data.image_urls
+                        : (selectedNotification.data?.image_url ? [selectedNotification.data.image_url] : []);
+                      if (images.length === 0) return null;
+                      return (
+                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {images.map((imgUrl) => (
+                            <img
+                              key={imgUrl}
+                              src={resolveImageUrl(imgUrl)}
+                              alt="Announcement attachment"
+                              className="max-h-80 w-auto max-w-full rounded-lg border border-slate-200 dark:border-slate-700 object-contain"
+                            />
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
                 {/* Details */}
-                <div className="mb-8 grid grid-cols-2 gap-4">
+                <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Received</h3>
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Sent On</h3>
                     <p className="text-slate-900 dark:text-white">{formatDate(selectedNotification.created_at)}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Sent By</h3>
+                    <p className="text-slate-900 dark:text-white">
+                      {selectedNotification.data?.from_user_name
+                        ? `${selectedNotification.data.from_user_name}${selectedNotification.data.from_role ? ` (${selectedNotification.data.from_role})` : ''}`
+                        : (selectedNotification.data?.from_role || 'System')}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Sent To</h3>
+                    <p className="text-slate-900 dark:text-white">Instructor</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Department</h3>
+                    <p className="text-slate-900 dark:text-white">{selectedNotification.data?.from_department || 'Not specified'}</p>
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Type</h3>
                     <p className="text-slate-900 dark:text-white capitalize">{selectedNotification.type.replace(/_/g, ' ')}</p>
                   </div>
+                  {selectedNotification.deleted_at && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Deleted On</h3>
+                      <p className="text-slate-900 dark:text-white">{formatDate(selectedNotification.deleted_at)}</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Sender Info */}

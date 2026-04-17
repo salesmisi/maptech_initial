@@ -4,6 +4,7 @@ import { Bell, Send, Eye, Trash2, MessageCircle, AlertCircle, X, User, RotateCcw
 import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
 import InfoModal from '../../components/InfoModal';
+import { sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
 
 interface Notification {
   id: number;
@@ -17,7 +18,10 @@ interface Notification {
     from_user_name?: string;
     from_role?: string;
     from_user_profile_picture?: string | null;
+    from_department?: string | null;
     course_title?: string;
+    image_url?: string | null;
+    image_urls?: string[];
   } | null;
   read_at: string | null;
   created_at: string;
@@ -334,6 +338,13 @@ export function EmployeeNotifications() {
     });
   };
 
+  const messagePreviewText = (value: string) => {
+    const html = String(value || '');
+    if (!html) return '';
+    const plain = new DOMParser().parseFromString(html, 'text/html').body.textContent || '';
+    return plain.replace(/\s+/g, ' ').trim();
+  };
+
   const getNotificationIcon = (type: string, fromRole?: string) => {
     if (fromRole === 'Admin') {
       return <User className="h-4 w-4 text-purple-700 dark:text-purple-300" />;
@@ -472,7 +483,7 @@ export function EmployeeNotifications() {
                             </span>
                           )}
                         </h3>
-                        <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{notification.message}</p>
+                        <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{messagePreviewText(notification.message)}</p>
                         {notification.data?.from_user_name && (
                           <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
                             From: {notification.data.from_user_name} ({notification.data.from_role})
@@ -532,7 +543,8 @@ export function EmployeeNotifications() {
               {recentlyDeleted.map((notification) => (
                 <div
                   key={notification.id}
-                  className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors bg-slate-50 dark:bg-slate-800/50"
+                  onClick={() => setSelectedNotification(notification)}
+                  className="p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors bg-slate-50 dark:bg-slate-800/50"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3">
@@ -551,7 +563,7 @@ export function EmployeeNotifications() {
                         <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
                           {notification.title}
                         </h3>
-                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{notification.message}</p>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{messagePreviewText(notification.message)}</p>
                         {notification.data?.from_user_name && (
                           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                             From: {notification.data.from_user_name} ({notification.data.from_role})
@@ -565,14 +577,14 @@ export function EmployeeNotifications() {
                     </div>
                     <div className="flex items-center space-x-2">
                       <button
-                        onClick={() => restoreNotification(notification.id)}
+                        onClick={(e) => { e.stopPropagation(); restoreNotification(notification.id); }}
                         className="text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-300"
                         title="Restore"
                       >
                         <RotateCcw className="h-5 w-5" />
                       </button>
                       <button
-                        onClick={() => permanentlyDeleteNotification(notification.id)}
+                        onClick={(e) => { e.stopPropagation(); permanentlyDeleteNotification(notification.id); }}
                         className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"
                         title="Delete permanently"
                       >
@@ -780,19 +792,63 @@ export function EmployeeNotifications() {
                 <div className="mb-4">
                   <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Message</p>
                   <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                    <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
-                      {selectedNotification.message}
-                    </p>
+                    <div
+                      className={RICH_CONTENT_STYLES}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedNotification.message || '') }}
+                    />
+                    {(() => {
+                      const images = selectedNotification.data?.image_urls?.length
+                        ? selectedNotification.data.image_urls
+                        : (selectedNotification.data?.image_url ? [selectedNotification.data.image_url] : []);
+                      if (images.length === 0) return null;
+                      return (
+                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {images.map((imgUrl) => (
+                            <img
+                              key={imgUrl}
+                              src={resolveImageUrl(imgUrl)}
+                              alt="Announcement attachment"
+                              className="max-h-80 w-auto max-w-full rounded-lg border border-slate-200 dark:border-slate-700 object-contain"
+                            />
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
                 {/* Date */}
-                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-4 border-t border-slate-200 dark:border-slate-700">
-                  <span>Received: {formatDate(selectedNotification.created_at)}</span>
-                  <span className="inline-flex items-center px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300">
-                    <Eye className="h-3 w-3 mr-1" />
-                    Read
-                  </span>
+                <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Sent On</p>
+                    <p className="text-sm text-slate-900 dark:text-slate-100">{formatDate(selectedNotification.created_at)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Sent By</p>
+                    <p className="text-sm text-slate-900 dark:text-slate-100">
+                      {selectedNotification.data?.from_user_name
+                        ? `${selectedNotification.data.from_user_name}${selectedNotification.data.from_role ? ` (${selectedNotification.data.from_role})` : ''}`
+                        : (selectedNotification.data?.from_role || 'System')}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Sent To</p>
+                    <p className="text-sm text-slate-900 dark:text-slate-100">Employee</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Department</p>
+                    <p className="text-sm text-slate-900 dark:text-slate-100">{selectedNotification.data?.from_department || employeeDepartment || 'Not specified'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Type</p>
+                    <p className="text-sm text-slate-900 dark:text-slate-100 capitalize">{selectedNotification.type.replace(/_/g, ' ')}</p>
+                  </div>
+                  {selectedNotification.deleted_at && (
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Deleted On</p>
+                      <p className="text-sm text-slate-900 dark:text-slate-100">{formatDate(selectedNotification.deleted_at)}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 

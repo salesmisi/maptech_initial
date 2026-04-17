@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use App\Events\NotificationCountUpdated;
 use Illuminate\Support\Carbon;
 
@@ -211,6 +212,9 @@ class NotificationController extends Controller
             'department' => 'nullable|string|max:255',
             'target_user_ids' => 'nullable|array',
             'target_user_ids.*' => 'integer|exists:users,id',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,gif,webp|max:4096',
+            'message_images' => 'nullable|array',
+            'message_images.*' => 'image|mimes:jpg,jpeg,png,gif,webp|max:4096',
             'preview' => 'nullable|boolean',
         ]);
 
@@ -226,6 +230,8 @@ class NotificationController extends Controller
         $courseId = $request->input('course_id');
         $department = $request->input('department');
         $department_id = $request->input('department_id');
+        $imageUrl = null;
+        $imageUrls = [];
         // If department_id provided, resolve to department name
         if ($department_id && !$department) {
             $dept = \App\Models\Department::find($department_id);
@@ -278,6 +284,22 @@ class NotificationController extends Controller
             return response()->json($payload);
         }
 
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('notification-images', 'public');
+            $imageUrl = Storage::url($path);
+        }
+
+        if ($request->hasFile('message_images')) {
+            foreach ($request->file('message_images') as $imageFile) {
+                $path = $imageFile->store('notification-images', 'public');
+                $imageUrls[] = Storage::url($path);
+            }
+        }
+
+        if ($imageUrl && count($imageUrls) === 0) {
+            $imageUrls[] = $imageUrl;
+        }
+
         $notifications = [];
         foreach ($users as $user) {
             $notifications[] = Notification::create([
@@ -291,6 +313,8 @@ class NotificationController extends Controller
                     'from_user_name' => $admin->fullname,
                     'from_role' => 'Admin',
                     'from_user_profile_picture' => $admin->profile_picture,
+                    'image_url' => $imageUrl,
+                    'image_urls' => $imageUrls,
                 ],
             ]);
         }
@@ -585,7 +609,8 @@ class NotificationController extends Controller
         $admin = Auth::user();
 
         // Get sent history from the dedicated table (non-deleted entries)
-        $sentAnnouncements = SentHistory::where('sender_id', $admin->id)
+        $sentAnnouncements = SentHistory::with('department:id,name')
+            ->where('sender_id', $admin->id)
             ->whereNull('deleted_at')
             ->orderByDesc('created_at')
             ->take(SentHistory::HISTORY_LIMIT)
@@ -599,6 +624,8 @@ class NotificationController extends Controller
                     'date' => $entry->created_at->toIso8601String(),
                     'status' => 'Sent',
                     'recipients_count' => $entry->recipients_count,
+                    'target_roles' => $entry->target_roles ?? [],
+                    'department_name' => $entry->department?->name,
                 ];
             });
 
@@ -617,6 +644,7 @@ class NotificationController extends Controller
 
         // Get deleted sent announcements
         $deletedSent = SentHistory::getRecentlyDeleted($admin->id)
+            ->load('department:id,name')
             ->map(function ($entry) {
                 return [
                     'id' => $entry->id,
@@ -627,6 +655,8 @@ class NotificationController extends Controller
                     'deleted_at' => $entry->deleted_at->toIso8601String(),
                     'recipients_count' => $entry->recipients_count,
                     'item_type' => 'sent',
+                    'target_roles' => $entry->target_roles ?? [],
+                    'department_name' => $entry->department?->name,
                 ];
             });
 
