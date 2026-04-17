@@ -345,6 +345,12 @@ export function EmployeeNotifications() {
     return plain.replace(/\s+/g, ' ').trim();
   };
 
+  const getNotificationImages = (notification: Notification) => {
+    return notification.data?.image_urls?.length
+      ? notification.data.image_urls
+      : (notification.data?.image_url ? [notification.data.image_url] : []);
+  };
+
   const getNotificationIcon = (type: string, fromRole?: string) => {
     if (fromRole === 'Admin') {
       return <User className="h-4 w-4 text-purple-700 dark:text-purple-300" />;
@@ -484,6 +490,18 @@ export function EmployeeNotifications() {
                           )}
                         </h3>
                         <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{messagePreviewText(notification.message)}</p>
+                        {getNotificationImages(notification).length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {getNotificationImages(notification).slice(0, 3).map((imgUrl) => (
+                              <img
+                                key={imgUrl}
+                                src={resolveImageUrl(imgUrl)}
+                                alt="Announcement attachment"
+                                className="h-16 w-16 rounded-lg border border-slate-200 dark:border-slate-700 object-cover"
+                              />
+                            ))}
+                          </div>
+                        )}
                         {notification.data?.from_user_name && (
                           <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
                             From: {notification.data.from_user_name} ({notification.data.from_role})
@@ -564,6 +582,18 @@ export function EmployeeNotifications() {
                           {notification.title}
                         </h3>
                         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{messagePreviewText(notification.message)}</p>
+                        {getNotificationImages(notification).length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2 opacity-80">
+                            {getNotificationImages(notification).slice(0, 3).map((imgUrl) => (
+                              <img
+                                key={imgUrl}
+                                src={resolveImageUrl(imgUrl)}
+                                alt="Announcement attachment"
+                                className="h-16 w-16 rounded-lg border border-slate-200 dark:border-slate-700 object-cover"
+                              />
+                            ))}
+                          </div>
+                        )}
                         {notification.data?.from_user_name && (
                           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                             From: {notification.data.from_user_name} ({notification.data.from_role})

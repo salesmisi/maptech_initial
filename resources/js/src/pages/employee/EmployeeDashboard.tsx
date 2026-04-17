@@ -749,21 +749,21 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
       {/* Quiz Notifications */}
       {notifications.filter(n => !n.read).length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-orange-200 p-4 sm:p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-orange-200 dark:border-orange-800 p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
-            <Bell className="h-5 w-5 text-orange-600" />
-            <h2 className="text-lg font-bold text-slate-900">
+            <Bell className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
               Notifications ({safeArray<NotificationItem>(notifications).filter(n => !n.read).length} new)
             </h2>
           </div>
           <div className="space-y-3">
             {notifications.filter(n => !n.read).map(notif => (
-              <div key={notif.id} className="flex flex-col gap-3 rounded-lg border border-orange-100 bg-orange-50 p-4 sm:flex-row sm:items-start">
-                <FileQuestion className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
+              <div key={notif.id} className="flex flex-col gap-3 rounded-lg border border-orange-100 dark:border-orange-700 bg-orange-50 dark:bg-slate-700 p-4 sm:flex-row sm:items-start hover:bg-orange-100 dark:hover:bg-slate-600 transition-colors">
+                <FileQuestion className="h-5 w-5 text-orange-500 dark:text-orange-400 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-slate-900">{notif.title}</p>
-                  <p className="text-xs text-slate-600 mt-1">{notif.message}</p>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{notif.title}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">{notif.message}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-400 mt-1">
                     {notif.created_at ? `${new Date(notif.created_at).toLocaleDateString()} at ${new Date(notif.created_at).toLocaleTimeString()}` : ''}
                   </p>
                 </div>
@@ -778,7 +778,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                   )}
                   <button
                     onClick={() => markAsRead(notif.id)}
-                    className="rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200"
+                    className="rounded-md bg-slate-100 dark:bg-slate-600 px-3 py-1 text-xs font-medium text-slate-600 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-500"
                   >
                     Dismiss
                   </button>

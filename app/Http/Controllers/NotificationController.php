@@ -206,6 +206,7 @@ class NotificationController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'message' => 'required|string',
+            'announcement_mode' => 'nullable|string|in:group,one_person',
             'roles' => 'nullable|array',
             'roles.*' => 'string|in:Instructor,Employee,Admin',
             'course_id' => 'nullable|exists:courses,id',
@@ -233,6 +234,7 @@ class NotificationController extends Controller
         $department = $request->input('department');
         $department_id = $request->input('department_id');
         $subdepartmentId = $request->input('subdepartment_id');
+        $announcementMode = $request->input('announcement_mode', 'group');
         $imageUrl = null;
         $imageUrls = [];
         // If department_id provided, resolve to department name
@@ -353,6 +355,11 @@ class NotificationController extends Controller
             'title' => $title,
             'message' => $message,
             'target' => $targetDescription,
+            'announcement_mode' => $announcementMode,
+            'data' => [
+                'image_url' => $imageUrl,
+                'image_urls' => $imageUrls,
+            ],
             'target_roles' => $roles,
             'department_id' => $department_id,
             'subdepartment_id' => $subdepartmentId,
@@ -639,6 +646,8 @@ class NotificationController extends Controller
                     'title' => $entry->title,
                     'message' => $entry->message,
                     'target' => $entry->target,
+                    'announcement_mode' => $entry->announcement_mode ?? 'group',
+                    'data' => $entry->data,
                     'date' => $entry->created_at->toIso8601String(),
                     'status' => 'Sent',
                     'recipients_count' => $entry->recipients_count,
@@ -670,6 +679,8 @@ class NotificationController extends Controller
                     'title' => $entry->title,
                     'message' => $entry->message,
                     'target' => $entry->target,
+                    'announcement_mode' => $entry->announcement_mode ?? 'group',
+                    'data' => $entry->data,
                     'date' => $entry->created_at->toIso8601String(),
                     'deleted_at' => $entry->deleted_at->toIso8601String(),
                     'recipients_count' => $entry->recipients_count,

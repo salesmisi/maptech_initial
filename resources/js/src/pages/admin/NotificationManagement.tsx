@@ -31,6 +31,11 @@ interface SentNotification {
   title: string;
   message: string;
   target: string;
+  announcement_mode?: 'group' | 'one_person';
+  data?: {
+    image_url?: string | null;
+    image_urls?: string[];
+  } | null;
   date: string;
   status: 'Sent';
   recipients_count: number;
@@ -44,6 +49,14 @@ interface RecentlyDeletedNotification {
   title: string;
   message: string;
   target: string | null;
+  announcement_mode?: 'group' | 'one_person';
+  data?: {
+    from_user_name?: string;
+    from_role?: string;
+    from_department?: string | null;
+    image_url?: string | null;
+    image_urls?: string[];
+  } | null;
   date: string;
   deleted_at: string;
   recipients_count: number | null;
@@ -51,11 +64,6 @@ interface RecentlyDeletedNotification {
   target_roles?: string[];
   department_name?: string | null;
   subdepartment_name?: string | null;
-  data?: {
-    from_user_name?: string;
-    from_role?: string;
-    from_department?: string | null;
-  } | null;
   type?: string;
 }
 
@@ -67,6 +75,7 @@ interface AnnouncementDetail {
   date: string;
   deleted_at?: string | null;
   target?: string | null;
+  announcement_mode?: 'group' | 'one_person';
   target_roles?: string[];
   department_name?: string | null;
   subdepartment_name?: string | null;
@@ -526,6 +535,10 @@ export function NotificationManagement() {
       const payload = new FormData();
       payload.append('title', onePersonForm.title);
       payload.append('message', onePersonForm.message);
+      payload.append('announcement_mode', 'one_person');
+      payload.append('roles[]', onePersonRole === 'instructor' ? 'Instructor' : 'Employee');
+      if (onePersonDept) payload.append('department_id', String(Number(onePersonDept)));
+      if (onePersonSubdept) payload.append('subdepartment_id', String(Number(onePersonSubdept)));
       payload.append('target_user_ids[]', String(onePersonSelected.id));
       onePersonImages.forEach((f) => payload.append('message_images[]', f));
       const res = await fetch('/api/admin/notifications/announce', {
@@ -569,6 +582,7 @@ export function NotificationManagement() {
       const payload = new FormData();
       payload.append('title', formData.title);
       payload.append('message', formData.message);
+      payload.append('announcement_mode', 'group');
 
       rolesArray.forEach((role) => payload.append('roles[]', role));
 
@@ -724,11 +738,13 @@ export function NotificationManagement() {
       message: item.message,
       date: item.date,
       target: item.target,
+      announcement_mode: item.announcement_mode,
       target_roles: item.target_roles,
       department_name: item.department_name ?? null,
       subdepartment_name: item.subdepartment_name ?? null,
       recipients_count: item.recipients_count,
       type: 'announcement',
+      data: item.data,
     });
   };
 
@@ -741,6 +757,7 @@ export function NotificationManagement() {
       date: item.date,
       deleted_at: item.deleted_at,
       target: item.target,
+      announcement_mode: item.announcement_mode,
       target_roles: item.target_roles,
       department_name: item.department_name ?? item.data?.from_department ?? null,
       subdepartment_name: item.subdepartment_name ?? null,
@@ -972,7 +989,12 @@ export function NotificationManagement() {
                       className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                     >
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
-                        {item.title}
+                        <div className="flex items-center gap-2">
+                          <span>{item.title}</span>
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${item.announcement_mode === 'one_person' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'}`}>
+                            {item.announcement_mode === 'one_person' ? 'One Person' : 'Group'}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-200 truncate max-w-xs">
                         {messagePreviewText(item.message)}
@@ -1396,6 +1418,10 @@ export function NotificationManagement() {
                     <p className="text-slate-900 dark:text-white">{selectedAnnouncementDetail.target || 'Not specified'}</p>
                   </div>
                   <div>
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Mode</h3>
+                    <p className="text-slate-900 dark:text-white">{selectedAnnouncementDetail.announcement_mode === 'one_person' ? 'One Person' : 'Group'}</p>
+                  </div>
+                  <div>
                     <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Roles</h3>
                     <p className="text-slate-900 dark:text-white">{formatRoleList(selectedAnnouncementDetail.target_roles)}</p>
                   </div>
@@ -1548,7 +1574,7 @@ export function NotificationManagement() {
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Department</label>
                     <select
                       value={onePersonDept}
-                      onChange={(e) => { setOnePersonDept(e.target.value); setOnePersonSubdept(''); setOnePersonSelected(null); setOnePersonQuery(''); setOnePersonResults([]); }}
+                      onChange={(e) => { setOnePersonDept(e.target.value); setOnePersonSubdept(''); setOnePersonSelected(null); setOnePersonResults([]); }}
                       className="mt-1 block w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     >
                       <option value="">All Departments</option>
@@ -1567,7 +1593,7 @@ export function NotificationManagement() {
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Sub Department</label>
                         <select
                           value={onePersonSubdept}
-                          onChange={(e) => { setOnePersonSubdept(e.target.value); setOnePersonSelected(null); setOnePersonQuery(''); setOnePersonResults([]); }}
+                          onChange={(e) => { setOnePersonSubdept(e.target.value); setOnePersonSelected(null); setOnePersonResults([]); }}
                           className="mt-1 block w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                         >
                           <option value="">All Sub Departments</option>

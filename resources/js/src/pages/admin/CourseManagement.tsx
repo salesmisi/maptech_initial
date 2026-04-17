@@ -144,6 +144,12 @@ const getMinDateTimeInputValue = (): string => {
   return local.toISOString().slice(0, 16);
 };
 
+const toLocalDatetimeInput = (dateStr: string): string => {
+  const d = new Date(dateStr);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
 const isPastDateTimeInput = (value: FormDataEntryValue | null): boolean => {
   if (typeof value !== 'string') return false;
   const trimmed = value.trim();
@@ -666,7 +672,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   <input
                     type="datetime-local"
                     name="start_date"
-                    defaultValue={editingCourse?.start_date ? new Date(editingCourse.start_date).toISOString().slice(0, 16) : ''}
+                    defaultValue={editingCourse?.start_date ? toLocalDatetimeInput(editingCourse.start_date) : ''}
                     min={minDateTimeInput}
                     className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
                   />
@@ -678,7 +684,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   <input
                     type="datetime-local"
                     name="deadline"
-                    defaultValue={editingCourse?.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
+                    defaultValue={editingCourse?.deadline ? toLocalDatetimeInput(editingCourse.deadline) : ''}
                     min={minDateTimeInput}
                     className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
                   />

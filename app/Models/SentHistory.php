@@ -17,6 +17,8 @@ class SentHistory extends Model
         'title',
         'message',
         'target',
+        'announcement_mode',
+        'data',
         'target_roles',
         'department_id',
         'subdepartment_id',
@@ -24,6 +26,7 @@ class SentHistory extends Model
     ];
 
     protected $casts = [
+        'data' => 'array',
         'target_roles' => 'array',
         'deleted_at' => 'datetime',
     ];
@@ -80,7 +83,9 @@ class SentHistory extends Model
                 ->take($deleteCount)
                 ->get();
 
+            /** @var \Illuminate\Database\Eloquent\Collection<int, self> $oldestEntries */
             foreach ($oldestEntries as $entry) {
+                /** @var self $entry */
                 $entry->delete(); // Soft delete
             }
         }
