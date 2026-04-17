@@ -33,6 +33,8 @@ class User extends Authenticatable
         'fullname',
         'email',
         'password',
+        'recovery_key_hash',
+        'recovery_key',
         'role',
         'department',
         'company_role',
@@ -48,8 +50,46 @@ class User extends Authenticatable
      */
     protected $hidden = [
         'password',
+        'recovery_key_hash',
+        'recovery_key',
         'remember_token',
     ];
+
+    /**
+     * Generate a new recovery key (16 characters, alphanumeric with dashes for readability).
+     * Returns the plain recovery key - store only the hash.
+     */
+    public static function generateRecoveryKey(): string
+    {
+        // Generate 16 random uppercase alphanumeric characters
+        $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed confusing chars: I, O, 0, 1
+        $key = '';
+        for ($i = 0; $i < 16; $i++) {
+            $key .= $chars[random_int(0, strlen($chars) - 1)];
+        }
+        // Format as XXXX-XXXX-XXXX-XXXX for readability
+        return implode('-', str_split($key, 4));
+    }
+
+    /**
+     * Set recovery key by storing its hash.
+     */
+    public function setRecoveryKey(string $plainKey): void
+    {
+        $this->recovery_key_hash = hash('sha256', $plainKey);
+        $this->save();
+    }
+
+    /**
+     * Verify a recovery key against the stored hash.
+     */
+    public function verifyRecoveryKey(string $plainKey): bool
+    {
+        if (!$this->recovery_key_hash) {
+            return false;
+        }
+        return hash_equals($this->recovery_key_hash, hash('sha256', $plainKey));
+    }
 
     /**
      * Get the attributes that should be cast.

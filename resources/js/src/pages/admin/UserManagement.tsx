@@ -13,6 +13,7 @@ import {
   Eye,
   EyeOff,
   ChevronDown,
+  KeyRound,
 } from 'lucide-react';
 import { LoadingState } from '../../components/ui/LoadingState';
 
@@ -79,6 +80,15 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
   const [showAddUserDropdown, setShowAddUserDropdown] = useState(false);
   const addUserDropdownRef = useRef<HTMLDivElement>(null);
   const [newUserNonce, setNewUserNonce] = useState(0);
+
+  // Recovery key modal state
+  const [showRecoveryKeyModal, setShowRecoveryKeyModal] = useState(false);
+  const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
+  const [createdUserName, setCreatedUserName] = useState<string>('');
+  const [copiedRecoveryKey, setCopiedRecoveryKey] = useState(false);
+  const [isRegeneratedKey, setIsRegeneratedKey] = useState(false);
+  const [regeneratingKeyForId, setRegeneratingKeyForId] = useState<number | null>(null);
+  const [recoveryKeyUserId, setRecoveryKeyUserId] = useState<number | null>(null);
 
   // Form refs
   const fullNameRef = useRef<HTMLInputElement>(null);
@@ -213,6 +223,69 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
         alert(err.message || 'Failed to delete user');
       }
     });
+  };
+
+  // View recovery key handler - fetch existing key
+  const handleViewRecoveryKey = async (userId: number) => {
+    try {
+      setRegeneratingKeyForId(userId);
+      setRecoveryKeyUserId(userId);
+      const response = await fetch(`${API_BASE}/admin/users/${userId}/recovery-key`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to fetch recovery key');
+      }
+
+      const data = await response.json();
+      setRecoveryKey(data.recovery_key);
+      setCreatedUserName(data.user_name);
+      setIsRegeneratedKey(false);
+      setCopiedRecoveryKey(false);
+      setShowRecoveryKeyModal(true);
+    } catch (err: any) {
+      alert(err.message || 'Failed to fetch recovery key');
+    } finally {
+      setRegeneratingKeyForId(null);
+    }
+  };
+
+  // Regenerate recovery key handler
+  const handleRegenerateRecoveryKey = async () => {
+    if (!recoveryKeyUserId) return;
+
+    try {
+      const xsrfToken = await getXsrfToken();
+      const response = await fetch(`${API_BASE}/admin/users/${recoveryKeyUserId}/regenerate-recovery-key`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrfToken,
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to regenerate recovery key');
+      }
+
+      const data = await response.json();
+      setRecoveryKey(data.recovery_key);
+      setCreatedUserName(data.user_name);
+      setIsRegeneratedKey(true);
+      setCopiedRecoveryKey(false);
+    } catch (err: any) {
+      alert(err.message || 'Failed to regenerate recovery key');
+    }
   };
 
   // Toggle selection for a single user
@@ -419,9 +492,12 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
         throw new Error(errorData.message || 'Failed to save user');
       }
 
+      // Get response data to extract recovery key (for new users)
+      const responseData = await response.json().catch(() => ({}));
+
       // Upload photo if a new file was selected
       if (profilePictureFile) {
-        const userId = editingUser?.id ?? (await response.json().catch(() => ({}))).user?.id;
+        const userId = editingUser?.id ?? responseData.user?.id;
         if (userId) {
           const xsrfToken2 = await getXsrfToken();
           const photoFormData = new FormData();
@@ -438,6 +514,16 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
       // Reload users
       await loadUsers();
       handleCloseModal();
+
+      // Show recovery key modal for new users
+      if (!editingUser && responseData.recovery_key) {
+        setRecoveryKey(responseData.recovery_key);
+        setCreatedUserName(formData.fullName);
+        setCopiedRecoveryKey(false);
+        setIsRegeneratedKey(false);
+        setRecoveryKeyUserId(responseData.user?.id || null);
+        setShowRecoveryKeyModal(true);
+      }
     } catch (err: any) {
       setFormError(err.message || 'Failed to save user');
     } finally {
@@ -708,12 +794,26 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                         <button
                           onClick={() => handleOpenModal(user)}
                           className="text-sky-700 hover:text-sky-900 p-1 hover:bg-sky-50 rounded dark:text-sky-400 dark:hover:text-sky-300 dark:hover:bg-slate-700 um-icon-btn"
+                          title="Edit user"
                         >
                           <Edit2 className="h-4 w-4" />
                         </button>
                         <button
+                          onClick={() => handleViewRecoveryKey(user.id)}
+                          disabled={regeneratingKeyForId === user.id}
+                          className="text-amber-600 hover:text-amber-800 p-1 hover:bg-amber-50 rounded dark:text-amber-400 dark:hover:text-amber-300 dark:hover:bg-slate-700 um-icon-btn disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="View recovery key"
+                        >
+                          {regeneratingKeyForId === user.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <KeyRound className="h-4 w-4" />
+                          )}
+                        </button>
+                        <button
                           onClick={() => handleDelete(user.id)}
                           className="text-rose-700 hover:text-rose-900 p-1 hover:bg-rose-50 rounded dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-slate-700 um-icon-btn"
+                          title="Delete user"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -1058,6 +1158,115 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
           </div>
         </div>
       )}
+
+      {/* Recovery Key Modal */}
+      {showRecoveryKeyModal && (
+        <div className="fixed inset-0 z-[70] overflow-y-auto">
+          <div className="flex min-h-screen items-center justify-center px-4 pt-4 pb-20 text-center sm:p-0">
+            <div
+              className="fixed inset-0 bg-slate-900/75 transition-opacity"
+              aria-hidden="true"
+              onClick={() => {
+                setShowRecoveryKeyModal(false);
+                setRecoveryKey(null);
+                setCreatedUserName('');
+                setIsRegeneratedKey(false);
+                setRecoveryKeyUserId(null);
+              }}
+            />
+            <div className="inline-block align-bottom bg-white dark:bg-slate-800 rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+              <div>
+                <div className={`mx-auto flex items-center justify-center h-12 w-12 rounded-full ${recoveryKey ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
+                  <svg className={`h-6 w-6 ${recoveryKey ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+                  </svg>
+                </div>
+                <div className="mt-3 text-center sm:mt-5">
+                  <h3 className="text-lg leading-6 font-medium text-slate-900 dark:text-slate-100">
+                    {!recoveryKey ? 'No Recovery Key Found' : isRegeneratedKey ? 'Recovery Key Regenerated' : 'Recovery Key'}
+                  </h3>
+                  <div className="mt-2">
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      {!recoveryKey ? (
+                        <>No recovery key saved for <strong className="text-slate-700 dark:text-slate-200">{createdUserName}</strong>. You can generate one below.</>
+                      ) : (
+                        <>Recovery key for <strong className="text-slate-700 dark:text-slate-200">{createdUserName}</strong></>
+                      )}
+                    </p>
+                    {recoveryKey && isRegeneratedKey && (
+                      <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                        ⚠️ The previous key has been invalidated.
+                      </p>
+                    )}
+                  </div>
+                  {recoveryKey && (
+                    <div className="mt-4">
+                      <div className="relative">
+                        <code className="block w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-3 text-lg font-mono text-slate-900 dark:text-slate-100 tracking-wider text-center select-all">
+                          {recoveryKey}
+                        </code>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(recoveryKey);
+                            setCopiedRecoveryKey(true);
+                            setTimeout(() => setCopiedRecoveryKey(false), 2000);
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                          title="Copy to clipboard"
+                        >
+                          {copiedRecoveryKey ? (
+                            <svg className="h-5 w-5 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                            </svg>
+                          ) : (
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                      {copiedRecoveryKey && (
+                        <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">✓ Copied to clipboard</p>
+                      )}
+                    </div>
+                  )}
+                  <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                      <strong>How to use:</strong> The user can reset their password using this key on the login page → "Forgot Password" → "Use Recovery Key" option.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-5 sm:mt-6 space-y-2">
+                <button
+                  type="button"
+                  onClick={handleRegenerateRecoveryKey}
+                  className="w-full inline-flex justify-center rounded-md border border-amber-300 dark:border-amber-600 shadow-sm px-4 py-2 bg-amber-50 dark:bg-amber-900/20 text-base font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 sm:text-sm"
+                >
+                  <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                  </svg>
+                  {recoveryKey ? 'Regenerate New Key' : 'Generate Recovery Key'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRecoveryKeyModal(false);
+                    setRecoveryKey(null);
+                    setCreatedUserName('');
+                    setIsRegeneratedKey(false);
+                    setRecoveryKeyUserId(null);
+                  }}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-emerald-600 text-base font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:text-sm"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirm.ConfirmModalRenderer()}
     </div>
   );

@@ -489,4 +489,143 @@ class PasswordResetController extends Controller
         // Reuse the sendResetOTP method which handles all the logic
         return $this->sendResetOTP($request);
     }
+
+    /**
+     * Reset password using recovery key.
+     *
+     * This endpoint allows users to reset their password using their recovery key
+     * without needing email access.
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function resetPasswordWithRecoveryKey(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => 'required|email|max:255',
+            'recovery_key' => 'required|string|min:19|max:19', // Format: XXXX-XXXX-XXXX-XXXX
+            'password' => [
+                'required',
+                'string',
+                'min:8',
+                'confirmed', // Requires password_confirmation field
+                function ($attribute, $value, $fail) {
+                    // At least one uppercase letter
+                    if (!preg_match('/[A-Z]/', $value)) {
+                        $fail('Password must contain at least one uppercase letter.');
+                    }
+                    // At least one special character
+                    if (!preg_match('/[!@#$%^&*(),.?":{}|<>_\-=+\[\]\\\\\/`~;\']/u', $value)) {
+                        $fail('Password must contain at least one special character.');
+                    }
+                    // At least two numbers
+                    $numberCount = preg_match_all('/[0-9]/', $value);
+                    if ($numberCount < 2) {
+                        $fail('Password must contain at least two numbers.');
+                    }
+                },
+            ],
+        ]);
+
+        $email = strtolower(trim($request->email));
+        $recoveryKey = strtoupper(trim($request->recovery_key));
+        $ipAddress = $request->ip();
+
+        // Rate limiting for recovery key attempts
+        $rateLimitKey = 'recovery_key_reset:' . $ipAddress;
+
+        if (RateLimiter::tooManyAttempts($rateLimitKey, 5)) {
+            $seconds = RateLimiter::availableIn($rateLimitKey);
+
+            Log::warning('Recovery key reset rate limit exceeded', [
+                'ip' => $ipAddress,
+                'email' => $email,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Too many attempts. Please try again in ' . ceil($seconds / 60) . ' minutes.',
+            ], 429);
+        }
+
+        RateLimiter::hit($rateLimitKey, 3600); // 1 hour window
+
+        // Find the user
+        $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+
+        if (!$user) {
+            Log::info('Recovery key reset attempted for non-existent email', [
+                'email' => $email,
+                'ip' => $ipAddress,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid email or recovery key.',
+            ], 400);
+        }
+
+        // Check if user has a recovery key set
+        if (empty($user->recovery_key_hash)) {
+            Log::warning('Recovery key reset attempted but no recovery key set', [
+                'user_id' => $user->id,
+                'email' => $email,
+                'ip' => $ipAddress,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No recovery key set for this account. Please contact your administrator.',
+            ], 400);
+        }
+
+        // Verify the recovery key
+        if (!$user->verifyRecoveryKey($recoveryKey)) {
+            Log::info('Invalid recovery key attempt', [
+                'user_id' => $user->id,
+                'email' => $email,
+                'ip' => $ipAddress,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid email or recovery key.',
+            ], 400);
+        }
+
+        // Recovery key is valid - update the password
+        $user->password = Hash::make($request->password);
+        $user->save();
+
+        // Generate a new recovery key for future use
+        $newRecoveryKey = User::generateRecoveryKey();
+        $user->setRecoveryKey($newRecoveryKey);
+
+        // Log the password reset
+        Log::info('Password reset via recovery key successful', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'ip' => $ipAddress,
+        ]);
+
+        // Create audit log entry if the model exists
+        if (class_exists(\App\Models\AuditLog::class)) {
+            try {
+                \App\Models\AuditLog::create([
+                    'user_id' => $user->id,
+                    'action' => 'password_reset_recovery_key',
+                    'ip_address' => $ipAddress,
+                    'session_key' => null,
+                ]);
+            } catch (\Exception $e) {
+                // Ignore audit log errors
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Password has been reset successfully. You can now login with your new password.',
+            'new_recovery_key' => $newRecoveryKey,
+        ]);
+    }
 }

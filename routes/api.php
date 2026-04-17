@@ -33,6 +33,9 @@ Route::prefix('password')->group(function () {
 
     // Resend OTP (same as forgot, but semantically different)
     Route::post('/resend-otp', [PasswordResetController::class, 'resendOTP']);
+
+    // Reset password using recovery key (no email required)
+    Route::post('/reset-with-recovery-key', [PasswordResetController::class, 'resetPasswordWithRecoveryKey']);
 });
 
 /*
@@ -379,6 +382,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
     Route::post('/users/{id}/photo', [UserController::class, 'uploadPhoto']);
+    Route::get('/users/{id}/recovery-key', [UserController::class, 'getRecoveryKey']);
+    Route::post('/users/{id}/regenerate-recovery-key', [UserController::class, 'regenerateRecoveryKey']);
     // Bulk delete users (accepts JSON { ids: [1,2,3] })
     Route::post('/users/bulk-delete', [UserController::class, 'bulkDelete']);
 
