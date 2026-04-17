@@ -51,7 +51,6 @@ import { EmployeeNotifications } from './pages/employee/EmployeeNotifications';
 
 // Shared Pages
 import { ProfileSettings } from './pages/shared/ProfileSettings';
-import { FileConverterPage } from './pages/shared/FileConverterPage';
 import { YTDebug } from './pages/debug/YTDebug';
 import { resolveImageUrl } from './utils/safe';
 
@@ -508,10 +507,10 @@ export function App() {
 
     updateUrlRouteState(page, courseId);
 
-    // Handle custom module ID for custom-field page and custom-module-viewer
-    if ((page === 'custom-field' || page === 'custom-module-viewer') && typeof quizIdOrModuleId === 'number') {
+    // Handle custom module ID for custom-field page, custom-module-viewer, and custom-module-detail
+    if ((page === 'custom-field' || page === 'custom-module-viewer' || page === 'custom-module-detail') && typeof quizIdOrModuleId === 'number') {
       setSelectedCustomModuleId(quizIdOrModuleId);
-    } else if (page !== 'custom-field' && page !== 'custom-module-viewer') {
+    } else if (page !== 'custom-field' && page !== 'custom-module-viewer' && page !== 'custom-module-detail') {
       setSelectedCustomModuleId(null);
     }
 
@@ -673,9 +672,8 @@ export function App() {
               />
             )}
             {currentPage === 'settings' && <ProfileSettings />}
-            {currentPage === 'file-converter' && <FileConverterPage onBack={() => handleNavigate('dashboard')} />}
           {/* Fallback to custom module page for any unmatched route */}
-          {!['dashboard', 'departments', 'users', 'courses', 'custom-field', 'course-detail', 'course-content-editor', 'enrollments', 'reports', 'notifications', 'qa', 'audit-logs', 'business-details', 'feedbacks', 'product-logos', 'settings', 'file-converter'].includes(currentPage) && (
+          {!['dashboard', 'departments', 'users', 'courses', 'custom-field', 'course-detail', 'course-content-editor', 'enrollments', 'reports', 'notifications', 'qa', 'audit-logs', 'business-details', 'feedbacks', 'product-logos', 'settings'].includes(currentPage) && (
             <CustomModulePage routePath={currentPage} />
           )}
           </div>
@@ -709,6 +707,7 @@ export function App() {
             {currentPage === 'dashboard' && <InstructorDashboard />}
             {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
             {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} />}
+            {currentPage === 'custom-module-detail' && selectedCustomModuleId && <CustomModuleViewer moduleId={selectedCustomModuleId} apiPath="instructor/custom-modules" editApiPath="instructor/custom-modules" allowEdit={true} onBack={() => handleNavigate('courses')} />}
             {currentPage === 'quiz-management' && <QuizAssessmentManagement />}
             {currentPage === 'lessons' && <LessonVideoUpload />}
             {currentPage === 'quizzes' && <QuizAssessmentManagement />}
@@ -717,7 +716,6 @@ export function App() {
             {currentPage === 'notifications' && <InstructorNotifications />}
             {currentPage === 'feedbacks' && <InstructorFeedback />}
             {currentPage === 'settings' && <ProfileSettings />}
-            {currentPage === 'file-converter' && <FileConverterPage onBack={() => handleNavigate('dashboard')} />}
           </div>
         </InstructorLayout>
         {logoutOverlay}
@@ -775,7 +773,6 @@ export function App() {
             {currentPage === 'feedback' && <MyFeedback />}
             {currentPage === 'notifications' && <EmployeeNotifications />}
             {currentPage === 'settings' && <ProfileSettings />}
-            {currentPage === 'file-converter' && <FileConverterPage onBack={() => handleNavigate('dashboard')} />}
           </div>
         </EmployeeLayout>
         {logoutOverlay}

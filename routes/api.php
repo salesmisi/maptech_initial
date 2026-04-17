@@ -895,8 +895,89 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
         Route::post('/notify-employees', [\App\Http\Controllers\NotificationController::class, 'instructorNotify']);
         Route::post('/notify-admin', [\App\Http\Controllers\NotificationController::class, 'instructorNotifyAdmin']);
     });
-    // Instructor access to feedback listing (uses same controller logic)
-    Route::get('/feedbacks', [\App\Http\Controllers\Admin\FeedbackController::class, 'index']);
+    // Instructor access to feedback listing (only courses this instructor teaches)
+    Route::get('/feedbacks', function (Request $request) {
+        $instructorId = $request->user()->id;
+        $type = $request->get('type', 'lesson');
+
+        if ($type === 'quiz') {
+            $query = \App\Models\QuizFeedback::with([
+                'user:id,fullname,department,role',
+                'quiz.module.course:id,title,department,instructor_id',
+            ])
+            ->whereHas('quiz.module.course', function ($q) use ($instructorId) {
+                $q->where('instructor_id', $instructorId);
+            })
+            ->orderByDesc('created_at');
+
+            $perPage = max(10, min(200, (int) $request->get('per_page', 50)));
+            $page = $query->paginate($perPage);
+
+            return response()->json($page->through(function ($fb) {
+                return [
+                    'id' => $fb->id,
+                    'user' => [
+                        'id' => $fb->user?->id,
+                        'name' => $fb->user?->fullname,
+                        'department' => $fb->user?->department,
+                    ],
+                    'lesson' => [
+                        'id' => $fb->quiz?->id,
+                        'title' => $fb->quiz?->title,
+                        'module' => $fb->quiz?->module?->title ?? null,
+                        'course' => $fb->quiz?->module?->course?->title ?? null,
+                        'course_department' => $fb->quiz?->module?->course?->department ?? null,
+                    ],
+                    'rating' => $fb->rating,
+                    'comment' => $fb->comment,
+                    'created_at' => $fb->created_at?->toISOString(),
+                ];
+            }));
+        }
+
+        $query = \App\Models\LessonFeedback::with([
+            'user:id,fullname,department,role',
+            'lesson.module.course:id,title,department,instructor_id',
+        ])
+        ->whereHas('lesson.module.course', function ($q) use ($instructorId) {
+            $q->where('instructor_id', $instructorId);
+        })
+        ->orderByDesc('created_at');
+
+        if ($request->has('course_id')) {
+            $query->whereHas('lesson.module', function ($q) use ($request) {
+                $q->where('course_id', $request->course_id);
+            });
+        }
+
+        if ($request->has('lesson_id')) {
+            $query->where('lesson_id', $request->lesson_id);
+        }
+
+        $perPage = max(10, min(200, (int) $request->get('per_page', 50)));
+        $page = $query->paginate($perPage);
+
+        return response()->json($page->through(function ($fb) {
+            return [
+                'id' => $fb->id,
+                'user' => [
+                    'id' => $fb->user?->id,
+                    'name' => $fb->user?->fullname,
+                    'department' => $fb->user?->department,
+                ],
+                'lesson' => [
+                    'id' => $fb->lesson?->id,
+                    'title' => $fb->lesson?->title,
+                    'module' => $fb->lesson?->module?->title ?? null,
+                    'course' => $fb->lesson?->module?->course?->title ?? null,
+                    'course_department' => $fb->lesson?->module?->course?->department ?? null,
+                ],
+                'rating' => $fb->rating,
+                'comment' => $fb->comment,
+                'created_at' => $fb->created_at?->toISOString(),
+            ];
+        }));
+    });
 
     // Custom Modules (read-only access for instructors)
     Route::get('/custom-modules', function (Request $request) {
@@ -914,6 +995,9 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
             ->where('module_type', 'learning') // Only learning modules for instructors
             ->findOrFail($id);
     });
+
+    // Custom Module lesson editing (instructors can edit lesson title/description/content)
+    Route::put('/custom-modules/{moduleId}/lessons/{lessonId}', [\App\Http\Controllers\Admin\CustomLessonController::class, 'update']);
 
     // Custom Module assignment to department
     Route::post('/custom-modules/{id}/push-to-department', [\App\Http\Controllers\Instructor\CustomModuleController::class, 'pushToDepartment']);

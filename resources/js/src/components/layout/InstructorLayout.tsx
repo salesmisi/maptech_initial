@@ -11,6 +11,7 @@ import {
   Bell,
   Settings,
   FileText,
+  Star,
   Moon,
   Sun } from
 'lucide-react';
@@ -118,14 +119,14 @@ export function InstructorLayout({
     icon: MessageCircle
   },
   {
+    id: 'feedbacks',
+    label: 'Feedbacks',
+    icon: Star
+  },
+  {
     id: 'notifications',
     label: 'Notifications',
     icon: Bell
-  },
-  {
-    id: 'file-converter',
-    label: 'File Converter',
-    icon: FileText
   },
   {
     id: 'settings',

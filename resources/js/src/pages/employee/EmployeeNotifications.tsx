@@ -37,6 +37,7 @@ export function EmployeeNotifications() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'received' | 'deleted'>('received');
+  const [visibleCount, setVisibleCount] = useState(5);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'instructor' | 'admin'>('instructor');
   const [isSending, setIsSending] = useState(false);
@@ -222,6 +223,27 @@ export function EmployeeNotifications() {
         fetchRecentlyDeleted();
       } catch (err) {
         console.error('Failed to permanently delete notification:', err);
+      }
+    });
+  };
+
+  const deleteNotification = async (id: number) => {
+    showConfirm('Delete this notification?', async () => {
+      try {
+        const xsrf = await getXsrfToken();
+        await fetch(`/api/employee/notifications/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'X-XSRF-TOKEN': xsrf,
+          },
+        });
+        fetchNotifications();
+        fetchRecentlyDeleted();
+        fetchUnreadCount();
+      } catch (err) {
+        console.error('Failed to delete notification:', err);
       }
     });
   };
@@ -420,7 +442,7 @@ export function EmployeeNotifications() {
             </div>
           ) : (
             <div className="divide-y divide-slate-200 dark:divide-slate-700">
-              {notifications.map((notification) => (
+              {notifications.slice(0, visibleCount).map((notification) => (
                 <div
                   key={notification.id}
                   onClick={() => openNotificationDetail(notification)}
@@ -465,18 +487,33 @@ export function EmployeeNotifications() {
                     <div className="flex items-center space-x-2">
                       {!notification.read_at && (
                         <button
-                          onClick={() => markAsRead(notification.id)}
+                          onClick={(e) => { e.stopPropagation(); markAsRead(notification.id); }}
                           className="text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-300"
                           title="Mark as read"
                         >
                           <Eye className="h-5 w-5" />
                         </button>
                       )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteNotification(notification.id); }}
+                        className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                        title="Delete notification"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
+          )}
+          {!loading && notifications.length > visibleCount && (
+            <button
+              onClick={() => setVisibleCount((c) => c + 5)}
+              className="w-full py-3 text-sm text-green-600 dark:text-green-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-200 dark:border-slate-700 transition-colors font-medium"
+            >
+              See previous notifications ({notifications.length - visibleCount} more)
+            </button>
           )}
         </div>
       )}
@@ -781,6 +818,7 @@ export function EmployeeNotifications() {
         message={infoModal.message}
         variant={infoModal.variant}
       />
+      {confirm.ConfirmModalRenderer()}
     </div>
   );
 }
