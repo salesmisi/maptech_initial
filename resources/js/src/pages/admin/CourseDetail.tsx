@@ -82,6 +82,8 @@ interface CourseData {
   title: string;
   description: string;
   department: string;
+  subdepartment_id?: number | null;
+  subdepartment?: { id: number; name: string } | null;
   status: string;
   instructor: { id: number; fullname: string; email: string } | null;
   modules: Module[];
@@ -94,6 +96,8 @@ interface AllUser {
   email: string;
   role: string;
   department: string | null;
+  subdepartment_id?: number | null;
+  subdepartment?: { id: number; name: string } | null;
   status: string;
 }
 
@@ -344,11 +348,18 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
       });
       if (!res.ok) throw new Error('Failed to load course');
       const data = await res.json();
-      setCourse({
+      const mappedCourse: CourseData = {
         id: data.id,
         title: data.title,
         description: data.description || '',
         department: data.department,
+        subdepartment_id: data.subdepartment_id ?? null,
+        subdepartment: data.subdepartment
+          ? {
+              id: Number(data.subdepartment.id),
+              name: String(data.subdepartment.name || ''),
+            }
+          : null,
         status: data.status,
         instructor: data.instructor ?? null,
         modules: data.modules ?? [],
@@ -363,17 +374,33 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
           progress: u.pivot?.progress ?? u.progress ?? 0,
           enrollment_status: u.pivot?.status ?? u.enrollment_status ?? 'Active',
         })),
+      };
+      setCourse(mappedCourse);
+      await loadAllUsers({
+        department: mappedCourse.department,
+        subdepartment_id: mappedCourse.subdepartment_id ?? null,
       });
     } catch (e: any) {
+      setAllUsers([]);
       setError(e.message || 'Failed to load course');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadAllUsers = async () => {
+  const loadAllUsers = async (filters?: { department?: string | null; subdepartment_id?: number | null }) => {
     try {
-      const res = await fetch(`${API_BASE}/admin/users`, {
+      const params = new URLSearchParams();
+      params.set('role', 'employee');
+      params.set('status', 'Active');
+
+      if (filters?.subdepartment_id) {
+        params.set('subdepartment_id', String(filters.subdepartment_id));
+      } else if (filters?.department) {
+        params.set('department', filters.department);
+      }
+
+      const res = await fetch(`${API_BASE}/admin/users?${params.toString()}`, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
@@ -384,7 +411,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
         : Array.isArray(raw?.data)
           ? raw.data
           : raw?.users || [];
-      setAllUsers(safeArray<AllUser>(list).filter(u => u.status === 'Active'));
+      setAllUsers(safeArray<AllUser>(list));
     } catch {
       // ignore
     }
@@ -392,7 +419,6 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
 
   useEffect(() => {
     loadCourse();
-    loadAllUsers();
     loadQuizzes();
   }, [courseId]);
 
@@ -635,7 +661,10 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
   // ─── ENROLLMENT HANDLERS ─────────────────────────────────────────────────────
 
   const enrolledIds = new Set(safeArray<EnrolledUser>(course?.enrolled_users).map(u => u.id));
-  const availableUsers = safeArray<AllUser>(allUsers).filter(u => !enrolledIds.has(u.id));
+  const availableUsers = safeArray<AllUser>(allUsers).filter(u => {
+    if (enrolledIds.has(u.id)) return false;
+    return String(u.role || '').toLowerCase() === 'employee';
+  });
 
   const handleEnroll = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1250,13 +1279,17 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                 onChange={e => setSelectedUserId(e.target.value)}
                 className="flex-1 border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
               >
-                <option value="">— Select a user to enroll —</option>
+                <option value="">
+                  — Select {course.subdepartment?.name ? `${course.subdepartment.name} subdepartment` : course.department} employee —
+                </option>
                 {availableUsers.length === 0 && (
-                  <option disabled>All active users are already enrolled</option>
+                  <option disabled>
+                    No eligible active employees available for this {course.subdepartment?.name ? 'subdepartment' : 'department'}
+                  </option>
                 )}
                 {safeArray(availableUsers).map(u => (
                   <option key={u.id} value={u.id}>
-                    {u.fullname} ({u.email}) · {u.role}
+                    {u.fullname} ({u.email}){u.subdepartment?.name ? ` · ${u.subdepartment.name}` : ''}
                   </option>
                 ))}
               </select>

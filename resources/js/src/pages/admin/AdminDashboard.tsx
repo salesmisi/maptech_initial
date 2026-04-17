@@ -203,6 +203,52 @@ export function AdminDashboard({ onNavigate }: Props) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+
+    const shouldLockScroll = showActivityModal || showEmployeesModal;
+    if (!shouldLockScroll) return undefined;
+
+    const lockTargets = new Set<HTMLElement>();
+
+    const mainScroll = document.querySelector<HTMLElement>('main.flex-1.overflow-y-auto');
+    const contentPanelScroll = document.querySelector<HTMLElement>('div.flex.w-full.flex-col.transition-\[padding\].duration-300');
+    const sidebarScroll = document.querySelector<HTMLElement>('div.fixed.inset-y-0.left-0 div.flex-1.flex.flex-col.overflow-y-auto.pt-5.pb-4');
+    const docScroll = document.scrollingElement as HTMLElement | null;
+
+    if (mainScroll) lockTargets.add(mainScroll);
+    if (contentPanelScroll) lockTargets.add(contentPanelScroll);
+    if (sidebarScroll) lockTargets.add(sidebarScroll);
+    if (docScroll) lockTargets.add(docScroll);
+
+    if (lockTargets.size === 0) return undefined;
+
+    const originalStates = Array.from(lockTargets).map((el) => ({
+      el,
+      overflow: el.style.overflow,
+      overscrollBehavior: el.style.overscrollBehavior,
+      touchAction: el.style.touchAction,
+      scrollTop: el.scrollTop,
+      scrollLeft: el.scrollLeft,
+    }));
+
+    originalStates.forEach(({ el }) => {
+      el.style.overflow = 'hidden';
+      el.style.overscrollBehavior = 'contain';
+      el.style.touchAction = 'none';
+    });
+
+    return () => {
+      originalStates.forEach(({ el, overflow, overscrollBehavior, touchAction, scrollTop, scrollLeft }) => {
+        el.style.overflow = overflow;
+        el.style.overscrollBehavior = overscrollBehavior;
+        el.style.touchAction = touchAction;
+        el.scrollTop = scrollTop;
+        el.scrollLeft = scrollLeft;
+      });
+    };
+  }, [showActivityModal, showEmployeesModal]);
+
   const completionStatus = reportData?.completion_status ?? [];
   const monthlyTrends = reportData?.monthly_trends ?? [];
   const popularCourses = reportData?.popular_courses ?? [];

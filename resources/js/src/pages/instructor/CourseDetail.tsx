@@ -222,6 +222,8 @@ interface AllUser {
   email: string;
   role: string;
   department: string | null;
+  subdepartment_id?: number | null;
+  subdepartment?: { id: number; name: string } | null;
   status: string;
 }
 
@@ -1067,9 +1069,17 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   };
 
   const courseDepartmentKey = normalizeDepartmentKey(course?.department);
-  // Only show employees from the same department as the course (exclude already-enrolled)
+  const courseSubdepartmentId = Number(course?.subdepartment?.id || 0);
+  // Only show eligible employees: same subdepartment when set, otherwise same department.
   const availableUsers = allUsers.filter(u => {
     if (enrolledIds.has(u.id)) return false;
+    if (String(u.role || '').toLowerCase() !== 'employee') return false;
+    if (String(u.status || '').toLowerCase() !== 'active') return false;
+
+    if (courseSubdepartmentId > 0) {
+      return Number(u.subdepartment_id || 0) === courseSubdepartmentId;
+    }
+
     if (!courseDepartmentKey) return true;
     return normalizeDepartmentKey(u.department) === courseDepartmentKey;
   });
@@ -1733,17 +1743,28 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                   value={enrollSearch}
                   onChange={e => setEnrollSearch(e.target.value)}
                   className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  placeholder={course.department ? `Search ${course.department} employees by name or email` : 'Search employees by name or email'}
+                  placeholder={course.subdepartment?.name
+                    ? `Search ${course.subdepartment.name} employees by name or email`
+                    : course.department
+                      ? `Search ${course.department} employees by name or email`
+                      : 'Search employees by name or email'}
                 />
                 <select
                   value={selectedUserId}
                   onChange={e => setSelectedUserId(e.target.value)}
                   className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
+                  <option value="">
+                    {course.subdepartment?.name
+                      ? `Select ${course.subdepartment.name} employee`
+                      : 'Select employee'}
+                  </option>
                   {filteredAvailableUsers.length === 0 && (
                     <option disabled>
                       {availableUsers.length === 0
-                        ? 'All active employees are already enrolled'
+                        ? (course.subdepartment?.name
+                            ? `No active employees found in ${course.subdepartment.name}`
+                            : 'All active employees are already enrolled')
                         : 'No employees match your search'}
                     </option>
                   )}
