@@ -116,10 +116,16 @@ class UserController extends Controller
 
         // Create user; store into lowercase `fullname` column used by this schema.
         // The API still exposes `fullName` as a JSON field for frontend compatibility.
+
+        // Generate recovery key for the new user
+        $recoveryKey = User::generateRecoveryKey();
+
         $user = User::create([
             'fullname' => $validated['fullName'],
             'email' => $validated['email'],
             'password' => $validated['password'],
+            'recovery_key_hash' => hash('sha256', $recoveryKey),
+            'recovery_key' => $recoveryKey,
             'role' => $validated['role'],
             'department' => $validated['department'] ?? null,
             'subdepartment_id' => $validated['subdepartment_id'] ?? null,
@@ -141,7 +147,8 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'User created successfully',
-            'user' => $user->load('headOfDepartments:id,name,head_id', 'subdepartments:id,name,department_id')
+            'user' => $user->load('headOfDepartments:id,name,head_id', 'subdepartments:id,name,department_id'),
+            'recovery_key' => $recoveryKey,
         ], 201);
     }
 
@@ -670,5 +677,72 @@ class UserController extends Controller
             'department_performance' => $departmentPerformance,
             'recent_activity'        => $recentActivity,
         ]);
+    }
+
+    /**
+     * Regenerate recovery key for a user.
+     */
+    public function regenerateRecoveryKey(string $id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            // Generate a new recovery key
+            $recoveryKey = User::generateRecoveryKey();
+
+            // Store both the hash and the actual key
+            $user->update([
+                'recovery_key_hash' => hash('sha256', $recoveryKey),
+                'recovery_key' => $recoveryKey,
+            ]);
+
+            return response()->json([
+                'message' => 'Recovery key regenerated successfully',
+                'recovery_key' => $recoveryKey,
+                'user_name' => $user->fullname,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to regenerate recovery key', [
+                'user_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to regenerate recovery key: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get the saved recovery key for a user.
+     */
+    public function getRecoveryKey(string $id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            if (empty($user->recovery_key)) {
+                return response()->json([
+                    'message' => 'No recovery key found for this user. You can regenerate one.',
+                    'recovery_key' => null,
+                    'user_name' => $user->fullname,
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'Recovery key retrieved successfully',
+                'recovery_key' => $user->recovery_key,
+                'user_name' => $user->fullname,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to get recovery key', [
+                'user_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to get recovery key: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
