@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { safeArray } from '../../utils/safe';
 import {
   Users,
@@ -83,9 +83,11 @@ export function AdminDashboard({ onNavigate }: Props) {
   const [analyticsRange, setAnalyticsRange] = useState(6);
   const [showRangeMenu, setShowRangeMenu] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
+  const [isActivityModalVisible, setIsActivityModalVisible] = useState(false);
   const [allActivity, setAllActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 640 : false));
+  const activityModalCloseTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -98,7 +100,13 @@ export function AdminDashboard({ onNavigate }: Props) {
   }, []);
 
   const openAllActivity = () => {
+    if (activityModalCloseTimeoutRef.current !== null) {
+      window.clearTimeout(activityModalCloseTimeoutRef.current);
+      activityModalCloseTimeoutRef.current = null;
+    }
+
     setShowActivityModal(true);
+    window.requestAnimationFrame(() => setIsActivityModalVisible(true));
     setActivityLoading(true);
     fetch('/api/admin/activity', {
       headers: {
@@ -110,6 +118,14 @@ export function AdminDashboard({ onNavigate }: Props) {
       .then((res) => res.json())
       .then((data: ActivityItem[]) => setAllActivity(safeArray(data)))
       .finally(() => setActivityLoading(false));
+  };
+
+  const closeAllActivity = () => {
+    setIsActivityModalVisible(false);
+    activityModalCloseTimeoutRef.current = window.setTimeout(() => {
+      setShowActivityModal(false);
+      activityModalCloseTimeoutRef.current = null;
+    }, 220);
   };
 
   useEffect(() => {
@@ -183,6 +199,14 @@ export function AdminDashboard({ onNavigate }: Props) {
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (activityModalCloseTimeoutRef.current !== null) {
+        window.clearTimeout(activityModalCloseTimeoutRef.current);
+      }
+    };
   }, []);
 
   const completionStatus = reportData?.completion_status ?? [];
@@ -667,12 +691,13 @@ export function AdminDashboard({ onNavigate }: Props) {
 
       {/* View All Activity Modal */}
       {showActivityModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="mx-2 flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 sm:mx-4">
+        <div
+          className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 transition-opacity duration-200 ${isActivityModalVisible ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`mx-2 flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-slate-200 bg-white shadow-xl transition-all duration-200 ease-out dark:border-slate-700 dark:bg-slate-900 sm:mx-4 ${isActivityModalVisible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-2 scale-95 opacity-0'}`}>
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 dark:border-slate-700 sm:px-6">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">All Activity</h2>
               <button
-                onClick={() => setShowActivityModal(false)}
+                onClick={closeAllActivity}
                 className={`p-1 rounded-md ${isDarkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}>
                 <X className="h-5 w-5" />
               </button>
@@ -711,7 +736,7 @@ export function AdminDashboard({ onNavigate }: Props) {
             </div>
             <div className="border-t border-slate-100 px-4 py-3 text-right dark:border-slate-700 sm:px-6">
               <button
-                onClick={() => setShowActivityModal(false)}
+                onClick={closeAllActivity}
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${isDarkMode ? 'text-slate-200 bg-slate-800 hover:bg-slate-700' : 'text-slate-700 bg-white border border-slate-200 hover:bg-slate-100'}`}>
                 Close
               </button>
