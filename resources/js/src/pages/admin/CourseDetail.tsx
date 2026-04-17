@@ -28,6 +28,8 @@ import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../compone
 import UnlockModuleModal from '../../components/UnlockModuleModal';
 import ConfirmModal from '../../components/ConfirmModal';
 import { safeArray } from '../../utils/safe';
+import PDFViewer from '../../components/PDFViewer';
+import PresentationViewer from '../../components/PresentationViewer';
 
 const API_BASE = '/api';
 
@@ -80,6 +82,8 @@ interface CourseData {
   title: string;
   description: string;
   department: string;
+  subdepartment_id?: number | null;
+  subdepartment?: { id: number; name: string } | null;
   status: string;
   instructor: { id: number; fullname: string; email: string } | null;
   modules: Module[];
@@ -92,6 +96,8 @@ interface AllUser {
   email: string;
   role: string;
   department: string | null;
+  subdepartment_id?: number | null;
+  subdepartment?: { id: number; name: string } | null;
   status: string;
 }
 
@@ -342,11 +348,18 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
       });
       if (!res.ok) throw new Error('Failed to load course');
       const data = await res.json();
-      setCourse({
+      const mappedCourse: CourseData = {
         id: data.id,
         title: data.title,
         description: data.description || '',
         department: data.department,
+        subdepartment_id: data.subdepartment_id ?? null,
+        subdepartment: data.subdepartment
+          ? {
+              id: Number(data.subdepartment.id),
+              name: String(data.subdepartment.name || ''),
+            }
+          : null,
         status: data.status,
         instructor: data.instructor ?? null,
         modules: data.modules ?? [],
@@ -361,17 +374,33 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
           progress: u.pivot?.progress ?? u.progress ?? 0,
           enrollment_status: u.pivot?.status ?? u.enrollment_status ?? 'Active',
         })),
+      };
+      setCourse(mappedCourse);
+      await loadAllUsers({
+        department: mappedCourse.department,
+        subdepartment_id: mappedCourse.subdepartment_id ?? null,
       });
     } catch (e: any) {
+      setAllUsers([]);
       setError(e.message || 'Failed to load course');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadAllUsers = async () => {
+  const loadAllUsers = async (filters?: { department?: string | null; subdepartment_id?: number | null }) => {
     try {
-      const res = await fetch(`${API_BASE}/admin/users`, {
+      const params = new URLSearchParams();
+      params.set('role', 'employee');
+      params.set('status', 'Active');
+
+      if (filters?.subdepartment_id) {
+        params.set('subdepartment_id', String(filters.subdepartment_id));
+      } else if (filters?.department) {
+        params.set('department', filters.department);
+      }
+
+      const res = await fetch(`${API_BASE}/admin/users?${params.toString()}`, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
@@ -382,7 +411,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
         : Array.isArray(raw?.data)
           ? raw.data
           : raw?.users || [];
-      setAllUsers(safeArray<AllUser>(list).filter(u => u.status === 'Active'));
+      setAllUsers(safeArray<AllUser>(list));
     } catch {
       // ignore
     }
@@ -390,7 +419,6 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
 
   useEffect(() => {
     loadCourse();
-    loadAllUsers();
     loadQuizzes();
   }, [courseId]);
 
@@ -633,7 +661,10 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
   // ─── ENROLLMENT HANDLERS ─────────────────────────────────────────────────────
 
   const enrolledIds = new Set(safeArray<EnrolledUser>(course?.enrolled_users).map(u => u.id));
-  const availableUsers = safeArray<AllUser>(allUsers).filter(u => !enrolledIds.has(u.id));
+  const availableUsers = safeArray<AllUser>(allUsers).filter(u => {
+    if (enrolledIds.has(u.id)) return false;
+    return String(u.role || '').toLowerCase() === 'employee';
+  });
 
   const handleEnroll = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -997,7 +1028,21 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                                         )}
                                         {lesson.content_url && lesson.file_type === 'pdf' && (
                                           <div className="px-4 pb-3 pt-1 border-t border-slate-200">
-                                            <iframe src={lesson.content_url} className="w-full h-96 rounded-md border border-slate-300" title={lesson.title} />
+                                            <PDFViewer
+                                              url={lesson.content_url}
+                                              title={lesson.title}
+                                              lessonId={lesson.id}
+                                              moduleId={mod.id}
+                                              showConvertButton={false}
+                                            />
+                                          </div>
+                                        )}
+                                        {lesson.content_url && lesson.file_type === 'presentation' && (
+                                          <div className="px-4 pb-3 pt-1 border-t border-slate-200">
+                                            <PresentationViewer
+                                              url={lesson.content_url}
+                                              title={lesson.title}
+                                            />
                                           </div>
                                         )}
                                       </>
@@ -1010,15 +1055,15 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
 
                           {/* Add Lesson form */}
                           {addingLessonForModule === mod.id ? (
-                            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg space-y-2">
-                              <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Add Lesson</p>
+                            <div className="mt-3 p-3 bg-green-50 border border-green-200 dark:bg-slate-800/85 dark:border-slate-700 rounded-lg space-y-2">
+                              <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide">Add Lesson</p>
                               {lessonError && <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{lessonError}</p>}
                               <input
                                 type="text"
                                 placeholder="Lesson title"
                                 value={lessonTitle}
                                 onChange={e => setLessonTitle(e.target.value)}
-                                className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                               />
                               <RichTextEditor
                                 value={lessonTextContent}
@@ -1027,7 +1072,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                                 minHeight="120px"
                               />
                               <div className="flex items-center gap-2">
-                                <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 rounded-md cursor-pointer hover:bg-white text-xs text-slate-600">
+                                <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md cursor-pointer bg-white/70 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900 text-xs text-slate-600 dark:text-slate-300 transition-colors">
                                   <Upload className="h-3.5 w-3.5" />
                                   {lessonFile ? lessonFile.name : 'Upload document or video (optional)'}
                                   <input
@@ -1058,7 +1103,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                                 </button>
                                 <button
                                   onClick={() => { setAddingLessonForModule(null); setLessonTitle(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
-                                  className="px-3 py-1.5 border border-slate-300 text-slate-600 text-xs font-medium rounded-md hover:bg-white"
+                                  className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-md bg-white/80 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900 transition-colors"
                                 >
                                   Cancel
                                 </button>
@@ -1234,13 +1279,17 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                 onChange={e => setSelectedUserId(e.target.value)}
                 className="flex-1 border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
               >
-                <option value="">— Select a user to enroll —</option>
+                <option value="">
+                  — Select {course.subdepartment?.name ? `${course.subdepartment.name} subdepartment` : course.department} employee —
+                </option>
                 {availableUsers.length === 0 && (
-                  <option disabled>All active users are already enrolled</option>
+                  <option disabled>
+                    No eligible active employees available for this {course.subdepartment?.name ? 'subdepartment' : 'department'}
+                  </option>
                 )}
                 {safeArray(availableUsers).map(u => (
                   <option key={u.id} value={u.id}>
-                    {u.fullname} ({u.email}) · {u.role}
+                    {u.fullname} ({u.email}){u.subdepartment?.name ? ` · ${u.subdepartment.name}` : ''}
                   </option>
                 ))}
               </select>

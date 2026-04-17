@@ -10,6 +10,8 @@ import {
   ChevronLeft,
   Bell,
   Settings,
+  FileText,
+  Star,
   Moon,
   Sun } from
 'lucide-react';
@@ -115,6 +117,11 @@ export function InstructorLayout({
     id: 'qa-discussion',
     label: 'Q&A',
     icon: MessageCircle
+  },
+  {
+    id: 'feedbacks',
+    label: 'Feedbacks',
+    icon: Star
   },
   {
     id: 'notifications',

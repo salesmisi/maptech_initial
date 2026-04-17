@@ -30,7 +30,7 @@ interface Department {
   head_id: number | null;
   head_user?: { id: number; fullname: string } | null;
   employee_count: number;
-  course_count: number;
+  instructor_count?: number;
   status: 'Active' | 'Inactive';
   subdepartments: Subdepartment[];
 }
@@ -527,20 +527,20 @@ export default function DepartmentManagement() {
               </div>
               <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
                 <div className="mb-1 flex items-center gap-1 text-slate-500 dark:text-slate-400">
-                  <BookOpen className="h-3.5 w-3.5" /> Courses
+                  <BookOpen className="h-3.5 w-3.5" /> Instructor
                 </div>
-                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{dept.course_count ?? 0}</div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{dept.instructor_count ?? 0}</div>
               </div>
             </div>
 
-            <div className="mb-3 text-xs text-slate-500 dark:text-slate-400">
-              Subdepartments: <span className="font-medium text-slate-700 dark:text-slate-200">{safeArray(dept.subdepartments).length}</span>
+            <div className="mb-4 text-sm font-semibold text-slate-700 dark:text-slate-300">
+              Subdepartments: <span className="text-emerald-600 dark:text-emerald-400">{safeArray(dept.subdepartments).length}</span>
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <button
                 onClick={() => openManageModal(dept)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
               >
                 Manage
               </button>

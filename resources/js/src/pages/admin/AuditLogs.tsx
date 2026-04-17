@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import useConfirm from '../../hooks/useConfirm';
 import usePrompt from '../../hooks/usePrompt';
-import { LogIn, LogOut, Search, ChevronLeft, ChevronRight, Filter, Users, GraduationCap, Shield, Clock, RefreshCw } from "lucide-react";
+import { LogIn, LogOut, Search, ChevronLeft, ChevronRight, Filter, Users, GraduationCap, Shield, Clock, RefreshCw, Archive, RotateCcw, Trash2, X } from "lucide-react";
 import { LoadingState } from '../../components/ui/LoadingState';
 
 interface AuditUser {
@@ -25,6 +25,16 @@ interface AuditEntry {
     time_out: string | null;
     note?: string | null;
   } | null;
+}
+
+interface DeletedAuditEntry {
+  id: number;
+  user_id: number;
+  action: "login" | "logout";
+  ip_address: string | null;
+  created_at: string;
+  deleted_at: string;
+  user: AuditUser | null;
 }
 
 interface PaginatedResponse {
@@ -91,6 +101,11 @@ export function AuditLogs() {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("All");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Recently deleted state
+  const [recentlyDeleted, setRecentlyDeleted] = useState<DeletedAuditEntry[]>([]);
+  const [showDeletedModal, setShowDeletedModal] = useState(false);
+  const [loadingDeleted, setLoadingDeleted] = useState(false);
+
   const doFetch = useCallback(async (pageNum: number, _silent = false) => {
     try {
       setLoading(true);
@@ -141,6 +156,68 @@ export function AuditLogs() {
   const showToast = (msg: string, ms = 3500) => {
     setToastMessage(msg);
     window.setTimeout(() => setToastMessage(null), ms);
+  };
+
+  const fetchRecentlyDeleted = async () => {
+    try {
+      setLoadingDeleted(true);
+      const res = await fetch(`${API}/audit-logs/recently-deleted`, {
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-XSRF-TOKEN": decodeURIComponent(getCookie("XSRF-TOKEN") || ""),
+        },
+      });
+      if (!res.ok) throw new Error("Failed to load recently deleted");
+      const data = await res.json();
+      setRecentlyDeleted(data.recently_deleted || []);
+    } catch (err) {
+      showToast("Failed to load recently deleted logs");
+    } finally {
+      setLoadingDeleted(false);
+    }
+  };
+
+  const restoreAuditLog = async (id: number) => {
+    try {
+      const res = await fetch(`${API}/audit-logs/${id}/restore`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-XSRF-TOKEN": decodeURIComponent(getCookie("XSRF-TOKEN") || ""),
+        },
+      });
+      if (!res.ok) throw new Error("Restore failed");
+      showToast("Audit log restored");
+      fetchRecentlyDeleted();
+      fetchLogs(1);
+    } catch (err) {
+      showToast("Failed to restore audit log");
+    }
+  };
+
+  const permanentlyDeleteAuditLog = async (id: number) => {
+    showConfirm("Permanently delete this audit log? This cannot be undone.", async () => {
+      try {
+        const res = await fetch(`${API}/audit-logs/${id}/permanent`, {
+          method: "DELETE",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+            "X-XSRF-TOKEN": decodeURIComponent(getCookie("XSRF-TOKEN") || ""),
+          },
+        });
+        if (!res.ok) throw new Error("Delete failed");
+        showToast("Audit log permanently deleted");
+        fetchRecentlyDeleted();
+      } catch (err) {
+        showToast("Failed to permanently delete audit log");
+      }
+    });
   };
 
   // Initial load + start 30-second auto-poll
@@ -412,6 +489,40 @@ export function AuditLogs() {
     await fetchLogs(1);
   };
 
+  const deleteAllTimeLogs = async () => {
+    if (!modalUser || modalTimeLogs.length === 0) return;
+
+    let deletedCount = 0;
+    let failedCount = 0;
+
+    for (const tl of modalTimeLogs) {
+      try {
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const res = await fetch(`/api/time-logs/admin/${tl.id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'X-XSRF-TOKEN': getXsrf() },
+        });
+        if (res.ok) {
+          deletedCount++;
+        } else {
+          failedCount++;
+        }
+      } catch {
+        failedCount++;
+      }
+    }
+
+    await fetchLogs(1);
+    await fetchUserTimeLogs(modalUser.id);
+
+    if (failedCount > 0) {
+      alert(`Deleted ${deletedCount} time logs. ${failedCount} failed.`);
+    } else {
+      alert(`Deleted all ${deletedCount} time logs successfully.`);
+    }
+  };
+
   const openManageModal = (user: AuditUser | null) => {
     if (!user) return;
     setModalUser(user);
@@ -478,7 +589,19 @@ export function AuditLogs() {
             Shows login/logout activity and user time logs for all users (Admins, Instructors, Employees). Use the role filters to narrow results.
           </p>
         </div>
-        <span className="text-sm text-gray-500 dark:text-slate-400">{total} total entries</span>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => {
+              setShowDeletedModal(true);
+              fetchRecentlyDeleted();
+            }}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+          >
+            <Archive className="w-4 h-4" />
+            Recently Deleted
+          </button>
+          <span className="text-sm text-gray-500 dark:text-slate-400">{total} total entries</span>
+        </div>
       </div>
 
       {loadError && (
@@ -506,6 +629,18 @@ export function AuditLogs() {
                 )}
               </div>
               <div className="flex items-center gap-2">
+                {modalTimeLogs.length > 0 && (
+                  <button
+                    onClick={() => {
+                      showConfirm(`Delete all ${modalTimeLogs.length} time logs for ${modalUser?.fullname}?`, async () => {
+                        await deleteAllTimeLogs();
+                      });
+                    }}
+                    className="px-2 py-1 text-xs border rounded border-rose-300 bg-rose-100 text-rose-800 hover:bg-rose-200 dark:border-rose-700 dark:bg-rose-900/35 dark:text-rose-300 dark:hover:bg-rose-900/55"
+                  >
+                    Delete All
+                  </button>
+                )}
                 <button
                   onClick={refreshModal}
                   disabled={modalRefreshing}
@@ -1123,6 +1258,113 @@ export function AuditLogs() {
           </div>
         )}
       </div>
+
+      {/* Recently Deleted Modal */}
+      {showDeletedModal && (
+        <div className="fixed inset-0 z-50">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 overflow-y-auto">
+            <div
+              className="fixed inset-0 transition-opacity bg-slate-900 bg-opacity-75"
+              aria-hidden="true"
+              onClick={() => setShowDeletedModal(false)}
+            ></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white dark:bg-slate-900 rounded-lg text-left overflow-y-auto max-h-[90vh] shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Archive className="w-5 h-5" />
+                  Recently Deleted Audit Logs ({recentlyDeleted.length})
+                </h3>
+                <button
+                  onClick={() => setShowDeletedModal(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="max-h-[60vh] overflow-y-auto">
+                {loadingDeleted ? (
+                  <div className="p-8 text-center text-slate-500 dark:text-slate-400">Loading...</div>
+                ) : recentlyDeleted.length === 0 ? (
+                  <div className="p-8 text-center text-slate-500 dark:text-slate-400">
+                    <Archive className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
+                    <p>No recently deleted audit logs</p>
+                  </div>
+                ) : (
+                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                    <thead className="bg-slate-50 dark:bg-slate-800">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">User</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Action</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">IP</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Created</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Deleted</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
+                      {recentlyDeleted.map((log) => (
+                        <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="text-sm font-medium text-slate-900 dark:text-white">{log.user?.fullname || 'Unknown'}</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">{log.user?.email}</div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded ${
+                              log.action === 'login'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                                : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                            }`}>
+                              {log.action === 'login' ? <LogIn className="w-3 h-3" /> : <LogOut className="w-3 h-3" />}
+                              {log.action}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
+                            {log.ip_address || '—'}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
+                            {log.created_at ? new Date(log.created_at).toLocaleString() : '—'}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
+                            {log.deleted_at ? new Date(log.deleted_at).toLocaleString() : '—'}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => restoreAuditLog(log.id)}
+                                className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
+                                title="Restore"
+                              >
+                                <RotateCcw className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => permanentlyDeleteAuditLog(log.id)}
+                                className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                                title="Delete permanently"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end">
+                <button
+                  onClick={() => setShowDeletedModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirm.ConfirmModalRenderer()}
       <PromptModalRenderer />
     </div>

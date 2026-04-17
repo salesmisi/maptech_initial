@@ -31,7 +31,7 @@ class LoginController extends Controller
 
         // Check if user exists
         if (!$user) {
-            return response()->json(['message' => 'Invalid credentials'], 401);
+            return response()->json(['message' => 'Email address not found'], 401);
         }
 
         // Check if account is active BEFORE authentication
@@ -43,7 +43,7 @@ class LoginController extends Controller
 
         // Attempt authentication
         if (!Auth::attempt($credentials)) {
-            return response()->json(['message' => 'Invalid credentials'], 401);
+            return response()->json(['message' => 'Incorrect password'], 401);
         }
 
         $request->session()->regenerate();
@@ -134,9 +134,14 @@ class LoginController extends Controller
         // Find user by email
         $user = User::where('email', $credentials['email'])->first();
 
-        // Check credentials
-        if (!$user || !Hash::check($credentials['password'], $user->password)) {
-            return response()->json(['message' => 'Invalid credentials'], 401);
+        // Check if user exists
+        if (!$user) {
+            return response()->json(['message' => 'Email address not found'], 401);
+        }
+
+        // Check password
+        if (!Hash::check($credentials['password'], $user->password)) {
+            return response()->json(['message' => 'Incorrect password'], 401);
         }
 
         // Check if account is active

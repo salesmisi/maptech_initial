@@ -17,6 +17,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { safeArray } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
+import PDFViewer from '../../components/PDFViewer';
+import PresentationViewer from '../../components/PresentationViewer';
 
 interface Course {
   id: string;
@@ -24,6 +26,7 @@ interface Course {
   description: string;
   department: string;
   subdepartment_id?: number | null;
+  subdepartment?: { id: number; name: string } | null;
   start_date?: string | null;
   deadline?: string | null;
   instructor: string;
@@ -56,6 +59,45 @@ function normalizeCourseStatus(status: unknown): 'Active' | 'Draft' | 'Inactive'
   if (status.toLowerCase() === 'active') return 'Active';
   if (status.toLowerCase() === 'inactive' || status.toLowerCase() === 'archived') return 'Inactive';
   return 'Draft';
+}
+
+function toUtcIsoString(value: FormDataEntryValue | null): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+function toLocalDateTimeInputValue(value?: string | null): string {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function getMinDateTimeInputValue(): string {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function isPastDateTimeInput(value: FormDataEntryValue | null): boolean {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  const selected = new Date(trimmed);
+  if (Number.isNaN(selected.getTime())) return false;
+
+  const now = new Date();
+  now.setSeconds(0, 0);
+  return selected.getTime() < now.getTime();
 }
 
 interface EnrolledStudent {
@@ -183,6 +225,38 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   // Custom module thumbnail upload
   const [uploadingThumbnailModuleId, setUploadingThumbnailModuleId] = useState<number | null>(null);
   const customModuleThumbnailRef = useRef<HTMLInputElement>(null);
+  const minDateTimeInput = getMinDateTimeInputValue();
+  const hasOpenModal = Boolean(selectedCourse || showEnrollments || showCreateModal || showEditModal || showBulkAssignModal);
+
+  useEffect(() => {
+    if (!hasOpenModal) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [hasOpenModal]);
+
+  const getCourseSubdepartmentName = (course: Course): string | null => {
+    const relatedName = (course as any)?.subdepartment?.name;
+    if (relatedName) return relatedName;
+
+    const sid = Number(course.subdepartment_id ?? 0);
+    if (!sid) return null;
+
+    for (const dept of departments) {
+      const found = (dept.subdepartments || []).find((sub) => Number(sub.id) === sid);
+      if (found) return found.name;
+    }
+
+    return null;
+  };
 
   // Helper to extract actual video duration from file
   const extractVideoDuration = (file: File): Promise<string> => {
@@ -496,6 +570,12 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     const form = e.currentTarget;
     const formData = new FormData(form);
 
+    if (isPastDateTimeInput(formData.get('start_date')) || isPastDateTimeInput(formData.get('deadline'))) {
+      alert('Start Date & Time and Due Date & Time must be current or future.');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
       const csrfToken = getXsrfToken();
@@ -513,8 +593,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           description: formData.get('description'),
           department: formData.get('department'),
           subdepartment_id: formData.get('subdepartment_id') || null,
-          start_date: formData.get('start_date') || null,
-          deadline: formData.get('deadline') || null,
+          start_date: toUtcIsoString(formData.get('start_date')),
+          deadline: toUtcIsoString(formData.get('deadline')),
           instructor_id: formData.get('instructor_id') || null,
           status: formData.get('status'),
         }),
@@ -1128,7 +1208,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       {/* Search and Filter */}
       <div className="course-toolbar-animate flex flex-col sm:flex-row gap-4 mb-6">
         <div className="flex-1 relative">
-          <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-3 text-gray-400 dark:text-slate-400" />
+          <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-400" />
           <input
             type="text"
             placeholder="Search courses..."
@@ -1154,7 +1234,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
         {filteredCourses.map((course, index) => (
           <div
             key={course.id}
-            className="course-management-card group relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)]"
+            className="course-management-card group relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)] flex flex-col"
             style={{ animationDelay: `${Math.min(index * 45, 360)}ms` }}
           >
             {/* Course Icon */}
@@ -1173,7 +1253,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             </div>
 
             {/* Course Content */}
-            <div className="p-5">
+            <div className="p-5 flex flex-col flex-1">
               {/* Status Badge */}
               <div className="flex justify-between items-start mb-3">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getStatusBadge(course.status)}`}>
@@ -1244,7 +1324,9 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   </div>
                 )}
                 <div className="text-sm text-gray-600 dark:text-slate-300">
-                  <div className="font-medium text-gray-700 dark:text-slate-200">{course.department}</div>
+                  <div className="font-medium text-gray-700 dark:text-slate-200">
+                    {course.department}{getCourseSubdepartmentName(course) ? ` / ${getCourseSubdepartmentName(course)}` : ''}
+                  </div>
                   <div>{course.instructor}</div>
                 </div>
               </div>
@@ -1252,7 +1334,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               {/* Manage Content Button */}
               <button
                 onClick={() => onNavigate?.('course-detail', String(course.id))}
-                className="course-manage-button w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                className="course-manage-button mt-auto w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
               >
                 Manage Content →
               </button>
@@ -1262,7 +1344,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
         {/* Custom Modules Cards */}
         {filteredCustomModules.map((module) => (
-          <div key={`custom-${module.id}`} className="relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)]">
+          <div key={`custom-${module.id}`} className="relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)] flex flex-col">
             {/* Custom Module Icon */}
             <div className="h-28 bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-500 dark:to-indigo-500 rounded-t-xl flex items-center justify-center relative">
               {/* Custom Module Badge */}
@@ -1296,7 +1378,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             </div>
 
             {/* Custom Module Content */}
-            <div className="p-5">
+            <div className="p-5 flex flex-col flex-1">
               {/* Status Badge */}
               <div className="flex justify-between items-start mb-3">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
@@ -1358,7 +1440,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               {/* Manage Content Button */}
               <button
                 onClick={() => onNavigate?.('custom-field', undefined, module.id)}
-                className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                className="mt-auto w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition-colors font-medium"
               >
                 Manage Content →
               </button>
@@ -2037,12 +2119,12 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       {/* Create Course Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="course-editor-modal bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-900">Create New Course</h2>
+          <div className="course-editor-modal bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-slate-900">Create New Course</h2>
               <button
                 onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); setCreateDepartment(''); setCreateSubdepartmentId(''); }}
-                className="text-gray-400 hover:text-gray-600 text-xl"
+                className="text-slate-400 hover:text-slate-600 p-1"
               >
                 <XMarkIcon className="h-6 w-6" />
               </button>
@@ -2054,6 +2136,17 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 const form = e.currentTarget;
                 const fd = new FormData(form);
                 if (createInstructorId) fd.set('instructor_id', String(createInstructorId));
+
+                if (isPastDateTimeInput(fd.get('start_date')) || isPastDateTimeInput(fd.get('deadline'))) {
+                  alert('Start Date & Time and Due Date & Time must be current or future.');
+                  setIsSubmitting(false);
+                  return;
+                }
+
+                const startDateUtc = toUtcIsoString(fd.get('start_date'));
+                const deadlineUtc = toUtcIsoString(fd.get('deadline'));
+                if (startDateUtc) fd.set('start_date', startDateUtc); else fd.delete('start_date');
+                if (deadlineUtc) fd.set('deadline', deadlineUtc); else fd.delete('deadline');
                 try {
                   await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
                   const csrf = getXsrfToken();
@@ -2084,27 +2177,27 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               className="p-6 space-y-4"
             >
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Course Title <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Course Title</label>
                 <input
                   name="title"
                   type="text"
                   required
                   placeholder="e.g. Introduction to Cybersecurity"
-                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
                 <textarea
                   name="description"
                   rows={3}
                   placeholder="Brief course description..."
-                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Department <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
                   <select
                     name="department"
                     required
@@ -2114,20 +2207,20 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                       setCreateSubdepartmentId('');
                       setCreateInstructorId(null);
                     }}
-                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
-                    <option value="" disabled>Select Department</option>
+                    <option value="">Select Department</option>
                     {departments.map(dept => (
                       <option key={dept.id} value={dept.name}>{dept.name}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Active Status</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
                   <select
                     name="status"
                     defaultValue="Active"
-                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="Active">Active</option>
                     <option value="Draft">Draft</option>
@@ -2137,7 +2230,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Sub Department</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Sub Department</label>
                 <select
                   name="subdepartment_id"
                   required
@@ -2148,7 +2241,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     setCreateInstructorId(null);
                   }}
                   disabled={!createDepartment}
-                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:bg-slate-100"
                 >
                   <option value="">Select Sub Department</option>
                   {(departments.find(d => d.name === createDepartment)?.subdepartments || []).map((s) => (
@@ -2159,26 +2252,27 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date & Time</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
                   <input
                     name="start_date"
                     type="datetime-local"
-                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    min={minDateTimeInput}
+                    className="course-datetime-input w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date & Time</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Due Date</label>
                   <input
                     name="deadline"
                     type="datetime-local"
-                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    min={minDateTimeInput}
+                    className="course-datetime-input w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900"
                   />
                 </div>
               </div>
 
-              {/* Assign Instructor */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Assign To</label>
                 {createInstructorId !== null && (() => {
                   const sel = instructors.find(i => i.id === createInstructorId);
                   return sel ? (
@@ -2197,7 +2291,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                         </div>
                       )}
                       <div>
-                        <p className="text-sm font-semibold text-gray-800">{sel.fullname}</p>
+                        <p className="text-sm font-semibold text-slate-800">{sel.fullname}</p>
                         <p className="text-xs text-green-600">Assigned Instructor</p>
                       </div>
                     </div>
@@ -2207,7 +2301,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   value={createInstructorId ?? ''}
                   onChange={(e) => setCreateInstructorId(e.target.value ? Number(e.target.value) : null)}
                   disabled={!createDepartment || !createSubdepartmentId}
-                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">{!createDepartment || !createSubdepartmentId ? 'Select department and sub department first' : 'Select Instructor'}</option>
                   {(!createDepartment || !createSubdepartmentId ? [] : getEligibleInstructors(createDepartment, createSubdepartmentId)).map(i => (
@@ -2215,20 +2309,21 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   ))}
                 </select>
               </div>
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 bg-green-600 text-white py-2 rounded-md hover:bg-green-700 disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Creating...' : 'Create Course'}
-                </button>
+
+              <div className="flex gap-3 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); setCreateDepartment(''); setCreateSubdepartmentId(''); }}
-                  className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-md hover:bg-gray-50"
+                  className="flex-1 py-2 px-4 border border-slate-300 rounded-md text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
                 >
                   Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 py-2 px-4 border border-transparent rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Creating...' : 'Publish Course'}
                 </button>
               </div>
             </form>
@@ -2327,8 +2422,9 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <input
                     name="start_date"
                     type="datetime-local"
-                    defaultValue={editingCourse.start_date ? new Date(editingCourse.start_date).toISOString().slice(0, 16) : ''}
-                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    defaultValue={toLocalDateTimeInputValue(editingCourse.start_date)}
+                    min={minDateTimeInput}
+                    className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
                 </div>
                 <div>
@@ -2336,8 +2432,9 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <input
                     name="deadline"
                     type="datetime-local"
-                    defaultValue={editingCourse.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
-                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    defaultValue={toLocalDateTimeInputValue(editingCourse.deadline)}
+                    min={minDateTimeInput}
+                    className="course-datetime-input w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
                 </div>
               </div>
@@ -2439,10 +2536,10 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
       {/* ═══════════════════ PREVIEW LESSON MODAL ═══════════════════ */}
       {previewLesson && (
-        <div className="fixed inset-0 z-[60] overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4">
+        <div className="fixed inset-0 z-[60]">
+          <div className="flex items-center justify-center min-h-screen px-4 overflow-y-auto">
             <div className="fixed inset-0 bg-slate-500 opacity-75" onClick={() => setPreviewLesson(null)} />
-            <div className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full z-10 max-h-[90vh] flex flex-col">
+            <div className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full z-10 max-h-[90vh] overflow-y-auto flex flex-col">
               <div className="flex justify-between items-center p-6 border-b border-gray-200">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">{previewLesson.title}</h3>
@@ -2489,10 +2586,15 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 {previewLesson.type === 'Document' && previewLesson.content_url && (
                   <div className="space-y-4">
                     {previewLesson.content_url.match(/\.pdf$/i) ? (
-                      <iframe
-                        src={previewLesson.content_url}
-                        className="w-full rounded-lg border border-gray-200"
-                        style={{ height: '70vh' }}
+                      <PDFViewer
+                        url={previewLesson.content_url}
+                        title={previewLesson.title}
+                        lessonId={previewLesson.id}
+                        showConvertButton={true}
+                      />
+                    ) : previewLesson.content_url.match(/\.pptx?$/i) ? (
+                      <PresentationViewer
+                        url={previewLesson.content_url}
                         title={previewLesson.title}
                       />
                     ) : (

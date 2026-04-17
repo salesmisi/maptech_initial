@@ -4,12 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Cache;
 use App\Events\NotificationCreated;
 use App\Events\NotificationCountUpdated;
 
 class Notification extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'user_id',
         'target_type',
@@ -26,7 +29,18 @@ class Notification extends Model
     protected $casts = [
         'data' => 'array',
         'read_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
+
+    protected $appends = ['read'];
+
+    /**
+     * Get the read attribute as a boolean.
+     */
+    public function getReadAttribute(): bool
+    {
+        return $this->read_at !== null;
+    }
 
     public function user(): BelongsTo
     {
@@ -68,5 +82,33 @@ class Notification extends Model
                 event(new NotificationCountUpdated($notification->user_id, $count));
             }
         });
+    }
+
+    /**
+     * Enforce trash limit: if recently deleted count >= 50, permanently delete oldest half.
+     *
+     * @param int $userId The user's ID
+     * @return int Number of permanently deleted entries
+     */
+    public static function enforceTrashLimit(int $userId): int
+    {
+        $trashedCount = static::onlyTrashed()
+            ->where('user_id', $userId)
+            ->count();
+
+        if ($trashedCount >= 50) {
+            $halfCount = (int) floor($trashedCount / 2);
+            $oldestIds = static::onlyTrashed()
+                ->where('user_id', $userId)
+                ->orderBy('deleted_at', 'asc')
+                ->limit($halfCount)
+                ->pluck('id');
+
+            return static::onlyTrashed()
+                ->whereIn('id', $oldestIds)
+                ->forceDelete();
+        }
+
+        return 0;
     }
 }

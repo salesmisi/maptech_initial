@@ -345,12 +345,12 @@ export function ProductLogoManager() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col">
             <h2 className="text-sm font-semibold text-slate-900 mb-3">Logo Actions</h2>
 
             {!selectedItem ? (
-              <div className="h-full min-h-[280px] flex items-center justify-center text-sm text-slate-500 border border-dashed border-slate-300 rounded-lg bg-slate-50">
-                Select a course to manage its logo.
+              <div className="w-full flex-1 min-h-[220px] sm:min-h-[280px] rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-500 flex items-center justify-center leading-relaxed">
+                <span className="max-w-[28rem]">Select a course to manage its logo.</span>
               </div>
             ) : (
               <>

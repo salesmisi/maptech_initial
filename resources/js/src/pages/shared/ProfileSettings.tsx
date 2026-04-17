@@ -24,6 +24,7 @@ interface ProfileData {
   email: string;
   role: string;
   company_role: string | null;
+  personal_gmail: string | null;
   department: string | null;
   status: string;
   profile_picture: string | null;

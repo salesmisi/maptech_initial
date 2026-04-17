@@ -104,10 +104,8 @@ export function EnrollmentManagement() {
   // Persistent module enrollment lists (Admin view section)
   const [listCourses, setListCourses] = useState<CourseOption[]>([]);
   const [listCourseId, setListCourseId] = useState('');
-  const [listModuleId, setListModuleId] = useState('');
   const [listLoading, setListLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
-  const [listNotEnrolledUsers, setListNotEnrolledUsers] = useState<UserOption[]>([]);
   const [listEnrolledUsers, setListEnrolledUsers] = useState<UserOption[]>([]);
 
   const loadEnrollments = async () => {
@@ -153,9 +151,8 @@ export function EnrollmentManagement() {
     loadCoursesForListSection();
   }, []);
 
-  const loadPersistentModuleLists = async (moduleId: string) => {
-    if (!moduleId) {
-      setListNotEnrolledUsers([]);
+  const loadCourseEnrolledUsers = async (courseId: string) => {
+    if (!courseId) {
       setListEnrolledUsers([]);
       setListError(null);
       return;
@@ -164,27 +161,20 @@ export function EnrollmentManagement() {
     setListLoading(true);
     setListError(null);
     try {
-      const res = await fetch(`${API_BASE}/admin/modules/${moduleId}/enrollment-lists`, {
+      const res = await fetch(`${API_BASE}/admin/courses/${courseId}/enrollments`, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
-      if (!res.ok) throw new Error('Failed to load employee enrollment lists.');
+      if (!res.ok) throw new Error('Failed to load enrolled employees.');
       const data = await res.json();
-      setListNotEnrolledUsers((data.not_enrolled_users || []).map((u: any) => ({
-        id: u.id,
-        fullname: u.fullname,
-        email: u.email,
-        department: u.department,
-      })));
-      setListEnrolledUsers((data.enrolled_users || []).map((u: any) => ({
+      setListEnrolledUsers((Array.isArray(data) ? data : []).map((u: any) => ({
         id: u.id,
         fullname: u.fullname,
         email: u.email,
         department: u.department,
       })));
     } catch (e: any) {
-      setListError(e.message || 'Failed to load employee enrollment lists.');
-      setListNotEnrolledUsers([]);
+      setListError(e.message || 'Failed to load enrolled employees.');
       setListEnrolledUsers([]);
     } finally {
       setListLoading(false);
@@ -192,8 +182,8 @@ export function EnrollmentManagement() {
   };
 
   useEffect(() => {
-    loadPersistentModuleLists(listModuleId);
-  }, [listModuleId]);
+    loadCourseEnrolledUsers(listCourseId);
+  }, [listCourseId]);
 
   const loadModalData = async () => {
     try {
@@ -381,6 +371,22 @@ export function EnrollmentManagement() {
     };
   }, [isModalOpen]);
 
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [isModalOpen]);
+
   useEffect(() => {
     if (!selectedModuleId) {
       setModuleNotEnrolledUsers([]);
@@ -513,11 +519,11 @@ export function EnrollmentManagement() {
       {/* Module Enrollment Lists */}
       <div className="bg-white dark:bg-slate-900/80 p-4 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Module Employee Lists</h2>
-          <span className="text-xs text-slate-500">New and old employees are grouped by selected module</span>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Enrolled Employee Lists</h2>
+          <span className="text-xs text-slate-500">Employees currently enrolled in the selected course</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Course</label>
             <select
@@ -525,8 +531,6 @@ export function EnrollmentManagement() {
               value={listCourseId}
               onChange={(e) => {
                 setListCourseId(e.target.value);
-                setListModuleId('');
-                setListNotEnrolledUsers([]);
                 setListEnrolledUsers([]);
               }}
             >
@@ -536,66 +540,30 @@ export function EnrollmentManagement() {
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Module</label>
-            <select
-              className="mt-1 block w-full border border-slate-300 dark:border-slate-700 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-              value={listModuleId}
-              onChange={(e) => setListModuleId(e.target.value)}
-              disabled={!listCourseId}
-            >
-              <option value="">-- Select a module --</option>
-              {(listCourses.find(c => c.id === listCourseId)?.modules || []).map((m) => (
-                <option key={m.id} value={String(m.id)}>{m.title}</option>
-              ))}
-            </select>
-          </div>
         </div>
 
         {listError && (
           <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{listError}</div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
-            <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">Not Yet Enrolled Employees ({listNotEnrolledUsers.length})</div>
-            {listLoading ? (
-              <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading...</div>
-            ) : !listModuleId ? (
-              <div className="text-xs text-slate-500">Select a module to view list.</div>
-            ) : listNotEnrolledUsers.length === 0 ? (
-              <div className="text-xs text-slate-500">No employees pending enrollment for this module.</div>
-            ) : (
-              <div className="max-h-56 overflow-auto divide-y divide-slate-100 dark:divide-slate-700">
-                {listNotEnrolledUsers.map((u) => (
-                  <div key={u.id} className="py-2">
-                    <div className="text-sm text-slate-800 dark:text-slate-100">{u.fullname}</div>
-                    <div className="text-xs text-slate-500">{u.email} - {u.department || 'No Dept'}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
-            <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">Enrolled Employees ({listEnrolledUsers.length})</div>
-            {listLoading ? (
-              <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading...</div>
-            ) : !listModuleId ? (
-              <div className="text-xs text-slate-500">Select a module to view list.</div>
-            ) : listEnrolledUsers.length === 0 ? (
-              <div className="text-xs text-slate-500">No enrolled employees for this module.</div>
-            ) : (
-              <div className="max-h-56 overflow-auto divide-y divide-slate-100 dark:divide-slate-700">
-                {listEnrolledUsers.map((u) => (
-                  <div key={u.id} className="py-2">
-                    <div className="text-sm text-slate-800 dark:text-slate-100">{u.fullname}</div>
-                    <div className="text-xs text-slate-500">{u.email} - {u.department || 'No Dept'}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+          <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">Enrolled Employees ({listEnrolledUsers.length})</div>
+          {listLoading ? (
+            <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading...</div>
+          ) : !listCourseId ? (
+            <div className="text-xs text-slate-500">Select a course to view list.</div>
+          ) : listEnrolledUsers.length === 0 ? (
+            <div className="text-xs text-slate-500">No enrolled employees for this course.</div>
+          ) : (
+            <div className="max-h-56 overflow-auto divide-y divide-slate-100 dark:divide-slate-700">
+              {listEnrolledUsers.map((u) => (
+                <div key={u.id} className="py-2">
+                  <div className="text-sm text-slate-800 dark:text-slate-100">{u.fullname}</div>
+                  <div className="text-xs text-slate-500">{u.email} - {u.department || 'No Dept'}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -723,13 +691,13 @@ export function EnrollmentManagement() {
 
       {/* Enrollment Modal */}
       {isModalOpen && (
-      <div className="fixed inset-0 z-50 overflow-y-auto">
-        <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+      <div className="fixed inset-0 z-50">
+        <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 overflow-y-auto">
           <div className="fixed inset-0 transition-opacity" aria-hidden="true">
             <div className="absolute inset-0 bg-slate-500 opacity-75"></div>
           </div>
           <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-          <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-y-auto max-h-[90vh] shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
             <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg leading-6 font-medium text-slate-900">

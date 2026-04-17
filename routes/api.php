@@ -4,12 +4,39 @@ use App\Models\AuditLog;
 use App\Models\Department;
 use App\Models\Subdepartment;
 use App\Models\TimeLog;
+use App\Models\User;
 use App\Support\AuditDate;
 use App\Http\Controllers\LoginController;
+use App\Http\Controllers\PasswordResetController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| PASSWORD RESET ROUTES
+|--------------------------------------------------------------------------
+| These routes handle the password reset flow with OTP verification.
+| Rate limiting is handled in the controller for security.
+*/
+
+Route::prefix('password')->group(function () {
+    // Send OTP to email for password reset
+    Route::post('/forgot', [PasswordResetController::class, 'sendResetOTP']);
+
+    // Verify the OTP code
+    Route::post('/verify-otp', [PasswordResetController::class, 'verifyOTP']);
+
+    // Reset password with verified token
+    Route::post('/reset', [PasswordResetController::class, 'resetPassword']);
+
+    // Resend OTP (same as forgot, but semantically different)
+    Route::post('/resend-otp', [PasswordResetController::class, 'resendOTP']);
+
+    // Reset password using recovery key (no email required)
+    Route::post('/reset-with-recovery-key', [PasswordResetController::class, 'resetPasswordWithRecoveryKey']);
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -18,12 +45,39 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/departments', function () {
-    return Department::with([
+    $departments = Department::with([
         'subdepartments.headUser:id,fullname',
         'subdepartments.employee:id,fullname',
         'subdepartments.employees:id,fullname,email,department,subdepartment_id',
         'headUser:id,fullname',
     ])->get();
+
+    return $departments->map(function (Department $department) {
+        $name = strtolower(trim((string) $department->name));
+        $code = strtolower(trim((string) ($department->code ?? '')));
+
+        $acceptedDepartments = array_values(array_unique(array_filter([$name, $code])));
+
+        $department->employee_count = User::query()
+            ->whereRaw('LOWER(role) = ?', ['employee'])
+            ->where(function ($q) use ($acceptedDepartments) {
+                foreach ($acceptedDepartments as $dept) {
+                    $q->orWhereRaw('LOWER(TRIM(department)) = ?', [$dept]);
+                }
+            })
+            ->count();
+
+        $department->instructor_count = User::query()
+            ->whereRaw('LOWER(role) = ?', ['instructor'])
+            ->where(function ($q) use ($acceptedDepartments) {
+                foreach ($acceptedDepartments as $dept) {
+                    $q->orWhereRaw('LOWER(TRIM(department)) = ?', [$dept]);
+                }
+            })
+            ->count();
+
+        return $department;
+    })->values();
 });
 
 // CREATE DEPARTMENT
@@ -328,6 +382,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
     Route::post('/users/{id}/photo', [UserController::class, 'uploadPhoto']);
+    Route::get('/users/{id}/recovery-key', [UserController::class, 'getRecoveryKey']);
+    Route::post('/users/{id}/regenerate-recovery-key', [UserController::class, 'regenerateRecoveryKey']);
     // Bulk delete users (accepts JSON { ids: [1,2,3] })
     Route::post('/users/bulk-delete', [UserController::class, 'bulkDelete']);
 
@@ -342,6 +398,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
     // Course Enrollment Management
     Route::get('/enrollments', [AdminCourseController::class, 'allEnrollments']);
+    Route::get('/enrollments/mismatched', [AdminCourseController::class, 'mismatchedEnrollments']);
     Route::get('/courses/{id}/enrollments', [AdminCourseController::class, 'enrollments']);
     Route::get('/modules/{moduleId}/enrollment-lists', [AdminCourseController::class, 'moduleEnrollmentLists']);
     Route::post('/courses/{id}/enrollments', [AdminCourseController::class, 'enroll']);
@@ -410,6 +467,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         try {
             $query = \Illuminate\Support\Facades\DB::table('audit_logs as a')
                 ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
+                ->whereNull('a.deleted_at')
                 ->select([
                     'a.id',
                     'a.user_id',
@@ -496,9 +554,23 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             'ids.*' => 'integer|exists:audit_logs,id',
         ]);
         $ids = $request->input('ids', []);
-        $deleted = AuditLog::whereIn('id', $ids)->delete();
+        $deleted = \App\Models\AuditLog::whereIn('id', $ids)->delete();
 
-        return response()->json(['deleted' => $deleted]);
+        // Auto-cleanup: if recently deleted count >= 50, permanently delete oldest half
+        $trashedCount = \App\Models\AuditLog::onlyTrashed()->count();
+        $permanentlyDeleted = 0;
+        if ($trashedCount >= 50) {
+            $halfCount = (int) floor($trashedCount / 2);
+            $oldestIds = \App\Models\AuditLog::onlyTrashed()
+                ->orderBy('deleted_at', 'asc')
+                ->limit($halfCount)
+                ->pluck('id');
+            $permanentlyDeleted = \App\Models\AuditLog::onlyTrashed()
+                ->whereIn('id', $oldestIds)
+                ->forceDelete();
+        }
+
+        return response()->json(['deleted' => $deleted, 'permanently_deleted' => $permanentlyDeleted]);
     });
 
     // Bulk delete audit logs by user ids (delete all logs for selected users)
@@ -508,6 +580,64 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             'user_ids.*' => 'integer|exists:users,id',
         ]);
         $userIds = $request->input('user_ids', []);
+        $deleted = \App\Models\AuditLog::whereIn('user_id', $userIds)->delete();
+
+        // Auto-cleanup: if recently deleted count >= 50, permanently delete oldest half
+        $trashedCount = \App\Models\AuditLog::onlyTrashed()->count();
+        $permanentlyDeleted = 0;
+        if ($trashedCount >= 50) {
+            $halfCount = (int) floor($trashedCount / 2);
+            $oldestIds = \App\Models\AuditLog::onlyTrashed()
+                ->orderBy('deleted_at', 'asc')
+                ->limit($halfCount)
+                ->pluck('id');
+            $permanentlyDeleted = \App\Models\AuditLog::onlyTrashed()
+                ->whereIn('id', $oldestIds)
+                ->forceDelete();
+        }
+
+        return response()->json(['deleted' => $deleted, 'permanently_deleted' => $permanentlyDeleted]);
+    });
+
+    // Get recently deleted audit logs
+    Route::get('/audit-logs/recently-deleted', function (Request $request) {
+        $deleted = \App\Models\AuditLog::onlyTrashed()
+            ->with('user:id,fullname,email,role,department')
+            ->orderByDesc('deleted_at')
+            ->limit(100)
+            ->get()
+            ->map(function ($log) {
+                return [
+                    'id' => $log->id,
+                    'user_id' => $log->user_id,
+                    'action' => $log->action,
+                    'ip_address' => $log->ip_address,
+                    'created_at' => $log->created_at?->toIso8601String(),
+                    'deleted_at' => $log->deleted_at?->toIso8601String(),
+                    'user' => $log->user ? [
+                        'id' => $log->user->id,
+                        'fullname' => $log->user->fullname,
+                        'email' => $log->user->email,
+                        'role' => $log->user->role,
+                        'department' => $log->user->department,
+                    ] : null,
+                ];
+            });
+        return response()->json(['recently_deleted' => $deleted]);
+    });
+
+    // Restore a deleted audit log
+    Route::post('/audit-logs/{id}/restore', function (Request $request, int $id) {
+        $log = \App\Models\AuditLog::onlyTrashed()->findOrFail($id);
+        $log->restore();
+        return response()->json(['message' => 'Audit log restored']);
+    });
+
+    // Permanently delete an audit log
+    Route::delete('/audit-logs/{id}/permanent', function (Request $request, int $id) {
+        $log = \App\Models\AuditLog::onlyTrashed()->findOrFail($id);
+        $log->forceDelete();
+        return response()->json(['message' => 'Audit log permanently deleted']);
         $deleted = AuditLog::whereIn('user_id', $userIds)->delete();
 
         return response()->json(['deleted' => $deleted]);
@@ -518,9 +648,15 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index']);
         Route::get('/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount']);
         Route::get('/sent-history', [\App\Http\Controllers\NotificationController::class, 'getSentAnnouncements']);
+        Route::get('/recently-deleted', [\App\Http\Controllers\NotificationController::class, 'getRecentlyDeleted']);
+        Route::post('/sent-history/{id}/restore', [\App\Http\Controllers\NotificationController::class, 'restoreSentHistory']);
+        Route::delete('/sent-history/{id}', [\App\Http\Controllers\NotificationController::class, 'deleteSentHistory']);
+        Route::delete('/sent-history/{id}/permanent', [\App\Http\Controllers\NotificationController::class, 'permanentlyDeleteSentHistory']);
         Route::post('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead']);
         Route::post('/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
         Route::delete('/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy']);
+        Route::post('/{id}/restore', [\App\Http\Controllers\NotificationController::class, 'restoreNotification']);
+        Route::delete('/{id}/permanent', [\App\Http\Controllers\NotificationController::class, 'permanentlyDeleteNotification']);
         Route::post('/announce', [\App\Http\Controllers\NotificationController::class, 'adminAnnounce']);
         Route::post('/notify-user', [\App\Http\Controllers\NotificationController::class, 'adminNotifyUser']);
     });
@@ -755,13 +891,98 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::prefix('notifications')->group(function () {
         Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index']);
         Route::get('/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount']);
+        Route::get('/recently-deleted', [\App\Http\Controllers\NotificationController::class, 'getRecentlyDeletedNotifications']);
         Route::post('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead']);
         Route::post('/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
         Route::delete('/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy']);
+        Route::post('/{id}/restore', [\App\Http\Controllers\NotificationController::class, 'restoreNotification']);
+        Route::delete('/{id}/permanent', [\App\Http\Controllers\NotificationController::class, 'permanentlyDeleteNotification']);
         Route::post('/notify-employees', [\App\Http\Controllers\NotificationController::class, 'instructorNotify']);
+        Route::post('/notify-admin', [\App\Http\Controllers\NotificationController::class, 'instructorNotifyAdmin']);
     });
-    // Instructor access to feedback listing (uses same controller logic)
-    Route::get('/feedbacks', [\App\Http\Controllers\Admin\FeedbackController::class, 'index']);
+    // Instructor access to feedback listing (only courses this instructor teaches)
+    Route::get('/feedbacks', function (Request $request) {
+        $instructorId = $request->user()->id;
+        $type = $request->get('type', 'lesson');
+
+        if ($type === 'quiz') {
+            $query = \App\Models\QuizFeedback::with([
+                'user:id,fullname,department,role',
+                'quiz.module.course:id,title,department,instructor_id',
+            ])
+            ->whereHas('quiz.module.course', function ($q) use ($instructorId) {
+                $q->where('instructor_id', $instructorId);
+            })
+            ->orderByDesc('created_at');
+
+            $perPage = max(10, min(200, (int) $request->get('per_page', 50)));
+            $page = $query->paginate($perPage);
+
+            return response()->json($page->through(function ($fb) {
+                return [
+                    'id' => $fb->id,
+                    'user' => [
+                        'id' => $fb->user?->id,
+                        'name' => $fb->user?->fullname,
+                        'department' => $fb->user?->department,
+                    ],
+                    'lesson' => [
+                        'id' => $fb->quiz?->id,
+                        'title' => $fb->quiz?->title,
+                        'module' => $fb->quiz?->module?->title ?? null,
+                        'course' => $fb->quiz?->module?->course?->title ?? null,
+                        'course_department' => $fb->quiz?->module?->course?->department ?? null,
+                    ],
+                    'rating' => $fb->rating,
+                    'comment' => $fb->comment,
+                    'created_at' => $fb->created_at?->toISOString(),
+                ];
+            }));
+        }
+
+        $query = \App\Models\LessonFeedback::with([
+            'user:id,fullname,department,role',
+            'lesson.module.course:id,title,department,instructor_id',
+        ])
+        ->whereHas('lesson.module.course', function ($q) use ($instructorId) {
+            $q->where('instructor_id', $instructorId);
+        })
+        ->orderByDesc('created_at');
+
+        if ($request->has('course_id')) {
+            $query->whereHas('lesson.module', function ($q) use ($request) {
+                $q->where('course_id', $request->course_id);
+            });
+        }
+
+        if ($request->has('lesson_id')) {
+            $query->where('lesson_id', $request->lesson_id);
+        }
+
+        $perPage = max(10, min(200, (int) $request->get('per_page', 50)));
+        $page = $query->paginate($perPage);
+
+        return response()->json($page->through(function ($fb) {
+            return [
+                'id' => $fb->id,
+                'user' => [
+                    'id' => $fb->user?->id,
+                    'name' => $fb->user?->fullname,
+                    'department' => $fb->user?->department,
+                ],
+                'lesson' => [
+                    'id' => $fb->lesson?->id,
+                    'title' => $fb->lesson?->title,
+                    'module' => $fb->lesson?->module?->title ?? null,
+                    'course' => $fb->lesson?->module?->course?->title ?? null,
+                    'course_department' => $fb->lesson?->module?->course?->department ?? null,
+                ],
+                'rating' => $fb->rating,
+                'comment' => $fb->comment,
+                'created_at' => $fb->created_at?->toISOString(),
+            ];
+        }));
+    });
 
     // Custom Modules (read-only access for instructors)
     Route::get('/custom-modules', function (Request $request) {
@@ -779,6 +1000,9 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
             ->where('module_type', 'learning') // Only learning modules for instructors
             ->findOrFail($id);
     });
+
+    // Custom Module lesson editing (instructors can edit lesson title/description/content)
+    Route::put('/custom-modules/{moduleId}/lessons/{lessonId}', [\App\Http\Controllers\Admin\CustomLessonController::class, 'update']);
 
     // Custom Module assignment to department
     Route::post('/custom-modules/{id}/push-to-department', [\App\Http\Controllers\Instructor\CustomModuleController::class, 'pushToDepartment']);
@@ -854,9 +1078,12 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
     Route::prefix('notifications')->group(function () {
         Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index']);
         Route::get('/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount']);
+        Route::get('/recently-deleted', [\App\Http\Controllers\NotificationController::class, 'getRecentlyDeletedNotifications']);
         Route::post('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead']);
         Route::post('/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
         Route::delete('/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy']);
+        Route::post('/{id}/restore', [\App\Http\Controllers\NotificationController::class, 'restoreNotification']);
+        Route::delete('/{id}/permanent', [\App\Http\Controllers\NotificationController::class, 'permanentlyDeleteNotification']);
         Route::post('/notify-instructor', [\App\Http\Controllers\NotificationController::class, 'employeeNotifyInstructor']);
         Route::post('/report-admin', [\App\Http\Controllers\NotificationController::class, 'employeeReportToAdmin']);
     });
@@ -878,6 +1105,14 @@ Route::prefix('employee')->middleware(['auth:sanctum', 'status', 'role:Employee'
 */
 
 use App\Http\Controllers\ContentController;
+
+// ── File Conversion Routes (public for course viewing) ──
+Route::prefix('convert')->group(function () {
+    Route::get('/availability', [\App\Http\Controllers\FileConversionController::class, 'checkAvailability']);
+    Route::post('/pdf-to-pptx', [\App\Http\Controllers\FileConversionController::class, 'convertPdfToPptx']);
+    Route::post('/pptx-to-pdf', [\App\Http\Controllers\FileConversionController::class, 'convertPptxToPdf']);
+    Route::post('/pptx-as-pdf', [\App\Http\Controllers\FileConversionController::class, 'getPptxAsPdf']);
+});
 
 // Serve module content for authenticated users
 Route::middleware(['auth:sanctum'])->group(function () {
@@ -913,6 +1148,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             'email' => $user->email,
             'role' => $user->role,
             'company_role' => $user->company_role,
+            'personal_gmail' => $user->personal_gmail,
             'department' => $user->department,
             'status' => $user->status,
             'profile_picture' => $user->profile_picture ? asset('storage/'.$user->profile_picture) : null,
@@ -932,6 +1168,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             $rules['email'] = 'sometimes|email|max:255|unique:users,email,'.$user->id;
             $rules['password'] = 'sometimes|string|min:8|confirmed';
             $rules['company_role'] = 'sometimes|nullable|string|max:255';
+            $rules['personal_gmail'] = 'sometimes|nullable|email|max:255';
         }
 
         $validated = $request->validate($rules);
@@ -980,6 +1217,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
                 'email' => $user->email,
                 'role' => $user->role,
                 'company_role' => $user->company_role,
+                'personal_gmail' => $user->personal_gmail,
                 'department' => $user->department,
                 'profile_picture' => $user->profile_picture ? asset('storage/'.$user->profile_picture) : null,
                 'signature_path' => $user->signature_path ? asset('storage/'.$user->signature_path) : null,
@@ -1049,5 +1287,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/admin/{logId}', [\App\Http\Controllers\TimeLogController::class, 'deleteLog'])->middleware(['auth:sanctum', 'status']);
         // Admin: bulk delete time logs for multiple users
         Route::post('/admin/bulk-delete', [\App\Http\Controllers\TimeLogController::class, 'bulkDelete'])->middleware(['auth:sanctum', 'status']);
+    });
+
+    // ── Lesson/Module Specific Conversion Routes (require auth) ──
+    Route::prefix('convert')->group(function () {
+        Route::post('/lessons/{lessonId}/pdf-to-pptx', [\App\Http\Controllers\FileConversionController::class, 'convertLessonPdfToPptx']);
+        Route::post('/modules/{moduleId}/pdf-to-pptx', [\App\Http\Controllers\FileConversionController::class, 'convertModulePdfToPptx']);
     });
 });

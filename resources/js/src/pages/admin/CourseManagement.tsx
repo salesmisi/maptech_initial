@@ -137,6 +137,32 @@ const getXsrfToken = async (): Promise<string> => {
   return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
 };
 
+const getMinDateTimeInputValue = (): string => {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
+
+const toLocalDatetimeInput = (dateStr: string): string => {
+  const d = new Date(dateStr);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+const isPastDateTimeInput = (value: FormDataEntryValue | null): boolean => {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  const selected = new Date(trimmed);
+  if (Number.isNaN(selected.getTime())) return false;
+
+  const now = new Date();
+  now.setSeconds(0, 0);
+  return selected.getTime() < now.getTime();
+};
+
 export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, courseId?: string) => void }) {
   const confirm = useConfirm();
   const { showConfirm } = confirm;
@@ -151,6 +177,22 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   const [departments, setDepartments] = useState<DeptWithSubs[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedInstructorId, setSelectedInstructorId] = useState<number | string>('');
+  const minDateTimeInput = getMinDateTimeInputValue();
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [isModalOpen]);
 
   // Debug: Monitor modules state changes
   useEffect(() => {
@@ -314,6 +356,12 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
 
     const form = e.currentTarget;
     const formData = new FormData(form);
+
+    if (isPastDateTimeInput(formData.get('start_date')) || isPastDateTimeInput(formData.get('deadline'))) {
+      alert('Start Date and End Date must be current or future.');
+      setIsSubmitting(false);
+      return;
+    }
 
     // Attach modules with file uploads
     modules.forEach((module, index) => {
@@ -624,7 +672,8 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   <input
                     type="datetime-local"
                     name="start_date"
-                    defaultValue={editingCourse?.start_date ? new Date(editingCourse.start_date).toISOString().slice(0, 16) : ''}
+                    defaultValue={editingCourse?.start_date ? toLocalDatetimeInput(editingCourse.start_date) : ''}
+                    min={minDateTimeInput}
                     className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
                   />
                 </div>
@@ -635,7 +684,8 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   <input
                     type="datetime-local"
                     name="deadline"
-                    defaultValue={editingCourse?.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
+                    defaultValue={editingCourse?.deadline ? toLocalDatetimeInput(editingCourse.deadline) : ''}
+                    min={minDateTimeInput}
                     className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
                   />
                 </div>

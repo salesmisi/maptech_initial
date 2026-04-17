@@ -396,9 +396,9 @@ const EDITOR_STYLES = [
   '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1',
   '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1',
   '[&_li]:my-0.5 [&_p]:my-1',
-  '[&_table]:w-full [&_table]:border-collapse [&_table]:my-3',
-  '[&_th]:border [&_th]:border-slate-300 dark:[&_th]:border-slate-600 [&_th]:bg-slate-100 dark:[&_th]:bg-slate-700 [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_th]:text-slate-700 dark:[&_th]:text-slate-100',
-  '[&_td]:border [&_td]:border-slate-300 dark:[&_td]:border-slate-600 [&_td]:px-3 [&_td]:py-1.5 [&_td]:text-sm',
+  '[&_table]:w-full [&_table]:border-collapse [&_table]:my-3 [&_table]:border [&_table]:border-slate-400 dark:[&_table]:border-slate-500',
+  '[&_th]:border [&_th]:border-slate-400 dark:[&_th]:border-slate-500 [&_th]:bg-slate-100 dark:[&_th]:bg-slate-700 [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_th]:text-slate-700 dark:[&_th]:text-slate-100',
+  '[&_td]:border [&_td]:border-slate-400 dark:[&_td]:border-slate-500 [&_td]:px-3 [&_td]:py-1.5 [&_td]:text-sm',
 ].join(' ');
 
 export const RICH_CONTENT_STYLES = `prose prose-sm max-w-none text-slate-600 leading-relaxed ${EDITOR_STYLES}`;

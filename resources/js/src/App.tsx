@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { LoginPage } from './pages/LoginPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { VerifyOTPPage } from './pages/VerifyOTPPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { QADiscussion as InstructorQADiscussion } from './pages/instructor/QADiscussion';
 import { QADiscussion as AdminQADiscussion } from './pages/admin/QADiscussion';
 import { AdminLayout } from './components/layout/AdminLayout';
@@ -73,9 +76,16 @@ export function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(true);
   const [logoutPhase, setLogoutPhase] = useState<'idle' | 'covering' | 'revealing'>('idle');
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedCustomModuleId, setSelectedCustomModuleId] = useState<number | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
+
+  // Password reset flow state
+  const [authPage, setAuthPage] = useState<'login' | 'forgotPassword' | 'verifyOTP' | 'resetPassword'>('login');
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetMaskedEmail, setResetMaskedEmail] = useState('');
+  const [resetToken, setResetToken] = useState('');
 
   const matches = (value: string | null | undefined, query: string) =>
     (value ?? '').toLowerCase().includes(query);
@@ -359,8 +369,11 @@ export function App() {
   // =========================
   // HANDLE LOGOUT
   // =========================
-  const handleLogout = async () => {
+  const performLogout = async () => {
     if (logoutPhase !== 'idle') return;
+
+    setIsLogoutConfirmOpen(false);
+
     setLogoutPhase('covering');
 
     try {
@@ -417,6 +430,11 @@ export function App() {
     }, 180);
   };
 
+  const handleLogout = () => {
+    if (logoutPhase !== 'idle') return;
+    setIsLogoutConfirmOpen(true);
+  };
+
   const logoutOverlay = (
     <div
       className={`ui-screen-wipe ui-screen-wipe--logout ${theme === 'dark' ? 'is-dark' : 'is-light'} ${logoutPhase === 'covering' ? 'is-covering' : ''} ${logoutPhase === 'revealing' ? 'is-revealing' : ''}`}
@@ -428,6 +446,46 @@ export function App() {
       </div>
     </div>
   );
+
+  const logoutConfirmModal = isLogoutConfirmOpen ? (
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 px-4"
+      onClick={() => {
+        if (logoutPhase === 'idle') {
+          setIsLogoutConfirmOpen(false);
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="logout-confirm-title"
+    >
+      <div
+        className={`w-full max-w-sm rounded-xl border p-5 shadow-2xl ${theme === 'dark' ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 id="logout-confirm-title" className="text-base font-semibold">Confirm Sign Out</h3>
+        <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+          Are you sure you want to sign out?
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setIsLogoutConfirmOpen(false)}
+            className={`rounded-md border px-4 py-2 text-sm font-medium ${theme === 'dark' ? 'border-slate-600 text-slate-200 hover:bg-slate-800' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={performLogout}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   const handleNavigate = (page: string, courseId?: string, quizIdOrModuleId?: number) => {
     setCurrentPage(page);
@@ -449,10 +507,10 @@ export function App() {
 
     updateUrlRouteState(page, courseId);
 
-    // Handle custom module ID for custom-field page and custom-module-viewer
-    if ((page === 'custom-field' || page === 'custom-module-viewer') && typeof quizIdOrModuleId === 'number') {
+    // Handle custom module ID for custom-field page, custom-module-viewer, and custom-module-detail
+    if ((page === 'custom-field' || page === 'custom-module-viewer' || page === 'custom-module-detail') && typeof quizIdOrModuleId === 'number') {
       setSelectedCustomModuleId(quizIdOrModuleId);
-    } else if (page !== 'custom-field' && page !== 'custom-module-viewer') {
+    } else if (page !== 'custom-field' && page !== 'custom-module-viewer' && page !== 'custom-module-detail') {
       setSelectedCustomModuleId(null);
     }
 
@@ -491,6 +549,7 @@ export function App() {
         </div>
         {renderThemeToggle()}
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -502,6 +561,7 @@ export function App() {
         <YTDebug />
         {renderThemeToggle()}
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -510,11 +570,64 @@ export function App() {
   // NOT AUTHENTICATED
   // =========================
   if (!user) {
+    // Password reset flow handlers
+    const handleForgotPassword = () => setAuthPage('forgotPassword');
+    const handleBackToLogin = () => {
+      setAuthPage('login');
+      setResetEmail('');
+      setResetMaskedEmail('');
+      setResetToken('');
+    };
+    const handleOTPSent = (email: string, maskedEmail?: string) => {
+      setResetEmail(email);
+      setResetMaskedEmail(maskedEmail || '');
+      setAuthPage('verifyOTP');
+    };
+    const handleOTPVerified = (email: string, token: string) => {
+      setResetEmail(email);
+      setResetToken(token);
+      setAuthPage('resetPassword');
+    };
+    const handlePasswordResetSuccess = () => {
+      setAuthPage('login');
+      setResetEmail('');
+      setResetMaskedEmail('');
+      setResetToken('');
+    };
+
     return (
       <>
-        <LoginPage onLogin={handleLogin} theme={theme} />
+        {authPage === 'login' && (
+          <LoginPage onLogin={handleLogin} onForgotPassword={handleForgotPassword} theme={theme} />
+        )}
+        {authPage === 'forgotPassword' && (
+          <ForgotPasswordPage
+            onBackToLogin={handleBackToLogin}
+            onOTPSent={handleOTPSent}
+            theme={theme}
+          />
+        )}
+        {authPage === 'verifyOTP' && (
+          <VerifyOTPPage
+            email={resetEmail}
+            maskedEmail={resetMaskedEmail}
+            onBack={() => setAuthPage('forgotPassword')}
+            onVerified={handleOTPVerified}
+            theme={theme}
+          />
+        )}
+        {authPage === 'resetPassword' && (
+          <ResetPasswordPage
+            email={resetEmail}
+            resetToken={resetToken}
+            onSuccess={handlePasswordResetSuccess}
+            onBackToLogin={handleBackToLogin}
+            theme={theme}
+          />
+        )}
         {renderThemeToggle()}
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -566,6 +679,7 @@ export function App() {
           </div>
         </AdminLayout>
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -593,6 +707,7 @@ export function App() {
             {currentPage === 'dashboard' && <InstructorDashboard />}
             {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
             {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} />}
+            {currentPage === 'custom-module-detail' && selectedCustomModuleId && <CustomModuleViewer moduleId={selectedCustomModuleId} apiPath="instructor/custom-modules" editApiPath="instructor/custom-modules" allowEdit={true} onBack={() => handleNavigate('courses')} />}
             {currentPage === 'quiz-management' && <QuizAssessmentManagement />}
             {currentPage === 'lessons' && <LessonVideoUpload />}
             {currentPage === 'quizzes' && <QuizAssessmentManagement />}
@@ -604,6 +719,7 @@ export function App() {
           </div>
         </InstructorLayout>
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -645,6 +761,12 @@ export function App() {
                 onBack={() => handleNavigate('my-courses')}
               />
             )}
+            {currentPage === 'custom-module-viewer' && selectedCustomModuleId && (
+              <CustomModuleViewer
+                moduleId={selectedCustomModuleId}
+                onBack={() => handleNavigate('dashboard')}
+              />
+            )}
             {currentPage === 'progress' && <MyProgress />}
             {currentPage === 'certificates' && <MyCertificates />}
             {currentPage === 'qa' && <QAModule userId={user.id} />}
@@ -654,15 +776,17 @@ export function App() {
           </div>
         </EmployeeLayout>
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
 
   return (
     <>
-      <LoginPage onLogin={handleLogin} theme={theme} />
+      <LoginPage onLogin={handleLogin} onForgotPassword={() => setAuthPage('forgotPassword')} theme={theme} />
       {renderThemeToggle()}
       {logoutOverlay}
+      {logoutConfirmModal}
     </>
   );
 }

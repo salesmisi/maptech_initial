@@ -56,12 +56,20 @@ interface Course {
   title: string;
   description: string;
   department: string;
+  subdepartment_id?: number | null;
+  subdepartment?: { id: number; name: string } | null;
   status: 'Active' | 'Draft' | 'Archived' | 'Inactive';
   start_date?: string | null;
   deadline?: string | null;
   modules: Array<{ id?: number; title: string; content_path?: string }>;
   // set by instructor action in UI to reflect immediate availability
   availableByInstructor?: boolean;
+}
+
+interface DepartmentOption {
+  id: number;
+  name: string;
+  subdepartments?: { id: number; name: string }[];
 }
 
 interface Props {
@@ -83,10 +91,50 @@ const STATUS_COLORS: Record<string, string> = {
   Inactive: 'bg-red-100 text-red-700',
 };
 
+const toUtcIsoString = (value: FormDataEntryValue | null): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+};
+
+const toLocalDateTimeInputValue = (value?: string | null): string => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
+
+const getMinDateTimeInputValue = (): string => {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
+
+const isPastDateTimeInput = (value: FormDataEntryValue | null): boolean => {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  const selected = new Date(trimmed);
+  if (Number.isNaN(selected.getTime())) return false;
+
+  const now = new Date();
+  now.setSeconds(0, 0);
+  return selected.getTime() < now.getTime();
+};
+
 let moduleCounter = 0;
 
 export function InstructorCourseManagement({ onNavigate }: Props) {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [customModules, setCustomModules] = useState<CustomModule[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -96,12 +144,16 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [modules, setModules] = useState<ModuleInput[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [modalDepartment, setModalDepartment] = useState('');
+  const [modalSubdepartmentId, setModalSubdepartmentId] = useState<number | ''>('');
   const { pushToast } = useToast();
   // Course unlock modal state
   const [courseUnlockModalOpen, setCourseUnlockModalOpen] = useState(false);
   const [courseUnlockTargetId, setCourseUnlockTargetId] = useState<string | null>(null);
   const [unlockDurationMinutes, setUnlockDurationMinutes] = useState<number>(1440);
   const [unlockPermanent, setUnlockPermanent] = useState<boolean>(false);
+  const [unlockStartDate, setUnlockStartDate] = useState<string>('');
+  const [unlockEndDate, setUnlockEndDate] = useState<string>('');
   const [unlocking, setUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
 
@@ -112,6 +164,38 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
+  const minDateTimeInput = getMinDateTimeInputValue();
+  const hasOpenModal = isModalOpen || courseUnlockModalOpen || pushDeptModalOpen;
+
+  useEffect(() => {
+    if (!hasOpenModal) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [hasOpenModal]);
+
+  const getCourseSubdepartmentName = (course: Course): string | null => {
+    const relatedName = (course as any)?.subdepartment?.name;
+    if (relatedName) return relatedName;
+
+    const sid = Number(course.subdepartment_id ?? 0);
+    if (!sid) return null;
+
+    for (const dept of departments) {
+      const found = (dept.subdepartments || []).find((sub) => Number(sub.id) === sid);
+      if (found) return found.name;
+    }
+
+    return null;
+  };
 
   const loadCourses = async () => {
     try {
@@ -145,6 +229,20 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       }
     } catch (e) {
       console.error('Failed to load custom modules:', e);
+    }
+  };
+
+  const loadDepartments = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/departments`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setDepartments(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error('Failed to load departments:', e);
     }
   };
 
@@ -234,6 +332,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setCourseUnlockTargetId(courseId);
     setUnlockDurationMinutes(1440);
     setUnlockPermanent(false);
+    setUnlockStartDate('');
+    setUnlockEndDate('');
     setUnlockError(null);
     setCourseUnlockModalOpen(true);
   };
@@ -244,6 +344,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   useEffect(() => {
     loadCourses();
     loadCustomModules();
+    loadDepartments();
   }, []);
 
   // Refresh courses list when a module is added in the CourseDetail page
@@ -264,6 +365,9 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setEditingCourse(null);
     setModules([]);
     setFormError(null);
+    const firstDepartment = departments[0]?.name ?? '';
+    setModalDepartment(firstDepartment);
+    setModalSubdepartmentId('');
     setIsModalOpen(true);
   };
 
@@ -271,6 +375,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setEditingCourse(course);
     setModules([]);
     setFormError(null);
+    setModalDepartment(course.department || '');
+    setModalSubdepartmentId(course.subdepartment_id ?? '');
     setIsModalOpen(true);
   };
 
@@ -280,6 +386,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setEditingCourse(null);
     setModules([]);
     setFormError(null);
+    setModalDepartment('');
+    setModalSubdepartmentId('');
   };
 
   const addModule = () => {
@@ -317,6 +425,17 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     setFormError(null);
 
     const formData = new FormData(e.currentTarget);
+
+    if (isPastDateTimeInput(formData.get('start_date')) || isPastDateTimeInput(formData.get('deadline'))) {
+      setFormError('Start Date and Due Date must be current or future.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const startDateUtc = toUtcIsoString(formData.get('start_date'));
+    const deadlineUtc = toUtcIsoString(formData.get('deadline'));
+    if (startDateUtc) formData.set('start_date', startDateUtc); else formData.delete('start_date');
+    if (deadlineUtc) formData.set('deadline', deadlineUtc); else formData.delete('deadline');
 
     modules.forEach((mod, idx) => {
       formData.append(`modules[${idx}][title]`, mod.title);
@@ -361,8 +480,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     }
   };
 
-  const handleUnlockCourse = async (courseId: string, durationMinutes?: number | null) => {
-    showConfirm('Unlock this course for enrolled users?', async () => {
+  const handleUnlockCourse = async (courseId: string, durationMinutes?: number | null, startDate?: string, endDate?: string) => {
     try {
       setUnlockError(null);
       setUnlocking(true);
@@ -383,15 +501,18 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         if (depts.length === 0 && course.department) depts.push(course.department);
         for (const dept of depts) {
           try {
+            const bodyData: any = { department: dept };
+            if (endDate) {
+              bodyData.expires_at = endDate;
+            } else if (durationMinutes && !isNaN(durationMinutes)) {
+              bodyData.duration_minutes = Number(durationMinutes);
+            }
             const deptOpts: any = {
               method: 'POST',
               credentials: 'include',
               headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ department: dept }),
+              body: JSON.stringify(bodyData),
             };
-            if (durationMinutes && !isNaN(durationMinutes)) {
-              deptOpts.body = JSON.stringify({ department: dept, duration_minutes: Number(durationMinutes) });
-            }
             await fetch(`${API_BASE}/instructor/courses/${courseId}/unlock-department-all`, deptOpts);
           } catch (err) {
             console.warn('unlock-department-all failed for', dept, err);
@@ -403,15 +524,18 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
       for (const u of users) {
         try {
+          const bodyData: any = {};
+          if (endDate) {
+            bodyData.expires_at = endDate;
+          } else if (durationMinutes && !isNaN(durationMinutes)) {
+            bodyData.duration_minutes = Number(durationMinutes);
+          }
           const opts: any = {
             method: 'POST',
             credentials: 'include',
-            headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+            headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token, 'Content-Type': 'application/json' },
+            body: JSON.stringify(bodyData),
           };
-          if (durationMinutes && !isNaN(durationMinutes)) {
-            opts.headers['Content-Type'] = 'application/json';
-            opts.body = JSON.stringify({ duration_minutes: Number(durationMinutes) });
-          }
           const r = await fetch(`${API_BASE}/instructor/courses/${courseId}/enrollments/${u.id}/unlock`, opts);
           if (!r.ok) {
             const text = await r.text();
@@ -431,6 +555,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       setCourseUnlockTargetId(null);
       setUnlockDurationMinutes(1440);
       setUnlockPermanent(false);
+      setUnlockStartDate('');
+      setUnlockEndDate('');
       await loadCourses();
     } catch (e: any) {
       console.error(e);
@@ -440,7 +566,6 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     } finally {
       setUnlocking(false);
     }
-    });
   };
 
   const filtered = courses.filter((c) => {
@@ -568,7 +693,10 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   </div>
                 </div>
                 <div className="mb-4">
-                  <span className="text-xs font-medium text-slate-400 dark:text-slate-200">{course.department}</span>
+                  <div className="text-xs text-slate-400 dark:text-slate-300">Location</div>
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-100">
+                    {course.department}{getCourseSubdepartmentName(course) ? ` / ${getCourseSubdepartmentName(course)}` : ''}
+                  </span>
                 </div>
 
                 {course.deadline && !ended && (
@@ -652,7 +780,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
                 <div className="mt-auto pt-3 border-t border-slate-100 space-y-2">
                   <button
-                    onClick={() => onNavigate?.('custom-module-detail', String(module.id))}
+                    onClick={() => onNavigate?.('custom-module-detail', undefined, module.id)}
                     className="w-full text-sm font-medium text-purple-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-purple-200 text-left"
                   >
                     View Content &rarr;
@@ -724,15 +852,18 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
                   <select
                     name="department"
-                    defaultValue={editingCourse?.department || 'IT'}
+                    value={modalDepartment}
+                    onChange={(e) => {
+                      setModalDepartment(e.target.value);
+                      setModalSubdepartmentId('');
+                    }}
                     required
                     className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
-                    <option value="IT">IT</option>
-                    <option value="HR">HR</option>
-                    <option value="Operations">Operations</option>
-                    <option value="Finance">Finance</option>
-                    <option value="Marketing">Marketing</option>
+                    <option value="">Select Department</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.name}>{dept.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -749,13 +880,31 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Sub Department</label>
+                <select
+                  name="subdepartment_id"
+                  value={modalSubdepartmentId}
+                  onChange={(e) => setModalSubdepartmentId(e.target.value ? Number(e.target.value) : '')}
+                  required
+                  disabled={!modalDepartment}
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:bg-slate-100"
+                >
+                  <option value="">Select Sub Department</option>
+                  {(departments.find((d) => d.name === modalDepartment)?.subdepartments || []).map((sub) => (
+                    <option key={sub.id} value={sub.id}>{sub.name}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
                   <input
                     type="datetime-local"
                     name="start_date"
-                    defaultValue={editingCourse?.start_date ? new Date(editingCourse.start_date).toISOString().slice(0, 16) : ''}
+                    defaultValue={toLocalDateTimeInputValue(editingCourse?.start_date)}
+                    min={minDateTimeInput}
                     className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
@@ -764,7 +913,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   <input
                     type="datetime-local"
                     name="deadline"
-                    defaultValue={editingCourse?.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
+                    defaultValue={toLocalDateTimeInputValue(editingCourse?.deadline)}
+                    min={minDateTimeInput}
                     className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
@@ -860,36 +1010,66 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
             className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50"
             onClick={(e) => { if (e.target === e.currentTarget) { setCourseUnlockModalOpen(false); setCourseUnlockTargetId(null); } }}
           >
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-lg font-semibold mb-3">Unlock Course</h3>
-              <p className="text-sm text-slate-600 mb-3">Set a temporary unlock duration (minutes) or make it permanent.</p>
-              {unlockError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded px-3 py-2 mb-3">{unlockError}</div>}
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Duration (minutes)</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={unlockDurationMinutes}
-                  onChange={(e) => setUnlockDurationMinutes(Number(e.target.value))}
-                  disabled={unlockPermanent}
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 text-sm"
-                />
-                <p className="text-xs text-slate-400 mt-1">Leave as 1440 for 24 hours.</p>
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-white">Unlock Course</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Set the unlock period for enrolled employees.</p>
+              {unlockError && <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm rounded px-3 py-2 mb-3">{unlockError}</div>}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    value={unlockStartDate}
+                    onChange={(e) => setUnlockStartDate(e.target.value)}
+                    min={minDateTimeInput}
+                    disabled={unlockPermanent}
+                    className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Leave empty to start immediately.</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">End Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    value={unlockEndDate}
+                    onChange={(e) => setUnlockEndDate(e.target.value)}
+                    min={unlockStartDate || minDateTimeInput}
+                    disabled={unlockPermanent}
+                    className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">When the course will be locked again.</p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    id="perm"
+                    type="checkbox"
+                    checked={unlockPermanent}
+                    onChange={(e) => setUnlockPermanent(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-500"
+                  />
+                  <label htmlFor="perm" className="text-sm text-slate-700 dark:text-slate-300">Permanent unlock (no expiration)</label>
+                </div>
               </div>
-              <div className="flex items-center gap-2 mb-4">
-                <input id="perm" type="checkbox" checked={unlockPermanent} onChange={(e) => setUnlockPermanent(e.target.checked)} className="h-4 w-4" />
-                <label htmlFor="perm" className="text-sm text-slate-700">Permanent unlock</label>
-              </div>
-              <div className="flex gap-3 justify-end">
-                <button onClick={() => { setCourseUnlockModalOpen(false); setCourseUnlockTargetId(null); }} className="px-4 py-2 border rounded text-sm">Cancel</button>
+
+              <div className="flex gap-3 justify-end mt-6">
+                <button
+                  onClick={() => { setCourseUnlockModalOpen(false); setCourseUnlockTargetId(null); }}
+                  className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                >
+                  Cancel
+                </button>
                 <button
                   onClick={() => {
                     if (!courseUnlockTargetId) return;
-                    const dur = unlockPermanent ? null : unlockDurationMinutes;
-                    handleUnlockCourse(courseUnlockTargetId, dur ?? null);
+                    const endDateValue = unlockPermanent ? undefined : unlockEndDate || undefined;
+                    const dur = unlockPermanent ? null : (!unlockEndDate ? unlockDurationMinutes : null);
+                    handleUnlockCourse(courseUnlockTargetId, dur ?? null, unlockStartDate || undefined, endDateValue);
                   }}
                   disabled={unlocking}
-                  className="px-4 py-2 bg-green-600 text-white rounded text-sm"
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm disabled:opacity-50"
                 >
                   {unlocking ? 'Unlocking...' : 'Confirm'}
                 </button>

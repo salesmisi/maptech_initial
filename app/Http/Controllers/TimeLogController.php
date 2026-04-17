@@ -63,6 +63,9 @@ class TimeLogController extends Controller
 
         event(new TimeLogUpdated($timeLog->fresh()));
 
+        // Auto-cleanup: if time logs >= 50, delete oldest half
+        TimeLog::enforceTimeLogLimit($user->id);
+
         // Return canonical UTC ISO strings
         $resp = $timeLog->fresh();
         $out = [

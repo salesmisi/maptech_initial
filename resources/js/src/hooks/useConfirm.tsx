@@ -5,7 +5,7 @@ interface ConfirmOptions {
   title?: string;
   confirmText?: string;
   cancelText?: string;
-  variant?: 'danger' | 'warning' | 'info';
+  variant?: 'danger' | 'warning' | 'info' | 'primary';
 }
 
 export default function useConfirm() {

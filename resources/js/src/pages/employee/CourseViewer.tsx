@@ -16,10 +16,16 @@ import {
   ChevronUp,
   Trophy,
   X,
+  Eye,
+  ExternalLink,
+  Presentation,
+  Image,
 } from 'lucide-react';
 import { sanitizeHtml } from '../../components/RichTextEditor';
 import YouTubePlayer from '../../components/YouTubePlayer';
 import { safeArray } from '../../utils/safe';
+import PDFViewer from '../../components/PDFViewer';
+import PresentationViewer from '../../components/PresentationViewer';
 
 const API_BASE = '/api';
 
@@ -496,8 +502,10 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
   const getFileIcon = (fileType: string | null) => {
     switch (fileType) {
       case 'pdf': case 'document': return <FileText className="h-5 w-5" />;
+      case 'presentation': return <Presentation className="h-5 w-5" />;
       case 'video': return <Video className="h-5 w-5" />;
       case 'audio': return <Music className="h-5 w-5" />;
+      case 'image': return <Image className="h-5 w-5" />;
       default: return <File className="h-5 w-5" />;
     }
   };
@@ -505,9 +513,53 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
   const getSmallFileIcon = (fileType: string | null) => {
     switch (fileType) {
       case 'pdf': case 'document': return <FileText className="h-3.5 w-3.5" />;
+      case 'presentation': return <Presentation className="h-3.5 w-3.5" />;
       case 'video': return <Video className="h-3.5 w-3.5" />;
       case 'audio': return <Music className="h-3.5 w-3.5" />;
+      case 'image': return <Image className="h-3.5 w-3.5" />;
       default: return <File className="h-3.5 w-3.5" />;
+    }
+  };
+
+  const getLargeFileIcon = (fileType: string | null) => {
+    switch (fileType) {
+      case 'pdf': return <FileText className="h-20 w-20 text-red-400 dark:text-red-500" />;
+      case 'document': return <FileText className="h-20 w-20 text-blue-400 dark:text-blue-500" />;
+      case 'presentation': return <Presentation className="h-20 w-20 text-orange-400 dark:text-orange-500" />;
+      case 'video': return <Video className="h-20 w-20 text-purple-400 dark:text-purple-500" />;
+      case 'audio': return <Music className="h-20 w-20 text-green-400 dark:text-green-500" />;
+      case 'image': return <Image className="h-20 w-20 text-pink-400 dark:text-pink-500" />;
+      default: return <File className="h-20 w-20 text-slate-400 dark:text-slate-500" />;
+    }
+  };
+
+  // Helper to get file extension from URL
+  const getFileExtension = (url: string | null): string => {
+    if (!url) return '';
+    const match = url.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+    return match ? match[1].toLowerCase() : '';
+  };
+
+  // Helper to get file name from URL
+  const getFileName = (url: string | null): string => {
+    if (!url) return 'File';
+    const match = url.match(/([^/]+)(?:\?|$)/);
+    return match ? decodeURIComponent(match[1]) : 'File';
+  };
+
+  // Helper to get file size display (would need to be implemented server-side for accuracy)
+  const getFileTypeDisplay = (fileType: string | null, url: string | null): string => {
+    const ext = getFileExtension(url);
+    const extUpper = ext.toUpperCase();
+
+    switch (fileType) {
+      case 'presentation': return `${extUpper} Presentation`;
+      case 'document': return `${extUpper} Document`;
+      case 'pdf': return 'PDF Document';
+      case 'video': return `${extUpper} Video`;
+      case 'audio': return `${extUpper} Audio`;
+      case 'image': return `${extUpper} Image`;
+      default: return extUpper ? `${extUpper} File` : 'File';
     }
   };
 
@@ -631,40 +683,206 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       return (
         <div className="space-y-4">
           {textBlock}
+          <PDFViewer
+            url={content_url || ''}
+            title={title}
+            fileName={getFileName(content_url)}
+            lessonId={currentLesson.id}
+            moduleId={currentModule?.id}
+            showConvertButton={false}
+          />
+        </div>
+      );
+    }
+
+    // Handle presentations (PPTX, PPT) with interactive PresentationViewer
+    if (file_type === 'presentation') {
+      const ext = getFileExtension(content_url);
+      const isPptx = ext === 'pptx' || ext === 'ppt';
+
+      if (isPptx) {
+        return (
+          <div className="space-y-4">
+            {textBlock}
+            <PresentationViewer
+              url={content_url || ''}
+              title={title}
+              fileName={getFileName(content_url)}
+            />
+          </div>
+        );
+      }
+
+      // Fallback to Office Online viewer for other presentation formats
+      const absoluteUrl = content_url?.startsWith('http')
+        ? content_url
+        : `${window.location.origin}${content_url}`;
+      const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absoluteUrl || '')}`;
+      const fileName = getFileName(content_url);
+      const fileTypeDisplay = getFileTypeDisplay(file_type, content_url);
+
+      return (
+        <div className="space-y-4">
+          {textBlock}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 p-3 bg-slate-100 dark:bg-slate-700 rounded-lg">
+                  {getLargeFileIcon(file_type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 truncate">{fileName}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Type: {fileTypeDisplay}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 flex flex-wrap items-center gap-3">
+              <a
+                href={officeViewerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-md"
+              >
+                <Eye className="h-5 w-5 mr-2" />View / Study
+              </a>
+              <a
+                href={content_url || undefined}
+                download
+                className="inline-flex items-center px-5 py-2.5 border border-green-600 text-green-600 dark:text-green-400 rounded-lg font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+              >
+                <Download className="h-5 w-5 mr-2" />Download
+              </a>
+            </div>
+          </div>
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden" style={{ height: '70vh' }}>
-            <iframe src={content_url} className="w-full h-full" title={title} />
+            <iframe src={officeViewerUrl} className="w-full h-full" title={title} frameBorder="0" />
           </div>
         </div>
       );
     }
 
+    // Handle documents (DOCX, DOC) with Office Online viewer
+    if (file_type === 'document') {
+      // Get absolute URL for Office Online viewer
+      const absoluteUrl = content_url?.startsWith('http')
+        ? content_url
+        : `${window.location.origin}${content_url}`;
+      const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absoluteUrl || '')}`;
+      const fileName = getFileName(content_url);
+      const fileTypeDisplay = getFileTypeDisplay(file_type, content_url);
+
+      return (
+        <div className="space-y-4">
+          {textBlock}
+          {/* File info card */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 p-3 bg-slate-100 dark:bg-slate-700 rounded-lg">
+                  {getLargeFileIcon(file_type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 truncate">{fileName}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    Type: {fileTypeDisplay}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 flex flex-wrap items-center gap-3">
+              {/* Primary: View/Study button - opens in Office Online viewer in new tab */}
+              <a
+                href={officeViewerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-md"
+              >
+                <Eye className="h-5 w-5 mr-2" />
+                View / Study
+              </a>
+
+              {/* Secondary: Open in new tab (direct file) */}
+              <a
+                href={content_url || undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-5 py-2.5 bg-slate-600 text-white rounded-lg font-medium hover:bg-slate-700 transition-colors"
+              >
+                <ExternalLink className="h-5 w-5 mr-2" />
+                Open File
+              </a>
+
+              {/* Optional: Download button */}
+              <a
+                href={content_url || undefined}
+                download
+                className="inline-flex items-center px-5 py-2.5 border border-green-600 text-green-600 dark:text-green-400 dark:border-green-500 rounded-lg font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+              >
+                <Download className="h-5 w-5 mr-2" />
+                Download
+              </a>
+            </div>
+          </div>
+
+          {/* Embedded viewer (Office Online) */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden" style={{ height: '70vh' }}>
+            <iframe
+              src={officeViewerUrl}
+              className="w-full h-full"
+              title={title}
+              frameBorder="0"
+            />
+          </div>
+
+          <p className="text-center text-xs text-slate-400 dark:text-slate-500">
+            Having trouble viewing? Use the "View / Study" or "Open File" buttons above to view in a new window.
+          </p>
+        </div>
+      );
+    }
+
+    // Default fallback for other file types
     return (
       <div className="space-y-4">
         {textBlock}
-        <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-12 flex flex-col items-center justify-center border border-slate-200 dark:border-slate-700">
-          {getFileIcon(file_type)}
-          <h3 className="text-xl font-medium text-slate-700 dark:text-slate-100 mt-4 mb-2">{title}</h3>
-          <p className="text-slate-500 dark:text-slate-300 mb-6 text-center">
-            This file type is best viewed by downloading it.
-          </p>
-          <a
-            href={content_url || undefined}
-            download
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors shadow-md"
-          >
-            <Download className="h-5 w-5 mr-2" />
-            Download File
-          </a>
-          <a
-            href={content_url || undefined}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 text-sm text-green-600 dark:text-emerald-400 hover:text-green-700 dark:hover:text-emerald-300"
-          >
-            Or open in new tab
-          </a>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          {/* File info section */}
+          <div className="p-8 flex flex-col items-center justify-center">
+            <div className="p-4 bg-slate-100 dark:bg-slate-700 rounded-full mb-4">
+              {getLargeFileIcon(file_type)}
+            </div>
+            <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-1">{title}</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">{getFileName(content_url)}</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-6">
+              {getFileTypeDisplay(file_type, content_url)}
+            </p>
+
+            {/* Action buttons */}
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              {/* Primary: Open/View in new tab */}
+              <a
+                href={content_url || undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-md"
+              >
+                <ExternalLink className="h-5 w-5 mr-2" />
+                Open / View File
+              </a>
+
+              {/* Optional: Download button */}
+              <a
+                href={content_url || undefined}
+                download
+                className="inline-flex items-center px-6 py-3 border border-green-600 text-green-600 dark:text-green-400 dark:border-green-500 rounded-lg font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+              >
+                <Download className="h-5 w-5 mr-2" />
+                Download
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     );

@@ -23,7 +23,7 @@ class ReadOnlyLoginController extends Controller
         $user = User::where('email', $credentials['email'])->first();
 
         if (! $user) {
-            return response()->json(['message' => 'Invalid credentials'], 401);
+            return response()->json(['message' => 'Email address not found'], 401);
         }
 
         // If there's an isActive method keep the check (read-only)
@@ -32,7 +32,7 @@ class ReadOnlyLoginController extends Controller
         }
 
         if (! Hash::check($credentials['password'], $user->password)) {
-            return response()->json(['message' => 'Invalid credentials'], 401);
+            return response()->json(['message' => 'Incorrect password'], 401);
         }
 
         // Authenticate the user in the session without modifying the database.

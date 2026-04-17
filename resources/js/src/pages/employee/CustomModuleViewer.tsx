@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -7,9 +7,17 @@ import {
   Link as LinkIcon,
   Download,
   Loader,
+  Presentation,
+  Pencil,
+  X,
+  Save,
+  Loader2,
+  Upload,
 } from 'lucide-react';
 import { sanitizeHtml } from '../../components/RichTextEditor';
 import YouTubePlayer from '../../components/YouTubePlayer';
+import PresentationViewer from '../../components/PresentationViewer';
+import PDFViewer from '../../components/PDFViewer';
 
 const API_BASE = '/api';
 
@@ -52,16 +60,48 @@ interface CustomModule {
   updated_at: string;
 }
 
+const getCookie = (name: string) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift();
+};
+
+const getXsrfToken = async (): Promise<string> => {
+  await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+  return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
+};
+
 interface Props {
   moduleId: number;
   onBack: () => void;
+  apiPath?: string;
+  allowEdit?: boolean;
+  editApiPath?: string;
 }
 
-export function CustomModuleViewer({ moduleId, onBack }: Props) {
+export function CustomModuleViewer({
+  moduleId,
+  onBack,
+  apiPath = 'employee/custom-modules',
+  allowEdit = false,
+  editApiPath,
+}: Props) {
   const [module, setModule] = useState<CustomModule | null>(null);
   const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Edit lesson state
+  const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editTextContent, setEditTextContent] = useState('');
+  const [editFile, setEditFile] = useState<File | null>(null);
+  const [savingLesson, setSavingLesson] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const editFileRef = useRef<HTMLInputElement>(null);
+
+  const resolvedEditApiPath = editApiPath || apiPath;
 
   const currentLesson = module?.lessons?.[currentLessonIndex] || null;
 
@@ -74,7 +114,7 @@ export function CustomModuleViewer({ moduleId, onBack }: Props) {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE}/employee/custom-modules/${moduleId}`, {
+      const response = await fetch(`${API_BASE}/${apiPath}/${moduleId}`, {
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
@@ -87,12 +127,65 @@ export function CustomModuleViewer({ moduleId, onBack }: Props) {
       }
 
       const data = await response.json();
-      setModule(data.module);
+      // Employee API returns { module: ... }, instructor API returns the object directly
+      setModule(data.module ?? data);
     } catch (err: any) {
       console.error('Error loading custom module:', err);
       setError(err.message || 'Failed to load module');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openEditLesson = (lesson: Lesson) => {
+    setEditingLesson(lesson);
+    setEditTitle(lesson.title);
+    setEditDescription(lesson.description || '');
+    setEditTextContent(lesson.text_content || '');
+    setEditFile(null);
+    setSaveError(null);
+  };
+
+  const closeEditLesson = () => {
+    setEditingLesson(null);
+    setEditFile(null);
+    setSaveError(null);
+  };
+
+  const handleSaveLesson = async () => {
+    if (!editingLesson || !editTitle.trim()) return;
+    setSavingLesson(true);
+    setSaveError(null);
+    try {
+      const token = await getXsrfToken();
+      const fd = new FormData();
+      fd.append('title', editTitle.trim());
+      fd.append('description', editDescription.trim());
+      if (editingLesson.content_type === 'text') {
+        fd.append('text_content', editTextContent);
+      }
+      if (editFile) {
+        fd.append('content_file', editFile);
+      }
+      const res = await fetch(
+        `${API_BASE}/${resolvedEditApiPath}/${moduleId}/lessons/${editingLesson.id}`,
+        {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+          body: fd,
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to save lesson');
+      }
+      closeEditLesson();
+      await loadModule();
+    } catch (e: any) {
+      setSaveError(e.message || 'Failed to save lesson');
+    } finally {
+      setSavingLesson(false);
     }
   };
 
@@ -157,11 +250,58 @@ export function CustomModuleViewer({ moduleId, onBack }: Props) {
       }
     }
 
+    // Presentation Content (PPT/PPTX)
+    if (contentType === 'presentation') {
+      const presUrl = currentLesson.content_full_url || currentLesson.content_url;
+
+      if (presUrl) {
+        return (
+          <PresentationViewer
+            url={presUrl}
+            title={currentLesson.title}
+            fileName={currentLesson.file_name || undefined}
+            fileSize={currentLesson.formatted_file_size || undefined}
+          />
+        );
+      }
+
+      return (
+        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center gap-4">
+            <Presentation className="h-12 w-12 text-orange-500" />
+            <div className="flex-1">
+              <h4 className="font-medium text-slate-900 dark:text-slate-100">
+                {currentLesson.file_name || currentLesson.title}
+              </h4>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Presentation file not available
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // Document/PDF Content
     if (contentType === 'document') {
       const docUrl = currentLesson.content_full_url || currentLesson.content_url;
+      const isPdf = currentLesson.file_type === 'application/pdf' ||
+                    currentLesson.file_name?.toLowerCase().endsWith('.pdf');
 
       if (docUrl) {
+        // Use PDFViewer for PDF files (presentation mode)
+        if (isPdf) {
+          return (
+            <PDFViewer
+              url={docUrl}
+              title={currentLesson.title}
+              fileName={currentLesson.file_name || undefined}
+              fileSize={currentLesson.formatted_file_size || undefined}
+            />
+          );
+        }
+
+        // Other document types
         return (
           <div className="space-y-4">
             <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
@@ -189,16 +329,6 @@ export function CustomModuleViewer({ moduleId, onBack }: Props) {
                 </a>
               </div>
             </div>
-
-            {currentLesson.file_type === 'application/pdf' && (
-              <div className="aspect-[8.5/11] w-full border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                <iframe
-                  src={`${docUrl}#view=FitH`}
-                  className="w-full h-full"
-                  title={currentLesson.title}
-                />
-              </div>
-            )}
           </div>
         );
       }
@@ -230,6 +360,120 @@ export function CustomModuleViewer({ moduleId, onBack }: Props) {
               </a>
             </div>
           </div>
+        </div>
+      );
+    }
+
+    // File Content (generic file upload)
+    if (contentType === 'file') {
+      const fileUrl = currentLesson.content_full_url || currentLesson.content_url;
+      const fileType = currentLesson.file_type || '';
+      const fileName = currentLesson.file_name || '';
+      const isImage = fileType.startsWith('image/');
+      const isPdf = fileType === 'application/pdf';
+      const isAudio = fileType.startsWith('audio/');
+      const isVideo = fileType.startsWith('video/');
+      const isPpt = fileType.includes('presentation') ||
+                    fileType.includes('powerpoint') ||
+                    fileName.toLowerCase().endsWith('.ppt') ||
+                    fileName.toLowerCase().endsWith('.pptx');
+
+      if (fileUrl) {
+        // PowerPoint presentation
+        if (isPpt) {
+          return (
+            <PresentationViewer
+              url={fileUrl}
+              title={currentLesson.title}
+              fileName={currentLesson.file_name || undefined}
+              fileSize={currentLesson.formatted_file_size || undefined}
+            />
+          );
+        }
+
+        return (
+          <div className="space-y-4">
+            {/* Image preview */}
+            {isImage && (
+              <div className="flex justify-center">
+                <img
+                  src={fileUrl}
+                  alt={currentLesson.file_name || currentLesson.title}
+                  className="max-w-full max-h-[70vh] rounded-lg shadow-md"
+                />
+              </div>
+            )}
+
+            {/* PDF preview - presentation mode */}
+            {isPdf && (
+              <PDFViewer
+                url={fileUrl}
+                title={currentLesson.title}
+                fileName={currentLesson.file_name || undefined}
+                fileSize={currentLesson.formatted_file_size || undefined}
+              />
+            )}
+
+            {/* Audio preview */}
+            {isAudio && (
+              <div className="bg-slate-100 dark:bg-slate-700 rounded-lg p-6">
+                <audio controls className="w-full">
+                  <source src={fileUrl} type={fileType} />
+                  Your browser does not support the audio element.
+                </audio>
+              </div>
+            )}
+
+            {/* Video preview */}
+            {isVideo && (
+              <div className="aspect-video w-full bg-black rounded-lg overflow-hidden">
+                <video controls className="w-full h-full" src={fileUrl}>
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+            )}
+
+            {/* Download section */}
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-4">
+                <FileText className="h-12 w-12 text-blue-500" />
+                <div className="flex-1">
+                  <h4 className="font-medium text-slate-900 dark:text-slate-100">
+                    {currentLesson.file_name || currentLesson.title}
+                  </h4>
+                  {currentLesson.formatted_file_size && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      Size: {currentLesson.formatted_file_size}
+                    </p>
+                  )}
+                  {fileType && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      Type: {fileType}
+                    </p>
+                  )}
+                </div>
+                <a
+                  href={fileUrl}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </a>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // No file URL available
+      return (
+        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
+          <p className="text-slate-600 dark:text-slate-400">
+            File not available for download.
+          </p>
         </div>
       );
     }
@@ -278,9 +522,10 @@ export function CustomModuleViewer({ moduleId, onBack }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <>
+    <div className="-m-6 min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Header */}
-      <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10">
+      <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 sticky top-0 z-[5]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -366,45 +611,58 @@ export function CustomModuleViewer({ moduleId, onBack }: Props) {
 
               <div className="p-2 max-h-[calc(100vh-200px)] overflow-y-auto">
                 {module.lessons.map((lesson, index) => (
-                  <button
+                  <div
                     key={lesson.id}
-                    onClick={() => setCurrentLessonIndex(index)}
-                    className={`w-full text-left p-3 rounded-md mb-1 transition-colors ${
+                    className={`relative group rounded-md mb-1 transition-colors ${
                       index === currentLessonIndex
                         ? 'bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700'
                         : 'hover:bg-slate-50 dark:hover:bg-slate-700'
                     }`}
                   >
-                    <div className="flex items-start gap-2">
-                      <div className="flex-shrink-0 mt-0.5">
-                        {index === currentLessonIndex ? (
-                          <div className="h-5 w-5 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs">
-                            {index + 1}
-                          </div>
-                        ) : (
-                          <div className="h-5 w-5 rounded-full border-2 border-slate-300 dark:border-slate-600 flex items-center justify-center text-xs text-slate-500 dark:text-slate-400">
-                            {index + 1}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p
-                          className={`text-sm font-medium truncate ${
-                            index === currentLessonIndex
-                              ? 'text-purple-700 dark:text-purple-300'
-                              : 'text-slate-700 dark:text-slate-300'
-                          }`}
-                        >
-                          {lesson.title}
-                        </p>
-                        {lesson.formatted_duration && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            {lesson.formatted_duration}
+                    <button
+                      onClick={() => setCurrentLessonIndex(index)}
+                      className="w-full text-left p-3"
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="flex-shrink-0 mt-0.5">
+                          {index === currentLessonIndex ? (
+                            <div className="h-5 w-5 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs">
+                              {index + 1}
+                            </div>
+                          ) : (
+                            <div className="h-5 w-5 rounded-full border-2 border-slate-300 dark:border-slate-600 flex items-center justify-center text-xs text-slate-500 dark:text-slate-400">
+                              {index + 1}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0 pr-6">
+                          <p
+                            className={`text-sm font-medium truncate ${
+                              index === currentLessonIndex
+                                ? 'text-purple-700 dark:text-purple-300'
+                                : 'text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            {lesson.title}
                           </p>
-                        )}
+                          {lesson.formatted_duration && (
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                              {lesson.formatted_duration}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </button>
+                    </button>
+                    {allowEdit && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openEditLesson(lesson); }}
+                        className="absolute top-2.5 right-2 p-1 rounded text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Edit lesson"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -412,5 +670,113 @@ export function CustomModuleViewer({ moduleId, onBack }: Props) {
         </div>
       </div>
     </div>
+
+    {/* ── EDIT LESSON MODAL ── */}
+    {allowEdit && editingLesson && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Pencil className="h-4 w-4 text-purple-500" />
+              Edit Lesson
+            </h2>
+            <button onClick={closeEditLesson} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="p-5 space-y-4">
+            {saveError && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{saveError}</p>
+            )}
+
+            {/* Title */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Lesson Title</label>
+              <input
+                type="text"
+                value={editTitle}
+                onChange={e => setEditTitle(e.target.value)}
+                className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                placeholder="Lesson title"
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+              <textarea
+                value={editDescription}
+                onChange={e => setEditDescription(e.target.value)}
+                rows={2}
+                className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
+                placeholder="Short description (optional)"
+              />
+            </div>
+
+            {/* Text content — only for text-type lessons */}
+            {editingLesson.content_type === 'text' && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Content</label>
+                <textarea
+                  value={editTextContent}
+                  onChange={e => setEditTextContent(e.target.value)}
+                  rows={6}
+                  className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-y"
+                  placeholder="Lesson text content..."
+                />
+              </div>
+            )}
+
+            {/* File replacement — for file/video/document content */}
+            {(editingLesson.content_type === 'video' || editingLesson.content_type === 'file' || editingLesson.content_type === 'document') && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Replace File (optional)</label>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 text-sm text-slate-600 dark:text-slate-300">
+                    <Upload className="h-4 w-4" />
+                    {editFile ? editFile.name : 'Choose file'}
+                    <input
+                      ref={editFileRef}
+                      type="file"
+                      className="sr-only"
+                      accept="video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
+                      onChange={e => setEditFile(e.target.files?.[0] || null)}
+                    />
+                  </label>
+                  {editFile && (
+                    <button onClick={() => { setEditFile(null); if (editFileRef.current) editFileRef.current.value = ''; }}
+                      className="text-xs text-red-500 hover:text-red-700">
+                      Remove
+                    </button>
+                  )}
+                </div>
+                {editingLesson.file_name && !editFile && (
+                  <p className="text-xs text-slate-400 mt-1">Current: {editingLesson.file_name}</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-200 dark:border-slate-700">
+            <button
+              onClick={closeEditLesson}
+              className="px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-md hover:bg-slate-50 dark:hover:bg-slate-700"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveLesson}
+              disabled={savingLesson || !editTitle.trim()}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {savingLesson ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {savingLesson ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

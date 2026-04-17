@@ -461,7 +461,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       };
       const xsrf = getCookie('XSRF-TOKEN');
       await fetch(`${API_BASE}/employee/notifications/${id}/read`, {
-        method: 'PUT',
+        method: 'POST',
         credentials: 'include',
         headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': xsrf },
       });
@@ -741,7 +741,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-slate-500">Certificates</p>
-              <p className="text-2xl font-bold text-slate-900">3</p>
+              <p className="text-2xl font-bold text-slate-900">{certificates.length}</p>
             </div>
           </div>
         </div>
@@ -749,21 +749,21 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
       {/* Quiz Notifications */}
       {notifications.filter(n => !n.read).length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-orange-200 p-4 sm:p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-orange-200 dark:border-orange-800 p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
-            <Bell className="h-5 w-5 text-orange-600" />
-            <h2 className="text-lg font-bold text-slate-900">
+            <Bell className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
               Notifications ({safeArray<NotificationItem>(notifications).filter(n => !n.read).length} new)
             </h2>
           </div>
           <div className="space-y-3">
             {notifications.filter(n => !n.read).map(notif => (
-              <div key={notif.id} className="flex flex-col gap-3 rounded-lg border border-orange-100 bg-orange-50 p-4 sm:flex-row sm:items-start">
-                <FileQuestion className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
+              <div key={notif.id} className="flex flex-col gap-3 rounded-lg border border-orange-100 dark:border-orange-700 bg-orange-50 dark:bg-slate-700 p-4 sm:flex-row sm:items-start hover:bg-orange-100 dark:hover:bg-slate-600 transition-colors">
+                <FileQuestion className="h-5 w-5 text-orange-500 dark:text-orange-400 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-slate-900">{notif.title}</p>
-                  <p className="text-xs text-slate-600 mt-1">{notif.message}</p>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{notif.title}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">{notif.message}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-400 mt-1">
                     {notif.created_at ? `${new Date(notif.created_at).toLocaleDateString()} at ${new Date(notif.created_at).toLocaleTimeString()}` : ''}
                   </p>
                 </div>
@@ -778,7 +778,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                   )}
                   <button
                     onClick={() => markAsRead(notif.id)}
-                    className="rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200"
+                    className="rounded-md bg-slate-100 dark:bg-slate-600 px-3 py-1 text-xs font-medium text-slate-600 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-500"
                   >
                     Dismiss
                   </button>
@@ -887,29 +887,30 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                       pushToast('Module Viewer', 'Custom module viewer coming soon!', 'info');
                     }}
                   >
-                    <div className="flex items-start justify-between mb-2">
-                      <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-tight">
                         {module.title}
                       </h4>
                       {module.category && (
-                        <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full dark:bg-purple-900/50 dark:text-purple-300">
+                        <span className="flex-shrink-0 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full dark:bg-purple-900/50 dark:text-purple-300">
                           {module.category}
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between text-xs text-slate-600 mb-2 dark:text-slate-400">
-                      <span className="flex items-center gap-1">
-                        <BookOpen className="h-3 w-3" />
-                        {module.lessons_count} lesson{module.lessons_count !== 1 ? 's' : ''}
-                      </span>
+                    <div className="flex items-center gap-1 text-xs text-slate-600 mb-2 dark:text-slate-400">
+                      <BookOpen className="h-3 w-3 flex-shrink-0" />
+                      <span>{module.lessons_count} lesson{module.lessons_count !== 1 ? 's' : ''}</span>
                       {module.creator && (
-                        <span>by {module.creator.fullname}</span>
+                        <>
+                          <span className="text-slate-300 dark:text-slate-600">·</span>
+                          <span className="truncate">by {module.creator.fullname}</span>
+                        </>
                       )}
                     </div>
 
                     <div className="mb-2">
-                      <div className="flex justify-between text-xs text-slate-600 mb-1 dark:text-slate-400">
+                      <div className="flex items-center justify-between text-xs text-slate-600 mb-1 dark:text-slate-400">
                         <span>{module.progress}% Complete</span>
                         <span className="text-purple-600 font-medium dark:text-purple-400">
                           {module.progress === 100 ? 'Completed ✓' : 'In Progress'}

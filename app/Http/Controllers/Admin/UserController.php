@@ -55,9 +55,14 @@ class UserController extends Controller
             $query->where('status', $request->status);
         }
 
-        // Filter by employee subdepartment
+        // Filter by employee subdepartment OR instructor subdepartment (via pivot or head_id)
         if ($request->filled('subdepartment_id')) {
-            $query->where('subdepartment_id', (int) $request->input('subdepartment_id'));
+            $subdeptId = (int) $request->input('subdepartment_id');
+            $query->where(function ($q) use ($subdeptId) {
+                $q->where('subdepartment_id', $subdeptId)
+                  ->orWhereHas('subdepartments', fn ($sq) => $sq->where('subdepartments.id', $subdeptId))
+                  ->orWhereIn('id', \App\Models\Subdepartment::where('id', $subdeptId)->pluck('head_id')->filter());
+            });
         }
 
         $users = $query->select([
@@ -116,10 +121,16 @@ class UserController extends Controller
 
         // Create user; store into lowercase `fullname` column used by this schema.
         // The API still exposes `fullName` as a JSON field for frontend compatibility.
+
+        // Generate recovery key for the new user
+        $recoveryKey = User::generateRecoveryKey();
+
         $user = User::create([
             'fullname' => $validated['fullName'],
             'email' => $validated['email'],
             'password' => $validated['password'],
+            'recovery_key_hash' => hash('sha256', $recoveryKey),
+            'recovery_key' => $recoveryKey,
             'role' => $validated['role'],
             'department' => $validated['department'] ?? null,
             'subdepartment_id' => $validated['subdepartment_id'] ?? null,
@@ -141,7 +152,8 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'User created successfully',
-            'user' => $user->load('headOfDepartments:id,name,head_id', 'subdepartments:id,name,department_id')
+            'user' => $user->load('headOfDepartments:id,name,head_id', 'subdepartments:id,name,department_id'),
+            'recovery_key' => $recoveryKey,
         ], 201);
     }
 
@@ -161,6 +173,9 @@ class UserController extends Controller
     public function update(Request $request, string $id)
     {
         $user = User::findOrFail($id);
+        $previousRole = strtolower((string) $user->role);
+        $previousDepartment = strtolower(trim((string) ($user->department ?? '')));
+        $previousSubdepartmentId = (int) ($user->subdepartment_id ?? 0);
 
         $validated = $request->validate([
             'fullName' => 'sometimes|string|max:255',
@@ -217,6 +232,20 @@ class UserController extends Controller
         $user->fill($validated);
         $user->save();
 
+        $currentRole = strtolower((string) $user->role);
+        $currentDepartment = strtolower(trim((string) ($user->department ?? '')));
+        $currentSubdepartmentId = (int) ($user->subdepartment_id ?? 0);
+
+        $employeeAssignmentChanged = $currentRole === 'employee' && (
+            $previousRole !== 'employee'
+            || $previousDepartment !== $currentDepartment
+            || $previousSubdepartmentId !== $currentSubdepartmentId
+        );
+
+        if ($employeeAssignmentChanged) {
+            $this->removeInvalidEnrollmentsForEmployee($user);
+        }
+
         // For instructors, sync subdepartments and handle department head
         if ($effectiveRole === 'instructor') {
             if ($request->has('subdepartment_ids')) {
@@ -245,6 +274,99 @@ class UserController extends Controller
         return response()->json([
             'message' => 'User updated successfully',
             'user' => $user->load('headOfDepartments:id,name,head_id', 'subdepartments:id,name,department_id')
+        ]);
+    }
+
+    private function normalizeDepartmentValue(?string $value): string
+    {
+        return strtolower(trim((string) $value));
+    }
+
+    private function acceptedCourseDepartments(?string $courseDepartment): array
+    {
+        $courseDepartmentLower = $this->normalizeDepartmentValue($courseDepartment);
+        if ($courseDepartmentLower === '') {
+            return [];
+        }
+
+        $deptRecord = DB::table('departments')
+            ->select('name', 'code')
+            ->whereRaw('LOWER(name) = ?', [$courseDepartmentLower])
+            ->orWhereRaw('LOWER(code) = ?', [$courseDepartmentLower])
+            ->first();
+
+        $accepted = [$courseDepartmentLower];
+        if ($deptRecord) {
+            $deptName = $this->normalizeDepartmentValue($deptRecord->name ?? '');
+            $deptCode = $this->normalizeDepartmentValue($deptRecord->code ?? '');
+            if ($deptName !== '') {
+                $accepted[] = $deptName;
+            }
+            if ($deptCode !== '') {
+                $accepted[] = $deptCode;
+            }
+        }
+
+        return array_values(array_unique($accepted));
+    }
+
+    private function employeeCanStayEnrolled(User $employee, Course $course): bool
+    {
+        $employeeDepartment = $this->normalizeDepartmentValue($employee->department);
+        $acceptedDepartments = $this->acceptedCourseDepartments($course->department);
+        if ($employeeDepartment === '' || empty($acceptedDepartments) || !in_array($employeeDepartment, $acceptedDepartments, true)) {
+            return false;
+        }
+
+        if (!empty($course->subdepartment_id) && (int) ($employee->subdepartment_id ?? 0) !== (int) $course->subdepartment_id) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function removeInvalidEnrollmentsForEmployee(User $employee): void
+    {
+        $enrollments = Enrollment::with('course:id,department,subdepartment_id')
+            ->where('user_id', $employee->id)
+            ->get();
+
+        $invalidCourseIds = $enrollments
+            ->filter(function (Enrollment $enrollment) use ($employee) {
+                if (!$enrollment->course) {
+                    return true;
+                }
+
+                return !$this->employeeCanStayEnrolled($employee, $enrollment->course);
+            })
+            ->pluck('course_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($invalidCourseIds->isEmpty()) {
+            return;
+        }
+
+        Enrollment::where('user_id', $employee->id)
+            ->whereIn('course_id', $invalidCourseIds)
+            ->delete();
+
+        $moduleIds = DB::table('modules')
+            ->whereIn('course_id', $invalidCourseIds)
+            ->pluck('id');
+
+        if ($moduleIds->isNotEmpty()) {
+            DB::table('module_user')
+                ->where('user_id', $employee->id)
+                ->whereIn('module_id', $moduleIds)
+                ->delete();
+        }
+
+        Log::info('Removed invalid enrollments after employee assignment update.', [
+            'user_id' => $employee->id,
+            'invalid_course_ids' => $invalidCourseIds->all(),
+            'removed_count' => $invalidCourseIds->count(),
         ]);
     }
 
@@ -560,5 +682,72 @@ class UserController extends Controller
             'department_performance' => $departmentPerformance,
             'recent_activity'        => $recentActivity,
         ]);
+    }
+
+    /**
+     * Regenerate recovery key for a user.
+     */
+    public function regenerateRecoveryKey(string $id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            // Generate a new recovery key
+            $recoveryKey = User::generateRecoveryKey();
+
+            // Store both the hash and the actual key
+            $user->update([
+                'recovery_key_hash' => hash('sha256', $recoveryKey),
+                'recovery_key' => $recoveryKey,
+            ]);
+
+            return response()->json([
+                'message' => 'Recovery key regenerated successfully',
+                'recovery_key' => $recoveryKey,
+                'user_name' => $user->fullname,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to regenerate recovery key', [
+                'user_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to regenerate recovery key: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get the saved recovery key for a user.
+     */
+    public function getRecoveryKey(string $id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            if (empty($user->recovery_key)) {
+                return response()->json([
+                    'message' => 'No recovery key found for this user. You can regenerate one.',
+                    'recovery_key' => null,
+                    'user_name' => $user->fullname,
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'Recovery key retrieved successfully',
+                'recovery_key' => $user->recovery_key,
+                'user_name' => $user->fullname,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to get recovery key', [
+                'user_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to get recovery key: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

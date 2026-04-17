@@ -11,10 +11,11 @@ interface LoginPageProps {
     department?: string,
     profile_picture?: string | null
   ) => void;
+  onForgotPassword?: () => void;
   theme: 'light' | 'dark';
 }
 
-export function LoginPage({ onLogin, theme }: LoginPageProps) {
+export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -247,12 +248,6 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
         >
           Sign in to LearnHub
         </h2>
-        <p
-          className={`mt-2 text-center text-sm ${isDark ? 'text-slate-200' : 'text-slate-100'}`}
-          style={{ textShadow: '0 2px 12px rgba(2, 6, 23, 0.7)' }}
-        >
-          Maptech Information Solutions Inc.
-        </p>
       </div>
 
       <div
@@ -334,6 +329,21 @@ export function LoginPage({ onLogin, theme }: LoginPageProps) {
                 {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
               </button>
             </div>
+
+            {/* Forgot Password Link */}
+            {onForgotPassword && (
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={onForgotPassword}
+                  className={`text-sm font-medium hover:underline ${
+                    isDark ? 'text-green-400 hover:text-green-300' : 'text-green-600 hover:text-green-700'
+                  }`}
+                >
+                  Forgot Password?
+                </button>
+              </div>
+            )}
 
           </form>
         </div>
