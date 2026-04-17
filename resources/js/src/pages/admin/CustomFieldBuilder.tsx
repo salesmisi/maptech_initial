@@ -2230,18 +2230,21 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                     {availableUsers.map((user) => (
                       <label
                         key={user.id}
-                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                          selectedUserIds.includes(user.id)
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700/50'
+                        className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                          user.is_pushed
+                            ? 'border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700/30 cursor-not-allowed opacity-60'
+                            : selectedUserIds.includes(user.id)
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 cursor-pointer'
+                              : 'border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer'
                         }`}
                       >
                         <input
                           type="checkbox"
                           value={user.id}
                           checked={selectedUserIds.includes(user.id)}
-                          onChange={() => toggleUserSelection(user.id)}
-                          className="h-4 w-4 text-blue-600 rounded border-gray-300 dark:border-slate-500 focus:ring-blue-500"
+                          onChange={() => !user.is_pushed && toggleUserSelection(user.id)}
+                          disabled={user.is_pushed}
+                          className="h-4 w-4 text-blue-600 rounded border-gray-300 dark:border-slate-500 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
                         />
                         <div className="flex-1">
                           <p className="font-medium text-gray-900 dark:text-white">{user.fullname}</p>
