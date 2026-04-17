@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import useConfirm from '../../hooks/useConfirm';
-import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X, RotateCcw, Archive } from 'lucide-react';
+import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X, RotateCcw, Archive, ChevronDown, User } from 'lucide-react';
 import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
 import InfoModal from '../../components/InfoModal';
@@ -36,6 +36,7 @@ interface SentNotification {
   recipients_count: number;
   target_roles?: string[];
   department_name?: string | null;
+  subdepartment_name?: string | null;
 }
 
 interface RecentlyDeletedNotification {
@@ -49,6 +50,7 @@ interface RecentlyDeletedNotification {
   item_type: 'sent' | 'received';
   target_roles?: string[];
   department_name?: string | null;
+  subdepartment_name?: string | null;
   data?: {
     from_user_name?: string;
     from_role?: string;
@@ -67,6 +69,7 @@ interface AnnouncementDetail {
   target?: string | null;
   target_roles?: string[];
   department_name?: string | null;
+  subdepartment_name?: string | null;
   recipients_count?: number | null;
   type?: string;
   read_at?: string | null;
@@ -83,6 +86,12 @@ interface AnnouncementDetail {
   } | null;
 }
 
+interface DepartmentOption {
+  id: number;
+  name: string;
+  subdepartments?: { id: number; name: string }[];
+}
+
 export function NotificationManagement() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [sentHistory, setSentHistory] = useState<SentNotification[]>([]);
@@ -90,11 +99,26 @@ export function NotificationManagement() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isOnePersonModalOpen, setIsOnePersonModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isSendingOne, setIsSendingOne] = useState(false);
+  const [showSendDropdown, setShowSendDropdown] = useState(false);
+  const sendDropdownRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'received' | 'sent' | 'deleted'>('received');
   const [selectedAnnouncementDetail, setSelectedAnnouncementDetail] = useState<AnnouncementDetail | null>(null);
   const [successToast, setSuccessToast] = useState<{ show: boolean; count: number }>({ show: false, count: 0 });
   const [previewModal, setPreviewModal] = useState<{ open: boolean; recipientCount: number | null; error?: string }>({ open: false, recipientCount: null });
+
+  // One-person form state
+  const [onePersonForm, setOnePersonForm] = useState({ title: '', message: '' });
+  const [onePersonImages, setOnePersonImages] = useState<File[]>([]);
+  const [onePersonImagePreviewUrls, setOnePersonImagePreviewUrls] = useState<string[]>([]);
+  const [onePersonResults, setOnePersonResults] = useState<{ id: number; fullname: string; role: string }[]>([]);
+  const [onePersonSelected, setOnePersonSelected] = useState<{ id: number; fullname: string; role: string } | null>(null);
+  const [onePersonDept, setOnePersonDept] = useState('');
+  const [onePersonSubdept, setOnePersonSubdept] = useState('');
+  const [onePersonRole, setOnePersonRole] = useState<'instructor' | 'employee'>('instructor');
+  const onePersonSearchTimer = useRef<number | null>(null);
   const HISTORY_LIMIT = 50;
 
   // Form state
@@ -112,10 +136,25 @@ export function NotificationManagement() {
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const userSearchTimer = React.useRef<number | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<{ id: number; fullname: string; role: string }[]>([]);
-  const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [selectedSubdepartment, setSelectedSubdepartment] = useState<string>('');
   const [announcementImages, setAnnouncementImages] = useState<File[]>([]);
   const [announcementImagePreviewUrls, setAnnouncementImagePreviewUrls] = useState<string[]>([]);
+
+  const selectedDepartmentOption = departments.find((d) => String(d.id) === selectedDepartment);
+  const availableSubdepartments = safeArray(selectedDepartmentOption?.subdepartments);
+
+  // Close send dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (sendDropdownRef.current && !sendDropdownRef.current.contains(e.target as Node)) {
+        setShowSendDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const confirm = useConfirm();
   const { showConfirm } = confirm;
@@ -380,7 +419,9 @@ export function NotificationManagement() {
       setIsSearchingUsers(true);
       const roleParam = formData.roles.length === 1 ? `&role=${encodeURIComponent(formData.roles[0])}` : '';
       const deptParam = selectedDepartment ? `&department_id=${encodeURIComponent(selectedDepartment)}` : '';
-      const res = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}${roleParam}${deptParam}`, await fetchOptions('GET'));
+      const deptNameParam = selectedDepartmentOption?.name ? `&department=${encodeURIComponent(selectedDepartmentOption.name)}` : '';
+      const subdeptParam = selectedSubdepartment ? `&subdepartment_id=${encodeURIComponent(selectedSubdepartment)}` : '';
+      const res = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}${roleParam}${deptParam}${deptNameParam}${subdeptParam}`, await fetchOptions('GET'));
       const data = await res.json();
       // normalize: expect array of users
       const users = Array.isArray(data) ? data : (data?.data || []);
@@ -399,7 +440,7 @@ export function NotificationManagement() {
       searchUsers(userQuery);
     }, 300) as unknown as number;
     return () => { if (userSearchTimer.current) window.clearTimeout(userSearchTimer.current); };
-  }, [userQuery, formData.roles, selectedDepartment]);
+  }, [userQuery, formData.roles, selectedDepartment, selectedSubdepartment]);
 
   // load departments for selector
   useEffect(() => {
@@ -415,29 +456,110 @@ export function NotificationManagement() {
   }, []);
 
   useEffect(() => {
+    setSelectedSubdepartment('');
+  }, [selectedDepartment]);
+
+  useEffect(() => {
     if (announcementImages.length === 0) {
       setAnnouncementImagePreviewUrls([]);
       return;
     }
-
     const objectUrls = announcementImages.map((file) => URL.createObjectURL(file));
     setAnnouncementImagePreviewUrls(objectUrls);
-
-    return () => {
-      objectUrls.forEach((url) => URL.revokeObjectURL(url));
-    };
+    return () => { objectUrls.forEach((url) => URL.revokeObjectURL(url)); };
   }, [announcementImages]);
+
+  useEffect(() => {
+    if (onePersonImages.length === 0) {
+      setOnePersonImagePreviewUrls([]);
+      return;
+    }
+    const urls = onePersonImages.map((f) => URL.createObjectURL(f));
+    setOnePersonImagePreviewUrls(urls);
+    return () => { urls.forEach((u) => URL.revokeObjectURL(u)); };
+  }, [onePersonImages]);
+
+  // one-person recipient list (reloads when role/dept/subdept changes)
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const params = new URLSearchParams({ role: onePersonRole });
+        if (onePersonDept) {
+          params.set('department_id', onePersonDept);
+          const deptName = departments.find((d) => String(d.id) === onePersonDept)?.name || '';
+          if (deptName) params.set('department', deptName);
+        }
+        if (onePersonSubdept) params.set('subdepartment_id', onePersonSubdept);
+        const res = await fetch(`/api/admin/users?${params.toString()}`, await fetchOptions('GET'));
+        const data = await res.json();
+        const users = Array.isArray(data) ? data : (data?.data || []);
+        setOnePersonResults(users.map((u: any) => ({ id: u.id, fullname: u.fullname || `${u.first_name || ''} ${u.last_name || ''}`.trim(), role: u.role || '' })));
+      } catch {}
+    };
+    fetchUsers();
+    setOnePersonSelected(null);
+  }, [onePersonRole, onePersonDept, onePersonSubdept]);
+
+  const resetOnePersonForm = () => {
+    setOnePersonForm({ title: '', message: '' });
+    setOnePersonImages([]);
+    setOnePersonResults([]);
+    setOnePersonSelected(null);
+    setOnePersonDept('');
+    setOnePersonSubdept('');
+    setOnePersonRole('instructor');
+  };
+
+  const handleSendOnePerson = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onePersonSelected) {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please select a recipient first.' });
+      return;
+    }
+    if (isMessageEmpty(onePersonForm.message)) {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please enter a message.' });
+      return;
+    }
+    setIsSendingOne(true);
+    try {
+      const xsrf = await getXsrfToken();
+      const payload = new FormData();
+      payload.append('title', onePersonForm.title);
+      payload.append('message', onePersonForm.message);
+      payload.append('target_user_ids[]', String(onePersonSelected.id));
+      onePersonImages.forEach((f) => payload.append('message_images[]', f));
+      const res = await fetch('/api/admin/notifications/announce', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-XSRF-TOKEN': xsrf },
+        body: payload,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSuccessToast({ show: true, count: 1 });
+        setIsOnePersonModalOpen(false);
+        resetOnePersonForm();
+        fetchSentAnnouncements();
+      } else {
+        setPreviewModal({ open: true, recipientCount: null, error: data?.message || 'Failed to send announcement.' });
+      }
+    } catch {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Failed to send announcement.' });
+    } finally {
+      setIsSendingOne(false);
+    }
+  };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     const rolesArray = Array.isArray(formData.roles) ? formData.roles : (formData.roles ? [formData.roles] : []);
     const hasSelectedUsers = Array.isArray(formData.target_user_ids) && formData.target_user_ids.length > 0;
     if (isMessageEmpty(formData.message)) {
-      alert('Please enter a message.');
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please enter a message.' });
       return;
     }
     if (!hasSelectedUsers && rolesArray.length === 0) {
-      alert('Please select at least one target role or choose specific users.');
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please select at least one target role or choose specific users.' });
       return;
     }
 
@@ -452,6 +574,7 @@ export function NotificationManagement() {
 
       if (formData.course_id) payload.append('course_id', formData.course_id);
       if (selectedDepartment) payload.append('department_id', String(Number(selectedDepartment)));
+      if (selectedSubdepartment) payload.append('subdepartment_id', String(Number(selectedSubdepartment)));
 
       if (formData.target_user_ids && formData.target_user_ids.length > 0) {
         formData.target_user_ids.forEach((id) => payload.append('target_user_ids[]', String(id)));
@@ -480,6 +603,7 @@ export function NotificationManagement() {
         setFormData({ title: '', message: '', roles: [], course_id: '', target_user_ids: [] });
         setSelectedUsers([]);
         setSelectedDepartment('');
+        setSelectedSubdepartment('');
         setAnnouncementImages([]);
 
         // Refresh sent history from server
@@ -500,11 +624,11 @@ export function NotificationManagement() {
     const rolesArray = Array.isArray(formData.roles) ? formData.roles : (formData.roles ? [formData.roles] : []);
     const hasSelectedUsers = Array.isArray(formData.target_user_ids) && formData.target_user_ids.length > 0;
     if (isMessageEmpty(formData.message)) {
-      alert('Please enter a message.');
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please enter a message.' });
       return;
     }
     if (!hasSelectedUsers && rolesArray.length === 0) {
-      alert('Please select at least one target role or choose specific users.');
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please select at least one target role or choose specific users.' });
       return;
     }
 
@@ -516,6 +640,7 @@ export function NotificationManagement() {
         roles: rolesArray,
         course_id: formData.course_id || null,
         department_id: selectedDepartment ? Number(selectedDepartment) : null,
+        subdepartment_id: selectedSubdepartment ? Number(selectedSubdepartment) : null,
         target_user_ids: hasSelectedUsers ? formData.target_user_ids : null,
         preview: true,
       };
@@ -601,6 +726,7 @@ export function NotificationManagement() {
       target: item.target,
       target_roles: item.target_roles,
       department_name: item.department_name ?? null,
+      subdepartment_name: item.subdepartment_name ?? null,
       recipients_count: item.recipients_count,
       type: 'announcement',
     });
@@ -617,6 +743,7 @@ export function NotificationManagement() {
       target: item.target,
       target_roles: item.target_roles,
       department_name: item.department_name ?? item.data?.from_department ?? null,
+      subdepartment_name: item.subdepartment_name ?? null,
       recipients_count: item.recipients_count,
       type: item.type,
       item_type: item.item_type,
@@ -647,15 +774,36 @@ export function NotificationManagement() {
               Mark All Read
             </button>
           )}
-          <button
-            onClick={async () => {
-              setIsModalOpen(true);
-            }}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Send Announcement
-          </button>
+          <div className="relative" ref={sendDropdownRef}>
+            <button
+              onClick={() => setShowSendDropdown((v) => !v)}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Send Announcement
+              <ChevronDown className="ml-2 h-4 w-4" />
+            </button>
+            {showSendDropdown && (
+              <div className="absolute right-0 top-full mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-slate-800 ring-1 ring-black ring-opacity-5 z-[120]">
+                <div className="py-1">
+                  <button
+                    onClick={() => { setShowSendDropdown(false); setIsModalOpen(true); }}
+                    className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-slate-700 flex items-center"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-blue-500 mr-3"></span>
+                    Group
+                  </button>
+                  <button
+                    onClick={() => { setShowSendDropdown(false); setIsOnePersonModalOpen(true); }}
+                    className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-slate-700 flex items-center"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 mr-3"></span>
+                    One Person
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1073,6 +1221,21 @@ export function NotificationManagement() {
                           ))}
                         </select>
                       </div>
+                      {selectedDepartment && (
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700">Sub Department (optional)</label>
+                          <select
+                            value={selectedSubdepartment}
+                            onChange={(e) => setSelectedSubdepartment(e.target.value)}
+                            className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                          >
+                            <option value="">All sub departments</option>
+                            {availableSubdepartments.map((sub) => (
+                              <option key={sub.id} value={String(sub.id)}>{sub.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                       <div>
                         <label className="block text-sm font-medium text-slate-700">Search Users (by name)</label>
                         <input
@@ -1240,6 +1403,12 @@ export function NotificationManagement() {
                     <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Department</h3>
                     <p className="text-slate-900 dark:text-white">{selectedAnnouncementDetail.department_name || 'All departments'}</p>
                   </div>
+                  {(selectedAnnouncementDetail.source === 'sent' || selectedAnnouncementDetail.item_type === 'sent') && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Sub Department</h3>
+                      <p className="text-slate-900 dark:text-white">{selectedAnnouncementDetail.subdepartment_name || 'All sub departments'}</p>
+                    </div>
+                  )}
                   <div>
                     <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Recipients</h3>
                     <p className="text-slate-900 dark:text-white">
@@ -1346,6 +1515,172 @@ export function NotificationManagement() {
                     Close
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* One Person Modal */}
+      {isOnePersonModalOpen && (
+        <div className="fixed inset-0 z-50">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 overflow-y-auto">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-slate-500 opacity-75"></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white dark:bg-slate-800 rounded-lg text-left overflow-y-auto max-h-[90vh] shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="absolute top-4 right-4">
+                <button onClick={() => { setIsOnePersonModalOpen(false); resetOnePersonForm(); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="bg-white dark:bg-slate-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-2 rounded-full bg-emerald-100 dark:bg-emerald-900">
+                    <User className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
+                  </div>
+                  <h3 className="text-lg leading-6 font-medium text-slate-900 dark:text-white">Send to One Person</h3>
+                </div>
+                <form onSubmit={handleSendOnePerson} className="space-y-4">
+                  {/* Department filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Department</label>
+                    <select
+                      value={onePersonDept}
+                      onChange={(e) => { setOnePersonDept(e.target.value); setOnePersonSubdept(''); setOnePersonSelected(null); setOnePersonQuery(''); setOnePersonResults([]); }}
+                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    >
+                      <option value="">All Departments</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={String(d.id)}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Sub Department filter */}
+                  {onePersonDept && (() => {
+                    const deptObj = departments.find((d) => String(d.id) === onePersonDept);
+                    const subs = deptObj?.subdepartments || [];
+                    if (subs.length === 0) return null;
+                    return (
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Sub Department</label>
+                        <select
+                          value={onePersonSubdept}
+                          onChange={(e) => { setOnePersonSubdept(e.target.value); setOnePersonSelected(null); setOnePersonQuery(''); setOnePersonResults([]); }}
+                          className="mt-1 block w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                        >
+                          <option value="">All Sub Departments</option>
+                          {subs.map((s) => (
+                            <option key={s.id} value={String(s.id)}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })()}
+                  {/* Role filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Role *</label>
+                    <div className="mt-2 flex items-center gap-6">
+                      {(['instructor', 'employee'] as const).map((val) => (
+                        <label key={val} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="onePersonRole"
+                            value={val}
+                            checked={onePersonRole === val}
+                            onChange={() => { setOnePersonRole(val); }}
+                            className="accent-green-600 w-4 h-4"
+                          />
+                          <span className="text-sm text-slate-700 dark:text-slate-300 capitalize">{val}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Recipient dropdown */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Recipient *</label>
+                    <select
+                      value={onePersonSelected ? String(onePersonSelected.id) : ''}
+                      onChange={(e) => {
+                        const found = onePersonResults.find((u) => String(u.id) === e.target.value) || null;
+                        setOnePersonSelected(found);
+                      }}
+                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    >
+                      <option value="">-- Select a recipient --</option>
+                      {onePersonResults.map((u) => (
+                        <option key={u.id} value={String(u.id)}>{u.fullname} ({u.role})</option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Title */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Title *</label>
+                    <input
+                      type="text"
+                      required
+                      value={onePersonForm.title}
+                      onChange={(e) => setOnePersonForm((p) => ({ ...p, title: e.target.value }))}
+                      placeholder="Announcement title"
+                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    />
+                  </div>
+                  {/* Message */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Message *</label>
+                    <div className="mt-1">
+                      <RichTextEditor
+                        value={onePersonForm.message}
+                        onChange={(html) => setOnePersonForm((p) => ({ ...p, message: html }))}
+                        placeholder="Type your message here..."
+                        minHeight="130px"
+                      />
+                    </div>
+                  </div>
+                  {/* Images */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Images (optional)</label>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                      onChange={(e) => setOnePersonImages(Array.from(e.target.files || []))}
+                      className="mt-1 block w-full text-sm text-slate-700 dark:text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 dark:file:bg-slate-700 dark:file:text-slate-300"
+                    />
+                    {onePersonImages.length > 0 && (
+                      <div className="mt-2 space-y-2">
+                        <p className="text-xs text-slate-500">{onePersonImages.length} image{onePersonImages.length === 1 ? '' : 's'} selected</p>
+                        <div className="flex flex-wrap gap-2">
+                          {onePersonImagePreviewUrls.map((url, idx) => (
+                            <img key={url} src={url} alt={`Preview ${idx + 1}`} className="h-20 w-20 rounded-md border border-slate-200 object-cover" />
+                          ))}
+                        </div>
+                        <button type="button" onClick={() => setOnePersonImages([])} className="inline-flex items-center rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                          Remove all images
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {/* Actions */}
+                  <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
+                    <button
+                      type="button"
+                      onClick={() => { setIsOnePersonModalOpen(false); resetOnePersonForm(); }}
+                      className="w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white dark:bg-slate-700 dark:border-slate-600 text-base font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 sm:text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSendingOne}
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 disabled:opacity-50 sm:text-sm"
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      {isSendingOne ? 'Sending...' : 'Send'}
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           </div>

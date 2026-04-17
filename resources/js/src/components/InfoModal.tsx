@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { XMarkIcon, InformationCircleIcon, CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 
 interface InfoModalProps {
@@ -21,6 +22,7 @@ export default function InfoModal({
   icon,
 }: InfoModalProps) {
   if (!open) return null;
+  if (typeof document === 'undefined') return null;
 
   const variantStyles = {
     info: {
@@ -48,7 +50,7 @@ export default function InfoModal({
   const styles = variantStyles[variant];
   const IconComponent = styles.Icon;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
@@ -93,6 +95,7 @@ export default function InfoModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

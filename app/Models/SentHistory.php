@@ -19,6 +19,7 @@ class SentHistory extends Model
         'target',
         'target_roles',
         'department_id',
+        'subdepartment_id',
         'recipients_count',
     ];
 
@@ -46,6 +47,14 @@ class SentHistory extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    /**
+     * Get the subdepartment this announcement was sent to.
+     */
+    public function subdepartment(): BelongsTo
+    {
+        return $this->belongsTo(Subdepartment::class);
     }
 
     /**

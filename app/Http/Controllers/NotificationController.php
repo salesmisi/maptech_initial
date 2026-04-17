@@ -210,6 +210,8 @@ class NotificationController extends Controller
             'roles.*' => 'string|in:Instructor,Employee,Admin',
             'course_id' => 'nullable|exists:courses,id',
             'department' => 'nullable|string|max:255',
+            'department_id' => 'nullable|integer|exists:departments,id',
+            'subdepartment_id' => 'nullable|integer|exists:subdepartments,id',
             'target_user_ids' => 'nullable|array',
             'target_user_ids.*' => 'integer|exists:users,id',
             'image' => 'nullable|image|mimes:jpg,jpeg,png,gif,webp|max:4096',
@@ -230,6 +232,7 @@ class NotificationController extends Controller
         $courseId = $request->input('course_id');
         $department = $request->input('department');
         $department_id = $request->input('department_id');
+        $subdepartmentId = $request->input('subdepartment_id');
         $imageUrl = null;
         $imageUrls = [];
         // If department_id provided, resolve to department name
@@ -237,6 +240,17 @@ class NotificationController extends Controller
             $dept = \App\Models\Department::find($department_id);
             if ($dept) {
                 $department = $dept->name;
+            }
+        }
+
+        if ($subdepartmentId) {
+            $subdepartment = \App\Models\Subdepartment::find($subdepartmentId);
+            if (! $subdepartment) {
+                return response()->json(['message' => 'Selected sub department does not exist.'], 422);
+            }
+
+            if ($department_id && (int) $subdepartment->department_id !== (int) $department_id) {
+                return response()->json(['message' => 'Selected sub department does not belong to the selected department.'], 422);
             }
         }
 
@@ -259,6 +273,9 @@ class NotificationController extends Controller
                 ->where('id', '!=', $admin->id)
                 ->when($department, function ($q) use ($department) {
                     return $q->where('department', $department);
+                })
+                ->when($subdepartmentId, function ($q) use ($subdepartmentId) {
+                    return $q->where('subdepartment_id', (int) $subdepartmentId);
                 })
                 ->get();
         }
@@ -322,7 +339,7 @@ class NotificationController extends Controller
         // Create sent history entry
         $targetDescription = 'Multiple Users';
         if ($users->count() === 1) {
-            $targetDescription = 'Selected User: ' . $users->first()->fullname;
+            $targetDescription = $users->first()->fullname;
         } elseif (is_array($targetIds) && count($targetIds) > 0) {
             $targetDescription = 'Selected Users (' . $users->count() . ')';
         } elseif ($department) {
@@ -338,6 +355,7 @@ class NotificationController extends Controller
             'target' => $targetDescription,
             'target_roles' => $roles,
             'department_id' => $department_id,
+            'subdepartment_id' => $subdepartmentId,
             'recipients_count' => count($notifications),
         ]);
 
@@ -609,7 +627,7 @@ class NotificationController extends Controller
         $admin = Auth::user();
 
         // Get sent history from the dedicated table (non-deleted entries)
-        $sentAnnouncements = SentHistory::with('department:id,name')
+        $sentAnnouncements = SentHistory::with(['department:id,name', 'subdepartment:id,name'])
             ->where('sender_id', $admin->id)
             ->whereNull('deleted_at')
             ->orderByDesc('created_at')
@@ -626,6 +644,7 @@ class NotificationController extends Controller
                     'recipients_count' => $entry->recipients_count,
                     'target_roles' => $entry->target_roles ?? [],
                     'department_name' => $entry->department?->name,
+                    'subdepartment_name' => $entry->subdepartment?->name,
                 ];
             });
 
@@ -644,7 +663,7 @@ class NotificationController extends Controller
 
         // Get deleted sent announcements
         $deletedSent = SentHistory::getRecentlyDeleted($admin->id)
-            ->load('department:id,name')
+            ->load(['department:id,name', 'subdepartment:id,name'])
             ->map(function ($entry) {
                 return [
                     'id' => $entry->id,
@@ -657,6 +676,7 @@ class NotificationController extends Controller
                     'item_type' => 'sent',
                     'target_roles' => $entry->target_roles ?? [],
                     'department_name' => $entry->department?->name,
+                    'subdepartment_name' => $entry->subdepartment?->name,
                 ];
             });
 

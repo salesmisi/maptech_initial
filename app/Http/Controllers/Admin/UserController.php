@@ -55,9 +55,14 @@ class UserController extends Controller
             $query->where('status', $request->status);
         }
 
-        // Filter by employee subdepartment
+        // Filter by employee subdepartment OR instructor subdepartment (via pivot or head_id)
         if ($request->filled('subdepartment_id')) {
-            $query->where('subdepartment_id', (int) $request->input('subdepartment_id'));
+            $subdeptId = (int) $request->input('subdepartment_id');
+            $query->where(function ($q) use ($subdeptId) {
+                $q->where('subdepartment_id', $subdeptId)
+                  ->orWhereHas('subdepartments', fn ($sq) => $sq->where('subdepartments.id', $subdeptId))
+                  ->orWhereIn('id', \App\Models\Subdepartment::where('id', $subdeptId)->pluck('head_id')->filter());
+            });
         }
 
         $users = $query->select([
