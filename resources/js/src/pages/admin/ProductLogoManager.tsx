@@ -349,7 +349,7 @@ export function ProductLogoManager() {
             <h2 className="text-sm font-semibold text-slate-900 mb-3">Logo Actions</h2>
 
             {!selectedItem ? (
-              <div className="h-full min-h-[280px] flex items-center justify-center text-sm text-slate-500 border border-dashed border-slate-300 rounded-lg bg-slate-50">
+              <div className="min-h-[280px] w-full rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-500 flex items-center justify-center">
                 Select a course to manage its logo.
               </div>
             ) : (
