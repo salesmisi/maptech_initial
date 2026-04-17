@@ -541,22 +541,33 @@ class CustomModuleController extends Controller
 
         try {
             $successCount = 0;
+            $skippedCount = 0;
             $errors = [];
 
-            DB::transaction(function () use ($customModule, $validated, &$successCount, $request) {
+            // Get users who are already assigned this module to prevent duplicates
+            $alreadyAssignedUserIds = DB::table('custom_module_user_assignments')
+                ->where('custom_module_id', $customModule->id)
+                ->whereIn('user_id', $validated['user_ids'])
+                ->pluck('user_id')
+                ->toArray();
+
+            DB::transaction(function () use ($customModule, $validated, &$successCount, &$skippedCount, $alreadyAssignedUserIds, $request) {
                 foreach ($validated['user_ids'] as $userId) {
-                    // Create or update assignment
-                    DB::table('custom_module_user_assignments')->updateOrInsert(
-                        [
-                            'custom_module_id' => $customModule->id,
-                            'user_id' => $userId,
-                        ],
-                        [
-                            'assigned_by' => $request->user()->id,
-                            'assigned_at' => now(),
-                            'updated_at' => now(),
-                        ]
-                    );
+                    // Skip users who are already assigned this module
+                    if (in_array($userId, $alreadyAssignedUserIds)) {
+                        $skippedCount++;
+                        continue;
+                    }
+
+                    // Create new assignment
+                    DB::table('custom_module_user_assignments')->insert([
+                        'custom_module_id' => $customModule->id,
+                        'user_id' => $userId,
+                        'assigned_by' => $request->user()->id,
+                        'assigned_at' => now(),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
 
                     // Create notification for the user
                     Notification::create([
@@ -574,12 +585,20 @@ class CustomModuleController extends Controller
                 }
             });
 
-            $roleLabel = 'instructor' . ($successCount > 1 ? 's' : '');
-            $message = "Module pushed to {$successCount} {$roleLabel} successfully";
+            // Build appropriate message
+            $roleLabel = 'instructor' . ($successCount !== 1 ? 's' : '');
+            if ($successCount > 0 && $skippedCount > 0) {
+                $message = "Module pushed to {$successCount} {$roleLabel}. {$skippedCount} already had this module.";
+            } elseif ($successCount > 0) {
+                $message = "Module pushed to {$successCount} {$roleLabel} successfully";
+            } else {
+                $message = "All selected instructors already have this module assigned.";
+            }
 
             return response()->json([
                 'message' => $message,
                 'success_count' => $successCount,
+                'skipped_count' => $skippedCount,
                 'errors' => $errors,
             ]);
         } catch (Exception $e) {
