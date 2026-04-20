@@ -10,8 +10,11 @@ interface CourseStat { name: string; enrolled: number; completed: number }
 interface PerformancePoint { name: string; avgScore: number; submissions: number }
 interface RecentQuestion { id: number; student: string; question: string; course: string; time: string }
 
+interface InstructorDashboardProps {
+  onNavigate?: (page: string) => void;
+}
 
-export function InstructorDashboard() {
+export function InstructorDashboard({ onNavigate }: InstructorDashboardProps) {
   const [pendingEvaluations, setPendingEvaluations] = useState<PendingEvaluation[]>([]);
   const [courseStats, setCourseStats] = useState<CourseStat[]>([]);
   const [performanceData, setPerformanceData] = useState<PerformancePoint[]>([]);
@@ -213,7 +216,12 @@ export function InstructorDashboard() {
         <div className="rounded bg-white p-4 shadow sm:p-5">
           <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span className="font-semibold">Recent Student Questions</span>
-            <a href="#" className="text-blue-600 text-xs">View All Q&amp;A</a>
+            <button
+              onClick={() => onNavigate?.('qa-discussion')}
+              className="text-blue-600 text-xs hover:text-blue-800 hover:underline"
+            >
+              View All Q&A
+            </button>
           </div>
           <ul>
             {recentQuestions.map((q) => (

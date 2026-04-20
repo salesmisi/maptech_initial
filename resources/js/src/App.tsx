@@ -704,7 +704,7 @@ export function App() {
           onGlobalSearchSubmit={handleGlobalSearchSubmit}
         >
           <div key={transitionKey} className="page-open-transition">
-            {currentPage === 'dashboard' && <InstructorDashboard />}
+            {currentPage === 'dashboard' && <InstructorDashboard onNavigate={handleNavigate} />}
             {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
             {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} />}
             {currentPage === 'custom-module-detail' && selectedCustomModuleId && <CustomModuleViewer moduleId={selectedCustomModuleId} apiPath="instructor/custom-modules" editApiPath="instructor/custom-modules" allowEdit={true} onBack={() => handleNavigate('courses')} />}
