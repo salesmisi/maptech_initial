@@ -209,6 +209,34 @@ export function ProfileSettings() {
     }
   };
 
+  const handleRemovePicture = async () => {
+    setUploadingPic(true);
+    setMessage(null);
+    try {
+      await getCsrf();
+      const res = await fetch(`${API_BASE}/profile/picture`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'X-XSRF-TOKEN': getXsrfToken(),
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage({ type: 'error', text: data.message || 'Failed to remove picture.' });
+      } else {
+        setMessage({ type: 'success', text: 'Profile picture removed.' });
+        setProfile((prev) => prev ? { ...prev, profile_picture: null } : prev);
+        window.dispatchEvent(new CustomEvent('profile-picture-updated', { detail: { profile_picture: null } }));
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Failed to remove picture.' });
+    } finally {
+      setUploadingPic(false);
+    }
+  };
+
   const uploadSignatureFile = async (file: File): Promise<boolean> => {
     const allowed = ['image/png', 'image/jpeg', 'image/jpg'];
     if (!allowed.includes(file.type)) {
@@ -719,7 +747,7 @@ export function ProfileSettings() {
                             if (/[0-9]/.test(password)) score++;
                             if (/[^A-Za-z0-9]/.test(password)) score++;
                             const strength = Math.min(score, 4);
-                            return strength <= 1 ? 'text-red-600' : strength === 2 ? 'text-orange-600' : strength === 3 ? 'text-yellow-600' : 'text-green-600';
+                            return strength <= 1 ? 'Weak password' : strength === 2 ? 'Fair password' : strength === 3 ? 'Good password' : 'Strong password';
                           })()
                     }`}>
                       {password.length < 8
