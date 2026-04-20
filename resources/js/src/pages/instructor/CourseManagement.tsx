@@ -1103,9 +1103,20 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
                 {deptEmployees.length > 0 ? (
                   <div className="mb-4">
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-                      {deptEmployees.length} employee{deptEmployees.length > 1 ? 's' : ''} will receive this module:
-                    </p>
+                    {(() => {
+                      const unpushedCount = deptEmployees.filter((emp: any) => !emp.is_pushed).length;
+                      const allPushed = unpushedCount === 0;
+                      return (
+                        <>
+                          <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                            {allPushed
+                              ? `All ${deptEmployees.length} employee${deptEmployees.length > 1 ? 's' : ''} have already received this module:`
+                              : `${unpushedCount} employee${unpushedCount > 1 ? 's' : ''} will receive this module:`
+                            }
+                          </p>
+                        </>
+                      );
+                    })()}
                     <div className="max-h-48 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-md">
                       {deptEmployees.map((emp: any) => (
                         <div key={emp.id} className="px-3 py-2 text-sm border-b border-slate-100 dark:border-slate-700 last:border-b-0">
@@ -1139,21 +1150,27 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   )
                 )}
 
-                <div className="flex gap-3 justify-end">
-                  <button
-                    onClick={() => { setPushDeptModalOpen(false); setPushModuleId(null); setDeptEmployees([]); setLoadingEmployees(false); }}
-                    className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handlePushToDepartment}
-                    disabled={pushing || deptEmployees.length === 0}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {pushing ? 'Pushing...' : 'Push to My Employee'}
-                  </button>
-                </div>
+                {(() => {
+                  const allPushed = deptEmployees.length > 0 && deptEmployees.every((emp: any) => emp.is_pushed);
+                  return (
+                    <div className="flex gap-3 justify-end">
+                      <button
+                        onClick={() => { setPushDeptModalOpen(false); setPushModuleId(null); setDeptEmployees([]); setLoadingEmployees(false); }}
+                        className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handlePushToDepartment}
+                        disabled={pushing || deptEmployees.length === 0 || allPushed}
+                        title={allPushed ? 'All employees have already received this module' : undefined}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {pushing ? 'Pushing...' : 'Push to My Employee'}
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>,
