@@ -48,6 +48,12 @@ interface ConfirmDialogState {
   action: null | (() => Promise<void>);
 }
 
+interface InfoDialogState {
+  open: boolean;
+  title: string;
+  message: string;
+}
+
 export default function DepartmentManagement() {
   const API = '/api';
 
@@ -90,6 +96,11 @@ export default function DepartmentManagement() {
     action: null,
   });
   const [confirmBusy, setConfirmBusy] = useState(false);
+  const [infoDialog, setInfoDialog] = useState<InfoDialogState>({
+    open: false,
+    title: '',
+    message: '',
+  });
 
   const [createForm, setCreateForm] = useState({
     name: '',
@@ -201,6 +212,10 @@ export default function DepartmentManagement() {
     setConfirmDialog({ open: true, title, message, action });
   };
 
+  const showInfoDialog = (title: string, message: string) => {
+    setInfoDialog({ open: true, title, message });
+  };
+
   const runConfirmAction = async () => {
     if (!confirmDialog.action) return;
 
@@ -304,7 +319,12 @@ export default function DepartmentManagement() {
   const handleCreateSubdepartment = async () => {
     if (!activeDepartment) return;
     if (!newSubForm.name.trim()) {
-      alert('Subdepartment Name is required.');
+      showInfoDialog('Required Field', 'Subdepartment Name is required.');
+      return;
+    }
+
+    if (!newSubForm.head_id) {
+      showInfoDialog('Required Field', 'Subdepartment Head is required.');
       return;
     }
 
@@ -813,6 +833,26 @@ export default function DepartmentManagement() {
               className="rounded-md bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {confirmBusy ? 'Deleting...' : 'Confirm Delete'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {infoDialog.open && (
+        <Modal
+          onClose={() => {
+            setInfoDialog({ open: false, title: '', message: '' });
+          }}
+          maxWidthClass="max-w-md"
+        >
+          <h3 className="mb-2 text-lg font-semibold">{infoDialog.title}</h3>
+          <p className="mb-5 text-sm text-slate-600 dark:text-slate-300">{infoDialog.message}</p>
+          <div className="flex justify-end">
+            <button
+              onClick={() => setInfoDialog({ open: false, title: '', message: '' })}
+              className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+            >
+              OK
             </button>
           </div>
         </Modal>

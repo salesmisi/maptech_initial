@@ -6,7 +6,6 @@ import {
   PencilIcon,
   TrashIcon,
   EyeIcon,
-  DocumentPlusIcon,
   VideoCameraIcon,
   AcademicCapIcon,
   UsersIcon,
@@ -61,6 +60,11 @@ function normalizeCourseStatus(status: unknown): 'Active' | 'Draft' | 'Inactive'
   return 'Draft';
 }
 
+function formatLocalDateTimeInput(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function toUtcIsoString(value: FormDataEntryValue | null): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -71,20 +75,34 @@ function toUtcIsoString(value: FormDataEntryValue | null): string | null {
   return parsed.toISOString();
 }
 
+function normalizeApiDateTime(value?: string | null): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(trimmed);
+  const normalizedInput = hasTimezone
+    ? trimmed
+    : `${trimmed.replace(' ', 'T').replace(/\.\d+$/, '')}Z`;
+
+  const parsed = new Date(normalizedInput);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
 function toLocalDateTimeInputValue(value?: string | null): string {
-  if (!value) return '';
-  const parsed = new Date(value);
+  const normalized = normalizeApiDateTime(value);
+  if (!normalized) return '';
+  const parsed = new Date(normalized);
   if (Number.isNaN(parsed.getTime())) return '';
 
-  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
+  return formatLocalDateTimeInput(parsed);
 }
 
 function getMinDateTimeInputValue(): string {
   const now = new Date();
   now.setSeconds(0, 0);
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
+  return formatLocalDateTimeInput(now);
 }
 
 function isPastDateTimeInput(value: FormDataEntryValue | null): boolean {
@@ -431,6 +449,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       setCourses(rawCourses.map((c: any) => ({
         ...c,
         status: normalizeCourseStatus(c.status),
+        start_date: normalizeApiDateTime(c.start_date),
+        deadline: normalizeApiDateTime(c.deadline),
         subdepartment_id: c.subdepartment_id ?? null,
         instructor_id: c.instructor_id ?? (c.instructor?.id ?? null),
         instructor: typeof c.instructor === 'object' && c.instructor !== null
@@ -1260,20 +1280,6 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   {course.status}
                 </span>
                 <div className="flex space-x-1">
-                  <button
-                    onClick={() => onNavigate?.('course-detail', String(course.id))}
-                    className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-blue-700 hover:bg-blue-50 dark:text-slate-300 dark:hover:text-sky-300 dark:hover:bg-slate-800"
-                    title="Manage Content"
-                  >
-                    <EyeIcon className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => onNavigate?.('course-content-editor', String(course.id))}
-                    className="p-1.5 rounded-md text-gray-600 hover:text-green-700 hover:bg-green-50 dark:text-slate-300 dark:hover:text-green-300 dark:hover:bg-slate-800"
-                    title="Edit Modules & Lessons"
-                  >
-                    <DocumentPlusIcon className="h-4 w-4" />
-                  </button>
                   <button
                     onClick={() => handleEditCourse(course)}
                     className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-amber-700 hover:bg-amber-50 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800"
@@ -2143,10 +2149,10 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   return;
                 }
 
-                const startDateUtc = toUtcIsoString(fd.get('start_date'));
-                const deadlineUtc = toUtcIsoString(fd.get('deadline'));
-                if (startDateUtc) fd.set('start_date', startDateUtc); else fd.delete('start_date');
-                if (deadlineUtc) fd.set('deadline', deadlineUtc); else fd.delete('deadline');
+                const startDateValue = toUtcIsoString(fd.get('start_date'));
+                const deadlineValue = toUtcIsoString(fd.get('deadline'));
+                if (startDateValue) fd.set('start_date', startDateValue); else fd.delete('start_date');
+                if (deadlineValue) fd.set('deadline', deadlineValue); else fd.delete('deadline');
                 try {
                   await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
                   const csrf = getXsrfToken();

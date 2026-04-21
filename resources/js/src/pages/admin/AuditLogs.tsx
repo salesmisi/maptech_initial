@@ -62,28 +62,6 @@ type RoleFilter = "All" | "Employee" | "Instructor" | "Admin";
 
 export function AuditLogs() {
   const API = "/api/admin";
-  // Sorting state
-  const [sortField, setSortField] = useState<'time_in' | 'time_out' | 'name'>('time_in');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-
-  // Custom sorting function
-  const sortSessions = (sessions: Session[]) => {
-    return [...sessions].sort((a, b) => {
-      let aVal, bVal;
-      if (sortField === 'name') {
-        aVal = a.user?.fullname || '';
-        bVal = b.user?.fullname || '';
-      } else {
-        aVal = a[sortField] || '';
-        bVal = b[sortField] || '';
-      }
-      if (sortOrder === 'asc') {
-        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
-      } else {
-        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
-      }
-    });
-  };
   const getCookie = (name: string) => {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -288,18 +266,16 @@ export function AuditLogs() {
   const sessions = groupIntoSessions(logs);
 
   // Apply role/search filters
-  const filteredSessions = sortSessions(
-    sessions.filter((s) => {
-      if (roleFilter !== "All") {
-        const userRole = (s.user?.role || "").trim().toLowerCase();
-        const selectedRole = roleFilter.trim().toLowerCase();
-        if (userRole !== selectedRole) return false;
-      }
-      if (!search) return true;
-      const q = search.toLowerCase();
-      return (s.user?.fullname || "").toLowerCase().includes(q) || (s.user?.email || "").toLowerCase().includes(q);
-    })
-  );
+  const filteredSessions = sessions.filter((s) => {
+    if (roleFilter !== "All") {
+      const userRole = (s.user?.role || "").trim().toLowerCase();
+      const selectedRole = roleFilter.trim().toLowerCase();
+      if (userRole !== selectedRole) return false;
+    }
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (s.user?.fullname || "").toLowerCase().includes(q) || (s.user?.email || "").toLowerCase().includes(q);
+  });
 
   const groupedByUser: Record<number, Session[]> = {};
   filteredSessions.forEach((s) => {
@@ -566,22 +542,7 @@ export function AuditLogs() {
           </div>
         </div>
       )}
-      {/* Sorting Controls */}
-      <div className="mb-4 flex gap-2 items-center">
-        <span className="text-sm text-gray-600 dark:text-slate-300">Sort by:</span>
-        <select value={sortField} onChange={e => setSortField(e.target.value as any)} className="px-2 py-1 border rounded text-sm bg-white text-slate-800 border-slate-300 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700">
-          <option value="time_in">Time In</option>
-          <option value="time_out">Time Out</option>
-          <option value="name">Name</option>
-        </select>
-        <button
-          className="px-2 py-1 border rounded text-sm border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-          onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
-        >
-          {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
-        </button>
-      </div>
-        <div className="text-xs text-gray-500 dark:text-slate-400 mb-2">All times are shown in your local timezone.</div>
+      <div className="text-xs text-gray-500 dark:text-slate-400 mb-2">All times are shown in your local timezone.</div>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-semibold">Audit Logs</h1>

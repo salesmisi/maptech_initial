@@ -163,6 +163,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
   const [quizAttempts, setQuizAttempts] = useState<QuizAttemptRecord[]>([]);
   const [selectedSentence, setSelectedSentence] = useState('');
   const [selectedSentenceDefinition, setSelectedSentenceDefinition] = useState('');
+  const [showSentenceModal, setShowSentenceModal] = useState(false);
   const [, setViewedLessons] = useState<Set<number>>(new Set());
   const [, setViewedModules] = useState<Set<number>>(new Set());
   const [showCompletionPopup, setShowCompletionPopup] = useState(false);
@@ -605,9 +606,17 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
               dangerouslySetInnerHTML={{ __html: renderedText }}
             />
             {selectedSentence && (
-              <div className="mt-4 rounded-md border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 p-3 space-y-2">
-                <p className="text-xs text-blue-800 dark:text-blue-200"><strong>Sentence:</strong> {selectedSentence}</p>
-                <p className="text-sm text-blue-900 dark:text-blue-100">{selectedSentenceDefinition}</p>
+              <div
+                className="mt-4 rounded-md border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 p-3 space-y-2 cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-800/40 transition-colors group"
+                onClick={() => setShowSentenceModal(true)}
+                title="Click to view larger"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-emerald-800 dark:text-emerald-200"><strong>Sentence:</strong> {selectedSentence}</p>
+                  <Eye className="h-4 w-4 text-emerald-500 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+                <p className="text-sm text-emerald-900 dark:text-emerald-100">{selectedSentenceDefinition}</p>
+                <p className="text-xs text-emerald-500 dark:text-emerald-400 text-center mt-2 opacity-70">Click to read more clearly</p>
               </div>
             )}
           </div>
@@ -634,9 +643,17 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             dangerouslySetInnerHTML={{ __html: sanitizeHtml(stripLessonMetaBlocks(currentLesson.text_content || '')) }}
           />
           {selectedSentence && (
-            <div className="mt-4 rounded-md border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 p-3 space-y-2">
-              <p className="text-xs text-blue-800 dark:text-blue-200"><strong>Sentence:</strong> {selectedSentence}</p>
-              <p className="text-sm text-blue-900 dark:text-blue-100">{selectedSentenceDefinition}</p>
+            <div
+              className="mt-4 rounded-md border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 p-3 space-y-2 cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-800/40 transition-colors group"
+              onClick={() => setShowSentenceModal(true)}
+              title="Click to view larger"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-emerald-800 dark:text-emerald-200"><strong>Sentence:</strong> {selectedSentence}</p>
+                <Eye className="h-4 w-4 text-emerald-500 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+              <p className="text-sm text-emerald-900 dark:text-emerald-100">{selectedSentenceDefinition}</p>
+              <p className="text-xs text-emerald-500 dark:text-emerald-400 text-center mt-2 opacity-70">Click to read more clearly</p>
             </div>
           )}
         </div>
@@ -1251,6 +1268,69 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                 className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
               >
                 View Certificates
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sentence Detail Modal */}
+      {showSentenceModal && selectedSentence && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+            onClick={() => setShowSentenceModal(false)}
+            aria-hidden="true"
+          />
+          <div className="relative w-full max-w-2xl max-h-[80vh] rounded-2xl border border-emerald-300/30 bg-white dark:bg-slate-800 shadow-2xl overflow-hidden">
+            <div className="sticky top-0 bg-emerald-600 dark:bg-emerald-700 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <BookOpen className="h-5 w-5" />
+                Sentence Information
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowSentenceModal(false)}
+                className="rounded-md p-1 text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+                aria-label="Close sentence modal"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
+              {/* Sentence */}
+              <div className="mb-6">
+                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-2">
+                  Sentence
+                </p>
+                <div className="bg-emerald-50 dark:bg-emerald-900/30 rounded-xl p-5 border border-emerald-200 dark:border-emerald-700">
+                  <p className="text-lg text-slate-800 dark:text-slate-100 leading-relaxed font-medium">
+                    {selectedSentence}
+                  </p>
+                </div>
+              </div>
+
+              {/* Definition / Information */}
+              <div>
+                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-2">
+                  Information
+                </p>
+                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-5 border-l-4 border-emerald-500 dark:border-emerald-400">
+                  <p className="text-base text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
+                    {selectedSentenceDefinition}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 bg-slate-50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-6 py-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowSentenceModal(false)}
+                className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>

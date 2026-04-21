@@ -534,7 +534,7 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
                                   <div className="flex items-center gap-2">
                                     <button
                                       onClick={() => startEdit(quiz)}
-                                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-700 border border-blue-200 rounded-md hover:bg-blue-50 transition-colors"
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-700 border border-blue-200 rounded-md hover:bg-blue-50 dark:text-slate-300 dark:border-slate-600 dark:bg-slate-800/60 dark:hover:bg-slate-700 dark:hover:text-slate-100 transition-colors"
                                     >
                                       <Edit2 className="h-3.5 w-3.5" />
                                       Edit

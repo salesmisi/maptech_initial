@@ -144,8 +144,25 @@ const getMinDateTimeInputValue = (): string => {
   return local.toISOString().slice(0, 16);
 };
 
+const normalizeApiDateTime = (value?: string | null): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(trimmed);
+  const normalizedInput = hasTimezone
+    ? trimmed
+    : `${trimmed.replace(' ', 'T').replace(/\.\d+$/, '')}Z`;
+
+  const parsed = new Date(normalizedInput);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+};
+
 const toLocalDatetimeInput = (dateStr: string): string => {
-  const d = new Date(dateStr);
+  const normalized = normalizeApiDateTime(dateStr);
+  if (!normalized) return '';
+  const d = new Date(normalized);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
@@ -244,8 +261,8 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
           ? `/storage/${course.instructor.profile_picture}`
           : null,
         status: course.status,
-        start_date: course.start_date,
-        deadline: course.deadline,
+        start_date: normalizeApiDateTime(course.start_date),
+        deadline: normalizeApiDateTime(course.deadline),
         enrolledCount: course.enrollments_count || 0,
         modulesCount: course.modules?.length || 0,
         thumbnail: 'bg-green-500',

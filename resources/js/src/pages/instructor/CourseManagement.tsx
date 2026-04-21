@@ -205,7 +205,18 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       });
       if (!res.ok) throw new Error('Failed to load courses');
       const data = await res.json();
-      setCourses(data);
+      setCourses((prev) => {
+        const locallyUnlocked = new Set(
+          safeArray(prev)
+            .filter((c) => Boolean(c.availableByInstructor))
+            .map((c) => String(c.id))
+        );
+
+        return safeArray<Course>(data).map((c) => ({
+          ...c,
+          availableByInstructor: locallyUnlocked.has(String(c.id)) || Boolean((c as any).has_manual_unlock),
+        }));
+      });
     } catch (e) {
       console.error(e);
     } finally {
@@ -633,7 +644,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((course) => {
             const notStarted = course.start_date && new Date(course.start_date) > new Date();
-            const hasManualUnlock = (course as any).has_manual_unlock ?? false;
+            const hasManualUnlock = Boolean((course as any).has_manual_unlock ?? false) || Boolean(course.availableByInstructor);
             const ended = course.deadline && new Date(course.deadline) <= new Date() && !hasManualUnlock;
             const modulesCount = course.modules?.length ?? 0;
             const hasAnyModule = modulesCount > 0;
@@ -832,6 +843,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   type="text"
                   name="title"
                   defaultValue={editingCourse?.title}
+                  placeholder="Enter Title here"
                   required
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
@@ -842,7 +854,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 <textarea
                   rows={3}
                   name="description"
-                  defaultValue={editingCourse?.description || 'Self Pace'}
+                  defaultValue={editingCourse?.description || ''}
+                  placeholder="enter description"
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
@@ -933,55 +946,56 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 <p className="mt-1 text-xs text-slate-400">This logo will appear on certificates issued for this course.</p>
               </div>
 
-              {/* Module Upload Section */}
-              <div className="border-t border-slate-200 pt-4">
-                <div className="flex justify-between items-center mb-3">
-                  <h4 className="text-sm font-medium text-slate-700">Add Modules / Content</h4>
-                  <button
-                    type="button"
-                    onClick={addModule}
-                    className="inline-flex items-center px-3 py-1.5 border border-green-300 rounded-md text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100"
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Module
-                  </button>
-                </div>
-
-                {modules.length === 0 ? (
-                  <p className="text-sm text-slate-500 italic">No modules added yet.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {safeArray(modules).map((mod, idx) => (
-                      <div key={mod.id} className="p-3 bg-slate-50 rounded-md border border-slate-200">
-                        <div className="flex gap-2 items-start">
-                          <div className="flex-1 space-y-2">
-                            <input
-                              type="text"
-                              placeholder={`Module ${idx + 1} Title`}
-                              value={mod.title}
-                              onChange={(e) => updateModuleTitle(mod.id, e.target.value)}
-                              className="w-full border border-slate-300 rounded-md py-1.5 px-2 text-sm focus:ring-green-500 focus:border-green-500"
-                            />
-                            <input
-                              type="file"
-                              accept="video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
-                              onChange={(e) => updateModuleFile(mod.id, e.target.files?.[0] || null)}
-                              className="w-full text-sm text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-medium file:bg-green-50 file:text-green-700"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeModule(mod.id)}
-                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
-                          >
-                            <Trash className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+              {editingCourse && (
+                <div className="border-t border-slate-200 pt-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="text-sm font-medium text-slate-700">Add Modules / Content</h4>
+                    <button
+                      type="button"
+                      onClick={addModule}
+                      className="inline-flex items-center px-3 py-1.5 border border-green-300 rounded-md text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Module
+                    </button>
                   </div>
-                )}
-              </div>
+
+                  {modules.length === 0 ? (
+                    <p className="text-sm text-slate-500 italic">No modules added yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {safeArray(modules).map((mod, idx) => (
+                        <div key={mod.id} className="p-3 bg-slate-50 rounded-md border border-slate-200">
+                          <div className="flex gap-2 items-start">
+                            <div className="flex-1 space-y-2">
+                              <input
+                                type="text"
+                                placeholder={`Module ${idx + 1} Title`}
+                                value={mod.title}
+                                onChange={(e) => updateModuleTitle(mod.id, e.target.value)}
+                                className="w-full border border-slate-300 rounded-md py-1.5 px-2 text-sm focus:ring-green-500 focus:border-green-500"
+                              />
+                              <input
+                                type="file"
+                                accept="video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
+                                onChange={(e) => updateModuleFile(mod.id, e.target.files?.[0] || null)}
+                                className="w-full text-sm text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-medium file:bg-green-50 file:text-green-700"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeModule(mod.id)}
+                              className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                            >
+                              <Trash className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex gap-3 pt-4 border-t border-slate-200">
                 <button
@@ -1011,8 +1025,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
             onClick={(e) => { if (e.target === e.currentTarget) { setCourseUnlockModalOpen(false); setCourseUnlockTargetId(null); } }}
           >
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-white">Unlock Course</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Set the unlock period for enrolled employees.</p>
+              <h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-white">Unlock Locked Course</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">This course is currently Locked. Set the unlock period for enrolled employees.</p>
               {unlockError && <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm rounded px-3 py-2 mb-3">{unlockError}</div>}
 
               <div className="space-y-4">
@@ -1071,7 +1085,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   disabled={unlocking}
                   className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm disabled:opacity-50"
                 >
-                  {unlocking ? 'Unlocking...' : 'Confirm'}
+                  {unlocking ? 'Unlocking...' : 'Unlock Course'}
                 </button>
               </div>
             </div>
@@ -1103,9 +1117,20 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
                 {deptEmployees.length > 0 ? (
                   <div className="mb-4">
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-                      {deptEmployees.length} employee{deptEmployees.length > 1 ? 's' : ''} will receive this module:
-                    </p>
+                    {(() => {
+                      const unpushedCount = deptEmployees.filter((emp: any) => !emp.is_pushed).length;
+                      const allPushed = unpushedCount === 0;
+                      return (
+                        <>
+                          <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                            {allPushed
+                              ? `All ${deptEmployees.length} employee${deptEmployees.length > 1 ? 's' : ''} have already received this module:`
+                              : `${unpushedCount} employee${unpushedCount > 1 ? 's' : ''} will receive this module:`
+                            }
+                          </p>
+                        </>
+                      );
+                    })()}
                     <div className="max-h-48 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-md">
                       {deptEmployees.map((emp: any) => (
                         <div key={emp.id} className="px-3 py-2 text-sm border-b border-slate-100 dark:border-slate-700 last:border-b-0">
@@ -1139,21 +1164,27 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   )
                 )}
 
-                <div className="flex gap-3 justify-end">
-                  <button
-                    onClick={() => { setPushDeptModalOpen(false); setPushModuleId(null); setDeptEmployees([]); setLoadingEmployees(false); }}
-                    className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handlePushToDepartment}
-                    disabled={pushing || deptEmployees.length === 0}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {pushing ? 'Pushing...' : 'Push to My Employee'}
-                  </button>
-                </div>
+                {(() => {
+                  const allPushed = deptEmployees.length > 0 && deptEmployees.every((emp: any) => emp.is_pushed);
+                  return (
+                    <div className="flex gap-3 justify-end">
+                      <button
+                        onClick={() => { setPushDeptModalOpen(false); setPushModuleId(null); setDeptEmployees([]); setLoadingEmployees(false); }}
+                        className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handlePushToDepartment}
+                        disabled={pushing || deptEmployees.length === 0 || allPushed}
+                        title={allPushed ? 'All employees have already received this module' : undefined}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {pushing ? 'Pushing...' : 'Push to My Employee'}
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>,
