@@ -1246,6 +1246,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ]);
     });
 
+    Route::delete('/profile/picture', function (Request $request) {
+        $user = $request->user();
+        if ($user->profile_picture && \Illuminate\Support\Facades\Storage::disk('public')->exists($user->profile_picture)) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($user->profile_picture);
+        }
+        $user->update(['profile_picture' => null]);
+        return response()->json(['message' => 'Profile picture removed.']);
+    });
+
     Route::post('/profile/signature', function (Request $request) {
         $user = $request->user();
         if (!$user || !($user->isInstructor() || $user->isAdmin())) {

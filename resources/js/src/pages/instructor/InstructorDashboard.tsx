@@ -5,14 +5,15 @@ import { LoadingState } from '../../components/ui/LoadingState';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 import { UserTimeLog } from '../../components/UserTimeLog';
 
-interface PendingEvaluation { id: number; student: string; quiz?: string; question?: string; course?: string; submitted: string; type: string }
 interface CourseStat { name: string; enrolled: number; completed: number }
 interface PerformancePoint { name: string; avgScore: number; submissions: number }
 interface RecentQuestion { id: number; student: string; question: string; course: string; time: string }
 
+interface InstructorDashboardProps {
+  onNavigate?: (page: string) => void;
+}
 
-export function InstructorDashboard() {
-  const [pendingEvaluations, setPendingEvaluations] = useState<PendingEvaluation[]>([]);
+export function InstructorDashboard({ onNavigate }: InstructorDashboardProps) {
   const [courseStats, setCourseStats] = useState<CourseStat[]>([]);
   const [performanceData, setPerformanceData] = useState<PerformancePoint[]>([]);
   const [recentQuestions, setRecentQuestions] = useState<RecentQuestion[]>([]);
@@ -28,7 +29,6 @@ export function InstructorDashboard() {
       .then(r => r.ok ? r.json() : null)
       .then((data) => {
         if (!data) return;
-        setPendingEvaluations(data.pending_evaluations || []);
         setCourseStats(data.course_stats || []);
         setPerformanceData(data.performance_trend || []);
         setRecentQuestions(data.recent_questions || []);
@@ -69,7 +69,6 @@ export function InstructorDashboard() {
                 .then(r => r.ok ? r.json() : null)
                 .then((d) => {
                   if (!d) return;
-                  setPendingEvaluations(d.pending_evaluations || []);
                   setCourseStats(d.course_stats || []);
                   setPerformanceData(d.performance_trend || []);
                   setRecentQuestions(d.recent_questions || []);
@@ -116,9 +115,9 @@ export function InstructorDashboard() {
         {/* Summary Cards */}
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div className="bg-white rounded shadow p-4 flex flex-col items-start">
-            <span className="text-slate-500 text-xs mb-1">Pending Reviews</span>
-            <span className="text-2xl font-bold text-blue-600">{pendingEvaluations.length}</span>
-            <span className="text-xs text-yellow-600 mt-1">Requires manual grading</span>
+            <span className="text-slate-500 text-xs mb-1">Student Questions</span>
+            <span className="text-2xl font-bold text-blue-600">{recentQuestions.length}</span>
+            <span className="text-xs text-blue-600 mt-1">Recent Q&A activity</span>
           </div>
           <div className="bg-white rounded shadow p-4 flex flex-col items-start">
             <span className="text-slate-500 text-xs mb-1">My Courses</span>
@@ -134,40 +133,6 @@ export function InstructorDashboard() {
             <span className="text-slate-500 text-xs mb-1">Avg. Pass Rate</span>
             <span className="text-2xl font-bold text-orange-600">{avgPassRate}%</span>
             <span className={`text-xs mt-1 ${passRateDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}>{passRateDelta >= 0 ? '+' : ''}{passRateDelta}% from last month</span>
-          </div>
-        </div>
-
-        {/* Pending Quiz Evaluations */}
-        <div className="mb-6 rounded bg-white p-4 shadow sm:p-5">
-          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span className="font-semibold">Pending Quiz Evaluations <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded ml-2">{pendingEvaluations.length} pending</span></span>
-            <a href="#" className="text-blue-600 text-xs">View All</a>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-slate-500">
-                  <th className="text-left py-1 px-2">STUDENT</th>
-                  <th className="text-left py-1 px-2">QUIZ</th>
-                  <th className="text-left py-1 px-2">TYPE</th>
-                  <th className="text-left py-1 px-2">SUBMITTED</th>
-                  <th className="text-left py-1 px-2">ACTION</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingEvaluations.map((evalItem) => (
-                  <tr key={evalItem.id} className="border-b last:border-b-0">
-                    <td className="py-1 px-2 font-medium">{evalItem.student}</td>
-                    <td className="py-1 px-2">{evalItem.question || evalItem.quiz}</td>
-                    <td className="py-1 px-2">
-                      <span className="bg-violet-100 text-violet-700 text-xs px-2 py-0.5 rounded">{evalItem.type}</span>
-                    </td>
-                    <td className="py-1 px-2">{evalItem.submitted}</td>
-                    <td className="py-1 px-2"><a href="#" className="text-green-600 font-semibold">Grade Now</a></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
 
@@ -213,7 +178,12 @@ export function InstructorDashboard() {
         <div className="rounded bg-white p-4 shadow sm:p-5">
           <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span className="font-semibold">Recent Student Questions</span>
-            <a href="#" className="text-blue-600 text-xs">View All Q&amp;A</a>
+            <button
+              onClick={() => onNavigate?.('qa-discussion')}
+              className="text-blue-600 text-xs hover:text-blue-800 hover:underline"
+            >
+              View All Q&A
+            </button>
           </div>
           <ul>
             {recentQuestions.map((q) => (
