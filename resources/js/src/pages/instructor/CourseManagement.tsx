@@ -205,7 +205,18 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       });
       if (!res.ok) throw new Error('Failed to load courses');
       const data = await res.json();
-      setCourses(data);
+      setCourses((prev) => {
+        const locallyUnlocked = new Set(
+          safeArray(prev)
+            .filter((c) => Boolean(c.availableByInstructor))
+            .map((c) => String(c.id))
+        );
+
+        return safeArray<Course>(data).map((c) => ({
+          ...c,
+          availableByInstructor: locallyUnlocked.has(String(c.id)) || Boolean((c as any).has_manual_unlock),
+        }));
+      });
     } catch (e) {
       console.error(e);
     } finally {
@@ -633,7 +644,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((course) => {
             const notStarted = course.start_date && new Date(course.start_date) > new Date();
-            const hasManualUnlock = (course as any).has_manual_unlock ?? false;
+            const hasManualUnlock = Boolean((course as any).has_manual_unlock ?? false) || Boolean(course.availableByInstructor);
             const ended = course.deadline && new Date(course.deadline) <= new Date() && !hasManualUnlock;
             const modulesCount = course.modules?.length ?? 0;
             const hasAnyModule = modulesCount > 0;
@@ -1011,8 +1022,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
             onClick={(e) => { if (e.target === e.currentTarget) { setCourseUnlockModalOpen(false); setCourseUnlockTargetId(null); } }}
           >
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-white">Unlock Course</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Set the unlock period for enrolled employees.</p>
+              <h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-white">Unlock Locked Course</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">This course is currently Locked. Set the unlock period for enrolled employees.</p>
               {unlockError && <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm rounded px-3 py-2 mb-3">{unlockError}</div>}
 
               <div className="space-y-4">
@@ -1071,7 +1082,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   disabled={unlocking}
                   className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm disabled:opacity-50"
                 >
-                  {unlocking ? 'Unlocking...' : 'Confirm'}
+                  {unlocking ? 'Unlocking...' : 'Unlock Course'}
                 </button>
               </div>
             </div>
