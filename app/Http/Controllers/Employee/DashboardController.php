@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
-use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
@@ -126,19 +125,30 @@ class DashboardController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $manuallyUnlockedCourseIds = $this->getManuallyUnlockedCourseIdsForUser(
-            $user->id,
-            $courses->pluck('id')
-        );
+        $courseIds = $courses->pluck('id');
 
-        // Attach enrollment progress to each course
-        $enrollments = CourseEnrollment::where('user_id', $user->id)
-            ->whereIn('course_id', $courses->pluck('id'))
+        // Use canonical enrollments table for real user enrollment state.
+        $enrollments = Enrollment::where('user_id', $user->id)
+            ->whereIn('course_id', $courseIds)
+            ->get();
+
+        // Recalculate progress/status from latest quiz attempts before responding.
+        foreach ($enrollments as $enrollment) {
+            Enrollment::recalculateProgress($user->id, (string) $enrollment->course_id);
+        }
+
+        $enrollmentByCourse = Enrollment::where('user_id', $user->id)
+            ->whereIn('course_id', $courseIds)
             ->get()
             ->keyBy('course_id');
 
-        $coursesWithProgress = $courses->map(function (Course $course) use ($enrollments, $manuallyUnlockedCourseIds) {
-            $enrollment = $enrollments->get($course->id);
+        $manuallyUnlockedCourseIds = $this->getManuallyUnlockedCourseIdsForUser(
+            $user->id,
+            $courseIds
+        );
+
+        $coursesWithProgress = $courses->map(function (Course $course) use ($enrollmentByCourse, $manuallyUnlockedCourseIds) {
+            $enrollment = $enrollmentByCourse->get($course->id);
             $locked     = (bool) ($enrollment->locked ?? false);
 
             // If at least one module is manually unlocked for this user
@@ -153,8 +163,17 @@ class DashboardController extends Controller
                 'last_activity'  => $enrollment?->updated_at?->toISOString() ?? null,
                 'locked'         => $locked,
                 'has_manual_unlock' => isset($manuallyUnlockedCourseIds[$course->id]),
+                'is_enrolled'    => (bool) $enrollment,
             ]);
         });
+
+        $enrolledCourses = $coursesWithProgress
+            ->filter(fn ($course) => (bool) ($course['is_enrolled'] ?? false))
+            ->values();
+
+        $courseOfferings = $coursesWithProgress
+            ->filter(fn ($course) => ! (bool) ($course['is_enrolled'] ?? false))
+            ->values();
 
         return response()->json([
             'user'          => [
@@ -163,8 +182,9 @@ class DashboardController extends Controller
                 'email'      => $user->email,
                 'department' => $user->department,
             ],
-            'courses'       => $coursesWithProgress,
-            'total_courses' => $courses->count(),
+            'courses'       => $enrolledCourses,
+            'course_offerings' => $courseOfferings,
+            'total_courses' => $enrolledCourses->count(),
         ]);
     }
 

@@ -28,6 +28,8 @@ interface Course {
   thumbnail: string;
   enroll_status: string | null;
   last_activity: string | null;
+  deadline: string | null;
+  is_enrolled?: boolean;
 }
 
 interface CustomModule {
@@ -86,20 +88,6 @@ interface CertificateAchievement {
   admin_signature_url?: string | null;
 }
 
-const upcomingDeadlines = [
-{
-  id: 1,
-  title: 'Cybersecurity Quiz',
-  date: 'Due Tomorrow',
-  type: 'Quiz'
-},
-{
-  id: 2,
-  title: 'Leadership Reflection',
-  date: 'Due in 3 days',
-  type: 'Assignment'
-}];
-
 interface EmployeeDashboardProps {
   onNavigate?: (page: string, courseId?: string, moduleId?: number) => void;
 }
@@ -108,6 +96,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [courseOfferings, setCourseOfferings] = useState<Course[]>([]);
   const [customModules, setCustomModules] = useState<CustomModule[]>([]);
   const [certificates, setCertificates] = useState<CertificateAchievement[]>([]);
   const [activeCertificateIndex, setActiveCertificateIndex] = useState(0);
@@ -488,9 +477,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
         const data = await response.json();
 
-        // Map courses to include thumbnail colors
-        const coursesArr = data.courses || [];
-        const mappedCourses = coursesArr.map((course: any) => ({
+        const mapCourse = (course: any, defaultEnrolled: boolean): Course => ({
           id: course.id,
           title: course.title,
           progress: course.my_progress ?? course.progress ?? 0,
@@ -498,16 +485,26 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
           thumbnail: getThumbnailColor(course.department),
           enroll_status: course.enroll_status ?? null,
           last_activity: course.last_activity ?? null,
-        }));
+          deadline: course.deadline ?? null,
+          is_enrolled: course.is_enrolled ?? defaultEnrolled,
+        });
+
+        const coursesArr = Array.isArray(data.courses) ? data.courses : [];
+        const mappedCourses = coursesArr.map((course: any) => mapCourse(course, true));
+
+        const offeringsArr = Array.isArray(data.course_offerings) ? data.course_offerings : [];
+        const mappedOfferings = offeringsArr.map((course: any) => mapCourse(course, false));
 
         setDashboardData({
           user: (data && data.user) ? data.user : { id: 0, name: 'Employee', email: '', department: '' },
           courses: mappedCourses,
-          total_courses: mappedCourses.length,
+          total_courses: typeof data.total_courses === 'number' ? data.total_courses : mappedCourses.length,
         });
+        setCourseOfferings(mappedOfferings);
         return data;
       } catch (error) {
         console.error('Error loading dashboard:', error);
+        setCourseOfferings([]);
         return null;
       } finally {
         setLoading(false);
@@ -637,6 +634,42 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const userName = dashboardData?.user?.name || 'Employee';
   const totalCourses = dashboardData?.total_courses || 0;
   const activeCertificate = certificates[activeCertificateIndex] || null;
+
+  const upcomingCourseDeadlines = safeArray<Course>(myCourses)
+    .filter((course) => (course.enroll_status || '').toLowerCase() !== 'completed' && course.progress < 100 && Boolean(course.deadline))
+    .map((course) => {
+      const rawDate = course.deadline ? new Date(course.deadline) : null;
+      const deadlineDate = rawDate && !Number.isNaN(rawDate.getTime()) ? rawDate : null;
+      const now = new Date();
+      const dayDiff = deadlineDate
+        ? Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        : null;
+
+      let dueLabel = 'No expiration date set';
+      if (deadlineDate && dayDiff !== null) {
+        if (dayDiff < 0) dueLabel = 'Overdue';
+        else if (dayDiff === 0) dueLabel = 'Due today';
+        else if (dayDiff === 1) dueLabel = 'Due tomorrow';
+        else dueLabel = `Due in ${dayDiff} days`;
+      }
+
+      return {
+        id: course.id,
+        title: course.title,
+        deadlineDate,
+        deadlineText: deadlineDate
+          ? deadlineDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          : 'No expiration date set',
+        dueLabel,
+        isOverdue: Boolean(deadlineDate && dayDiff !== null && dayDiff < 0),
+      };
+    })
+    .sort((a, b) => {
+      if (!a.deadlineDate && !b.deadlineDate) return a.title.localeCompare(b.title);
+      if (!a.deadlineDate) return 1;
+      if (!b.deadlineDate) return -1;
+      return a.deadlineDate.getTime() - b.deadlineDate.getTime();
+    });
 
   // Find the most-recently-active in-progress course for Resume Learning
   const resumeCourse = myCourses
@@ -803,13 +836,45 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
           <div className="space-y-4">
             {myCourses.length === 0 ? (
-              <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-8 text-center">
-                <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
-                <h3 className="mt-2 text-sm font-medium text-slate-900">No enrolled courses yet</h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  Search for courses using the bar at the top to enroll.
-                </p>
-              </div>
+              courseOfferings.length === 0 ? (
+                <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-8 text-center">
+                  <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
+                  <h3 className="mt-2 text-sm font-medium text-slate-900">No enrolled courses yet</h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    There are currently no course offerings available for your subdepartment.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/25 dark:text-emerald-300">
+                    You are not enrolled in a course yet. Here are available offerings for your subdepartment.
+                  </div>
+                  {courseOfferings.map((course) => (
+                    <div
+                      key={course.id}
+                      className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 flex flex-col sm:flex-row gap-4 hover:shadow-md transition-shadow"
+                    >
+                      <div className={`w-full sm:w-32 h-24 ${course.thumbnail} rounded-md flex-shrink-0 flex items-center justify-center`}>
+                        <PlayCircle className="h-10 w-10 text-white opacity-75" />
+                      </div>
+                      <div className="flex-1 flex flex-col justify-between">
+                        <div>
+                          <h3 className="text-lg font-semibold text-slate-900">{course.title}</h3>
+                          <p className="text-sm text-slate-500 mt-1">{course.nextLesson}</p>
+                        </div>
+                        <div className="mt-4">
+                          <button
+                            onClick={() => onNavigate?.('course-enroll', course.id)}
+                            className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700"
+                          >
+                            View Offering
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
             ) : (
             myCourses.map((course) =>
             <div
@@ -944,21 +1009,39 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
               Upcoming Deadlines
             </h3>
             <div className="space-y-4">
-              {upcomingDeadlines.map((item) =>
-              <div
-                key={item.id}
-                className="flex items-start p-3 bg-red-50 rounded-md border border-red-100 dark:bg-red-950/25 dark:border-red-900/40">
-
-                  <Clock className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0 dark:text-red-400" />
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-300">
-                      {item.title}
-                    </p>
-                    <p className="text-xs text-red-600 mt-1 dark:text-red-400">
-                      {item.date} • {item.type}
-                    </p>
-                  </div>
+              {upcomingCourseDeadlines.length === 0 ? (
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/25 dark:text-emerald-300">
+                  There is no pending task at the moment, take a rest!
                 </div>
+              ) : (
+                upcomingCourseDeadlines.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`flex items-start rounded-md border p-3 ${
+                      item.isOverdue
+                        ? 'bg-red-50 border-red-100 dark:bg-red-950/25 dark:border-red-900/40'
+                        : 'bg-amber-50 border-amber-100 dark:bg-amber-950/25 dark:border-amber-900/40'
+                    }`}
+                  >
+                    <Clock
+                      className={`h-5 w-5 mt-0.5 flex-shrink-0 ${
+                        item.isOverdue ? 'text-red-500 dark:text-red-400' : 'text-amber-500 dark:text-amber-400'
+                      }`}
+                    />
+                    <div className="ml-3">
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-200">
+                        {item.title}
+                      </p>
+                      <p
+                        className={`text-xs mt-1 ${
+                          item.isOverdue ? 'text-red-600 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'
+                        }`}
+                      >
+                        {item.dueLabel} • Please answer before {item.deadlineText}.
+                      </p>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           </div>
