@@ -6,7 +6,6 @@ import {
   PencilIcon,
   TrashIcon,
   EyeIcon,
-  DocumentPlusIcon,
   VideoCameraIcon,
   AcademicCapIcon,
   UsersIcon,
@@ -1281,20 +1280,6 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   {course.status}
                 </span>
                 <div className="flex space-x-1">
-                  <button
-                    onClick={() => onNavigate?.('course-detail', String(course.id))}
-                    className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-blue-700 hover:bg-blue-50 dark:text-slate-300 dark:hover:text-sky-300 dark:hover:bg-slate-800"
-                    title="Manage Content"
-                  >
-                    <EyeIcon className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => onNavigate?.('course-content-editor', String(course.id))}
-                    className="p-1.5 rounded-md text-gray-600 hover:text-green-700 hover:bg-green-50 dark:text-slate-300 dark:hover:text-green-300 dark:hover:bg-slate-800"
-                    title="Edit Modules & Lessons"
-                  >
-                    <DocumentPlusIcon className="h-4 w-4" />
-                  </button>
                   <button
                     onClick={() => handleEditCourse(course)}
                     className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-amber-700 hover:bg-amber-50 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800"
