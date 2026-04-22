@@ -651,7 +651,7 @@ export function App() {
           <div key={transitionKey} className="page-open-transition">
             {currentPage === 'dashboard' && <AdminDashboard onNavigate={handleNavigate} />}
             {currentPage === 'departments' && <DepartmentManagement />}
-            {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
+            {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} />}
             {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
             {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
             {currentPage === 'enrollments' && <EnrollmentManagement />}

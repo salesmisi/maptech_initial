@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { safeArray } from '../../utils/safe';
 import {
   Users,
@@ -32,12 +32,61 @@ import { LoadingState } from '../../components/ui/LoadingState';
 const ANALYTICS_COLORS = ['#34b46c', '#c8a73a', '#7f90ab'];
 const POPULAR_COURSE_COLORS = ['#2ea85f', '#3abf6f', '#60ca88'];
 const CHART_CARD_CLASS = 'rounded-xl border border-slate-200/70 bg-white/95 p-6 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/70';
-
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_NAME_TO_INDEX: Record<string, number> = {
+  january: 0,
+  jan: 0,
+  february: 1,
+  feb: 1,
+  march: 2,
+  mar: 2,
+  april: 3,
+  apr: 3,
+  may: 4,
+  june: 5,
+  jun: 5,
+  july: 6,
+  jul: 6,
+  august: 7,
+  aug: 7,
+  september: 8,
+  sep: 8,
+  sept: 8,
+  october: 9,
+  oct: 9,
+  november: 10,
+  nov: 10,
+  december: 11,
+  dec: 11,
+};
 const RANGE_OPTIONS = [
   { label: 'Last 3 Months', months: 3 },
   { label: 'Last 6 Months', months: 6 },
-  { label: 'Last 12 Months', months: 12 },
+  { label: 'First 12 Months', months: 12 },
 ];
+
+function getMonthIndexFromTrend(sortKey?: string, name?: string): number | null {
+  const cleanName = (name ?? '').toLowerCase().trim();
+  if (cleanName in MONTH_NAME_TO_INDEX) {
+    return MONTH_NAME_TO_INDEX[cleanName];
+  }
+
+  const cleanSortKey = (sortKey ?? '').trim();
+  if (cleanSortKey) {
+    const ymdMatch = cleanSortKey.match(/^\d{4}-(\d{1,2})(?:-\d{1,2})?$/);
+    if (ymdMatch) {
+      const monthNum = Number(ymdMatch[1]);
+      if (monthNum >= 1 && monthNum <= 12) return monthNum - 1;
+    }
+
+    const parsedDate = new Date(cleanSortKey);
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return parsedDate.getMonth();
+    }
+  }
+
+  return null;
+}
 
 function getCookie(name: string): string {
   const match = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
@@ -57,7 +106,7 @@ interface DashboardStats {
 
 interface ReportData {
   completion_status: { name: string; value: number }[];
-  monthly_trends: { name: string; enrollments: number; completions: number }[];
+  monthly_trends: { sort_key?: string; name: string; enrollments: number; completions: number }[];
   popular_courses: { name: string; students: number }[];
 }
 
@@ -81,9 +130,10 @@ export function AdminDashboard({ onNavigate }: Props) {
   const [reportsLoading, setReportsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState('');
   const [completionHoverIndex, setCompletionHoverIndex] = useState<number | undefined>(undefined);
-  const [analyticsRange, setAnalyticsRange] = useState(6);
+  const [analyticsRange, setAnalyticsRange] = useState(12);
   const [showRangeMenu, setShowRangeMenu] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
+  const [isActivityModalVisible, setIsActivityModalVisible] = useState(false);
   const [allActivity, setAllActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityNavLoadingId, setActivityNavLoadingId] = useState<number | null>(null);
@@ -92,6 +142,7 @@ export function AdminDashboard({ onNavigate }: Props) {
   const [employeeList, setEmployeeList] = useState<{ id: number; fullname: string; email: string; department: string; status: string }[]>([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 640 : false));
+  const activityModalCloseTimeoutRef = useRef<number | null>(null);
 
   const normalizeActivityTarget = (value: string) =>
     String(value || '')
@@ -204,7 +255,13 @@ export function AdminDashboard({ onNavigate }: Props) {
   };
 
   const openAllActivity = () => {
+    if (activityModalCloseTimeoutRef.current !== null) {
+      window.clearTimeout(activityModalCloseTimeoutRef.current);
+      activityModalCloseTimeoutRef.current = null;
+    }
+
     setShowActivityModal(true);
+    window.requestAnimationFrame(() => setIsActivityModalVisible(true));
     setActivityLoading(true);
     fetch('/api/admin/activity', {
       headers: {
@@ -216,6 +273,14 @@ export function AdminDashboard({ onNavigate }: Props) {
       .then((res) => res.json())
       .then((data: ActivityItem[]) => setAllActivity(safeArray(data)))
       .finally(() => setActivityLoading(false));
+  };
+
+  const closeAllActivity = () => {
+    setIsActivityModalVisible(false);
+    activityModalCloseTimeoutRef.current = window.setTimeout(() => {
+      setShowActivityModal(false);
+      activityModalCloseTimeoutRef.current = null;
+    }, 220);
   };
 
   useEffect(() => {
@@ -351,7 +416,7 @@ export function AdminDashboard({ onNavigate }: Props) {
   const recentActivity = stats?.recent_activity ?? [];
   const recentActivityArray = safeArray(recentActivity);
   const recentActivityPreview = recentActivityArray.slice(0, 5);
-  const currentRangeLabel = RANGE_OPTIONS.find((o) => o.months === analyticsRange)?.label ?? 'Last 6 Months';
+  const currentRangeLabel = RANGE_OPTIONS.find((o) => o.months === analyticsRange)?.label ?? 'First 12 Months';
   const chartGridColor = isDarkMode ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.28)';
   const chartAxisTickColor = isDarkMode ? '#a7b0c0' : '#64748b';
   const chartLegendColor = isDarkMode ? '#b8c2d1' : '#475569';
@@ -363,6 +428,36 @@ export function AdminDashboard({ onNavigate }: Props) {
     ? 'rounded-lg border border-slate-700/60 bg-slate-900/88 px-3 py-2 shadow-md backdrop-blur-sm'
     : 'rounded-lg border border-slate-200/90 bg-white/96 px-3 py-2 shadow-sm backdrop-blur-sm';
   const chartTooltipLabelClass = isDarkMode ? 'text-xs font-medium text-slate-300' : 'text-xs font-medium text-slate-600';
+  const monthlyTrendsByMonth = monthlyTrends.reduce<Record<number, { enrollments: number; completions: number }>>((acc, trend) => {
+    const monthIndex = getMonthIndexFromTrend(trend.sort_key, trend.name);
+    if (monthIndex === null) return acc;
+
+    acc[monthIndex] = {
+      enrollments: Number(trend.enrollments ?? 0),
+      completions: Number(trend.completions ?? 0),
+    };
+
+    return acc;
+  }, {});
+  const fullYearMonthlyTrends = MONTH_LABELS.map((label, index) => ({
+    name: label,
+    enrollments: monthlyTrendsByMonth[index]?.enrollments ?? 0,
+    completions: monthlyTrendsByMonth[index]?.completions ?? 0,
+  }));
+
+  const ArrowDot = ({ cx, cy, fill }: any) => {
+    if (cx == null || cy == null) return null;
+
+    return (
+      <g>
+        <path
+          d={`M ${cx} ${cy - 5} L ${cx + 7} ${cy} L ${cx} ${cy + 5} L ${cx + 2} ${cy}`}
+          fill={fill}
+          opacity={0.95}
+        />
+      </g>
+    );
+  };
 
   const renderCompletionTooltip = ({ active, payload }: any) => {
     if (!active || !payload || payload.length === 0) return null;
@@ -641,17 +736,32 @@ export function AdminDashboard({ onNavigate }: Props) {
               <div className="flex items-center justify-center h-full text-slate-400">No trend data yet</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyTrends}>
+                <LineChart data={fullYearMonthlyTrends} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                  <defs>
+                    <marker id="trend-arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
+                      <path d="M 0 0 L 8 4 L 0 8 z" fill="#2db768" />
+                    </marker>
+                    <marker id="trend-arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
+                      <path d="M 0 0 L 8 4 L 0 8 z" fill="#5b8def" />
+                    </marker>
+                  </defs>
                   <CartesianGrid strokeDasharray="2 6" vertical={false} stroke={chartGridColor} />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    interval={0}
+                    padding={{ left: 8, right: 8 }}
+                    tick={{ fill: chartAxisTickColor, fontSize: 12 }}
+                  />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
                   <Tooltip
                     content={renderTrendsTooltip}
                     cursor={false}
                   />
                   <Legend wrapperStyle={{ color: chartLegendColor, fontSize: '12px', paddingTop: '8px' }} />
-                  <Line type="monotone" dataKey="enrollments" stroke="#2db768" strokeWidth={2} dot={{ r: 2.5 }} activeDot={{ r: 5, stroke: trendActiveDotStroke, strokeWidth: 2 }} />
-                  <Line type="monotone" dataKey="completions" stroke="#5b8def" strokeWidth={2} dot={{ r: 2.5 }} activeDot={{ r: 5, stroke: trendActiveDotStroke, strokeWidth: 2 }} />
+                  <Line type="stepAfter" dataKey="enrollments" stroke="#2db768" strokeWidth={2.5} dot={<ArrowDot />} activeDot={{ r: 6, stroke: trendActiveDotStroke, strokeWidth: 2 }} markerEnd="url(#trend-arrow-green)" />
+                  <Line type="stepAfter" dataKey="completions" stroke="#5b8def" strokeWidth={2.5} dot={<ArrowDot />} activeDot={{ r: 6, stroke: trendActiveDotStroke, strokeWidth: 2 }} markerEnd="url(#trend-arrow-blue)" />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -670,23 +780,30 @@ export function AdminDashboard({ onNavigate }: Props) {
         ) : (
           <div className="h-72 sm:h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cleanedPopularCourses} layout="vertical">
+              <BarChart data={cleanedPopularCourses}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={chartGridColor} />
-                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
-                <YAxis
+                <XAxis
                   dataKey="name"
                   type="category"
-                  width={popularCourseLabelWidth}
                   axisLine={false}
                   tickLine={false}
+                  interval={0}
+                  height={56}
                   tick={{ fontSize: 12, fill: chartAxisTickColor }}
-                  tickFormatter={(v: string) => v.length > 22 ? v.slice(0, 22) + '…' : v}
+                  tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 16) + '…' : v}
+                />
+                <YAxis
+                  type="number"
+                  axisLine={false}
+                  tickLine={false}
+                  allowDecimals={false}
+                  tick={{ fontSize: 12, fill: chartAxisTickColor }}
                 />
                 <Tooltip content={renderPopularCoursesTooltip} cursor={{ fill: 'rgba(46, 168, 95, 0.08)' }} />
                 <Bar
                   dataKey="students"
                   fill="#22c55e"
-                  radius={[0, 4, 4, 0]}
+                  radius={[6, 6, 0, 0]}
                   barSize={28}
                   animationDuration={520}
                   activeBar={{
@@ -908,14 +1025,78 @@ export function AdminDashboard({ onNavigate }: Props) {
         </div>
       )}
 
-      {/* View All Activity Modal */}
-      {showActivityModal && (
+      {/* Total Employees Modal */}
+      {showEmployeesModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="mx-2 flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 sm:mx-4">
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 dark:border-slate-700 sm:px-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Total Employees</h2>
+                <p className="text-xs text-slate-400 mt-0.5">{employeesLoading ? 'Loading…' : `${employeeList.length} employee${employeeList.length === 1 ? '' : 's'}`}</p>
+              </div>
+              <button
+                onClick={() => setShowEmployeesModal(false)}
+                className={`p-1 rounded-md ${isDarkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              <table className={`min-w-full divide-y ${isDarkMode ? 'divide-slate-700' : 'divide-slate-200'}`}>
+                <thead className={`sticky top-0 ${isDarkMode ? 'bg-slate-800/95' : 'bg-slate-50/95 backdrop-blur-sm'}`}>
+                  <tr>
+                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">#</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Name</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Email</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Department</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Status</th>
+                  </tr>
+                </thead>
+                <tbody className={`${isDarkMode ? 'bg-slate-900/75 divide-slate-700' : 'bg-white divide-slate-200'} divide-y`}>
+                  {employeesLoading ? (
+                    <tr><td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400 dark:text-slate-300 sm:px-6">Loading…</td></tr>
+                  ) : employeeList.length === 0 ? (
+                    <tr><td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400 dark:text-slate-300 sm:px-6">No employees found</td></tr>
+                  ) : (
+                    employeeList.map((emp, index) => (
+                      <tr key={emp.id} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/65' : index % 2 === 0 ? 'bg-white hover:bg-blue-50/35' : 'bg-slate-50/45 hover:bg-blue-50/45'}`}>
+                        <td className={`px-3 py-4 text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-400'} sm:px-6`}>{index + 1}</td>
+                        <td className={`px-3 py-4 text-sm font-medium ${isDarkMode ? 'text-slate-100' : 'text-slate-900'} sm:px-6`}>{emp.fullname}</td>
+                        <td className={`px-3 py-4 text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'} sm:px-6`}>{emp.email}</td>
+                        <td className={`px-3 py-4 text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'} sm:px-6`}>{emp.department || '—'}</td>
+                        <td className="px-3 py-4 sm:px-6">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                            emp.status === 'active'
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
+                              : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                          }`}>{emp.status || 'unknown'}</span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="border-t border-slate-100 px-4 py-3 flex items-center justify-between dark:border-slate-700 sm:px-6">
+              <span className="text-xs text-slate-400">{employeesLoading ? '' : `${employeeList.filter(e => e.status === 'active').length} active`}</span>
+              <button
+                onClick={() => setShowEmployeesModal(false)}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${isDarkMode ? 'text-slate-200 bg-slate-800 hover:bg-slate-700' : 'text-slate-700 bg-white border border-slate-200 hover:bg-slate-100'}`}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View All Activity Modal */}
+      {showActivityModal && (
+        <div
+          className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 transition-opacity duration-200 ${isActivityModalVisible ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`mx-2 flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-slate-200 bg-white shadow-xl transition-all duration-200 ease-out dark:border-slate-700 dark:bg-slate-900 sm:mx-4 ${isActivityModalVisible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-2 scale-95 opacity-0'}`}>
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 dark:border-slate-700 sm:px-6">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">All Activity</h2>
               <button
-                onClick={() => setShowActivityModal(false)}
+                onClick={closeAllActivity}
                 className={`p-1 rounded-md ${isDarkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}>
                 <X className="h-5 w-5" />
               </button>
@@ -974,7 +1155,7 @@ export function AdminDashboard({ onNavigate }: Props) {
             </div>
             <div className="border-t border-slate-100 px-4 py-3 text-right dark:border-slate-700 sm:px-6">
               <button
-                onClick={() => setShowActivityModal(false)}
+                onClick={closeAllActivity}
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${isDarkMode ? 'text-slate-200 bg-slate-800 hover:bg-slate-700' : 'text-slate-700 bg-white border border-slate-200 hover:bg-slate-100'}`}>
                 Close
               </button>

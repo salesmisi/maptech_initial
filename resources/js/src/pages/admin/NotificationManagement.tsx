@@ -101,6 +101,29 @@ interface DepartmentOption {
   subdepartments?: { id: number; name: string }[];
 }
 
+function extractNotificationItems(payload: any): Notification[] {
+  const candidates = [
+    payload,
+    payload?.data,
+    payload?.notifications,
+    payload?.notifications?.data,
+    payload?.data?.data,
+    payload?.notifications?.data?.data,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate;
+    }
+  }
+
+  return [];
+}
+
+const PENDING_NOTIFICATION_ID_KEY = 'maptech_pending_notification_id';
+const PENDING_NOTIFICATION_ROLE_KEY = 'maptech_pending_notification_role';
+const OPEN_NOTIFICATION_EVENT = 'maptech-open-notification';
+
 export function NotificationManagement() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [sentHistory, setSentHistory] = useState<SentNotification[]>([]);
@@ -261,7 +284,7 @@ export function NotificationManagement() {
         data = null;
       }
 
-      const list = safeArray(data?.data ?? data?.notifications?.data);
+      const list = extractNotificationItems(data);
       if (!Array.isArray(data?.data) && !Array.isArray(data?.notifications?.data) && data !== null) {
         console.warn('/api/admin/notifications returned unexpected shape', data);
       }
@@ -358,20 +381,29 @@ export function NotificationManagement() {
   };
 
   const markAsRead = async (id: number) => {
+    const target = notifications.find((item) => item.id === id);
+    if (!target || target.read_at) return;
+
+    setNotifications((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, read_at: new Date().toISOString() } : item))
+    );
+    setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
+
     try {
       await fetch(`/api/admin/notifications/${id}/read`, await fetchOptions('POST'));
-      fetchNotifications();
-      fetchUnreadCount();
     } catch (err) {
       console.error('Failed to mark as read:', err);
     }
   };
 
   const markAllAsRead = async () => {
+    setNotifications((prev) =>
+      prev.map((item) => (item.read_at ? item : { ...item, read_at: new Date().toISOString() }))
+    );
+    setUnreadCount(0);
+
     try {
       await fetch('/api/admin/notifications/read-all', await fetchOptions('POST'));
-      fetchNotifications();
-      fetchUnreadCount();
     } catch (err) {
       console.error('Failed to mark all as read:', err);
     }
@@ -768,6 +800,41 @@ export function NotificationManagement() {
       data: item.data,
     });
   };
+
+  const tryOpenPendingNotification = React.useCallback(() => {
+    const pendingIdRaw = localStorage.getItem(PENDING_NOTIFICATION_ID_KEY);
+    const pendingRole = localStorage.getItem(PENDING_NOTIFICATION_ROLE_KEY);
+    if (!pendingIdRaw || pendingRole !== 'Admin') return;
+
+    const pendingId = Number(pendingIdRaw);
+    if (!Number.isFinite(pendingId)) {
+      localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
+      localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
+      return;
+    }
+
+    const target = notifications.find((item) => item.id === pendingId);
+    if (!target) return;
+
+    setActiveTab('received');
+    openReceivedDetail(target);
+    localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
+    localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
+
+    if (!target.read_at) {
+      markAsRead(target.id);
+    }
+  }, [notifications]);
+
+  useEffect(() => {
+    tryOpenPendingNotification();
+  }, [notifications, tryOpenPendingNotification]);
+
+  useEffect(() => {
+    const handler = () => tryOpenPendingNotification();
+    window.addEventListener(OPEN_NOTIFICATION_EVENT, handler);
+    return () => window.removeEventListener(OPEN_NOTIFICATION_EVENT, handler);
+  }, [tryOpenPendingNotification]);
 
   const normalizedListSearch = listSearchQuery.trim().toLowerCase();
 

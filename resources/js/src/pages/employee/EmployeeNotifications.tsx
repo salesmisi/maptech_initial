@@ -34,6 +34,28 @@ interface Course {
 }
 
 const NOTIFICATION_LIMIT = 50;
+const PENDING_NOTIFICATION_ID_KEY = 'maptech_pending_notification_id';
+const PENDING_NOTIFICATION_ROLE_KEY = 'maptech_pending_notification_role';
+const OPEN_NOTIFICATION_EVENT = 'maptech-open-notification';
+
+function extractNotificationItems(payload: any): Notification[] {
+  const candidates = [
+    payload,
+    payload?.data,
+    payload?.notifications,
+    payload?.notifications?.data,
+    payload?.data?.data,
+    payload?.notifications?.data?.data,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate;
+    }
+  }
+
+  return [];
+}
 
 export function EmployeeNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -109,6 +131,55 @@ export function EmployeeNotifications() {
     fetchRecentlyDeleted();
     fetchEnrolledCourses();
     fetchEmployeeProfile();
+
+    // Subscribe to realtime notifications if Echo is available
+    (async () => {
+      try {
+        const Echo = (window as any).Echo;
+        if (!Echo || typeof Echo.private !== 'function') return;
+
+        const authHeaders: Record<string, string> = {
+          Accept: 'application/json',
+        };
+        if (token) {
+          authHeaders.Authorization = `Bearer ${token}`;
+        }
+
+        const res = await fetch('/user', { headers: authHeaders });
+        if (!res.ok) return;
+        const me = await res.json();
+        if (!me?.id) return;
+
+        const channel = Echo.private('notifications.' + me.id);
+        const createdHandler = (payload: any) => {
+          const n = payload?.notification || payload;
+          if (!n) return;
+          setNotifications((prev) => [n, ...prev.filter((item) => item.id !== n.id)]);
+          setUnreadCount((count) => count + 1);
+        };
+        const countHandler = (payload: any) => {
+          setUnreadCount(payload?.count ?? 0);
+        };
+
+        channel.listen('NotificationCreated', createdHandler);
+        channel.listen('NotificationCountUpdated', countHandler);
+
+        return () => {
+          try {
+            channel.stopListening('NotificationCreated');
+            channel.stopListening('NotificationCountUpdated');
+          } catch {
+            // ignore
+          }
+        };
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => {
+      // no-op cleanup
+    };
   }, []);
 
   const fetchEmployeeProfile = async () => {
@@ -135,8 +206,25 @@ export function EmployeeNotifications() {
     try {
       setLoading(true);
       const res = await fetch('/api/employee/notifications', fetchOptions('GET'));
+      if (!res.ok) {
+        throw new Error(`Failed to fetch employee notifications: ${res.status}`);
+      }
       const data = await res.json();
-      setNotifications(safeArray(data?.data ?? data?.notifications?.data));
+      let list = extractNotificationItems(data);
+
+      // Fallback to unread feed if main list returns empty unexpectedly.
+      if (list.length === 0) {
+        const unreadRes = await fetch('/api/employee/notifications?unread=true&per_page=25', fetchOptions('GET'));
+        if (unreadRes.ok) {
+          const unreadData = await unreadRes.json();
+          const unreadList = extractNotificationItems(unreadData);
+          if (unreadList.length > 0) {
+            list = unreadList;
+          }
+        }
+      }
+
+      setNotifications(list);
     } catch (err) {
       console.error('Failed to load notifications:', err);
     } finally {
@@ -155,10 +243,16 @@ export function EmployeeNotifications() {
   };
 
   const markAsRead = async (id: number) => {
+    const target = notifications.find((item) => item.id === id);
+    if (!target || target.read_at) return;
+
+    setNotifications((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, read_at: new Date().toISOString() } : item))
+    );
+    setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
+
     try {
       await fetch(`/api/employee/notifications/${id}/read`, fetchOptions('POST'));
-      fetchNotifications();
-      fetchUnreadCount();
     } catch (err) {
       console.error('Failed to mark as read:', err);
     }
@@ -172,11 +266,45 @@ export function EmployeeNotifications() {
     }
   };
 
+  const tryOpenPendingNotification = React.useCallback(() => {
+    const pendingIdRaw = localStorage.getItem(PENDING_NOTIFICATION_ID_KEY);
+    const pendingRole = localStorage.getItem(PENDING_NOTIFICATION_ROLE_KEY);
+    if (!pendingIdRaw || pendingRole !== 'Employee') return;
+
+    const pendingId = Number(pendingIdRaw);
+    if (!Number.isFinite(pendingId)) {
+      localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
+      localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
+      return;
+    }
+
+    const target = notifications.find((item) => item.id === pendingId);
+    if (!target) return;
+
+    setActiveTab('received');
+    localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
+    localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
+    openNotificationDetail(target);
+  }, [notifications]);
+
+  useEffect(() => {
+    tryOpenPendingNotification();
+  }, [notifications, tryOpenPendingNotification]);
+
+  useEffect(() => {
+    const handler = () => tryOpenPendingNotification();
+    window.addEventListener(OPEN_NOTIFICATION_EVENT, handler);
+    return () => window.removeEventListener(OPEN_NOTIFICATION_EVENT, handler);
+  }, [tryOpenPendingNotification]);
+
   const markAllAsRead = async () => {
+    setNotifications((prev) =>
+      prev.map((item) => (item.read_at ? item : { ...item, read_at: new Date().toISOString() }))
+    );
+    setUnreadCount(0);
+
     try {
       await fetch('/api/employee/notifications/read-all', fetchOptions('POST'));
-      fetchNotifications();
-      fetchUnreadCount();
     } catch (err) {
       console.error('Failed to mark all as read:', err);
     }

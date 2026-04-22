@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 use App\Http\Controllers\Controller;
@@ -487,8 +488,13 @@ class UserController extends Controller
      */
     public function reports(Request $request)
     {
-        $range = (int) ($request->query('months', 6));
-        $since = now()->subMonths($range)->startOfMonth();
+        $range = (int) ($request->query('months', 12));
+        $range = max(1, min($range, 12));
+
+        // Use a calendar-based window that always starts in January.
+        // For shorter ranges, render Jan..N months of the current year.
+        $since = now()->copy()->startOfYear();
+        $monthsToRender = $range === 12 ? 12 : $range;
 
         // --- Overall Completion Status ---
         $total = Enrollment::count();
@@ -510,34 +516,43 @@ class UserController extends Controller
         ];
 
         // --- Monthly Enrollment vs Completion Trends ---
-        $enrollmentsByMonth = DB::table('enrollments')
-            ->selectRaw("TO_CHAR(enrolled_at, 'Mon') as month, TO_CHAR(enrolled_at, 'YYYY-MM') as sort_key, COUNT(*) as enrollments")
-            ->where('enrolled_at', '>=', $since)
-            ->groupByRaw("TO_CHAR(enrolled_at, 'YYYY-MM'), TO_CHAR(enrolled_at, 'Mon')")
-            ->orderByRaw("TO_CHAR(enrolled_at, 'YYYY-MM')")
-            ->pluck('enrollments', 'sort_key');
+        $monthlyTrends = [];
 
-        $completionsByMonth = DB::table('enrollments')
-            ->selectRaw("TO_CHAR(updated_at, 'YYYY-MM') as sort_key, COUNT(*) as completions")
-            ->where('status', 'Completed')
-            ->where('updated_at', '>=', $since)
-            ->groupByRaw("TO_CHAR(updated_at, 'YYYY-MM')")
-            ->pluck('completions', 'sort_key');
+        for ($i = 0; $i < $monthsToRender; $i++) {
+            $month = $since->copy()->addMonths($i);
+            $monthKey = $month->format('Y-m');
 
-        $monthLabels = DB::table('enrollments')
-            ->selectRaw("TO_CHAR(enrolled_at, 'Mon') as label, TO_CHAR(enrolled_at, 'YYYY-MM') as sort_key")
-            ->where('enrolled_at', '>=', $since)
-            ->groupByRaw("TO_CHAR(enrolled_at, 'YYYY-MM'), TO_CHAR(enrolled_at, 'Mon')")
-            ->orderByRaw("TO_CHAR(enrolled_at, 'YYYY-MM')")
-            ->pluck('label', 'sort_key');
-
-        $monthlyTrends = $monthLabels->map(function ($label, $key) use ($enrollmentsByMonth, $completionsByMonth) {
-            return [
-                'name'        => $label,
-                'enrollments' => (int) ($enrollmentsByMonth[$key] ?? 0),
-                'completions' => (int) ($completionsByMonth[$key] ?? 0),
+            $monthlyTrends[$monthKey] = [
+                'sort_key' => $monthKey,
+                'name' => $month->format('M'),
+                'enrollments' => 0,
+                'completions' => 0,
             ];
-        })->values();
+        }
+
+        $enrollments = DB::table('enrollments')
+            ->select(['enrolled_at', 'updated_at', 'status'])
+            ->where('enrolled_at', '>=', $since)
+            ->where('enrolled_at', '<', $since->copy()->addMonths($monthsToRender))
+            ->get();
+
+        foreach ($enrollments as $enrollment) {
+            if ($enrollment->enrolled_at) {
+                $enrolledKey = Carbon::parse($enrollment->enrolled_at)->format('Y-m');
+                if (isset($monthlyTrends[$enrolledKey])) {
+                    $monthlyTrends[$enrolledKey]['enrollments']++;
+                }
+            }
+
+            if ($enrollment->status === 'Completed' && $enrollment->updated_at) {
+                $completedKey = Carbon::parse($enrollment->updated_at)->format('Y-m');
+                if (isset($monthlyTrends[$completedKey])) {
+                    $monthlyTrends[$completedKey]['completions']++;
+                }
+            }
+        }
+
+        $monthlyTrends = array_values($monthlyTrends);
 
         // --- Most Popular Courses (by enrollment count) ---
         $popularCourses = DB::table('enrollments')
