@@ -563,10 +563,10 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
 
   return (
     <div className="space-y-6 ui-pop-grid um-shell">
-      <div className="relative z-40 overflow-visible flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 um-header">
+      <div className="relative overflow-visible flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 um-header">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 um-title">User Management</h1>
         <div className="flex items-center space-x-3">
-          <div className="relative z-50" ref={addUserDropdownRef}>
+          <div className="relative" ref={addUserDropdownRef}>
             <button
               onClick={() => setShowAddUserDropdown(!showAddUserDropdown)}
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-slate-950 bg-emerald-400 hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -578,7 +578,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
               </svg>
             </button>
             {showAddUserDropdown && (
-              <div className="absolute right-0 top-full mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-slate-800 ring-1 ring-black ring-opacity-5 z-[120]">
+              <div className="absolute right-0 top-full mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-slate-800 ring-1 ring-black ring-opacity-5">
                 <div className="py-1">
                   <button
                     onClick={() => handleOpenModal(undefined, 'Admin')}
