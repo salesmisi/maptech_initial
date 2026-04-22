@@ -662,7 +662,7 @@ export default function DepartmentManagement() {
 
   return (
     <div className="px-6 pb-6 pt-2 text-slate-900 dark:text-slate-100">
-      <div className="department-toolbar-animate mb-6 flex items-center justify-end">
+      <div className="department-toolbar-animate mb-2 flex items-center justify-end">
         <button
           onClick={() => setShowCreateModal(true)}
           className="department-cta-button flex items-center rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-950 transition-colors hover:bg-emerald-400"
@@ -672,7 +672,7 @@ export default function DepartmentManagement() {
         </button>
       </div>
 
-      <div className="mb-6 max-w-xl">
+      <div className="mb-2 max-w-xl">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
