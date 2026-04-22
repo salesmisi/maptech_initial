@@ -563,8 +563,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
 
   return (
     <div className="space-y-6 ui-pop-grid um-shell">
-      <div className="relative overflow-visible flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 um-header">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 um-title">User Management</h1>
+      <div className="relative overflow-visible flex flex-col sm:flex-row justify-end items-start sm:items-center gap-4 um-header">
         <div className="flex items-center space-x-3">
           <div className="relative" ref={addUserDropdownRef}>
             <button

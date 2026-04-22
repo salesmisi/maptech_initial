@@ -8,9 +8,7 @@ import {
   BarChart3,
   Bell,
   LogOut,
-  Search,
   Menu,
-  ChevronLeft,
   Video,
   MessageCircle,
   Settings,
@@ -245,6 +243,56 @@ const iconMap: Record<string, LucideIcon> = {
 const getIconByName = (name: string): LucideIcon => {
   return iconMap[name] || Blocks;
 };
+
+const toTitleCase = (value: string) =>
+  value
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
+const getAdminPageTitle = (page: string) => {
+  const titles: Record<string, string> = {
+    dashboard: 'Dashboard Overview',
+    departments: 'Department Management',
+    users: 'User Management',
+    courses: 'Courses and Content',
+    'course-detail': 'Course Details',
+    enrollments: 'Enrollment Management',
+    reports: 'Reports and Analytics',
+    notifications: 'Notifications',
+    qa: 'Q&A Discussion',
+    'audit-logs': 'Audit Logs',
+    'business-details': 'Business Details',
+    feedbacks: 'Feedbacks',
+    'product-logos': 'Product Logo Manager',
+    'custom-field': 'Custom Field Builder',
+    settings: 'Settings',
+  };
+
+  return titles[page] || toTitleCase(page);
+};
+
+const getAdminPageDescription = (page: string) => {
+  const descriptions: Record<string, string> = {
+    dashboard: 'Track platform health, activity, and performance trends.',
+    departments: 'Organize teams, heads, and subdepartments in one place.',
+    users: 'Manage user accounts, roles, and access status.',
+    courses: 'Create, update, and maintain course content and structure.',
+    'course-detail': 'Review course information, progress, and enrolled members.',
+    enrollments: 'Handle course enrollments and participant assignments.',
+    reports: 'Analyze completion, engagement, and learning outcomes.',
+    notifications: 'Send announcements and review message history.',
+    qa: 'Monitor and respond to questions across lessons and modules.',
+    'audit-logs': 'Review system actions and user activity trails.',
+    'business-details': 'Configure company profile and organization details.',
+    feedbacks: 'Review user feedback and improve learning experience.',
+    'product-logos': 'Manage product logos and branding assets.',
+    'custom-field': 'Create and maintain custom fields and modules.',
+    settings: 'Update account preferences and profile settings.',
+  };
+
+  return descriptions[page] || 'Manage this section and keep data up to date.';
+};
 import { safeArray } from '../../utils/safe';
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -253,9 +301,6 @@ interface AdminLayoutProps {
   onLogout: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
-  globalSearch?: string;
-  onGlobalSearch?: (term: string) => void;
-  onGlobalSearchSubmit?: (term: string) => void | Promise<void>;
   user: {
     name?: string;
     fullName?: string;
@@ -271,26 +316,18 @@ export function AdminLayout({
   onLogout,
   theme,
   onToggleTheme,
-  globalSearch = '',
-  onGlobalSearch,
-  onGlobalSearchSubmit,
   user
 }: AdminLayoutProps) {
   const [showPicPreview, setShowPicPreview] = useState(false);
   const [isDesktop, setIsDesktop] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 768 : true));
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      return localStorage.getItem('maptech_admin_sidebar_collapsed') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(user?.fullName ?? user?.fullname ?? user?.name ?? null);
   const [customNavItems, setCustomNavItems] = useState<any[]>([]);
   const isDark = theme === 'dark';
   const businessDetails = useBusinessDetails();
+  const pageTitle = getAdminPageTitle(currentPage);
+  const pageDescription = getAdminPageDescription(currentPage);
 
   // If user prop lacks a name, try fetching profile as a fallback (helps when time-in event updates profile separately)
   useEffect(() => {
@@ -341,13 +378,6 @@ export function AdminLayout({
     };
   }, []);
   useEffect(() => {
-    try {
-      localStorage.setItem('maptech_admin_sidebar_collapsed', String(isSidebarCollapsed));
-    } catch {
-      // ignore persistence errors
-    }
-  }, [isSidebarCollapsed]);
-  useEffect(() => {
     if (typeof window === 'undefined') return undefined;
 
     const handleResize = () => {
@@ -360,17 +390,9 @@ export function AdminLayout({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  const isSidebarCompact = isDesktop && isSidebarCollapsed;
-  const isSidebarVisible = isDesktop ? !isSidebarCollapsed : isMobileSidebarOpen;
-  const sidebarWidthClass = isDesktop ? (isSidebarCollapsed ? 'w-20' : 'w-64') : 'w-[86vw] max-w-xs';
+  const isSidebarCompact = isDesktop && !isSidebarHovered;
+  const sidebarWidthClass = isDesktop ? (isSidebarHovered ? 'w-64' : 'w-20') : 'w-[86vw] max-w-xs';
   const sidebarTranslateClass = isDesktop || isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full';
-  const toggleSidebar = () => {
-    if (isDesktop) {
-      setIsSidebarCollapsed((prev) => !prev);
-      return;
-    }
-    setIsMobileSidebarOpen((prev) => !prev);
-  };
   const handleSidebarNavigate = (page: string) => {
     onNavigate(page);
     if (!isDesktop) setIsMobileSidebarOpen(false);
@@ -458,20 +480,23 @@ export function AdminLayout({
     <div className={`app-theme-scope min-h-screen flex ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 dark:bg-slate-900 text-slate-900'}`}>
       {!isDesktop && isMobileSidebarOpen && <button type="button" aria-label="Close sidebar" className="fixed inset-0 z-20 bg-slate-950/60" onClick={() => setIsMobileSidebarOpen(false)} />}
       {/* Sidebar (fixed on all viewports to avoid layout shift when zooming) */}
-      <div className={`fixed inset-y-0 left-0 z-30 flex ${sidebarWidthClass} flex-col border-r transition-all duration-300 ${sidebarTranslateClass} ${isDark ? 'border-slate-800/80 bg-slate-950/95 text-white' : 'border-slate-200 bg-slate-900 text-white'}`}>
+      <div
+        className={`fixed inset-y-0 left-0 z-30 flex ${sidebarWidthClass} flex-col border-r transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${sidebarTranslateClass} ${isDark ? 'border-slate-800/80 bg-slate-950/95 text-white' : 'border-slate-200 bg-slate-900 text-white'}`}
+        onMouseEnter={() => { if (isDesktop) setIsSidebarHovered(true); }}
+        onMouseLeave={() => { if (isDesktop) setIsSidebarHovered(false); }}
+      >
         <div className="flex-1 flex flex-col min-h-0">
-          <div className={`flex flex-col items-center bg-slate-950 transition-all duration-300 ${isSidebarCompact ? 'px-2 pt-6 pb-4' : 'px-4 pt-8 pb-6'}`}>
+          <div className={`flex flex-col items-center bg-slate-950 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'px-2 pt-6 pb-4' : 'px-4 pt-8 pb-6'}`}>
             <img
-              className={`w-auto brightness-110 contrast-110 transition-all duration-300 ${isSidebarCompact ? 'mb-0 h-10' : 'mb-3 h-16'}`}
+              className={`w-auto brightness-110 contrast-110 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'mb-0 h-10' : 'mb-3 h-16'}`}
               src={businessDetails.logo_url}
               alt="Maptech"
             />
-
-            {!isSidebarCompact && (
-              <p className={`text-center text-sm font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-slate-300'}`}>
-                {businessDetails.company_name}
-              </p>
-            )}
+            <p
+              className={`overflow-hidden text-center text-sm font-medium leading-tight transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'text-slate-400' : 'text-slate-300'} ${isSidebarCompact ? 'mt-0 max-h-0 opacity-0 -translate-y-1' : 'mt-1 max-h-12 opacity-100 translate-y-0'}`}
+            >
+              {businessDetails.company_name}
+            </p>
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
             <nav className={`mt-5 flex-1 space-y-1 ${isSidebarCompact ? 'px-3' : 'px-2'}`}>
@@ -484,12 +509,16 @@ export function AdminLayout({
                     onClick={() => handleSidebarNavigate(item.id)}
                     title={isSidebarCompact ? item.label : undefined}
                     aria-label={item.label}
-                    className={`sidebar-nav-item group flex w-full items-center rounded-lg text-sm font-medium transition-colors ${isSidebarCompact ? 'justify-center px-2 py-3' : 'px-3 py-2.5'} ${isActive ? 'is-active bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}>
+                    className={`sidebar-nav-item group flex w-full items-center justify-start rounded-lg text-sm font-medium transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'px-2 py-3' : 'px-3 py-2.5'} ${isActive ? 'is-active bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}>
 
                     <Icon
-                      className={`h-5 w-5 flex-shrink-0 ${isSidebarCompact ? '' : 'mr-3'} ${isActive ? 'text-emerald-300' : 'text-slate-400 group-hover:text-slate-200'}`} />
+                      className={`h-5 w-5 flex-shrink-0 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'mx-auto' : 'mr-3'} ${isActive ? 'text-emerald-300' : 'text-slate-400 group-hover:text-slate-200'}`} />
 
-                    {!isSidebarCompact && item.label}
+                    <span
+                      className={`overflow-hidden whitespace-nowrap transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'max-w-0 opacity-0 -translate-x-2' : 'max-w-[170px] opacity-100 translate-x-0'}`}
+                    >
+                      {item.label}
+                    </span>
                   </button>);
 
               })}
@@ -497,7 +526,7 @@ export function AdminLayout({
           </div>
           <div className={`flex-shrink-0 flex border-t p-4 ${isDark ? 'border-slate-800/80' : 'border-slate-800'}`}>
             <div className="flex-shrink-0 w-full group block">
-              <div className={isSidebarCompact ? 'flex flex-col items-center gap-3' : 'flex items-center'}>
+              <div className="flex items-center">
                 {user.profile_picture ? (
                   <img
                     src={user.profile_picture}
@@ -510,17 +539,15 @@ export function AdminLayout({
                     {(displayName?.charAt(0) ?? 'U').toUpperCase()}
                   </div>
                 )}
-                {!isSidebarCompact && (
-                  <div className="ml-3 min-w-0">
-                    <p className={`truncate text-sm font-medium ${isDark ? 'text-slate-100' : 'text-white'}`}>{displayName ?? 'Unknown'}</p>
-                    <p className="text-xs font-medium text-slate-400">
-                      Administrator
-                    </p>
-                  </div>
-                )}
+                <div className={`ml-3 min-w-0 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'max-w-0 opacity-0' : 'max-w-[140px] opacity-100'}`}>
+                  <p className={`truncate text-sm font-medium ${isDark ? 'text-slate-100' : 'text-white'}`}>{displayName ?? 'Unknown'}</p>
+                  <p className="text-xs font-medium text-slate-400">
+                    Administrator
+                  </p>
+                </div>
                 <button
                   onClick={onLogout}
-                  className={`${isSidebarCompact ? '' : 'ml-auto'} text-slate-400 hover:text-white`}
+                  className="ml-auto text-slate-400 hover:text-white transition-colors duration-300"
                   title="Logout">
 
                   <LogOut className="h-5 w-5" />
@@ -533,47 +560,29 @@ export function AdminLayout({
 
       {/* Main content */}
       <div
-        className="flex w-full flex-col transition-[padding] duration-300"
-        style={isDesktop ? { paddingLeft: isSidebarCollapsed ? '5rem' : '16rem' } : undefined}
+        className="flex w-full flex-col transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        style={isDesktop ? { paddingLeft: isSidebarHovered ? '16rem' : '5rem' } : undefined}
       >
         <div className={`sticky top-0 z-10 flex min-h-16 flex-wrap items-center border-b ${isDark ? 'bg-slate-900/75 backdrop-blur-md border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            className={`inline-flex min-h-16 items-center justify-center self-stretch px-4 focus:outline-none ${isSidebarVisible ? isDark ? 'bg-slate-800/80 text-white' : 'bg-slate-100 text-slate-800' : isDark ? 'text-slate-300 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
-
-            <span className="sr-only">{isDesktop ? (isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar') : isMobileSidebarOpen ? 'Close sidebar' : 'Open sidebar'}</span>
-            {isSidebarVisible ? <ChevronLeft className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </button>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4">
-            <div className="order-2 flex w-full items-center md:order-1 md:flex-1">
-              <form
-                className="w-full max-w-4xl md:ml-0"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  onGlobalSearchSubmit?.(globalSearch);
-                }}
-              >
-                <label htmlFor="search-field" className="sr-only">
-                  Search
-                </label>
-                <div className={`relative w-full h-10 text-slate-400 ${isDark ? 'focus-within:text-slate-300' : 'focus-within:text-slate-600'}`}>
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                    <Search className="h-5 w-5" />
-                  </div>
-                  <input
-                    id="search-field"
-                    className={`block w-full h-10 rounded-xl pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500/40 sm:text-sm ${isDark ? 'bg-slate-800/80 border border-slate-700 text-slate-100 placeholder-slate-400' : 'bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-500'}`}
-                    placeholder="Search courses, users, or reports..."
-                    type="search"
-                    name="search"
-                    value={globalSearch}
-                    onChange={(e) => onGlobalSearch?.(e.target.value)} />
-
-                </div>
-              </form>
+          {!isDesktop && (
+            <button
+              type="button"
+              onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
+              className={`inline-flex min-h-16 items-center justify-center self-stretch px-4 focus:outline-none ${isDark ? 'text-slate-300 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+              <span className="sr-only">{isMobileSidebarOpen ? 'Close sidebar' : 'Open sidebar'}</span>
+              <Menu className="h-6 w-6" />
+            </button>
+          )}
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-3 sm:px-4">
+            <div className="ml-2 md:ml-3 min-w-0">
+              <h1 className={`truncate text-xl font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                {pageTitle}
+              </h1>
+              <p className={`truncate text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                {pageDescription}
+              </p>
             </div>
-            <div className="order-1 ml-auto flex items-center gap-2 md:order-2 md:ml-6 md:gap-0">
+            <div className="flex items-center gap-2 md:gap-0">
               <button
                 onClick={onToggleTheme}
                 aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}

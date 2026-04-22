@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import useConfirm from '../../hooks/useConfirm';
-import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X, RotateCcw, Archive, ChevronDown, User } from 'lucide-react';
+import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X, RotateCcw, Archive, ChevronDown, User, Search } from 'lucide-react';
 import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
 import InfoModal from '../../components/InfoModal';
@@ -117,6 +117,7 @@ export function NotificationManagement() {
   const [selectedAnnouncementDetail, setSelectedAnnouncementDetail] = useState<AnnouncementDetail | null>(null);
   const [successToast, setSuccessToast] = useState<{ show: boolean; count: number }>({ show: false, count: 0 });
   const [previewModal, setPreviewModal] = useState<{ open: boolean; recipientCount: number | null; error?: string }>({ open: false, recipientCount: null });
+  const [listSearchQuery, setListSearchQuery] = useState('');
 
   // One-person form state
   const [onePersonForm, setOnePersonForm] = useState({ title: '', message: '' });
@@ -768,13 +769,81 @@ export function NotificationManagement() {
     });
   };
 
+  const normalizedListSearch = listSearchQuery.trim().toLowerCase();
+
+  const filteredNotifications = useMemo(() => {
+    if (!normalizedListSearch) return safeArray(notifications);
+
+    return safeArray(notifications).filter((notification) => {
+      return [
+        notification.title,
+        notification.message,
+        notification.type,
+        notification.data?.from_user_name,
+        notification.data?.from_role,
+        notification.data?.from_department,
+        notification.data?.course_title,
+      ].some((value) => String(value || '').toLowerCase().includes(normalizedListSearch));
+    });
+  }, [notifications, normalizedListSearch]);
+
+  const filteredSentHistory = useMemo(() => {
+    if (!normalizedListSearch) return safeArray(sentHistory);
+
+    return safeArray(sentHistory).filter((item) => {
+      const plainMessage = String(item.message || '')
+        .replace(/<br\s*\/?\s*>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const rolesText = safeArray(item.target_roles)
+        .map((role) => String(role || '').trim())
+        .filter(Boolean)
+        .join(', ');
+
+      return [
+        item.title,
+        plainMessage,
+        item.target,
+        item.announcement_mode,
+        rolesText,
+        item.department_name,
+        item.subdepartment_name,
+      ].some((value) => String(value || '').toLowerCase().includes(normalizedListSearch));
+    });
+  }, [sentHistory, normalizedListSearch]);
+
+  const filteredRecentlyDeleted = useMemo(() => {
+    if (!normalizedListSearch) return safeArray(recentlyDeleted);
+
+    return safeArray(recentlyDeleted).filter((item) => {
+      const plainMessage = String(item.message || '')
+        .replace(/<br\s*\/?\s*>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      return [
+        item.title,
+        plainMessage,
+        item.target,
+        item.item_type,
+        item.type,
+        item.data?.from_user_name,
+        item.data?.from_role,
+        item.data?.from_department,
+        item.department_name,
+        item.subdepartment_name,
+      ].some((value) => String(value || '').toLowerCase().includes(normalizedListSearch));
+    });
+  }, [recentlyDeleted, normalizedListSearch]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-            Notification System
-          </h1>
           {unreadCount > 0 && (
             <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">
               You have {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
@@ -860,19 +929,38 @@ export function NotificationManagement() {
         </nav>
       </div>
 
+      <div className="max-w-xl">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={listSearchQuery}
+            onChange={(e) => setListSearchQuery(e.target.value)}
+            placeholder={
+              activeTab === 'received'
+                ? 'Search received notifications'
+                : activeTab === 'sent'
+                  ? 'Search sent history'
+                  : 'Search recently deleted notifications'
+            }
+            className="w-full rounded-md border border-slate-300 bg-white py-2 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400"
+          />
+        </div>
+      </div>
+
       {/* Received Notifications */}
       {activeTab === 'received' && (
         <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
           {loading ? (
             <LoadingState message="Loading notifications" className="p-8" />
-          ) : safeArray(notifications).length === 0 ? (
+          ) : filteredNotifications.length === 0 ? (
             <div className="p-8 text-center text-slate-500">
               <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300" />
               <p>No notifications yet</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-200">
-              {safeArray(notifications).map((notification) => (
+              {filteredNotifications.map((notification) => (
                 <div
                   key={notification.id}
                   onClick={() => openReceivedDetail(notification)}
@@ -963,7 +1051,7 @@ export function NotificationManagement() {
       {/* Sent History */}
       {activeTab === 'sent' && (
         <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-          {sentHistory.length === 0 ? (
+          {filteredSentHistory.length === 0 ? (
             <div className="p-8 text-center text-slate-500 dark:text-slate-300">
               <Send className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
               <p>No announcements sent yet</p>
@@ -982,7 +1070,7 @@ export function NotificationManagement() {
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
-                  {safeArray(sentHistory).map((item) => (
+                  {filteredSentHistory.map((item) => (
                     <tr
                       key={item.id}
                       onClick={() => openSentDetail(item)}
@@ -1032,7 +1120,7 @@ export function NotificationManagement() {
       {/* Recently Deleted */}
       {activeTab === 'deleted' && (
         <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-          {recentlyDeleted.length === 0 ? (
+          {filteredRecentlyDeleted.length === 0 ? (
             <div className="p-8 text-center text-slate-500 dark:text-slate-300">
               <Archive className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
               <p>No recently deleted announcements</p>
@@ -1053,7 +1141,7 @@ export function NotificationManagement() {
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
-                  {recentlyDeleted.map((item) => (
+                  {filteredRecentlyDeleted.map((item) => (
                     <tr
                       key={`${item.item_type}-${item.id}`}
                       onClick={() => openDeletedDetail(item)}

@@ -106,7 +106,6 @@ export function InstructorDashboard({ onNavigate }: InstructorDashboardProps) {
         {/* Page Header */}
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Instructor Dashboard</h1>
             <p className="text-sm text-slate-500 mt-1">Welcome back</p>
           </div>
           <div className="self-start text-xs text-slate-500 sm:self-auto sm:text-sm">Last updated: Today</div>

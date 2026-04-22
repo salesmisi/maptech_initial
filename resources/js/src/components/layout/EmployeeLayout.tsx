@@ -9,7 +9,6 @@ import {
   LogOut,
   Search,
   Menu,
-  ChevronLeft,
   Bell,
   Settings,
   Moon,
@@ -18,6 +17,48 @@ import {
 import { NotificationBell } from '../NotificationBell';
 import { useBusinessDetails } from '../../hooks/useBusinessDetails';
 import { safeArray } from '../../utils/safe';
+
+const toTitleCase = (value: string) =>
+  value
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
+const getEmployeePageTitle = (page: string) => {
+  const titles: Record<string, string> = {
+    dashboard: 'Dashboard Overview',
+    'my-courses': 'My Courses',
+    'course-enroll': 'Course Enrollment',
+    'course-viewer': 'Course Viewer',
+    'custom-module-viewer': 'Custom Module',
+    progress: 'My Progress',
+    certificates: 'Certificates',
+    qa: 'Q&A',
+    feedback: 'Feedback',
+    notifications: 'Notifications',
+    settings: 'Settings',
+  };
+
+  return titles[page] || toTitleCase(page);
+};
+
+const getEmployeePageDescription = (page: string) => {
+  const descriptions: Record<string, string> = {
+    dashboard: 'View your learning activity and progress at a glance.',
+    'my-courses': 'Browse assigned courses and continue learning.',
+    'course-enroll': 'Review course details before enrollment.',
+    'course-viewer': 'Continue lessons, quizzes, and module activities.',
+    'custom-module-viewer': 'View learning content from custom modules.',
+    progress: 'Track completion status and learning milestones.',
+    certificates: 'Access and download your earned certificates.',
+    qa: 'Ask questions and join lesson discussions.',
+    feedback: 'Share feedback to help improve course quality.',
+    notifications: 'Review updates from instructors and admins.',
+    settings: 'Manage your profile and account preferences.',
+  };
+
+  return descriptions[page] || 'Manage your activity in this section.';
+};
 interface EmployeeLayoutProps {
   children: React.ReactNode;
   currentPage: string;
@@ -51,16 +92,11 @@ export function EmployeeLayout({
   const [showPicPreview, setShowPicPreview] = useState(false);
   const [isDesktop, setIsDesktop] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 768 : true));
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      return localStorage.getItem('maptech_employee_sidebar_collapsed') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const isDark = theme === 'dark';
   const businessDetails = useBusinessDetails();
+  const pageTitle = getEmployeePageTitle(currentPage);
+  const pageDescription = getEmployeePageDescription(currentPage);
   let storedName: string | null = null;
   try {
     storedName = typeof localStorage !== 'undefined' ? localStorage.getItem('maptech_user_name') : null;
@@ -116,13 +152,6 @@ export function EmployeeLayout({
     }
   }, [user]);
   useEffect(() => {
-    try {
-      localStorage.setItem('maptech_employee_sidebar_collapsed', String(isSidebarCollapsed));
-    } catch {
-      // ignore persistence errors
-    }
-  }, [isSidebarCollapsed]);
-  useEffect(() => {
     if (typeof window === 'undefined') return undefined;
 
     const handleResize = () => {
@@ -135,17 +164,9 @@ export function EmployeeLayout({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  const isSidebarCompact = isDesktop && isSidebarCollapsed;
-  const isSidebarVisible = isDesktop ? !isSidebarCollapsed : isMobileSidebarOpen;
-  const sidebarWidthClass = isDesktop ? (isSidebarCollapsed ? 'w-20' : 'w-64') : 'w-[86vw] max-w-xs';
+  const isSidebarCompact = isDesktop && !isSidebarHovered;
+  const sidebarWidthClass = isDesktop ? (isSidebarHovered ? 'w-64' : 'w-20') : 'w-[86vw] max-w-xs';
   const sidebarTranslateClass = isDesktop || isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full';
-  const toggleSidebar = () => {
-    if (isDesktop) {
-      setIsSidebarCollapsed((prev) => !prev);
-      return;
-    }
-    setIsMobileSidebarOpen((prev) => !prev);
-  };
   const handleSidebarNavigate = (page: string) => {
     onNavigate(page);
     if (!isDesktop) setIsMobileSidebarOpen(false);
@@ -196,20 +217,23 @@ export function EmployeeLayout({
     <div className={`app-theme-scope min-h-screen flex ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 dark:bg-slate-900 text-slate-900'}`}>
       {!isDesktop && isMobileSidebarOpen && <button type="button" aria-label="Close sidebar" className="fixed inset-0 z-20 bg-slate-950/60" onClick={() => setIsMobileSidebarOpen(false)} />}
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-30 flex ${sidebarWidthClass} flex-col bg-slate-900 text-white transition-all duration-300 ${sidebarTranslateClass}`}>
+      <div
+        className={`fixed inset-y-0 left-0 z-30 flex ${sidebarWidthClass} flex-col bg-slate-900 text-white transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${sidebarTranslateClass}`}
+        onMouseEnter={() => { if (isDesktop) setIsSidebarHovered(true); }}
+        onMouseLeave={() => { if (isDesktop) setIsSidebarHovered(false); }}
+      >
         <div className="flex-1 flex flex-col min-h-0">
-          <div className={`flex flex-col items-center bg-slate-950 transition-all duration-300 ${isSidebarCompact ? 'px-2 pt-6 pb-4' : 'px-4 pt-8 pb-6'}`}>
+          <div className={`flex flex-col items-center bg-slate-950 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'px-2 pt-6 pb-4' : 'px-4 pt-8 pb-6'}`}>
             <img
-              className={`w-auto brightness-110 contrast-110 transition-all duration-300 ${isSidebarCompact ? 'mb-0 h-10' : 'mb-3 h-16'}`}
+              className={`w-auto brightness-110 contrast-110 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'mb-0 h-10' : 'mb-3 h-16'}`}
               src={businessDetails.logo_url}
               alt="Maptech"
             />
-
-            {!isSidebarCompact && (
-              <p className="text-center text-sm font-medium text-slate-300 leading-tight">
-                {businessDetails.company_name}
-              </p>
-            )}
+            <p
+              className={`overflow-hidden text-center text-sm font-medium text-slate-300 leading-tight transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'mt-0 max-h-0 opacity-0 -translate-y-1' : 'mt-1 max-h-12 opacity-100 translate-y-0'}`}
+            >
+              {businessDetails.company_name}
+            </p>
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
             <nav className={`mt-5 flex-1 space-y-1 ${isSidebarCompact ? 'px-3' : 'px-2'}`}>
@@ -223,12 +247,16 @@ export function EmployeeLayout({
                     onClick={() => handleSidebarNavigate(item.id)}
                     title={isSidebarCompact ? item.label : undefined}
                     aria-label={item.label}
-                    className={`sidebar-nav-item group flex w-full items-center text-sm font-medium rounded-md transition-colors ${isSidebarCompact ? 'justify-center px-2 py-3' : 'px-2 py-2'} ${isActive ? 'is-active bg-green-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                    className={`sidebar-nav-item group flex w-full items-center justify-start text-sm font-medium rounded-md transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'px-2 py-3' : 'px-2 py-2'} ${isActive ? 'is-active bg-green-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
 
                     <Icon
-                      className={`h-5 w-5 flex-shrink-0 ${isSidebarCompact ? '' : 'mr-3'} ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'}`} />
+                      className={`h-5 w-5 flex-shrink-0 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'mx-auto' : 'mr-3'} ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'}`} />
 
-                    {!isSidebarCompact && item.label}
+                    <span
+                      className={`overflow-hidden whitespace-nowrap transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'max-w-0 opacity-0 -translate-x-2' : 'max-w-[170px] opacity-100 translate-x-0'}`}
+                    >
+                      {item.label}
+                    </span>
                   </button>);
 
               })}
@@ -236,7 +264,7 @@ export function EmployeeLayout({
           </div>
           <div className="flex-shrink-0 flex border-t border-slate-800 p-4">
             <div className="flex-shrink-0 w-full group block">
-              <div className={isSidebarCompact ? 'flex flex-col items-center gap-3' : 'flex items-center'}>
+              <div className="flex items-center">
                 {user.profile_picture ? (
                   <img
                     src={user.profile_picture}
@@ -248,15 +276,13 @@ export function EmployeeLayout({
                     {(displayName?.charAt(0) ?? 'E').toUpperCase()}
                   </div>
                 )}
-                {!isSidebarCompact && (
-                  <div className="ml-3 min-w-0">
-                    <p className="truncate text-sm font-medium text-white">{displayName || ''}</p>
-                    <p className="text-xs font-medium text-slate-400">Employee</p>
-                  </div>
-                )}
+                <div className={`ml-3 min-w-0 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'max-w-0 opacity-0' : 'max-w-[140px] opacity-100'}`}>
+                  <p className="truncate text-sm font-medium text-white">{displayName || ''}</p>
+                  <p className="text-xs font-medium text-slate-400">Employee</p>
+                </div>
                 <button
                   onClick={onLogout}
-                  className={`${isSidebarCompact ? '' : 'ml-auto'} text-slate-400 hover:text-white`}
+                  className="ml-auto text-slate-400 hover:text-white transition-colors duration-300"
                   title="Logout">
 
                   <LogOut className="h-5 w-5" />
@@ -269,20 +295,29 @@ export function EmployeeLayout({
 
       {/* Main content */}
       <div
-        className="flex w-full flex-col transition-[padding] duration-300"
-        style={isDesktop ? { paddingLeft: isSidebarCollapsed ? '5rem' : '16rem' } : undefined}
+        className="flex w-full flex-col transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        style={isDesktop ? { paddingLeft: isSidebarHovered ? '16rem' : '5rem' } : undefined}
       >
         <div className={`sticky top-0 z-10 flex min-h-16 flex-wrap items-center border-b ${isDark ? 'bg-slate-900/75 backdrop-blur-md border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            className={`inline-flex min-h-16 items-center justify-center self-stretch px-4 focus:outline-none ${isSidebarVisible ? isDark ? 'bg-slate-800/80 text-white' : 'bg-slate-100 text-slate-800' : isDark ? 'text-slate-300 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
-
-            <span className="sr-only">{isDesktop ? (isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar') : isMobileSidebarOpen ? 'Close sidebar' : 'Open sidebar'}</span>
-            {isSidebarVisible ? <ChevronLeft className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </button>
+          {!isDesktop && (
+            <button
+              type="button"
+              onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
+              className={`inline-flex min-h-16 items-center justify-center self-stretch px-4 focus:outline-none ${isDark ? 'text-slate-300 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+              <span className="sr-only">{isMobileSidebarOpen ? 'Close sidebar' : 'Open sidebar'}</span>
+              <Menu className="h-6 w-6" />
+            </button>
+          )}
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4">
-            <div className="order-2 flex w-full items-center md:order-1 md:flex-1">
+            <div className="order-1 ml-2 md:ml-3 w-full min-w-0 md:w-auto">
+              <h1 className={`truncate text-xl font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                {pageTitle}
+              </h1>
+              <p className={`truncate text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                {pageDescription}
+              </p>
+            </div>
+            <div className="order-3 flex w-full items-center md:order-2 md:flex-1">
               <form
                 className="w-full flex md:ml-0"
                 onSubmit={(e) => {
@@ -309,7 +344,7 @@ export function EmployeeLayout({
                 </div>
               </form>
             </div>
-            <div className="order-1 ml-auto flex items-center gap-2 md:order-2 md:ml-6 md:gap-0">
+            <div className="order-2 ml-auto flex items-center gap-2 md:order-3 md:ml-6 md:gap-0">
               <button
                 onClick={onToggleTheme}
                 aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}

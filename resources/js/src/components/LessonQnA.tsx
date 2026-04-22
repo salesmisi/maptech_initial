@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import useConfirm from '../hooks/useConfirm';
 import { safeArray } from '../utils/safe';
 import { LoadingState } from './ui/LoadingState';
+import { Search } from 'lucide-react';
 
 interface Question {
   id: number;
@@ -45,6 +46,7 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
   const [loading, setLoading] = useState(true);
   const [newQuestion, setNewQuestion] = useState('');
   const [replyText, setReplyText] = useState<Record<number,string>>({});
+  const [searchQuery, setSearchQuery] = useState('');
 
   const confirm = useConfirm();
   const { showConfirm } = confirm;
@@ -117,6 +119,30 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
     });
   };
 
+  const filteredQuestions = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return questions;
+
+    return safeArray(questions).filter((q) => {
+      const matchesQuestion =
+        q.question.toLowerCase().includes(query) ||
+        q.user.fullname.toLowerCase().includes(query) ||
+        (q.user.role || '').toLowerCase().includes(query) ||
+        (q.lesson?.title || '').toLowerCase().includes(query) ||
+        (q.course?.title || '').toLowerCase().includes(query);
+
+      if (matchesQuestion) return true;
+
+      return safeArray(q.replies).some((r) => {
+        return (
+          r.message.toLowerCase().includes(query) ||
+          r.user.fullname.toLowerCase().includes(query) ||
+          (r.user.role || '').toLowerCase().includes(query)
+        );
+      });
+    });
+  }, [questions, searchQuery]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -140,6 +166,21 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
         </select>
       </div>
 
+      <div className="bg-white dark:bg-slate-900/80 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+        <label htmlFor="qa-search" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">Search in Q&A</label>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            id="qa-search"
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search questions, replies, users, or lesson title"
+            className="w-full rounded-md border border-slate-300 dark:border-slate-700 py-2 pl-10 pr-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-green-500 focus:border-green-500"
+          />
+        </div>
+      </div>
+
       {loading ? (
         <LoadingState message="Loading questions" className="p-6" />
       ) : (
@@ -152,11 +193,11 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
             </form>
           )}
 
-          {questions.length === 0 ? (
+          {filteredQuestions.length === 0 ? (
             <div className="text-slate-500 dark:text-slate-400 text-center py-8">No questions {lessonId ? 'for this lesson' : 'found'}.</div>
           ) : (
             <div className="space-y-4">
-              {questions.map(q => (
+              {filteredQuestions.map(q => (
                 <div key={q.id} className="bg-white dark:bg-slate-900/80 rounded-lg p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">

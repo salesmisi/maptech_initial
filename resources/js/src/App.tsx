@@ -647,9 +647,6 @@ export function App() {
           user={user}
           theme={theme}
           onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
-          globalSearch={globalSearch}
-          onGlobalSearch={setGlobalSearch}
-          onGlobalSearchSubmit={handleGlobalSearchSubmit}
         >
           <div key={transitionKey} className="page-open-transition">
             {currentPage === 'dashboard' && <AdminDashboard onNavigate={handleNavigate} />}

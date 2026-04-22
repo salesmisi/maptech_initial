@@ -461,7 +461,6 @@ export function InstructorNotifications() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Notifications</h1>
           {unreadCount > 0 && (
             <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">
               You have {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}

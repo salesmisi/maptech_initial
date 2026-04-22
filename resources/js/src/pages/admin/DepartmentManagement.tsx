@@ -118,6 +118,7 @@ export default function DepartmentManagement() {
 
   const [deptHeadId, setDeptHeadId] = useState('');
   const [headSearchQuery, setHeadSearchQuery] = useState('');
+  const [departmentSearchQuery, setDepartmentSearchQuery] = useState('');
   const [headPickerPage, setHeadPickerPage] = useState(1);
   const [newSubForm, setNewSubForm] = useState({
     name: '',
@@ -194,6 +195,28 @@ export default function DepartmentManagement() {
 
     return false;
   }, [activeDepartment, deptHeadId, subHeadDrafts]);
+
+  const filteredDepartments = useMemo(() => {
+    const query = departmentSearchQuery.trim().toLowerCase();
+    if (!query) return departments;
+
+    return departments.filter((dept) => {
+      const matchesDepartment =
+        dept.name.toLowerCase().includes(query) ||
+        dept.code.toLowerCase().includes(query) ||
+        (dept.description || '').toLowerCase().includes(query) ||
+        (dept.head_user?.fullname || '').toLowerCase().includes(query);
+
+      if (matchesDepartment) return true;
+
+      return safeArray(dept.subdepartments).some((sub) => {
+        return (
+          sub.name.toLowerCase().includes(query) ||
+          (sub.head_user?.fullname || '').toLowerCase().includes(query)
+        );
+      });
+    });
+  }, [departments, departmentSearchQuery]);
 
   const loadDepartments = async () => {
     const res = await fetch(`${API}/departments`, {
@@ -638,10 +661,8 @@ export default function DepartmentManagement() {
   if (error) return <div className="p-6 text-red-600">{error}</div>;
 
   return (
-    <div className="p-6 text-slate-900 dark:text-slate-100">
-      <div className="department-toolbar-animate mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Department Management</h1>
-
+    <div className="px-6 pb-6 pt-2 text-slate-900 dark:text-slate-100">
+      <div className="department-toolbar-animate mb-6 flex items-center justify-end">
         <button
           onClick={() => setShowCreateModal(true)}
           className="department-cta-button flex items-center rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-950 transition-colors hover:bg-emerald-400"
@@ -651,8 +672,21 @@ export default function DepartmentManagement() {
         </button>
       </div>
 
+      <div className="mb-6 max-w-xl">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={departmentSearchQuery}
+            onChange={(e) => setDepartmentSearchQuery(e.target.value)}
+            placeholder="Search departments, codes, heads, or subdepartments"
+            className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400"
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {departments.map((dept, deptIndex) => (
+        {filteredDepartments.map((dept, deptIndex) => (
           <div
             key={dept.id}
             className="department-card rounded-xl border border-slate-200 bg-white p-5 shadow dark:border-slate-700/80 dark:bg-slate-900/80 dark:shadow-[0_10px_30px_rgba(2,6,23,0.35)]"
@@ -715,6 +749,11 @@ export default function DepartmentManagement() {
             </div>
           </div>
         ))}
+        {filteredDepartments.length === 0 && (
+          <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+            No departments matched your search.
+          </div>
+        )}
       </div>
 
       {showCreateModal && (
@@ -837,9 +876,11 @@ export default function DepartmentManagement() {
                       </button>
                       <button
                         onClick={() => handleDeleteSubdepartment(sub)}
-                        className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-rose-300 bg-rose-50 text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40"
+                        aria-label={`Delete ${sub.name}`}
+                        title={`Delete ${sub.name}`}
                       >
-                        Delete
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
