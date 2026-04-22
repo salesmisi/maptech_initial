@@ -411,7 +411,9 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
       department: formDepartment,
       subdepartment_id: formSubdepartment,
       role: formRole,
-      status: statusRef.current?.checked ? 'Active' : 'Inactive',
+      status: editingUser
+        ? (statusRef.current?.checked ? 'Active' : 'Inactive')
+        : 'Active',
     };
 
     // Validation
@@ -564,14 +566,6 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
       <div className="relative z-40 overflow-visible flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 um-header">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 um-title">User Management</h1>
         <div className="flex items-center space-x-3">
-          <button
-            onClick={handleBulkDelete}
-            disabled={selectedIds.length === 0}
-            className="inline-flex items-center px-3 py-2 border border-rose-500/40 rounded-md shadow-sm text-sm font-medium text-rose-200 bg-rose-900/40 hover:bg-rose-800/50 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50 disabled:cursor-not-allowed um-action-btn"
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete Selected ({selectedIds.length})
-          </button>
           <div className="relative z-50" ref={addUserDropdownRef}>
             <button
               onClick={() => setShowAddUserDropdown(!showAddUserDropdown)}
@@ -671,17 +665,6 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
           <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
             <thead className="bg-slate-50 dark:bg-slate-800/80">
               <tr>
-                <th className="px-3 py-3 text-center align-middle text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
-                  <div className="flex items-center justify-center">
-                    <input
-                      type="checkbox"
-                      onChange={toggleSelectAll}
-                      checked={filteredUsers.length > 0 && filteredUsers.every(u => selectedIds.includes(u.id))}
-                      className={selectionCheckboxClass}
-                      aria-label="Select all users"
-                    />
-                  </div>
-                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   Name
                 </th>
@@ -713,17 +696,6 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                     className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-800/50 um-row"
                     style={{ ['--um-row-delay' as any]: `${Math.min(index, 14) * 55}ms` }}
                   >
-                    <td className="px-3 py-4 whitespace-nowrap text-center align-middle">
-                      <div className="flex items-center justify-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(user.id)}
-                          onChange={() => toggleSelect(user.id)}
-                          className={selectionCheckboxClass}
-                          aria-label={`Select ${user.fullname}`}
-                        />
-                      </div>
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
@@ -1119,15 +1091,17 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                     </div>
                   )}
 
-                  <div className="flex items-center">
-                    <input
-                      ref={statusRef}
-                      type="checkbox"
-                      defaultChecked={editingUser ? editingUser.status === 'Active' : true}
-                      className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
-                    />
-                    <label className="ml-2 block text-sm text-slate-900 dark:text-slate-100">Active Account</label>
-                  </div>
+                  {editingUser && (
+                    <div className="flex items-center">
+                      <input
+                        ref={statusRef}
+                        type="checkbox"
+                        defaultChecked={editingUser.status === 'Active'}
+                        className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
+                      />
+                      <label className="ml-2 block text-sm text-slate-900 dark:text-slate-100">Active Account</label>
+                    </div>
+                  )}
                   <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
                     <button
                       type="submit"
