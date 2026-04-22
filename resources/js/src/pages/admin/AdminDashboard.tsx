@@ -32,11 +32,61 @@ import { LoadingState } from '../../components/ui/LoadingState';
 const ANALYTICS_COLORS = ['#34b46c', '#c8a73a', '#7f90ab'];
 const POPULAR_COURSE_COLORS = ['#2ea85f', '#3abf6f', '#60ca88'];
 const CHART_CARD_CLASS = 'rounded-xl border border-slate-200/70 bg-white/95 p-6 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/70';
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_NAME_TO_INDEX: Record<string, number> = {
+  january: 0,
+  jan: 0,
+  february: 1,
+  feb: 1,
+  march: 2,
+  mar: 2,
+  april: 3,
+  apr: 3,
+  may: 4,
+  june: 5,
+  jun: 5,
+  july: 6,
+  jul: 6,
+  august: 7,
+  aug: 7,
+  september: 8,
+  sep: 8,
+  sept: 8,
+  october: 9,
+  oct: 9,
+  november: 10,
+  nov: 10,
+  december: 11,
+  dec: 11,
+};
 const RANGE_OPTIONS = [
   { label: 'Last 3 Months', months: 3 },
   { label: 'Last 6 Months', months: 6 },
-  { label: 'Last 12 Months', months: 12 },
+  { label: 'First 12 Months', months: 12 },
 ];
+
+function getMonthIndexFromTrend(sortKey?: string, name?: string): number | null {
+  const cleanName = (name ?? '').toLowerCase().trim();
+  if (cleanName in MONTH_NAME_TO_INDEX) {
+    return MONTH_NAME_TO_INDEX[cleanName];
+  }
+
+  const cleanSortKey = (sortKey ?? '').trim();
+  if (cleanSortKey) {
+    const ymdMatch = cleanSortKey.match(/^\d{4}-(\d{1,2})(?:-\d{1,2})?$/);
+    if (ymdMatch) {
+      const monthNum = Number(ymdMatch[1]);
+      if (monthNum >= 1 && monthNum <= 12) return monthNum - 1;
+    }
+
+    const parsedDate = new Date(cleanSortKey);
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return parsedDate.getMonth();
+    }
+  }
+
+  return null;
+}
 
 function getCookie(name: string): string {
   const match = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
@@ -56,7 +106,7 @@ interface DashboardStats {
 
 interface ReportData {
   completion_status: { name: string; value: number }[];
-  monthly_trends: { name: string; enrollments: number; completions: number }[];
+  monthly_trends: { sort_key?: string; name: string; enrollments: number; completions: number }[];
   popular_courses: { name: string; students: number }[];
 }
 
@@ -80,7 +130,7 @@ export function AdminDashboard({ onNavigate }: Props) {
   const [reportsLoading, setReportsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState('');
   const [completionHoverIndex, setCompletionHoverIndex] = useState<number | undefined>(undefined);
-  const [analyticsRange, setAnalyticsRange] = useState(6);
+  const [analyticsRange, setAnalyticsRange] = useState(12);
   const [showRangeMenu, setShowRangeMenu] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [isActivityModalVisible, setIsActivityModalVisible] = useState(false);
@@ -277,7 +327,7 @@ export function AdminDashboard({ onNavigate }: Props) {
       .trim(),
   }));
   const recentActivity = stats?.recent_activity ?? [];
-  const currentRangeLabel = RANGE_OPTIONS.find((o) => o.months === analyticsRange)?.label ?? 'Last 6 Months';
+  const currentRangeLabel = RANGE_OPTIONS.find((o) => o.months === analyticsRange)?.label ?? 'First 12 Months';
   const chartGridColor = isDarkMode ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.28)';
   const chartAxisTickColor = isDarkMode ? '#a7b0c0' : '#64748b';
   const chartLegendColor = isDarkMode ? '#b8c2d1' : '#475569';
@@ -289,6 +339,36 @@ export function AdminDashboard({ onNavigate }: Props) {
     ? 'rounded-lg border border-slate-700/60 bg-slate-900/88 px-3 py-2 shadow-md backdrop-blur-sm'
     : 'rounded-lg border border-slate-200/90 bg-white/96 px-3 py-2 shadow-sm backdrop-blur-sm';
   const chartTooltipLabelClass = isDarkMode ? 'text-xs font-medium text-slate-300' : 'text-xs font-medium text-slate-600';
+  const monthlyTrendsByMonth = monthlyTrends.reduce<Record<number, { enrollments: number; completions: number }>>((acc, trend) => {
+    const monthIndex = getMonthIndexFromTrend(trend.sort_key, trend.name);
+    if (monthIndex === null) return acc;
+
+    acc[monthIndex] = {
+      enrollments: Number(trend.enrollments ?? 0),
+      completions: Number(trend.completions ?? 0),
+    };
+
+    return acc;
+  }, {});
+  const fullYearMonthlyTrends = MONTH_LABELS.map((label, index) => ({
+    name: label,
+    enrollments: monthlyTrendsByMonth[index]?.enrollments ?? 0,
+    completions: monthlyTrendsByMonth[index]?.completions ?? 0,
+  }));
+
+  const ArrowDot = ({ cx, cy, fill }: any) => {
+    if (cx == null || cy == null) return null;
+
+    return (
+      <g>
+        <path
+          d={`M ${cx} ${cy - 5} L ${cx + 7} ${cy} L ${cx} ${cy + 5} L ${cx + 2} ${cy}`}
+          fill={fill}
+          opacity={0.95}
+        />
+      </g>
+    );
+  };
 
   const renderCompletionTooltip = ({ active, payload }: any) => {
     if (!active || !payload || payload.length === 0) return null;
@@ -570,17 +650,32 @@ export function AdminDashboard({ onNavigate }: Props) {
               <div className="flex items-center justify-center h-full text-slate-400">No trend data yet</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyTrends}>
+                <LineChart data={fullYearMonthlyTrends} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                  <defs>
+                    <marker id="trend-arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
+                      <path d="M 0 0 L 8 4 L 0 8 z" fill="#2db768" />
+                    </marker>
+                    <marker id="trend-arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
+                      <path d="M 0 0 L 8 4 L 0 8 z" fill="#5b8def" />
+                    </marker>
+                  </defs>
                   <CartesianGrid strokeDasharray="2 6" vertical={false} stroke={chartGridColor} />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    interval={0}
+                    padding={{ left: 8, right: 8 }}
+                    tick={{ fill: chartAxisTickColor, fontSize: 12 }}
+                  />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
                   <Tooltip
                     content={renderTrendsTooltip}
                     cursor={false}
                   />
                   <Legend wrapperStyle={{ color: chartLegendColor, fontSize: '12px', paddingTop: '8px' }} />
-                  <Line type="monotone" dataKey="enrollments" stroke="#2db768" strokeWidth={2} dot={{ r: 2.5 }} activeDot={{ r: 5, stroke: trendActiveDotStroke, strokeWidth: 2 }} />
-                  <Line type="monotone" dataKey="completions" stroke="#5b8def" strokeWidth={2} dot={{ r: 2.5 }} activeDot={{ r: 5, stroke: trendActiveDotStroke, strokeWidth: 2 }} />
+                  <Line type="stepAfter" dataKey="enrollments" stroke="#2db768" strokeWidth={2.5} dot={<ArrowDot />} activeDot={{ r: 6, stroke: trendActiveDotStroke, strokeWidth: 2 }} markerEnd="url(#trend-arrow-green)" />
+                  <Line type="stepAfter" dataKey="completions" stroke="#5b8def" strokeWidth={2.5} dot={<ArrowDot />} activeDot={{ r: 6, stroke: trendActiveDotStroke, strokeWidth: 2 }} markerEnd="url(#trend-arrow-blue)" />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -599,23 +694,30 @@ export function AdminDashboard({ onNavigate }: Props) {
         ) : (
           <div className="h-72 sm:h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cleanedPopularCourses} layout="vertical">
+              <BarChart data={cleanedPopularCourses}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={chartGridColor} />
-                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
-                <YAxis
+                <XAxis
                   dataKey="name"
                   type="category"
-                  width={popularCourseLabelWidth}
                   axisLine={false}
                   tickLine={false}
+                  interval={0}
+                  height={56}
                   tick={{ fontSize: 12, fill: chartAxisTickColor }}
-                  tickFormatter={(v: string) => v.length > 22 ? v.slice(0, 22) + '…' : v}
+                  tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 16) + '…' : v}
+                />
+                <YAxis
+                  type="number"
+                  axisLine={false}
+                  tickLine={false}
+                  allowDecimals={false}
+                  tick={{ fontSize: 12, fill: chartAxisTickColor }}
                 />
                 <Tooltip content={renderPopularCoursesTooltip} cursor={{ fill: 'rgba(46, 168, 95, 0.08)' }} />
                 <Bar
                   dataKey="students"
                   fill="#22c55e"
-                  radius={[0, 4, 4, 0]}
+                  radius={[6, 6, 0, 0]}
                   barSize={28}
                   animationDuration={520}
                   activeBar={{
