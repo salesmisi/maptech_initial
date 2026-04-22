@@ -25,13 +25,14 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  Legend } from
-'recharts';
+  Legend,
+} from 'recharts';
 import { LoadingState } from '../../components/ui/LoadingState';
 
 const ANALYTICS_COLORS = ['#34b46c', '#c8a73a', '#7f90ab'];
 const POPULAR_COURSE_COLORS = ['#2ea85f', '#3abf6f', '#60ca88'];
 const CHART_CARD_CLASS = 'rounded-xl border border-slate-200/70 bg-white/95 p-6 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/70';
+
 const RANGE_OPTIONS = [
   { label: 'Last 3 Months', months: 3 },
   { label: 'Last 6 Months', months: 6 },
@@ -69,7 +70,7 @@ interface ActivityItem {
 }
 
 interface Props {
-  onNavigate?: (page: string) => void;
+  onNavigate?: (page: string, courseId?: string) => void;
 }
 
 export function AdminDashboard({ onNavigate }: Props) {
@@ -85,10 +86,97 @@ export function AdminDashboard({ onNavigate }: Props) {
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [allActivity, setAllActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
+  const [activityNavLoadingId, setActivityNavLoadingId] = useState<number | null>(null);
+  const [courseTitleMap, setCourseTitleMap] = useState<Record<string, string>>({});
   const [showEmployeesModal, setShowEmployeesModal] = useState(false);
   const [employeeList, setEmployeeList] = useState<{ id: number; fullname: string; email: string; department: string; status: string }[]>([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 640 : false));
+
+  const normalizeActivityTarget = (value: string) =>
+    String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+
+  const resolveCourseIdFromTarget = async (target: string): Promise<string | null> => {
+    const normalizedTarget = normalizeActivityTarget(target);
+    if (!normalizedTarget) return null;
+
+    if (courseTitleMap[normalizedTarget]) {
+      return courseTitleMap[normalizedTarget];
+    }
+
+    try {
+      const res = await fetch('/api/admin/courses', {
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+        },
+      });
+
+      if (!res.ok) return null;
+
+      const payload = await res.json();
+      const list = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+      const nextMap: Record<string, string> = {};
+
+      safeArray<any>(list).forEach((course) => {
+        const id = String(course?.id ?? '').trim();
+        const title = String(course?.title ?? course?.name ?? '').trim();
+
+        if (!id || !title) return;
+
+        nextMap[normalizeActivityTarget(title)] = id;
+      });
+
+      if (Object.keys(nextMap).length > 0) {
+        setCourseTitleMap((prev) => ({ ...nextMap, ...prev }));
+      }
+
+      return nextMap[normalizedTarget] ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleActivityNavigation = async (activity: ActivityItem) => {
+    if (!onNavigate) return;
+
+    setActivityNavLoadingId(activity.id);
+
+    try {
+      const courseId = await resolveCourseIdFromTarget(activity.target);
+
+      if (!courseId) {
+        onNavigate('courses');
+        return;
+      }
+
+      const actionText = String(activity.action || '').toLowerCase();
+      const preferredTab = actionText.includes('enroll') || actionText.includes('complete') ? 'students' : 'modules';
+
+      try {
+        localStorage.setItem(
+          'maptech_admin_activity_nav',
+          JSON.stringify({
+            courseId,
+            user: activity.user,
+            action: activity.action,
+            preferredTab,
+            timestamp: Date.now(),
+          })
+        );
+      } catch {
+        // Ignore storage errors.
+      }
+
+      onNavigate('course-detail', courseId);
+    } finally {
+      setActivityNavLoadingId(null);
+    }
+  };
 
   useEffect(() => {
     const root = document.documentElement;
@@ -261,6 +349,8 @@ export function AdminDashboard({ onNavigate }: Props) {
       .trim(),
   }));
   const recentActivity = stats?.recent_activity ?? [];
+  const recentActivityArray = safeArray(recentActivity);
+  const recentActivityPreview = recentActivityArray.slice(0, 5);
   const currentRangeLabel = RANGE_OPTIONS.find((o) => o.months === analyticsRange)?.label ?? 'Last 6 Months';
   const chartGridColor = isDarkMode ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.28)';
   const chartAxisTickColor = isDarkMode ? '#a7b0c0' : '#64748b';
@@ -653,17 +743,30 @@ export function AdminDashboard({ onNavigate }: Props) {
                       <LoadingState message="Loading activity" size="sm" className="py-2" />
                     </td>
                   </tr>
-                ) : recentActivity.length === 0 ? (
+                ) : recentActivityPreview.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-3 py-8 text-center text-sm text-slate-400 dark:text-slate-500 sm:px-6">
                       No activity yet
                     </td>
                   </tr>
                 ) : (
-                  safeArray(recentActivity).map((activity) =>
+                  recentActivityPreview.map((activity) =>
                     <tr
                       key={activity.id}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors">
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => void handleActivityNavigation(activity)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          void handleActivityNavigation(activity);
+                        }
+                      }}
+                      className={`cursor-pointer transition-colors ${
+                        activityNavLoadingId === activity.id
+                          ? 'opacity-60'
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-800/70'
+                      }`}>
                       <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-slate-900 dark:text-slate-100 sm:px-6">
                         {activity.user}
                       </td>
@@ -841,7 +944,27 @@ export function AdminDashboard({ onNavigate }: Props) {
                     </tr>
                   ) : (
                     safeArray(allActivity).map((item, index) => (
-                      <tr key={item.id} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/65' : index % 2 === 0 ? 'bg-white hover:bg-emerald-50/35' : 'bg-slate-50/45 hover:bg-emerald-50/45'}`}>
+                      <tr
+                        key={item.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => void handleActivityNavigation(item)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            void handleActivityNavigation(item);
+                          }
+                        }}
+                        className={`cursor-pointer transition-colors ${
+                          activityNavLoadingId === item.id
+                            ? 'opacity-60'
+                            : isDarkMode
+                              ? 'hover:bg-slate-800/65'
+                              : index % 2 === 0
+                                ? 'bg-white hover:bg-emerald-50/35'
+                                : 'bg-slate-50/45 hover:bg-emerald-50/45'
+                        }`}
+                      >
                         <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>{item.user}</td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{item.action}</td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{item.target}</td>

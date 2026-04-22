@@ -388,6 +388,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'modules' | 'students'>('modules');
+  const [highlightUserName, setHighlightUserName] = useState<string | null>(null);
 
   // Enrollment state
   const [allUsers, setAllUsers] = useState<AllUser[]>([]);
@@ -673,6 +674,40 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       loadAllUsers();
     }
   }, [courseId, activeTab]);
+
+  useEffect(() => {
+    if (apiPrefix !== 'admin') return;
+
+    try {
+      const raw = localStorage.getItem('maptech_admin_activity_nav');
+      if (!raw) return;
+
+      const hint = JSON.parse(raw) as {
+        courseId?: string;
+        user?: string;
+        action?: string;
+        preferredTab?: 'modules' | 'students';
+      };
+
+      if (!hint?.courseId || String(hint.courseId) !== String(courseId)) {
+        return;
+      }
+
+      if (hint.preferredTab === 'modules' || hint.preferredTab === 'students') {
+        setActiveTab(hint.preferredTab);
+      } else {
+        const actionText = String(hint.action || '').toLowerCase();
+        if (actionText.includes('enroll') || actionText.includes('complete')) {
+          setActiveTab('students');
+        }
+      }
+
+      setHighlightUserName(hint.user ? String(hint.user) : null);
+      localStorage.removeItem('maptech_admin_activity_nav');
+    } catch {
+      localStorage.removeItem('maptech_admin_activity_nav');
+    }
+  }, [apiPrefix, courseId]);
 
   const deptOptions = Array.from(new Set(course?.enrolled_users.map(u => String(u.department).trim()).filter(d => d && d !== 'null')) || []);
 
@@ -1806,15 +1841,34 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
-                  {course.enrolled_users.map(user => (
-                    <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                  {course.enrolled_users.map(user => {
+                    const isFromActivity =
+                      Boolean(highlightUserName) &&
+                      String(user.fullname || '').trim().toLowerCase() === String(highlightUserName || '').trim().toLowerCase();
+
+                    return (
+                    <tr
+                      key={user.id}
+                      className={`transition-colors ${
+                        isFromActivity
+                          ? 'bg-emerald-50/70 dark:bg-emerald-900/20 ring-1 ring-inset ring-emerald-300/70 dark:ring-emerald-600/40'
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                      }`}
+                    >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-sm flex-shrink-0">
                             {(user.fullname || '?').charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{user.fullname}</p>
+                            <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                              {user.fullname}
+                              {isFromActivity && (
+                                <span className="ml-2 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
+                                  Recent Activity
+                                </span>
+                              )}
+                            </p>
                             <p className="text-xs text-slate-500 dark:text-slate-400">{user.email}</p>
                           </div>
                         </div>
@@ -1864,7 +1918,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                         </button>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             )}
