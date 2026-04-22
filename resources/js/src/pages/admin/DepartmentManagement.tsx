@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { safeArray } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { Building2, Plus, Trash2, Users, BookOpen, X } from 'lucide-react';
+import { Building2, BookOpen, Check, ChevronDown, Plus, Search, Trash2, Users, X } from 'lucide-react';
 
 interface EmployeeRecord {
   id: number;
@@ -54,6 +54,11 @@ interface InfoDialogState {
   message: string;
 }
 
+type HeadPickerTarget =
+  | { type: 'department' }
+  | { type: 'newSubdepartment' }
+  | { type: 'subdepartment'; subdepartmentId: number; subdepartmentName: string };
+
 export default function DepartmentManagement() {
   const API = '/api';
 
@@ -82,6 +87,8 @@ export default function DepartmentManagement() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showManageModal, setShowManageModal] = useState(false);
+  const [showHeadPickerModal, setShowHeadPickerModal] = useState(false);
+  const [headPickerTarget, setHeadPickerTarget] = useState<HeadPickerTarget | null>(null);
   const [activeDeptId, setActiveDeptId] = useState<number | null>(null);
 
   const [showMoveModal, setShowMoveModal] = useState(false);
@@ -109,6 +116,7 @@ export default function DepartmentManagement() {
   });
 
   const [deptHeadId, setDeptHeadId] = useState('');
+  const [headSearchQuery, setHeadSearchQuery] = useState('');
   const [newSubForm, setNewSubForm] = useState({
     name: '',
     head_id: '',
@@ -119,6 +127,26 @@ export default function DepartmentManagement() {
     () => departments.find((d) => d.id === activeDeptId) ?? null,
     [departments, activeDeptId]
   );
+
+  const selectedDepartmentHead = useMemo(
+    () => headCandidates.find((candidate) => String(candidate.id) === deptHeadId) ?? null,
+    [headCandidates, deptHeadId]
+  );
+
+  const getSelectedHeadLabel = (headId: string) => {
+    const selected = headCandidates.find((candidate) => String(candidate.id) === headId);
+    return selected ? `${selected.fullname} (${selected.role})` : '';
+  };
+
+  const filteredHeadCandidates = useMemo(() => {
+    const query = headSearchQuery.trim().toLowerCase();
+
+    return headCandidates.filter((candidate) => {
+      if (!query) return true;
+
+      return candidate.fullname.toLowerCase().includes(query) || candidate.role.toLowerCase().includes(query);
+    });
+  }, [headCandidates, headSearchQuery]);
 
   const moveDepartmentSubdepartments = useMemo(() => {
     const dept = departments.find((d) => d.name === moveDepartment);
@@ -200,8 +228,27 @@ export default function DepartmentManagement() {
   const openManageModal = (dept: Department) => {
     setActiveDeptId(dept.id);
     setDeptHeadId(dept.head_id ? String(dept.head_id) : '');
+    setHeadSearchQuery('');
     setNewSubForm({ name: '', head_id: '' });
     setShowManageModal(true);
+  };
+
+  const closeManageModal = () => {
+    setShowManageModal(false);
+    setShowHeadPickerModal(false);
+    setHeadSearchQuery('');
+  };
+
+  const openHeadPicker = (target: HeadPickerTarget) => {
+    setHeadPickerTarget(target);
+    setHeadSearchQuery('');
+    setShowHeadPickerModal(true);
+  };
+
+  const closeHeadPicker = () => {
+    setShowHeadPickerModal(false);
+    setHeadPickerTarget(null);
+    setHeadSearchQuery('');
   };
 
   const reloadAndKeepActive = async () => {
@@ -281,9 +328,24 @@ export default function DepartmentManagement() {
 
     setSaving(true);
     try {
-      const xsrfToken = await getXsrfToken();
-      const selectedHead = headCandidates.find((h) => String(h.id) === deptHeadId);
+      await saveAllHeadChanges();
 
+      await reloadAndKeepActive();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update department head.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveAllHeadChanges = async () => {
+    if (!activeDepartment) return;
+
+    const xsrfToken = await getXsrfToken();
+    const existingDeptHeadId = activeDepartment.head_id ? String(activeDepartment.head_id) : '';
+    const requestedDeptHead = headCandidates.find((h) => String(h.id) === deptHeadId);
+
+    if (deptHeadId !== existingDeptHeadId) {
       const res = await fetch(`${API}/departments/${activeDepartment.id}`, {
         method: 'PUT',
         credentials: 'include',
@@ -299,7 +361,7 @@ export default function DepartmentManagement() {
           description: activeDepartment.description,
           status: activeDepartment.status,
           head_id: deptHeadId ? Number(deptHeadId) : null,
-          head: selectedHead?.fullname || '',
+          head: requestedDeptHead?.fullname || '',
         }),
       });
 
@@ -307,12 +369,36 @@ export default function DepartmentManagement() {
         const txt = await res.text();
         throw new Error(txt || 'Failed to update department head.');
       }
+    }
 
-      await reloadAndKeepActive();
-    } catch (err: any) {
-      alert(err.message || 'Failed to update department head.');
-    } finally {
-      setSaving(false);
+    for (const sub of safeArray(activeDepartment.subdepartments)) {
+      const draft = subHeadDrafts[sub.id] ?? '';
+      const existingSubHeadId = sub.head_id ? String(sub.head_id) : '';
+
+      if (draft === existingSubHeadId) {
+        continue;
+      }
+
+      const res = await fetch(`${API}/subdepartments/${sub.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrfToken,
+        },
+        body: JSON.stringify({
+          name: sub.name,
+          head_id: draft ? Number(draft) : null,
+          employee_id: sub.employee_id,
+        }),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || 'Failed to update subdepartment head.');
+      }
     }
   };
 
@@ -417,6 +503,7 @@ export default function DepartmentManagement() {
           throw new Error(txt || 'Failed to delete department.');
         }
 
+        setShowHeadPickerModal(false);
         setShowManageModal(false);
         setActiveDeptId(null);
         await refreshAll();
@@ -606,30 +693,34 @@ export default function DepartmentManagement() {
       )}
 
       {showManageModal && activeDepartment && (
-        <Modal onClose={() => setShowManageModal(false)} maxWidthClass="max-w-4xl">
-          <h2 className="mb-4 text-lg font-semibold">Manage {activeDepartment.name}</h2>
+        <Modal onClose={closeManageModal} maxWidthClass="max-w-4xl">
+          <div className="mb-4 flex items-start justify-between gap-3 pr-10">
+            <div>
+              <h2 className="text-lg font-semibold">Manage {activeDepartment.name}</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Use the picker controls below, then save once from the top right.</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveDepartmentHead}
+              disabled={saving}
+              className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
 
           <div className="mb-6 rounded-lg border border-slate-200 p-4 dark:border-slate-700">
             <p className="mb-2 text-sm font-semibold">Department Head</p>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <select
-                value={deptHeadId}
-                onChange={(e) => setDeptHeadId(e.target.value)}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none sm:w-80 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-              >
-                <option value="">Select Department Head</option>
-                {headCandidates.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.fullname} ({u.role})
-                  </option>
-                ))}
-              </select>
               <button
-                onClick={handleSaveDepartmentHead}
-                disabled={saving}
-                className="rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                type="button"
+                onClick={() => openHeadPicker({ type: 'department' })}
+                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 transition hover:border-emerald-500 focus:border-emerald-500 focus:outline-none sm:w-80 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
-                Save Head
+                <span className={selectedDepartmentHead ? 'truncate' : 'text-slate-500 dark:text-slate-400'}>
+                  {selectedDepartmentHead ? `${selectedDepartmentHead.fullname} (${selectedDepartmentHead.role})` : 'Select Department Head'}
+                </span>
+                <ChevronDown className="ml-3 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
               </button>
             </div>
           </div>
@@ -643,18 +734,16 @@ export default function DepartmentManagement() {
                 placeholder="Subdepartment name"
                 className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               />
-              <select
-                value={newSubForm.head_id}
-                onChange={(e) => setNewSubForm((s) => ({ ...s, head_id: e.target.value }))}
-                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              <button
+                type="button"
+                onClick={() => openHeadPicker({ type: 'newSubdepartment' })}
+                className="flex items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 transition hover:border-emerald-500 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
-                <option value="">Select Head</option>
-                {headCandidates.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.fullname}
-                  </option>
-                ))}
-              </select>
+                <span className={newSubForm.head_id ? 'truncate' : 'text-slate-500 dark:text-slate-400'}>
+                  {newSubForm.head_id ? getSelectedHeadLabel(newSubForm.head_id) : 'Select Head'}
+                </span>
+                <ChevronDown className="ml-3 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
+              </button>
               <button
                 onClick={handleCreateSubdepartment}
                 disabled={saving}
@@ -680,24 +769,15 @@ export default function DepartmentManagement() {
                     </div>
 
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <select
-                        value={subHeadDrafts[sub.id] ?? ''}
-                        onChange={(e) => setSubHeadDrafts((prev) => ({ ...prev, [sub.id]: e.target.value }))}
-                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none sm:w-72 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                      >
-                        <option value="">Select sub head</option>
-                        {headCandidates.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.fullname} ({u.role})
-                          </option>
-                        ))}
-                      </select>
                       <button
-                        onClick={() => handleSaveSubHead(sub)}
-                        disabled={saving}
-                        className="rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                        type="button"
+                        onClick={() => openHeadPicker({ type: 'subdepartment', subdepartmentId: sub.id, subdepartmentName: sub.name })}
+                        className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 transition hover:border-emerald-500 focus:border-emerald-500 focus:outline-none sm:w-72 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                       >
-                        Save Head
+                        <span className={subHeadDrafts[sub.id] ? 'truncate' : 'text-slate-500 dark:text-slate-400'}>
+                          {subHeadDrafts[sub.id] ? getSelectedHeadLabel(subHeadDrafts[sub.id]) : 'Select sub head'}
+                        </span>
+                        <ChevronDown className="ml-3 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
                       </button>
                       <button
                         onClick={() => handleDeleteSubdepartment(sub)}
@@ -734,6 +814,111 @@ export default function DepartmentManagement() {
                 </div>
               ))
             )}
+          </div>
+        </Modal>
+      )}
+
+      {showHeadPickerModal && activeDepartment && (
+        <Modal onClose={closeHeadPicker} maxWidthClass="max-w-2xl">
+          <h3 className="mb-1 text-lg font-semibold">
+            {headPickerTarget?.type === 'newSubdepartment'
+              ? 'Select Subdepartment Head'
+              : headPickerTarget?.type === 'subdepartment'
+                ? `Select Head for ${headPickerTarget.subdepartmentName}`
+                : 'Select Department Head'}
+          </h3>
+          <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+            {headPickerTarget?.type === 'department'
+              ? `Choose an instructor or admin for ${activeDepartment.name}.`
+              : headPickerTarget?.type === 'newSubdepartment'
+                ? `Choose an instructor or admin for the new subdepartment in ${activeDepartment.name}.`
+                : 'Choose an instructor or admin for this subdepartment.'}
+          </p>
+
+          <div className="relative mb-4">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              autoFocus
+              type="text"
+              value={headSearchQuery}
+              onChange={(e) => setHeadSearchQuery(e.target.value)}
+              placeholder="Search instructors or admins"
+              className="w-full rounded-md border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
+            />
+          </div>
+
+          <div className="mb-4 max-h-[46dvh] space-y-2 overflow-y-auto pr-1">
+            {filteredHeadCandidates.length === 0 ? (
+              <div className="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                No matching instructors or admins found.
+              </div>
+            ) : (
+              filteredHeadCandidates.map((candidate) => {
+                const selectedHeadId =
+                  headPickerTarget?.type === 'department'
+                    ? deptHeadId
+                    : headPickerTarget?.type === 'newSubdepartment'
+                      ? newSubForm.head_id
+                      : headPickerTarget?.type === 'subdepartment'
+                        ? subHeadDrafts[headPickerTarget.subdepartmentId] ?? ''
+                        : '';
+                const isSelected = String(candidate.id) === selectedHeadId;
+
+                return (
+                  <button
+                    key={candidate.id}
+                    type="button"
+                    onClick={() => {
+                      if (headPickerTarget?.type === 'department') {
+                        setDeptHeadId(String(candidate.id));
+                      } else if (headPickerTarget?.type === 'newSubdepartment') {
+                        setNewSubForm((current) => ({ ...current, head_id: String(candidate.id) }));
+                      } else if (headPickerTarget?.type === 'subdepartment') {
+                        setSubHeadDrafts((current) => ({ ...current, [headPickerTarget.subdepartmentId]: String(candidate.id) }));
+                      }
+                      closeHeadPicker();
+                    }}
+                    className={`flex w-full items-center justify-between rounded-md border px-4 py-3 text-left transition ${
+                      isSelected
+                        ? 'border-emerald-500 bg-emerald-50 text-slate-900 dark:border-emerald-500/60 dark:bg-emerald-950/40 dark:text-slate-100'
+                        : 'border-slate-200 bg-white text-slate-900 hover:border-emerald-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-emerald-500/40 dark:hover:bg-slate-800/70'
+                    }`}
+                  >
+                    <div>
+                      <div className="text-sm font-semibold">{candidate.fullname}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{candidate.role}</div>
+                    </div>
+                    {isSelected && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (headPickerTarget?.type === 'department') {
+                  setDeptHeadId('');
+                } else if (headPickerTarget?.type === 'newSubdepartment') {
+                  setNewSubForm((current) => ({ ...current, head_id: '' }));
+                } else if (headPickerTarget?.type === 'subdepartment') {
+                  setSubHeadDrafts((current) => ({ ...current, [headPickerTarget.subdepartmentId]: '' }));
+                }
+                closeHeadPicker();
+              }}
+              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Clear Selection
+            </button>
+            <button
+              type="button"
+              onClick={closeHeadPicker}
+              className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+            >
+              Done
+            </button>
           </div>
         </Modal>
       )}
