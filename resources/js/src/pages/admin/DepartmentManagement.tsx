@@ -384,6 +384,7 @@ export default function DepartmentManagement() {
       await saveAllHeadChanges();
 
       await reloadAndKeepActive();
+      closeManageModal();
     } catch (err: any) {
       alert(err.message || 'Failed to update department head.');
     } finally {
@@ -746,7 +747,7 @@ export default function DepartmentManagement() {
       )}
 
       {showManageModal && activeDepartment && (
-        <Modal onClose={requestCloseManageModal} maxWidthClass="max-w-4xl">
+        <Modal onClose={requestCloseManageModal} maxWidthClass="max-w-4xl" showCloseButton={false}>
           <div className="mb-4 flex items-start justify-between gap-3 pr-10">
             <div>
               <h2 className="text-lg font-semibold">Manage {activeDepartment.name}</h2>
@@ -780,17 +781,17 @@ export default function DepartmentManagement() {
 
           <div className="mb-6 rounded-lg border border-slate-200 p-4 dark:border-slate-700">
             <p className="mb-2 text-sm font-semibold">Add Subdepartment</p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.4fr)_auto]">
               <input
                 value={newSubForm.name}
                 onChange={(e) => setNewSubForm((s) => ({ ...s, name: e.target.value }))}
                 placeholder="Subdepartment name"
-                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               />
               <button
                 type="button"
                 onClick={() => openHeadPicker({ type: 'newSubdepartment' })}
-                className="flex items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 transition hover:border-emerald-500 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 transition hover:border-emerald-500 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
                 <span className={newSubForm.head_id ? 'truncate' : 'text-slate-500 dark:text-slate-400'}>
                   {newSubForm.head_id ? getSelectedHeadLabel(newSubForm.head_id) : 'Select Head'}
@@ -800,9 +801,11 @@ export default function DepartmentManagement() {
               <button
                 onClick={handleCreateSubdepartment}
                 disabled={saving}
-                className="rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex w-12 justify-self-end items-center justify-center rounded-md bg-emerald-500 px-0 py-2 text-lg font-bold leading-none text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                aria-label="Add subdepartment"
+                title="Add subdepartment"
               >
-                Add Subdepartment
+                +
               </button>
             </div>
           </div>
@@ -1113,23 +1116,27 @@ function Modal({
   children,
   onClose,
   maxWidthClass = 'max-w-md',
+  showCloseButton = true,
 }: {
   children: React.ReactNode;
   onClose: () => void;
   maxWidthClass?: string;
+  showCloseButton?: boolean;
 }) {
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-sm">
       <div className="flex h-full items-center justify-center px-4 py-4 sm:py-8">
         <div className={`relative max-h-[92dvh] w-full ${maxWidthClass} overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900`}>
-          <button
-            onClick={onClose}
-            className="absolute right-6 top-4 z-20 inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300/70 bg-white/90 text-slate-500 shadow-sm backdrop-blur transition hover:text-slate-800 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-400 dark:hover:text-slate-100"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          {showCloseButton && (
+            <button
+              onClick={onClose}
+              className="absolute right-6 top-4 z-20 inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300/70 bg-white/90 text-slate-500 shadow-sm backdrop-blur transition hover:text-slate-800 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-400 dark:hover:text-slate-100"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
 
-          <div className="max-h-[92dvh] overflow-y-auto p-6 pr-5 pt-12">{children}</div>
+          <div className="modal-scroll-area max-h-[92dvh] overflow-y-auto p-6 pr-5 pt-12">{children}</div>
         </div>
       </div>
     </div>

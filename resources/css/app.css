@@ -12,9 +12,24 @@
 	--ALT_ROW: #F0FDF4;
 	--BORDER_CLR: #D1FAE5;
 	--GRAY_ROW: #F9FAFB;
+	--APP_SCROLLBAR_TRACK: rgba(148, 163, 184, 0.16);
+	--APP_SCROLLBAR_THUMB_TOP: rgba(100, 116, 139, 0.74);
+	--APP_SCROLLBAR_THUMB_BOTTOM: rgba(71, 85, 105, 0.74);
+	--APP_SCROLLBAR_THUMB_HOVER_TOP: rgba(71, 85, 105, 0.86);
+	--APP_SCROLLBAR_THUMB_HOVER_BOTTOM: rgba(51, 65, 85, 0.86);
+	--APP_SCROLLBAR_THUMB_BORDER: rgba(255, 255, 255, 0.3);
 
 	--PDF-HEADER-BG: #154734;
 	--PDF-BODY-FG: #1f2937;
+}
+
+html.dark {
+	--APP_SCROLLBAR_TRACK: rgba(51, 65, 85, 0.36);
+	--APP_SCROLLBAR_THUMB_TOP: rgba(100, 116, 139, 0.86);
+	--APP_SCROLLBAR_THUMB_BOTTOM: rgba(71, 85, 105, 0.86);
+	--APP_SCROLLBAR_THUMB_HOVER_TOP: rgba(148, 163, 184, 0.92);
+	--APP_SCROLLBAR_THUMB_HOVER_BOTTOM: rgba(100, 116, 139, 0.92);
+	--APP_SCROLLBAR_THUMB_BORDER: rgba(15, 23, 42, 0.58);
 }
 
 /* Small helper class for pdf-style summary panels */
@@ -274,6 +289,74 @@ html.dark .shadow-lg {
 			filter: blur(0);
 		}
 	}
+}
+
+/* Global themed scrollbar for all app surfaces */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: var(--APP_SCROLLBAR_THUMB_TOP) var(--APP_SCROLLBAR_TRACK);
+}
+
+*::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+	background: var(--APP_SCROLLBAR_TRACK);
+	border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb {
+	background: linear-gradient(180deg, var(--APP_SCROLLBAR_THUMB_TOP), var(--APP_SCROLLBAR_THUMB_BOTTOM));
+	border-radius: 9999px;
+	border: 2px solid var(--APP_SCROLLBAR_THUMB_BORDER);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+	background: linear-gradient(180deg, var(--APP_SCROLLBAR_THUMB_HOVER_TOP), var(--APP_SCROLLBAR_THUMB_HOVER_BOTTOM));
+}
+
+/* Themed scrollbar for modal content containers */
+.modal-scroll-area {
+	scrollbar-width: thin;
+	scrollbar-color: rgba(100, 116, 139, 0.55) rgba(148, 163, 184, 0.14);
+}
+
+.modal-scroll-area::-webkit-scrollbar {
+	width: 10px;
+}
+
+.modal-scroll-area::-webkit-scrollbar-track {
+	background: rgba(148, 163, 184, 0.12);
+	border-radius: 9999px;
+}
+
+.modal-scroll-area::-webkit-scrollbar-thumb {
+	background: linear-gradient(180deg, rgba(100, 116, 139, 0.72), rgba(71, 85, 105, 0.72));
+	border-radius: 9999px;
+	border: 2px solid rgba(255, 255, 255, 0.28);
+}
+
+.modal-scroll-area::-webkit-scrollbar-thumb:hover {
+	background: linear-gradient(180deg, rgba(71, 85, 105, 0.82), rgba(51, 65, 85, 0.82));
+}
+
+html.dark .modal-scroll-area {
+	scrollbar-color: rgba(148, 163, 184, 0.6) rgba(51, 65, 85, 0.3);
+}
+
+html.dark .modal-scroll-area::-webkit-scrollbar-track {
+	background: rgba(51, 65, 85, 0.35);
+}
+
+html.dark .modal-scroll-area::-webkit-scrollbar-thumb {
+	background: linear-gradient(180deg, rgba(100, 116, 139, 0.85), rgba(71, 85, 105, 0.85));
+	border-color: rgba(15, 23, 42, 0.55);
+}
+
+html.dark .modal-scroll-area::-webkit-scrollbar-thumb:hover {
+	background: linear-gradient(180deg, rgba(148, 163, 184, 0.9), rgba(100, 116, 139, 0.9));
 }
 
 @media (prefers-reduced-motion: reduce) {
