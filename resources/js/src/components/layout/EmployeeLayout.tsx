@@ -264,7 +264,13 @@ export function EmployeeLayout({
           </div>
           <div className="flex-shrink-0 flex border-t border-slate-800 p-4">
             <div className="flex-shrink-0 w-full group block">
-              <div className="flex items-center">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={onLogout}
+                  className="flex-shrink-0 text-slate-400 hover:text-white transition-colors duration-300"
+                  title="Logout">
+                  <LogOut className="h-5 w-5" />
+                </button>
                 {user.profile_picture ? (
                   <img
                     src={user.profile_picture}
@@ -276,17 +282,10 @@ export function EmployeeLayout({
                     {(displayName?.charAt(0) ?? 'E').toUpperCase()}
                   </div>
                 )}
-                <div className={`ml-3 min-w-0 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'max-w-0 opacity-0' : 'max-w-[140px] opacity-100'}`}>
+                <div className={`min-w-0 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'max-w-0 opacity-0' : 'max-w-[140px] opacity-100'}`}>
                   <p className="truncate text-sm font-medium text-white">{displayName || ''}</p>
                   <p className="text-xs font-medium text-slate-400">Employee</p>
                 </div>
-                <button
-                  onClick={onLogout}
-                  className="ml-auto text-slate-400 hover:text-white transition-colors duration-300"
-                  title="Logout">
-
-                  <LogOut className="h-5 w-5" />
-                </button>
               </div>
             </div>
           </div>

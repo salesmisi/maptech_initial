@@ -526,7 +526,7 @@ export function AdminLayout({
           </div>
           <div className={`flex-shrink-0 flex border-t p-4 ${isDark ? 'border-slate-800/80' : 'border-slate-800'}`}>
             <div className="flex-shrink-0 w-full group block">
-              <div className="flex items-center">
+              <div className="flex items-center gap-3">
                 <div className="ml-auto">
                   <button
                     onClick={onLogout}
