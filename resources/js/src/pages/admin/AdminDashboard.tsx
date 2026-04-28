@@ -760,8 +760,8 @@ export function AdminDashboard({ onNavigate }: Props) {
                     cursor={false}
                   />
                   <Legend wrapperStyle={{ color: chartLegendColor, fontSize: '12px', paddingTop: '8px' }} />
-                  <Line type="stepAfter" dataKey="enrollments" stroke="#2db768" strokeWidth={2.5} dot={<ArrowDot />} activeDot={{ r: 6, stroke: trendActiveDotStroke, strokeWidth: 2 }} markerEnd="url(#trend-arrow-green)" />
-                  <Line type="stepAfter" dataKey="completions" stroke="#5b8def" strokeWidth={2.5} dot={<ArrowDot />} activeDot={{ r: 6, stroke: trendActiveDotStroke, strokeWidth: 2 }} markerEnd="url(#trend-arrow-blue)" />
+                  <Line type="monotone" dataKey="enrollments" stroke="#2db768" strokeWidth={2.5} dot={<ArrowDot />} activeDot={{ r: 6, stroke: trendActiveDotStroke, strokeWidth: 2 }} markerEnd="url(#trend-arrow-green)" />
+                  <Line type="monotone" dataKey="completions" stroke="#5b8def" strokeWidth={2.5} dot={<ArrowDot />} activeDot={{ r: 6, stroke: trendActiveDotStroke, strokeWidth: 2 }} markerEnd="url(#trend-arrow-blue)" />
                 </LineChart>
               </ResponsiveContainer>
             )}
