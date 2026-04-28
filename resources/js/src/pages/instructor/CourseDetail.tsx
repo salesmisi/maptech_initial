@@ -324,6 +324,10 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   const [course, setCourse] = useState<CourseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingCourseMeta, setEditingCourseMeta] = useState(false);
+  const [courseTitleDraft, setCourseTitleDraft] = useState('');
+  const [courseDescriptionDraft, setCourseDescriptionDraft] = useState('');
+  const [savingCourseMeta, setSavingCourseMeta] = useState(false);
 
   // Module upload state
   const [addingModule, setAddingModule] = useState(false);
@@ -428,10 +432,87 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
           locked: u.pivot?.locked ?? false,
         })),
       });
+      setEditingCourseMeta(false);
+      setCourseTitleDraft(data.title || '');
+      setCourseDescriptionDraft(data.description || '');
     } catch (e: any) {
       setError(e?.message || 'Failed to load course.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const startEditCourseMeta = () => {
+    if (!course) return;
+    setCourseTitleDraft(course.title || '');
+    setCourseDescriptionDraft(course.description || '');
+    setEditingCourseMeta(true);
+  };
+
+  const cancelEditCourseMeta = () => {
+    if (!course) {
+      setEditingCourseMeta(false);
+      return;
+    }
+    setCourseTitleDraft(course.title || '');
+    setCourseDescriptionDraft(course.description || '');
+    setEditingCourseMeta(false);
+  };
+
+  const handleSaveCourseMeta = async () => {
+    if (!course) return;
+
+    const nextTitle = courseTitleDraft.trim();
+    if (!nextTitle) {
+      alert('Course title is required.');
+      return;
+    }
+
+    const nextDescription = courseDescriptionDraft.trim();
+
+    try {
+      setSavingCourseMeta(true);
+      const token = await getXsrfToken();
+      const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': token,
+        },
+        body: JSON.stringify({
+          title: nextTitle,
+          description: nextDescription || null,
+          department: course.department,
+          subdepartment_id: course.subdepartment?.id ?? null,
+          status: course.status,
+        }),
+      });
+
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(payload?.message || 'Failed to update course details.');
+      }
+
+      const updated = payload?.course ?? payload;
+      setCourse((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          title: updated?.title ?? nextTitle,
+          description: updated?.description ?? (nextDescription || ''),
+          department: updated?.department ?? prev.department,
+          subdepartment: updated?.subdepartment ?? prev.subdepartment,
+          status: updated?.status ?? prev.status,
+        };
+      });
+
+      setEditingCourseMeta(false);
+    } catch (e: any) {
+      alert(e?.message || 'Failed to update course details.');
+    } finally {
+      setSavingCourseMeta(false);
     }
   };
 
@@ -1231,18 +1312,70 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                 </span>
               )}
             </div>
-            <h1 className="text-2xl font-bold">{course.title}</h1>
-            {course.description && (
-              <p className="text-sm text-white/80 mt-1 max-w-xl">{course.description}</p>
+            {editingCourseMeta ? (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={courseTitleDraft}
+                  onChange={(e) => setCourseTitleDraft(e.target.value)}
+                  className="w-full max-w-xl rounded-md border border-white/40 bg-white/15 px-3 py-2 text-lg font-semibold text-white placeholder:text-white/60 focus:border-white focus:outline-none"
+                  placeholder="Course title"
+                />
+                <textarea
+                  rows={3}
+                  value={courseDescriptionDraft}
+                  onChange={(e) => setCourseDescriptionDraft(e.target.value)}
+                  className="w-full max-w-xl rounded-md border border-white/30 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/60 focus:border-white focus:outline-none"
+                  placeholder="Course description"
+                />
+              </div>
+            ) : (
+              <>
+                <h1 className="text-2xl font-bold">{course.title}</h1>
+                {course.description && (
+                  <p className="text-sm text-white/80 mt-1 max-w-xl">{course.description}</p>
+                )}
+              </>
             )}
           </div>
-          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-            course.status === 'Active' ? 'bg-green-200 text-green-900' :
-            course.status === 'Draft'  ? 'bg-yellow-200 text-yellow-900' :
-            'bg-white/20 text-white'
-          }`}>
-            {course.status}
-          </span>
+          <div className="flex flex-col items-end gap-2">
+            {editingCourseMeta ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSaveCourseMeta}
+                  disabled={savingCourseMeta || !courseTitleDraft.trim()}
+                  className="inline-flex items-center gap-1 rounded-md border border-white/40 px-2.5 py-1 text-xs font-semibold text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingCourseMeta ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  {savingCourseMeta ? 'Saving' : 'Save'}
+                </button>
+                <button
+                  onClick={cancelEditCourseMeta}
+                  disabled={savingCourseMeta}
+                  className="inline-flex items-center gap-1 rounded-md border border-white/40 px-2.5 py-1 text-xs font-semibold text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <X className="h-3 w-3" />
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={startEditCourseMeta}
+                aria-label="Edit course details"
+                title="Edit course details"
+                className="inline-flex items-center justify-center p-1.5 rounded-md text-white/90 hover:text-white hover:bg-white/10"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            )}
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+              course.status === 'Active' ? 'bg-green-200 text-green-900' :
+              course.status === 'Draft'  ? 'bg-yellow-200 text-yellow-900' :
+              'bg-white/20 text-white'
+            }`}>
+              {course.status}
+            </span>
+          </div>
         </div>
         {course.deadline && (
           <p className="mt-3 text-xs text-white/70">

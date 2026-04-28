@@ -981,6 +981,7 @@ export function NotificationManagement() {
                 : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
             }`}
           >
+            <Send className="h-4 w-4 inline mr-2" />
             Sent History ({safeArray(sentHistory).length}/{HISTORY_LIMIT})
           </button>
           <button

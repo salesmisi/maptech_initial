@@ -610,7 +610,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
         },
         body: JSON.stringify({
           title: formData.get('title'),
-          description: formData.get('description'),
+          description: editingCourse.description || '',
           department: formData.get('department'),
           subdepartment_id: formData.get('subdepartment_id') || null,
           start_date: toUtcIsoString(formData.get('start_date')),
@@ -1251,7 +1251,22 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
       {/* Courses Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredCourses.map((course, index) => (
+        {filteredCourses.map((course, index) => {
+          const hasManualUnlock = Boolean((course as any).has_manual_unlock);
+          const notStarted = Boolean(course.start_date && new Date(course.start_date) > new Date());
+          const ended = Boolean(course.deadline && new Date(course.deadline) <= new Date() && !hasManualUnlock);
+          const hasAnyModule = (course.modules_count ?? 0) > 0;
+          const showNotAvailable = !notStarted && !ended && course.status === 'Active' && !hasAnyModule;
+          const badgeClass = notStarted
+            ? 'bg-gray-100 text-gray-600'
+            : ended
+              ? 'bg-red-100 text-red-800'
+              : showNotAvailable
+                ? 'bg-gray-100 text-gray-700'
+                : getStatusBadge(course.status);
+          const badgeLabel = notStarted ? 'Not Started' : ended ? 'Locked' : showNotAvailable ? 'Not available' : course.status;
+
+          return (
           <div
             key={course.id}
             className="course-management-card group relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)] flex flex-col"
@@ -1276,8 +1291,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             <div className="p-5 flex flex-col flex-1">
               {/* Status Badge */}
               <div className="flex justify-between items-start mb-3">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getStatusBadge(course.status)}`}>
-                  {course.status}
+                <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${badgeClass}`}>
+                  {badgeLabel}
                 </span>
                 <div className="flex space-x-1">
                   <button
@@ -1337,6 +1352,15 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 </div>
               </div>
 
+              {notStarted && course.start_date && (
+                <p className="text-xs text-gray-500 dark:text-slate-300 mb-3">
+                  Course has not started yet - Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              )}
+              {ended && (
+                <p className="text-xs text-red-500 font-medium mb-3">Course has ended and is locked</p>
+              )}
+
               {/* Manage Content Button */}
               <button
                 onClick={() => onNavigate?.('course-detail', String(course.id))}
@@ -1346,7 +1370,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               </button>
             </div>
           </div>
-        ))}
+          );
+        })}
 
         {/* Custom Modules Cards */}
         {filteredCustomModules.map((module) => (
@@ -2361,15 +2386,9 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
-                  name="description"
-                  rows={3}
-                  defaultValue={editingCourse.description}
-                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                />
-              </div>
+              <p className="text-xs text-gray-500">
+                Course description is now editable in Manage Content.
+              </p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>

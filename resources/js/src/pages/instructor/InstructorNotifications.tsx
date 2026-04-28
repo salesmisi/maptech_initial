@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import useConfirm from '../../hooks/useConfirm';
-import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle, RotateCcw, Archive, CheckCircle, Shield } from 'lucide-react';
+import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle, RotateCcw, Archive, CheckCircle, Shield, Search } from 'lucide-react';
 import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ToastProvider';
@@ -41,6 +41,24 @@ interface Course {
   title: string;
 }
 
+interface SentNotification {
+  id: number;
+  title: string;
+  message: string;
+  target: string;
+  announcement_mode?: 'group' | 'one_person';
+  data?: {
+    image_url?: string | null;
+    image_urls?: string[];
+  } | null;
+  date: string;
+  status: 'Sent';
+  recipients_count: number;
+  target_roles?: string[];
+  department_name?: string | null;
+  subdepartment_name?: string | null;
+}
+
 interface FormData {
   message: string;
   course_id: string;
@@ -73,32 +91,8 @@ function extractNotificationItems(payload: any): Notification[] {
 }
 
 export function InstructorNotifications() {
-    const tryOpenPendingNotification = React.useCallback(() => {
-      const pendingIdRaw = localStorage.getItem(PENDING_NOTIFICATION_ID_KEY);
-      const pendingRole = localStorage.getItem(PENDING_NOTIFICATION_ROLE_KEY);
-      if (!pendingIdRaw || pendingRole !== 'Instructor') return;
-
-      const pendingId = Number(pendingIdRaw);
-      if (!Number.isFinite(pendingId)) {
-        localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
-        localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
-        return;
-      }
-
-      const target = notifications.find((item) => item.id === pendingId);
-      if (!target) return;
-
-      setActiveTab('received');
-      setSelectedNotification(target);
-      localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
-      localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
-
-      if (!target.read_at) {
-        markAsRead(target.id);
-      }
-    }, [notifications]);
-
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [sentHistory, setSentHistory] = useState<SentNotification[]>([]);
   const [recentlyDeleted, setRecentlyDeleted] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -107,7 +101,8 @@ export function InstructorNotifications() {
   const [isSending, setIsSending] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
   const [departments, setDepartments] = useState<{id:number;name:string}[]>([]);
-  const [activeTab, setActiveTab] = useState<'received' | 'deleted'>('received');
+  const [activeTab, setActiveTab] = useState<'received' | 'sent' | 'deleted'>('received');
+  const [listSearchQuery, setListSearchQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(5);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
 
@@ -140,6 +135,7 @@ export function InstructorNotifications() {
 
   useEffect(() => {
     fetchNotifications();
+    fetchSentHistory();
     fetchUnreadCount();
     fetchRecentlyDeleted();
     fetchCourses();
@@ -224,6 +220,51 @@ export function InstructorNotifications() {
     }
   };
 
+  const fetchSentHistory = async () => {
+    try {
+      const res = await fetch('/api/instructor/notifications/sent-history', fetchOptions('GET'));
+      const data = await res.json();
+      setSentHistory(data.sent_announcements || []);
+    } catch (err) {
+      console.error('Failed to load sent history:', err);
+    }
+  };
+
+  const tryOpenPendingNotification = React.useCallback(() => {
+    const pendingIdRaw = localStorage.getItem(PENDING_NOTIFICATION_ID_KEY);
+    const pendingRole = localStorage.getItem(PENDING_NOTIFICATION_ROLE_KEY);
+    if (!pendingIdRaw || pendingRole !== 'Instructor') return;
+
+    const pendingId = Number(pendingIdRaw);
+    if (!Number.isFinite(pendingId)) {
+      localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
+      localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
+      return;
+    }
+
+    const target = notifications.find((item) => item.id === pendingId);
+    if (!target) return;
+
+    setActiveTab('received');
+    setSelectedNotification(target);
+    localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
+    localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
+
+    if (!target.read_at) {
+      markAsRead(target.id);
+    }
+  }, [notifications]);
+
+  useEffect(() => {
+    tryOpenPendingNotification();
+  }, [notifications, tryOpenPendingNotification]);
+
+  useEffect(() => {
+    const handler = () => tryOpenPendingNotification();
+    window.addEventListener(OPEN_NOTIFICATION_EVENT, handler);
+    return () => window.removeEventListener(OPEN_NOTIFICATION_EVENT, handler);
+  }, [tryOpenPendingNotification]);
+
   const markAsRead = async (id: number) => {
     const target = notifications.find((item) => item.id === id);
     if (!target || target.read_at) return;
@@ -252,16 +293,6 @@ export function InstructorNotifications() {
       console.error('Failed to mark all as read:', err);
     }
   };
-
-  useEffect(() => {
-    tryOpenPendingNotification();
-  }, [notifications, tryOpenPendingNotification]);
-
-  useEffect(() => {
-    const handler = () => tryOpenPendingNotification();
-    window.addEventListener(OPEN_NOTIFICATION_EVENT, handler);
-    return () => window.removeEventListener(OPEN_NOTIFICATION_EVENT, handler);
-  }, [tryOpenPendingNotification]);
 
   const deleteNotification = async (id: number) => {
     showConfirm('Delete this notification?', async () => {
@@ -417,6 +448,7 @@ export function InstructorNotifications() {
         pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} enrolled employees!`, 'success');
         setIsModalOpen(false);
         setFormData({ message: '', course_id: '', department_id: '', type: 'announcement' });
+        fetchSentHistory();
       } else {
         pushToast('Failed', data.message || 'Failed to send notification', 'error');
       }
@@ -471,6 +503,7 @@ export function InstructorNotifications() {
         pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} admin(s)!`, 'success');
         setIsAdminModalOpen(false);
         setAdminFormData({ message: '', type: 'report' });
+        fetchSentHistory();
       } else {
         pushToast('Failed', data.message || 'Failed to send notification', 'error');
       }
@@ -497,6 +530,59 @@ export function InstructorNotifications() {
     if (!html) return '';
     const plain = new DOMParser().parseFromString(html, 'text/html').body.textContent || '';
     return plain.replace(/\s+/g, ' ').trim();
+  };
+
+  const normalizedListSearch = listSearchQuery.trim().toLowerCase();
+
+  const filteredSentHistory = useMemo(() => {
+    if (!normalizedListSearch) return safeArray(sentHistory);
+
+    return safeArray(sentHistory).filter((item) => {
+      const plainMessage = String(item.message || '')
+        .replace(/<br\s*\/?\s*>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const rolesText = safeArray((item as any).target_roles)
+        .map((role) => String(role || '').trim())
+        .filter(Boolean)
+        .join(', ');
+
+      return [
+        item.title,
+        plainMessage,
+        item.target,
+        item.announcement_mode,
+        rolesText,
+        (item as any).department_name,
+        (item as any).subdepartment_name,
+      ].some((value) => String(value || '').toLowerCase().includes(normalizedListSearch));
+    });
+  }, [sentHistory, normalizedListSearch]);
+
+  const deleteSentHistory = async (id: number) => {
+    showConfirm('Move this announcement to recently deleted?', async () => {
+      try {
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const xsrfToken = getCookie('XSRF-TOKEN');
+
+        await fetch(`/api/instructor/notifications/sent-history/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+            'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
+          },
+        });
+
+        fetchSentHistory();
+        fetchRecentlyDeleted();
+      } catch (err) {
+        console.error('Failed to delete sent history:', err);
+      }
+    });
   };
 
   const getNotificationImages = (notification: Notification) => {
@@ -578,6 +664,17 @@ export function InstructorNotifications() {
             Received ({notifications.length})
           </button>
           <button
+            onClick={() => setActiveTab('sent')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'sent'
+                ? 'border-green-500 text-green-600 dark:text-green-400'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300'
+            }`}
+          >
+            <Send className="h-4 w-4 inline mr-2" />
+            Sent History ({sentHistory.length})
+          </button>
+          <button
             onClick={() => setActiveTab('deleted')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'deleted'
@@ -589,6 +686,25 @@ export function InstructorNotifications() {
             Recently Deleted ({recentlyDeleted.length})
           </button>
         </nav>
+      </div>
+
+      <div className="max-w-xl">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={listSearchQuery}
+            onChange={(e) => setListSearchQuery(e.target.value)}
+            placeholder={
+              activeTab === 'received'
+                ? 'Search received notifications'
+                : activeTab === 'sent'
+                  ? 'Search sent history'
+                  : 'Search recently deleted notifications'
+            }
+            className="w-full rounded-md border border-slate-300 bg-white py-2 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400"
+          />
+        </div>
       </div>
 
       {/* Received Notifications List */}
@@ -693,6 +809,72 @@ export function InstructorNotifications() {
             >
               See previous notifications ({notifications.length - visibleCount} more)
             </button>
+          )}
+        </div>
+      )}
+
+      {/* Sent History */}
+      {activeTab === 'sent' && (
+        <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+          {filteredSentHistory.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 dark:text-slate-300">
+              <Send className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
+              <p>No announcements sent yet</p>
+              <p className="text-sm mt-2">Sent messages will appear here for monitoring</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                <thead className="bg-slate-50 dark:bg-slate-800">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Title</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Message</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Target</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Recipients</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
+                  {filteredSentHistory.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
+                        <div className="flex items-center gap-2">
+                          <span>{item.title}</span>
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${item.announcement_mode === 'one_person' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'}`}>
+                            {item.announcement_mode === 'one_person' ? 'One Person' : 'Group'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-200 truncate max-w-xs">
+                        {messagePreviewText(item.message)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                        {item.target}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                        {item.recipients_count} users
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                        {item.date}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteSentHistory(item.id);
+                          }}
+                          className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
+                          title="Move to Recently Deleted"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

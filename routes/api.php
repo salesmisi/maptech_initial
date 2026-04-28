@@ -891,6 +891,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::prefix('notifications')->group(function () {
         Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index']);
         Route::get('/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount']);
+        Route::get('/sent-history', [\App\Http\Controllers\NotificationController::class, 'getSentAnnouncements']);
         Route::get('/recently-deleted', [\App\Http\Controllers\NotificationController::class, 'getRecentlyDeletedNotifications']);
         Route::post('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead']);
         Route::post('/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead']);

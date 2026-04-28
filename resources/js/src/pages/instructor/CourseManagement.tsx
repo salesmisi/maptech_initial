@@ -437,6 +437,11 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
     const formData = new FormData(e.currentTarget);
 
+    // Course description is now edited in Manage Content for existing courses.
+    if (editingCourse) {
+      formData.set('description', editingCourse.description || '');
+    }
+
     if (isPastDateTimeInput(formData.get('start_date')) || isPastDateTimeInput(formData.get('deadline'))) {
       setFormError('Start Date and Due Date must be current or future.');
       setIsSubmitting(false);
@@ -652,16 +657,12 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
             return (
             <div
               key={course.id}
-              className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col dark:bg-slate-800 dark:border-slate-600 ${
-                notStarted
-                  ? 'bg-gray-200 border-gray-300'
-                  : ended
-                    ? 'bg-white border-red-200'
-                    : 'bg-white border-slate-200'
-              }`}
+              className="course-management-card group relative bg-white border border-slate-200 rounded-xl shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)] flex flex-col"
             >
-              <div className={`h-32 ${notStarted ? 'bg-gray-400' : DEPT_COLORS[course.department] || 'bg-slate-500'} relative flex items-center justify-center`}>
-                <BookOpen className="h-10 w-10 text-white opacity-60" />
+              <div className="h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-teal-500 rounded-t-xl flex items-center justify-center relative">
+                <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md">
+                  <BookOpen className="h-8 w-8 text-green-700 dark:text-emerald-300" />
+                </div>
                 <span className={`absolute top-3 left-3 text-xs font-semibold px-2 py-0.5 rounded-full ${
                   notStarted
                     ? 'bg-gray-100 text-gray-600'
@@ -676,38 +677,41 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 <div className="absolute top-3 right-3 flex gap-1">
                   <button
                     onClick={() => openEdit(course)}
-                    className="p-1.5 bg-white/80 hover:bg-white rounded text-slate-600"
+                    className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-amber-700 hover:bg-amber-50 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800"
+                    title="Edit"
                   >
-                    <Edit2 className="h-3.5 w-3.5" />
+                    <Edit2 className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(course.id)}
-                    className="p-1.5 bg-white/80 hover:bg-red-50 rounded text-red-500"
+                    className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-rose-700 hover:bg-rose-50 dark:text-slate-300 dark:hover:text-rose-300 dark:hover:bg-slate-800"
+                    title="Delete"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </div>
 
               <div className="p-5 flex-1 flex flex-col">
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-50 line-clamp-1 mb-1">{course.title}</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2 leading-tight">{course.title}</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-200 line-clamp-2 mb-3">{course.description}</p>
 
-                <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-200 mb-4">
-                  <div className="flex items-center gap-1">
-                    <FileText className="h-4 w-4" />
+                <div className="flex items-center text-sm text-gray-600 dark:text-slate-300 mb-4 space-x-4">
+                  <div className="flex items-center">
+                    <GraduationCap className="h-4 w-4 mr-1" />
                     {course.modules?.length ?? 0} Modules
                   </div>
-                  <div className="flex items-center gap-1">
-                    <BookOpen className="h-4 w-4" />
+                  <div className="flex items-center">
+                    <Users className="h-4 w-4 mr-1" />
                     {(course as any).enrollments_count ?? 0} Enrolled
                   </div>
                 </div>
-                <div className="mb-4">
+
+                <div className="mb-4 text-sm text-gray-600 dark:text-slate-300">
                   <div className="text-xs text-slate-400 dark:text-slate-300">Location</div>
-                  <span className="text-xs font-medium text-slate-500 dark:text-slate-100">
+                  <div className="font-medium text-gray-700 dark:text-slate-200 text-xs">
                     {course.department}{getCourseSubdepartmentName(course) ? ` / ${getCourseSubdepartmentName(course)}` : ''}
-                  </span>
+                  </div>
                 </div>
 
                 {course.deadline && !ended && (
@@ -724,31 +728,23 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   <p className="text-xs text-red-500 font-medium mb-3">Course has ended and is locked</p>
                 )}
 
-                <div className="mt-auto pt-3 border-t border-slate-100">
-                  <div className="flex items-center justify-between">
-                    <button
-                      onClick={() => onNavigate?.('course-detail', String(course.id))}
-                      className="text-sm font-medium text-green-600 dark:text-green-300 hover:text-green-700 dark:hover:text-green-200"
-                    >
-                      Manage Content &rarr;
-                    </button>
-                    {ended && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => onNavigate?.('course-detail', String(course.id))}
-                          className="text-sm px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
-                        >
-                          Manage Enrollments
-                        </button>
-                        <button
-                          onClick={() => openCourseUnlockModal(String(course.id))}
-                          className="text-sm px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-                        >
-                          Unlock
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                <div className="mt-auto pt-3 border-t border-slate-100 space-y-2">
+                  <button
+                    onClick={() => onNavigate?.('course-detail', String(course.id))}
+                    className="course-manage-button w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                  >
+                    Manage Content &rarr;
+                  </button>
+                  {ended && (
+                    <div className="mt-2">
+                      <button
+                        onClick={() => openCourseUnlockModal(String(course.id))}
+                        className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                      >
+                        Unlock
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -849,16 +845,24 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                <textarea
-                  rows={3}
-                  name="description"
-                  defaultValue={editingCourse?.description || ''}
-                  placeholder="enter description"
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                />
-              </div>
+              {!editingCourse && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                  <textarea
+                    rows={3}
+                    name="description"
+                    defaultValue=""
+                    placeholder="enter description"
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+              )}
+
+              {editingCourse && (
+                <p className="text-xs text-slate-500">
+                  Update the course description from Manage Content.
+                </p>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
