@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import useConfirm from '../../hooks/useConfirm';
 import {
   MagnifyingGlassIcon,
@@ -34,6 +35,7 @@ interface Course {
   status: 'Active' | 'Draft' | 'Inactive';
   modules_count: number;
   enrolled_count: number;
+  has_manual_unlock?: boolean;
   created_at: string;
 }
 
@@ -102,7 +104,37 @@ function toLocalDateTimeInputValue(value?: string | null): string {
 function getMinDateTimeInputValue(): string {
   const now = new Date();
   now.setSeconds(0, 0);
-  return formatLocalDateTimeInput(now);
+  return formatDateTimeForTimeZone(now, 'Asia/Manila');
+}
+
+function formatDateTimeForTimeZone(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date).reduce<Record<string, string>>((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value;
+    return acc;
+  }, {});
+
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
+function toUtcIsoFromManilaInput(value: FormDataEntryValue | null): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(trimmed);
+  if (!match) return null;
+
+  const [, year, month, day, hour, minute] = match;
+  const utcMs = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour) - 8, Number(minute));
+  return new Date(utcMs).toISOString();
 }
 
 function isPastDateTimeInput(value: FormDataEntryValue | null): boolean {
@@ -243,8 +275,19 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   // Custom module thumbnail upload
   const [uploadingThumbnailModuleId, setUploadingThumbnailModuleId] = useState<number | null>(null);
   const customModuleThumbnailRef = useRef<HTMLInputElement>(null);
+  const [courseUnlockModalOpen, setCourseUnlockModalOpen] = useState(false);
+  const [courseUnlockTarget, setCourseUnlockTarget] = useState<Course | null>(null);
+  const [unlockEmployees, setUnlockEmployees] = useState<UserOption[]>([]);
+  const [selectedUnlockEmployeeId, setSelectedUnlockEmployeeId] = useState<number | ''>('');
+  const [unlockUntil, setUnlockUntil] = useState<string>('');
+  const [unlockPermanent, setUnlockPermanent] = useState(false);
+  const [unlockLoadingEmployees, setUnlockLoadingEmployees] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+  const [unlockSuccessModalOpen, setUnlockSuccessModalOpen] = useState(false);
+  const [unlockSuccessMessage, setUnlockSuccessMessage] = useState('');
   const minDateTimeInput = getMinDateTimeInputValue();
-  const hasOpenModal = Boolean(selectedCourse || showEnrollments || showCreateModal || showEditModal || showBulkAssignModal);
+  const hasOpenModal = Boolean(selectedCourse || showEnrollments || showCreateModal || showEditModal || showBulkAssignModal || courseUnlockModalOpen || unlockSuccessModalOpen);
 
   useEffect(() => {
     if (!hasOpenModal) return;
@@ -418,6 +461,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       console.log('CoursesAndContent: Starting to load courses');
       setLoading(true);
       setError(null);
+      const manualUnlockLookup = new Map(courses.map((course) => [String(course.id), Boolean(course.has_manual_unlock)]));
 
       // Get CSRF token first
       console.log('CoursesAndContent: Getting CSRF token');
@@ -448,6 +492,9 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       const rawCourses = Array.isArray(data) ? data : [];
       setCourses(rawCourses.map((c: any) => ({
         ...c,
+        has_manual_unlock: typeof c.has_manual_unlock === 'boolean'
+          ? c.has_manual_unlock
+          : manualUnlockLookup.get(String(c.id)) ?? false,
         status: normalizeCourseStatus(c.status),
         start_date: normalizeApiDateTime(c.start_date),
         deadline: normalizeApiDateTime(c.deadline),
@@ -509,11 +556,15 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
       if (response.ok) {
         const data = await response.json();
-        setEnrolledStudents(data);
+        const students = Array.isArray(data) ? data : [];
+        setEnrolledStudents(students);
+        return students;
       }
     } catch (err) {
       console.error('Failed to load enrolled students:', err);
     }
+
+    return [];
   };
 
   // Handle custom module thumbnail upload
@@ -687,6 +738,124 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
         alert(err.message);
       }
     });
+  };
+
+  const openCourseUnlockModal = (course: Course) => {
+    setCourseUnlockTarget(course);
+    setSelectedUnlockEmployeeId('');
+    setUnlockUntil(formatDateTimeForTimeZone(new Date(Date.now() + 24 * 60 * 60 * 1000), 'Asia/Manila'));
+    setUnlockPermanent(false);
+    setUnlockError(null);
+    setCourseUnlockModalOpen(true);
+
+    const loadEmployees = async () => {
+      try {
+        setUnlockLoadingEmployees(true);
+        const response = await fetch(`/api/admin/courses/${course.id}/enrollments`, {
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+        });
+
+        const data = response.ok ? await response.json() : [];
+        const students = safeArray<any>(data);
+        const isNotFinished = (s: any) => {
+          if (!s) return false;
+          if (s.status && String(s.status).toLowerCase() === 'completed') return false;
+          if (typeof s.completed === 'boolean' && s.completed) return false;
+          const prog = Number(s.progress ?? s.completion_percentage ?? s.pivot?.progress ?? 0);
+          if (!Number.isNaN(prog) && prog >= 100) return false;
+          if (s.finished === true) return false;
+          return true;
+        };
+
+        const deadlinePassed = course.deadline ? new Date(course.deadline).getTime() <= Date.now() : false;
+
+        setUnlockEmployees(students.filter((student: any) => {
+          const deptMatches = !course.department || !student.department || String(student.department || '').toLowerCase() === String(course.department).toLowerCase();
+          const subMatches = !course.subdepartment_id || !student.subdepartment_id || Number(student.subdepartment_id ?? 0) === Number(course.subdepartment_id);
+          const activeUnlockUntil = student.unlocked_until ? new Date(student.unlocked_until).getTime() > Date.now() : false;
+          const courseIsEligibleForSecondChance = deadlinePassed || Boolean(student.locked);
+          return isNotFinished(student) && deptMatches && subMatches && courseIsEligibleForSecondChance && !activeUnlockUntil;
+        }).map((student: any) => ({
+          id: student.id,
+          fullName: student.fullname || student.name || '',
+          email: student.email || '',
+          department: course.department,
+          role: 'Employee',
+          subdepartment_id: course.subdepartment_id ?? null,
+          subdepartment_name: getCourseSubdepartmentName(course),
+        })));
+      } catch (err) {
+        console.error('Failed to load unlock employees:', err);
+        setUnlockEmployees([]);
+      } finally {
+        setUnlockLoadingEmployees(false);
+      }
+    };
+
+    void loadEmployees();
+  };
+
+  const handleUnlockCourse = async () => {
+    if (!courseUnlockTarget) return;
+    if (!selectedUnlockEmployeeId) {
+      setUnlockError('Please select an employee to unlock.');
+      return;
+    }
+    if (!unlockPermanent && !unlockUntil.trim()) {
+      setUnlockError('Please set an unlock until date/time or mark the unlock as permanent.');
+      return;
+    }
+
+    setUnlocking(true);
+    setUnlockError(null);
+
+    try {
+      const csrf = await getCsrf();
+      const payload: Record<string, unknown> = {};
+      if (!unlockPermanent) {
+        payload.expires_at = toUtcIsoFromManilaInput(unlockUntil) ?? undefined;
+      }
+
+      const response = await fetch(`/api/admin/courses/${courseUnlockTarget.id}/enrollments/${selectedUnlockEmployeeId}/unlock`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': csrf,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to unlock employee');
+      }
+
+      const selectedEmployee = unlockEmployees.find((employee) => Number(employee.id) === Number(selectedUnlockEmployeeId));
+      const selectedEmployeeName = selectedEmployee?.fullName || 'employee';
+      const selectedCourseTitle = courseUnlockTarget.title;
+
+      // Remove the unlocked employee from the dropdown so they cannot be selected again immediately
+      setUnlockEmployees((prev) => prev.filter((e) => Number(e.id) !== Number(selectedUnlockEmployeeId)));
+      // Notify any open employee/course viewer in this browser tab to reload
+      try { window.dispatchEvent(new CustomEvent('course:unlocked', { detail: { courseId: courseUnlockTarget?.id } })); } catch (e) { /* ignore */ }
+      setCourseUnlockModalOpen(false);
+      setCourseUnlockTarget(null);
+      setSelectedUnlockEmployeeId('');
+      setUnlockUntil('');
+      setUnlockPermanent(false);
+      await loadCourses();
+      setUnlockSuccessMessage(`Successfully unlocked ${selectedCourseTitle} for ${selectedEmployeeName}.`);
+      setUnlockSuccessModalOpen(true);
+    } catch (err: any) {
+      const message = err?.message || 'Failed to unlock employee';
+      setUnlockError(message);
+      alert(message);
+    } finally {
+      setUnlocking(false);
+    }
   };
 
   // ── Helper: get XSRF token from cookie ──
@@ -1361,13 +1530,22 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 <p className="text-xs text-red-500 font-medium mb-3">Course has ended and is locked</p>
               )}
 
-              {/* Manage Content Button */}
-              <button
-                onClick={() => onNavigate?.('course-detail', String(course.id))}
-                className="course-manage-button mt-auto w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
-              >
-                Manage Content →
-              </button>
+              <div className="mt-auto pt-3 border-t border-slate-100 space-y-2">
+                <button
+                  onClick={() => onNavigate?.('course-detail', String(course.id))}
+                  className="course-manage-button w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                >
+                  Manage Content →
+                </button>
+                {ended && (
+                  <button
+                    onClick={() => openCourseUnlockModal(course)}
+                    className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                  >
+                    Unlock
+                  </button>
+                )}
+              </div>
             </div>
           </div>
           );
@@ -2557,6 +2735,96 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             </form>
           </div>
         </div>
+      )}
+
+      {courseUnlockModalOpen && createPortal(
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50"
+          onClick={(e) => { if (e.target === e.currentTarget) { setCourseUnlockModalOpen(false); setCourseUnlockTarget(null); } }}
+        >
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-white">Unlock Employee Access</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Unlock access for one employee currently enrolled in this course.</p>
+            {unlockError && <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm rounded px-3 py-2 mb-3">{unlockError}</div>}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Employee</label>
+                <select
+                  value={selectedUnlockEmployeeId}
+                  onChange={(e) => setSelectedUnlockEmployeeId(e.target.value ? Number(e.target.value) : '')}
+                  disabled={unlockLoadingEmployees}
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                >
+                  <option value="">{unlockLoadingEmployees ? 'Loading employees...' : 'Select an employee'}</option>
+                  {unlockEmployees.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.fullName} ({employee.email})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-400 mt-1">Only employees currently enrolled in this course are shown.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Unlock Until (Philippine time)</label>
+                <input
+                  type="datetime-local"
+                  value={unlockUntil}
+                  onChange={(e) => setUnlockUntil(e.target.value)}
+                  min={minDateTimeInput}
+                  disabled={unlockPermanent}
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                />
+                <p className="text-xs text-slate-400 mt-1">Times are interpreted as Philippine Standard Time.</p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input id="admin-course-perm" type="checkbox" checked={unlockPermanent} onChange={(e) => setUnlockPermanent(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-500" />
+                <label htmlFor="admin-course-perm" className="text-sm text-slate-700 dark:text-slate-300">Permanent unlock (no expiration)</label>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end mt-6">
+              <button
+                onClick={() => { setCourseUnlockModalOpen(false); setCourseUnlockTarget(null); }}
+                className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                disabled={unlocking}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUnlockCourse}
+                disabled={unlocking}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm disabled:opacity-50"
+              >
+                {unlocking ? 'Unlocking...' : 'Unlock Course'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {unlockSuccessModalOpen && createPortal(
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50"
+          onClick={(e) => { if (e.target === e.currentTarget) setUnlockSuccessModalOpen(false); }}
+        >
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-white">Unlock Successful</h3>
+            <p className="text-sm text-slate-700 dark:text-slate-300 mb-6">{unlockSuccessMessage}</p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setUnlockSuccessModalOpen(false)}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* ═══════════════════ PREVIEW LESSON MODAL ═══════════════════ */}

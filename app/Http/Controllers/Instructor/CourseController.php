@@ -934,6 +934,7 @@ $module = $course->modules()->create($data);
                     'progress'          => $user->pivot->progress,
                     'enrollment_status' => $user->pivot->status,
                     'locked'            => $user->pivot->locked ?? false,
+                    'unlocked_until'    => $user->pivot->unlocked_until ?? null,
                 ];
             });
 

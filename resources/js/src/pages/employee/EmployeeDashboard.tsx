@@ -618,6 +618,15 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     return () => window.clearInterval(rotate);
   }, [certificates]);
 
+  useEffect(() => {
+    const handler = () => {
+      window.location.reload();
+    };
+
+    window.addEventListener('course:unlocked', handler as EventListener);
+    return () => window.removeEventListener('course:unlocked', handler as EventListener);
+  }, []);
+
   const getThumbnailColor = (department: string) => {
     const colors: Record<string, string> = {
       it: 'bg-blue-500',

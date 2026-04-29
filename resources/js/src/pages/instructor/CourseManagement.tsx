@@ -101,6 +101,35 @@ const toUtcIsoString = (value: FormDataEntryValue | null): string | null => {
   return parsed.toISOString();
 };
 
+const formatDateTimeForTimeZone = (date: Date, timeZone: string): string => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date).reduce<Record<string, string>>((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value;
+    return acc;
+  }, {});
+
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+};
+
+const toUtcIsoFromManilaInput = (value: string): string | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(trimmed);
+  if (!match) return null;
+
+  const [, year, month, day, hour, minute] = match;
+  const utcMs = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour) - 8, Number(minute));
+  return new Date(utcMs).toISOString();
+};
+
 const toLocalDateTimeInputValue = (value?: string | null): string => {
   if (!value) return '';
   const parsed = new Date(value);
@@ -149,11 +178,12 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const { pushToast } = useToast();
   // Course unlock modal state
   const [courseUnlockModalOpen, setCourseUnlockModalOpen] = useState(false);
-  const [courseUnlockTargetId, setCourseUnlockTargetId] = useState<string | null>(null);
-  const [unlockDurationMinutes, setUnlockDurationMinutes] = useState<number>(1440);
+  const [courseUnlockTarget, setCourseUnlockTarget] = useState<Course | null>(null);
+  const [unlockEmployees, setUnlockEmployees] = useState<any[]>([]);
+  const [selectedUnlockEmployeeId, setSelectedUnlockEmployeeId] = useState<number | ''>('');
+  const [unlockUntil, setUnlockUntil] = useState<string>('');
   const [unlockPermanent, setUnlockPermanent] = useState<boolean>(false);
-  const [unlockStartDate, setUnlockStartDate] = useState<string>('');
-  const [unlockEndDate, setUnlockEndDate] = useState<string>('');
+  const [unlockLoadingEmployees, setUnlockLoadingEmployees] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
 
@@ -164,7 +194,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
-  const minDateTimeInput = getMinDateTimeInputValue();
+  const minDateTimeInput = formatDateTimeForTimeZone(new Date(), 'Asia/Manila');
   const hasOpenModal = isModalOpen || courseUnlockModalOpen || pushDeptModalOpen;
 
   useEffect(() => {
@@ -339,14 +369,74 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     }
   };
 
-  const openCourseUnlockModal = (courseId: string) => {
-    setCourseUnlockTargetId(courseId);
-    setUnlockDurationMinutes(1440);
+  const openCourseUnlockModal = async (course: Course) => {
+    setCourseUnlockTarget(course);
+    setSelectedUnlockEmployeeId('');
+    setUnlockUntil(formatDateTimeForTimeZone(new Date(Date.now() + 24 * 60 * 60 * 1000), 'Asia/Manila'));
     setUnlockPermanent(false);
-    setUnlockStartDate('');
-    setUnlockEndDate('');
     setUnlockError(null);
     setCourseUnlockModalOpen(true);
+
+    try {
+      setUnlockLoadingEmployees(true);
+      const res = await fetch(`${API_BASE}/instructor/courses/${course.id}`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error('Failed to load course employees');
+      const data = await res.json();
+      const rawUsers = Array.isArray(data.enrolledUsers)
+        ? data.enrolledUsers
+        : Array.isArray(data.enrolled_users)
+        ? data.enrolled_users
+        : Array.isArray(data.enrollments)
+        ? data.enrollments
+        : [];
+
+      const normalized = rawUsers.map((u: any) => {
+        const progress = Number(u.progress ?? u.pivot?.progress ?? u.completion_percentage ?? 0) || 0;
+        const status = u.status ?? u.enrollment_status ?? u.pivot?.status ?? '';
+        const finished = Boolean(u.finished === true || (status && String(status).toLowerCase() === 'completed') || progress >= 100 || (typeof u.completed === 'boolean' && u.completed));
+        const locked = typeof u.pivot?.locked !== 'undefined'
+          ? Boolean(u.pivot.locked)
+          : (typeof u.locked !== 'undefined' ? Boolean(u.locked) : false);
+        return {
+          id: u.id,
+          fullName: u.fullname || u.full_name || u.name || '',
+          email: u.email || '',
+          department: u.department || u.dept || '',
+          role: u.role || 'Employee',
+          subdepartment_id: u.subdepartment_id ?? u.subdepartment?.id ?? null,
+          progress,
+          status,
+          finished,
+          locked,
+          unlocked_until: u.unlocked_until ?? u.pivot?.unlocked_until ?? null,
+        };
+      });
+
+      setUnlockEmployees(normalized.filter((u: any) => {
+        const deptMatches = !course.department || !u.department || String(u.department || '').toLowerCase() === String(course.department).toLowerCase();
+        const subMatches = !course.subdepartment_id || !u.subdepartment_id || Number(u.subdepartment_id ?? 0) === Number(course.subdepartment_id);
+        const deadlinePassed = course.deadline ? new Date(course.deadline).getTime() <= Date.now() : false;
+        const activeUnlockUntil = u.unlocked_until ? new Date(u.unlocked_until).getTime() > Date.now() : false;
+        const courseIsEligibleForSecondChance = deadlinePassed || Boolean(u.locked);
+        return deptMatches && subMatches && !u.finished && courseIsEligibleForSecondChance && !activeUnlockUntil;
+      }).map((u: any) => ({
+        id: u.id,
+        fullName: u.fullName,
+        email: u.email,
+        department: course.department,
+        role: u.role,
+        subdepartment_id: u.subdepartment_id ?? null,
+        subdepartment_name: getCourseSubdepartmentName(course),
+      })));
+    } catch (err) {
+      console.error('Failed to load unlock employees:', err);
+      setUnlockEmployees([]);
+    } finally {
+      setUnlockLoadingEmployees(false);
+    }
   };
 
   const confirm = useConfirm();
@@ -496,87 +586,51 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
     }
   };
 
-  const handleUnlockCourse = async (courseId: string, durationMinutes?: number | null, startDate?: string, endDate?: string) => {
+  const handleUnlockCourse = async () => {
+    if (!courseUnlockTarget) return;
+    if (!selectedUnlockEmployeeId) {
+      setUnlockError('Please select an employee to unlock.');
+      return;
+    }
+    if (!unlockPermanent && !unlockUntil.trim()) {
+      setUnlockError('Please set an unlock until date/time or mark the unlock as permanent.');
+      return;
+    }
+
     try {
       setUnlockError(null);
       setUnlocking(true);
       const token = await getXsrfToken();
-      // fetch course details to get enrolled users
-      const res = await fetch(`${API_BASE}/instructor/courses/${courseId}`, {
+      const bodyData: Record<string, unknown> = {};
+      if (!unlockPermanent) {
+        bodyData.expires_at = toUtcIsoFromManilaInput(unlockUntil) ?? undefined;
+      }
+
+      const r = await fetch(`${API_BASE}/instructor/courses/${courseUnlockTarget.id}/enrollments/${selectedUnlockEmployeeId}/unlock`, {
+        method: 'POST',
         credentials: 'include',
-        headers: { Accept: 'application/json' },
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token, 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyData),
       });
-      if (!res.ok) throw new Error('Failed to load course enrollments');
-      const course = await res.json();
-      const users = course.enrolledUsers || [];
-
-      // Unlock modules per department for enrolled users (handles mixed departments)
-      try {
-        const depts = Array.from(new Set((users.map((u: any) => u.department || null).filter(Boolean))));
-        // if no per-user departments, fallback to course.department
-        if (depts.length === 0 && course.department) depts.push(course.department);
-        for (const dept of depts) {
-          try {
-            const bodyData: any = { department: dept };
-            if (endDate) {
-              bodyData.expires_at = endDate;
-            } else if (durationMinutes && !isNaN(durationMinutes)) {
-              bodyData.duration_minutes = Number(durationMinutes);
-            }
-            const deptOpts: any = {
-              method: 'POST',
-              credentials: 'include',
-              headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token, 'Content-Type': 'application/json' },
-              body: JSON.stringify(bodyData),
-            };
-            await fetch(`${API_BASE}/instructor/courses/${courseId}/unlock-department-all`, deptOpts);
-          } catch (err) {
-            console.warn('unlock-department-all failed for', dept, err);
-          }
-        }
-      } catch (err) {
-        console.warn('unlock-department-all grouping failed', err);
+      if (!r.ok) {
+        const text = await r.text();
+        throw new Error(text || 'Failed to unlock employee');
       }
 
-      for (const u of users) {
-        try {
-          const bodyData: any = {};
-          if (endDate) {
-            bodyData.expires_at = endDate;
-          } else if (durationMinutes && !isNaN(durationMinutes)) {
-            bodyData.duration_minutes = Number(durationMinutes);
-          }
-          const opts: any = {
-            method: 'POST',
-            credentials: 'include',
-            headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token, 'Content-Type': 'application/json' },
-            body: JSON.stringify(bodyData),
-          };
-          const r = await fetch(`${API_BASE}/instructor/courses/${courseId}/enrollments/${u.id}/unlock`, opts);
-          if (!r.ok) {
-            const text = await r.text();
-            console.error(`Unlock failed for ${u.id}: ${r.status} ${text}`);
-          }
-        } catch (e) {
-          console.error('Failed to unlock', u.id, e);
-        }
-      }
-
-      // optimistically mark course as available in the UI so the card updates immediately
-      setCourses(prev => prev.map(c => (String(c.id) === String(courseId) ? { ...c, availableByInstructor: true } : c)));
-      // notify other open tabs/pages in the same browser to refresh the course
-      try { window.dispatchEvent(new CustomEvent('course:unlocked', { detail: { courseId } })); } catch (e) { /* ignore */ }
-      pushToast('Course unlocked', 'Course unlocked for enrolled users (where possible).', 'success', 6000);
+      pushToast('Employee unlocked', 'Employee access unlocked for the selected course.', 'success', 6000);
+      // Remove the unlocked employee from the dropdown so they cannot be selected again
+      setUnlockEmployees((prev) => prev.filter((e) => Number(e.id) !== Number(selectedUnlockEmployeeId)));
+      // Notify any open employee/course viewer in this browser tab to reload
+      try { window.dispatchEvent(new CustomEvent('course:unlocked', { detail: { courseId: courseUnlockTarget?.id } })); } catch (e) { /* ignore */ }
       setCourseUnlockModalOpen(false);
-      setCourseUnlockTargetId(null);
-      setUnlockDurationMinutes(1440);
+      setCourseUnlockTarget(null);
+      setSelectedUnlockEmployeeId('');
+      setUnlockUntil('');
       setUnlockPermanent(false);
-      setUnlockStartDate('');
-      setUnlockEndDate('');
       await loadCourses();
     } catch (e: any) {
       console.error(e);
-      const msg = e?.message || 'Failed to unlock course enrollments.';
+      const msg = e?.message || 'Failed to unlock employee.';
       setUnlockError(msg);
       pushToast('Unlock failed', msg, 'error', 7000);
     } finally {
@@ -735,10 +789,10 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   >
                     Manage Content &rarr;
                   </button>
-                  {ended && (
+                  {(ended || Boolean((course as any).has_manual_unlock) || Boolean(course.availableByInstructor)) && (
                     <div className="mt-2">
                       <button
-                        onClick={() => openCourseUnlockModal(String(course.id))}
+                        onClick={() => { void openCourseUnlockModal(course); }}
                         className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                       >
                         Unlock
@@ -1026,38 +1080,43 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         {courseUnlockModalOpen && createPortal(
           <div
             className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50"
-            onClick={(e) => { if (e.target === e.currentTarget) { setCourseUnlockModalOpen(false); setCourseUnlockTargetId(null); } }}
+            onClick={(e) => { if (e.target === e.currentTarget) { setCourseUnlockModalOpen(false); setCourseUnlockTarget(null); } }}
           >
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-white">Unlock Locked Course</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">This course is currently Locked. Set the unlock period for enrolled employees.</p>
+                <h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-white">Unlock Employee Access</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Unlock access for one employee from the course&apos;s department or subdepartment.</p>
               {unlockError && <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm rounded px-3 py-2 mb-3">{unlockError}</div>}
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Date & Time</label>
-                  <input
-                    type="datetime-local"
-                    value={unlockStartDate}
-                    onChange={(e) => setUnlockStartDate(e.target.value)}
-                    min={minDateTimeInput}
-                    disabled={unlockPermanent}
-                    className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                  />
-                  <p className="text-xs text-slate-400 mt-1">Leave empty to start immediately.</p>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Employee</label>
+                    <select
+                      value={selectedUnlockEmployeeId}
+                      onChange={(e) => setSelectedUnlockEmployeeId(e.target.value ? Number(e.target.value) : '')}
+                      disabled={unlockLoadingEmployees}
+                      className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    >
+                      <option value="">{unlockLoadingEmployees ? 'Loading employees...' : 'Select an employee'}</option>
+                      {unlockEmployees.map((employee: any) => (
+                        <option key={employee.id} value={employee.id}>
+                          {employee.fullname || employee.fullName} ({employee.email})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-400 mt-1">Only employees from the selected course department/subdepartment are shown.</p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">End Date & Time</label>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Unlock Until (Philippine time)</label>
                   <input
                     type="datetime-local"
-                    value={unlockEndDate}
-                    onChange={(e) => setUnlockEndDate(e.target.value)}
-                    min={unlockStartDate || minDateTimeInput}
+                      value={unlockUntil}
+                      onChange={(e) => setUnlockUntil(e.target.value)}
+                      min={minDateTimeInput}
                     disabled={unlockPermanent}
                     className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                   />
-                  <p className="text-xs text-slate-400 mt-1">When the course will be locked again.</p>
+                    <p className="text-xs text-slate-400 mt-1">Times are interpreted as Philippine Standard Time.</p>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1074,18 +1133,13 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
               <div className="flex gap-3 justify-end mt-6">
                 <button
-                  onClick={() => { setCourseUnlockModalOpen(false); setCourseUnlockTargetId(null); }}
+                  onClick={() => { setCourseUnlockModalOpen(false); setCourseUnlockTarget(null); }}
                   className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    if (!courseUnlockTargetId) return;
-                    const endDateValue = unlockPermanent ? undefined : unlockEndDate || undefined;
-                    const dur = unlockPermanent ? null : (!unlockEndDate ? unlockDurationMinutes : null);
-                    handleUnlockCourse(courseUnlockTargetId, dur ?? null, unlockStartDate || undefined, endDateValue);
-                  }}
+                  onClick={() => { void handleUnlockCourse(); }}
                   disabled={unlocking}
                   className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm disabled:opacity-50"
                 >
