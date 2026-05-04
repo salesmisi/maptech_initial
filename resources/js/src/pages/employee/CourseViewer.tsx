@@ -955,7 +955,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
           <button
             onClick={submitQuiz}
             disabled={!allAnswered || quizSubmitting}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {quizSubmitting ? <><Loader className="h-4 w-4 animate-spin" /> Submitting...</> : 'Submit Quiz'}
           </button>

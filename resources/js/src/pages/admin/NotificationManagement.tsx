@@ -492,17 +492,27 @@ export function NotificationManagement() {
           {unreadCount > 0 && (
             <button
               onClick={markAllAsRead}
-              className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
+              className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
             >
               <CheckCircle className="h-4 w-4 mr-2" />
               Mark All Read
             </button>
           )}
           <button
+            onClick={() => {
+              fetchNotifications();
+              fetchUnreadCount();
+            }}
+            className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
+          >
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Refresh
+          </button>
+          <button
             onClick={async () => {
               setIsModalOpen(true);
             }}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
           >
             <Plus className="h-4 w-4 mr-2" />
             Send Announcement
@@ -1078,6 +1088,23 @@ export function NotificationManagement() {
         variant={previewModal.error ? 'error' : 'info'}
         icon={previewModal.error ? undefined : <Users className="w-6 h-6" />}
       />
+
+      {/* Success Toast */}
+      {successToast.show && (
+        <div className="fixed bottom-4 right-4 z-50 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl flex items-center gap-3 animate-slide-up">
+          <CheckCircle className="h-6 w-6" />
+          <div>
+            <p className="font-semibold">Notification Sent Successfully!</p>
+            <p className="text-sm text-green-100">Sent to {successToast.count} recipient{successToast.count !== 1 ? 's' : ''}</p>
+          </div>
+          <button
+            onClick={() => setSuccessToast({ show: false, count: 0 })}
+            className="ml-4 text-white hover:text-green-100"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

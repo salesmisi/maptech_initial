@@ -200,6 +200,13 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
 
   // Delete handler
   const handleDelete = async (id: number) => {
+    // Check if the user being deleted is an admin
+    const userToDelete = users.find(u => u.id === id);
+    if (userToDelete?.role === 'Admin') {
+      alert('Admin accounts cannot be deleted for security reasons.');
+      return;
+    }
+
     showConfirm('Are you sure you want to delete this user?', async () => {
       try {
         const xsrfToken = await getXsrfToken();
@@ -575,7 +582,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
           <div className="relative z-50" ref={addUserDropdownRef}>
             <button
               onClick={() => setShowAddUserDropdown(!showAddUserDropdown)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-slate-950 bg-emerald-400 hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add User
@@ -1132,7 +1139,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-emerald-600 text-base font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-500 hover:shadow-[0_10px_20px_rgba(16,185,129,0.22)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:col-start-2 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 hover:shadow-[0_10px_20px_rgba(99,102,241,0.22)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:col-start-2 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {submitting ? (
                         <>

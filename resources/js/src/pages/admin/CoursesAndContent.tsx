@@ -1534,7 +1534,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     <button
                       onClick={handleAddModule}
                       disabled={isSubmitting || !newModuleTitle.trim()}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                      className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:opacity-50 flex items-center gap-1"
                     >
                       <PlusIcon className="h-4 w-4" /> Add Module
                     </button>

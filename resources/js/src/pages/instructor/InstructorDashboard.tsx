@@ -114,25 +114,25 @@ export function InstructorDashboard({ onNavigate }: InstructorDashboardProps) {
 
         {/* Summary Cards */}
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="bg-white rounded shadow p-4 flex flex-col items-start">
-            <span className="text-slate-500 text-xs mb-1">Student Questions</span>
-            <span className="text-2xl font-bold text-blue-600">{recentQuestions.length}</span>
-            <span className="text-xs text-blue-600 mt-1">Recent Q&A activity</span>
+          <div className="bg-white dark:bg-slate-900/80 rounded shadow border border-slate-100 dark:border-slate-700 p-4 flex flex-col items-start">
+            <span className="text-slate-500 dark:text-slate-400 text-xs mb-1">Student Questions</span>
+            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">{recentQuestions.length}</span>
+            <span className="text-xs text-blue-600 dark:text-blue-400 mt-1">Recent Q&A activity</span>
           </div>
-          <div className="bg-white rounded shadow p-4 flex flex-col items-start">
-            <span className="text-slate-500 text-xs mb-1">My Courses</span>
-            <span className="text-2xl font-bold text-green-600">{courseStats.length}</span>
-            <span className="text-xs text-slate-400 mt-1">Active courses assigned</span>
+          <div className="bg-white dark:bg-slate-900/80 rounded shadow border border-slate-100 dark:border-slate-700 p-4 flex flex-col items-start">
+            <span className="text-slate-500 dark:text-slate-400 text-xs mb-1">My Courses</span>
+            <span className="text-2xl font-bold text-green-600 dark:text-green-400">{courseStats.length}</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500 mt-1">Active courses assigned</span>
           </div>
-          <div className="bg-white rounded shadow p-4 flex flex-col items-start">
-            <span className="text-slate-500 text-xs mb-1">Total Students</span>
-            <span className="text-2xl font-bold text-purple-600">{studentCount}</span>
-            <span className="text-xs text-green-600 mt-1">+{newStudentsMonth} this month</span>
+          <div className="bg-white dark:bg-slate-900/80 rounded shadow border border-slate-100 dark:border-slate-700 p-4 flex flex-col items-start">
+            <span className="text-slate-500 dark:text-slate-400 text-xs mb-1">Total Students</span>
+            <span className="text-2xl font-bold text-purple-600 dark:text-purple-400">{studentCount}</span>
+            <span className="text-xs text-green-600 dark:text-green-400 mt-1">+{newStudentsMonth} this month</span>
           </div>
-          <div className="bg-white rounded shadow p-4 flex flex-col items-start">
-            <span className="text-slate-500 text-xs mb-1">Avg. Pass Rate</span>
-            <span className="text-2xl font-bold text-orange-600">{avgPassRate}%</span>
-            <span className={`text-xs mt-1 ${passRateDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}>{passRateDelta >= 0 ? '+' : ''}{passRateDelta}% from last month</span>
+          <div className="bg-white dark:bg-slate-900/80 rounded shadow border border-slate-100 dark:border-slate-700 p-4 flex flex-col items-start">
+            <span className="text-slate-500 dark:text-slate-400 text-xs mb-1">Avg. Pass Rate</span>
+            <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">{avgPassRate}%</span>
+            <span className={`text-xs mt-1 ${passRateDelta >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{passRateDelta >= 0 ? '+' : ''}{passRateDelta}% from last month</span>
           </div>
         </div>
 

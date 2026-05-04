@@ -223,7 +223,7 @@ function QuestionForm({
           type="button"
           onClick={() => onSave(editId)}
           disabled={savingQuestion}
-          className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
         >
           {savingQuestion ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           {savingQuestion ? 'Saving...' : (editId ? 'Update Question' : 'Save Question')}
@@ -532,7 +532,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
               <button
                 onClick={handleSaveMeta}
                 disabled={savingMeta}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
               >
                 {savingMeta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 {savingMeta ? 'Saving...' : 'Save'}
@@ -587,7 +587,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
           {!addingQuestion && editingQuestionId === null && (
             <button
               onClick={() => { setAddingQuestion(true); resetAddForm(); setEditingQuestionId(null); }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white text-sm font-medium rounded-md transition-colors"
             >
               <Plus className="h-4 w-4" />
               Add Question

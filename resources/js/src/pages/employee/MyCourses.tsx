@@ -259,7 +259,7 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
                 onClick={() => !isLocked && onNavigate('course-enroll', course.id)}
                 disabled={isLocked}
                 className={`w-full flex justify-center items-center py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white transition-colors ${
-                  isLocked ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+                  isLocked ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600'
                 }`}
               >
                 View &amp; Enroll

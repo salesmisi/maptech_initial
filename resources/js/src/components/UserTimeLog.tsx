@@ -27,7 +27,16 @@ export function UserTimeLog() {
   const [now, setNow] = useState(new Date());
   const [userId, setUserId] = useState<number | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [isScrolled, setIsScrolled] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Handle scroll event to show blur overlay
+  const handleScroll = () => {
+    if (scrollRef.current) {
+      setIsScrolled(scrollRef.current.scrollTop > 10);
+    }
+  };
 
   // Fetch only current user's time logs
   const fetchLogs = useCallback(async (silent = false) => {
@@ -358,7 +367,16 @@ export function UserTimeLog() {
           <span>{formatTotalDuration(weekSeconds)}</span>
         </span>
       </div>
-      <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
+      <div className="relative">
+        {/* Blur overlay for scrolled content */}
+        {isScrolled && (
+          <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-white/80 via-white/50 to-transparent dark:from-slate-900/80 dark:via-slate-900/50 pointer-events-none z-20 backdrop-blur-sm" />
+        )}
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="overflow-x-auto overflow-y-auto max-h-[600px]"
+        >
         <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-slate-700">
           <thead className="bg-gray-50 dark:bg-slate-800/70 sticky top-0 z-10">
             <tr>
@@ -479,6 +497,7 @@ export function UserTimeLog() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
       {confirm.ConfirmModalRenderer()}
     </div>

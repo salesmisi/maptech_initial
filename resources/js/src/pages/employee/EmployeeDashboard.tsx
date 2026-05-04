@@ -673,7 +673,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
           <div className="w-full sm:w-auto">
             <button
               onClick={() => onNavigate?.('course-viewer', resumeCourse.id)}
-              className="inline-flex w-full items-center justify-center rounded-md border border-transparent bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 sm:w-auto"
+              className="inline-flex w-full items-center justify-center rounded-md border border-transparent bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 sm:w-auto"
             >
               Resume Learning
               <ArrowRight className="ml-2 h-4 w-4" />
@@ -684,110 +684,68 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
-        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
+        <div className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
           <div className="flex items-center">
-            <div className="p-3 bg-blue-50 rounded-full">
-              <BookOpen className="h-6 w-6 text-blue-600" />
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-full">
+              <BookOpen className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-slate-500">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
                 Assigned Courses
               </p>
-              <p className="text-2xl font-bold text-slate-900">{totalCourses}</p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{totalCourses}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
+        <div className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
           <div className="flex items-center">
-            <div className="p-3 bg-purple-50 rounded-full">
-              <GraduationCap className="h-6 w-6 text-purple-600" />
+            <div className="p-3 bg-purple-50 dark:bg-purple-900/30 rounded-full">
+              <GraduationCap className="h-6 w-6 text-purple-600 dark:text-purple-400" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-slate-500">Custom Modules</p>
-              <p className="text-2xl font-bold text-slate-900">{customModules.length}</p>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Custom Modules</p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{customModules.length}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
+        <div className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
           <div className="flex items-center">
-            <div className="p-3 bg-green-50 rounded-full">
-              <CheckCircle className="h-6 w-6 text-green-600" />
+            <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-full">
+              <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-slate-500">Completed</p>
-              <p className="text-2xl font-bold text-slate-900">{safeArray<Course>(myCourses).filter(c => c.progress === 100).length}</p>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Completed</p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{safeArray<Course>(myCourses).filter(c => c.progress === 100).length}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
+        <div className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
           <div className="flex items-center">
-            <div className="p-3 bg-yellow-50 rounded-full">
-              <Clock className="h-6 w-6 text-yellow-600" />
+            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/30 rounded-full">
+              <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-slate-500">In Progress</p>
-              <p className="text-2xl font-bold text-slate-900">{myCourses.filter(c => c.progress > 0 && c.progress < 100).length}</p>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">In Progress</p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{myCourses.filter(c => c.progress > 0 && c.progress < 100).length}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
+        <div className="bg-white dark:bg-slate-900/80 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
           <div className="flex items-center">
-            <div className="p-3 bg-purple-50 rounded-full">
-              <Award className="h-6 w-6 text-purple-600" />
+            <div className="p-3 bg-purple-50 dark:bg-purple-900/30 rounded-full">
+              <Award className="h-6 w-6 text-purple-600 dark:text-purple-400" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-slate-500">Certificates</p>
-              <p className="text-2xl font-bold text-slate-900">{certificates.length}</p>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Certificates</p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{certificates.length}</p>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Quiz Notifications */}
-      {notifications.filter(n => !n.read).length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-orange-200 p-4 sm:p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Bell className="h-5 w-5 text-orange-600" />
-            <h2 className="text-lg font-bold text-slate-900">
-              Notifications ({safeArray<NotificationItem>(notifications).filter(n => !n.read).length} new)
-            </h2>
-          </div>
-          <div className="space-y-3">
-            {notifications.filter(n => !n.read).map(notif => (
-              <div key={notif.id} className="flex flex-col gap-3 rounded-lg border border-orange-100 bg-orange-50 p-4 sm:flex-row sm:items-start">
-                <FileQuestion className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-slate-900">{notif.title}</p>
-                  <p className="text-xs text-slate-600 mt-1">{notif.message}</p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {notif.created_at ? `${new Date(notif.created_at).toLocaleDateString()} at ${new Date(notif.created_at).toLocaleTimeString()}` : ''}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2 sm:shrink-0">
-                  {notif.course_id && (
-                    <button
-                      onClick={() => { markAsRead(notif.id); onNavigate?.('course-viewer', notif.course_id!); }}
-                      className="rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
-                    >
-                      Take Quiz
-                    </button>
-                  )}
-                  <button
-                    onClick={() => markAsRead(notif.id)}
-                    className="rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-8">
         {/* Current Courses */}

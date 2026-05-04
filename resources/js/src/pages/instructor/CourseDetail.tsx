@@ -122,7 +122,7 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz, ap
         placeholder="Quiz title (e.g. Module 1 Assessment)"
         value={title}
         onChange={e => setTitle(e.target.value)}
-        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500"
       />
       <textarea
         rows={2}
@@ -132,26 +132,26 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz, ap
         className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
       />
       <div className="flex items-center gap-3">
-        <label className="text-xs font-medium text-slate-600 whitespace-nowrap">Pass Percentage</label>
+        <label className="text-xs font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">Pass Percentage</label>
         <input
           type="number"
           min={1} max={100}
           value={passPercent}
           onChange={e => setPassPercent(Number(e.target.value))}
-          className="w-20 border border-slate-300 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-indigo-500"
+          className="w-20 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
         />
-        <span className="text-xs text-slate-500">% to unlock next module</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">% to unlock next module</span>
       </div>
       <div className="flex gap-2">
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
+          className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
         >
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
           {saving ? 'Creating...' : 'Create & Add Questions'}
         </button>
-        <button onClick={onCancel} className="px-4 py-1.5 border border-slate-300 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50">
+        <button onClick={onCancel} className="px-4 py-1.5 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-sm font-medium rounded-md bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
           Cancel
         </button>
       </div>
@@ -342,8 +342,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   const [lessonError, setLessonError] = useState<string | null>(null);
   const lessonFileRef = useRef<HTMLInputElement>(null);
 
-  // Quiz state — keyed by module_id
-  const [quizByModule, setQuizByModule] = useState<Record<number, QuizSummary>>({});
+  // Quiz state — keyed by module_id (now supports multiple quizzes per module)
+  const [quizByModule, setQuizByModule] = useState<Record<number, QuizSummary[]>>({});
   const [quizzesLoading, setQuizzesLoading] = useState(false);
   const [addingQuizForModule, setAddingQuizForModule] = useState<number | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
@@ -632,8 +632,13 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       });
       if (res.ok) {
         const quizzes: QuizSummary[] = await res.json();
-        const byModule: Record<number, QuizSummary> = {};
-        quizzes.forEach(q => { if (q.module_id !== null) byModule[q.module_id] = q; });
+        const byModule: Record<number, QuizSummary[]> = {};
+        quizzes.forEach(q => {
+          if (q.module_id !== null) {
+            if (!byModule[q.module_id]) byModule[q.module_id] = [];
+            byModule[q.module_id].push(q);
+          }
+        });
         setQuizByModule(byModule);
       }
     } catch (_) {
@@ -1316,7 +1321,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
             </div>
           ) : (
             safeArray(course.modules).map((mod, idx) => {
-              const quiz = quizByModule[mod.id];
+              const quizzes = quizByModule[mod.id] || [];
+              const hasQuiz = quizzes.length > 0;
               const isExpanded = expandedModules.has(mod.id);
               const isEditingMod = editingModuleId === mod.id;
               return (
@@ -1623,69 +1629,79 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                         )}
                       </div>
 
-                      {/* Quiz section */}
+                      {/* Quiz section - Support multiple quizzes */}
                       <div className="border-t border-slate-100 dark:border-slate-700 px-6 py-3">
-                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wide mb-2">Quiz</p>
-                        {quiz ? (
-                          <div className="bg-indigo-50 dark:bg-slate-700/50 border border-indigo-100 dark:border-slate-600 rounded-lg p-3">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex items-start gap-3">
-                                <div className="h-8 w-8 rounded-full bg-indigo-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
-                                  <HelpCircle className="h-4 w-4 text-indigo-600 dark:text-indigo-300" />
-                                </div>
-                                <div>
-                                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{quiz.title}</p>
-                                  {quiz.description && <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5">{quiz.description}</p>}
-                                  <div className="flex gap-3 mt-1 text-xs text-slate-500 dark:text-slate-300">
-                                    <span>{quiz.question_count} question{quiz.question_count !== 1 ? 's' : ''}</span>
-                                    <span>·</span>
-                                    <span className="flex items-center gap-1">
-                                      <Lock className="h-3 w-3 text-amber-500" />
-                                      Must score <strong className="text-amber-700 dark:text-amber-300 mx-0.5">{quiz.pass_percentage}%</strong> to unlock next module
-                                    </span>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wide mb-2">Quizzes</p>
+
+                        {/* Display all quizzes for this module */}
+                        {quizzes.length > 0 && (
+                          <div className="space-y-2 mb-3">
+                            {quizzes.map((quiz) => (
+                              <div key={quiz.id} className="bg-indigo-50 dark:bg-slate-700/50 border border-indigo-100 dark:border-slate-600 rounded-lg p-3">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex items-start gap-3">
+                                    <div className="h-8 w-8 rounded-full bg-indigo-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
+                                      <HelpCircle className="h-4 w-4 text-indigo-600 dark:text-indigo-300" />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{quiz.title}</p>
+                                      {quiz.description && <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5">{quiz.description}</p>}
+                                      <div className="flex gap-3 mt-1 text-xs text-slate-500 dark:text-slate-300">
+                                        <span>{quiz.question_count} question{quiz.question_count !== 1 ? 's' : ''}</span>
+                                        <span>·</span>
+                                        <span className="flex items-center gap-1">
+                                          <Lock className="h-3 w-3 text-amber-500" />
+                                          Must score <strong className="text-amber-700 dark:text-amber-300 mx-0.5">{quiz.pass_percentage}%</strong> to unlock next module
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <button
+                                      onClick={() => onManageQuiz(quiz.id, courseId)}
+                                      className="text-xs font-medium text-green-600 dark:text-emerald-300 hover:text-green-800 dark:hover:text-emerald-200 px-3 py-1.5 border border-green-200 dark:border-emerald-700 rounded-md hover:bg-green-50 dark:hover:bg-emerald-900/30 transition-colors"
+                                    >
+                                      Manage Quiz
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteQuiz(quiz.id)}
+                                      disabled={deletingQuizId === quiz.id}
+                                      className="p-1.5 text-red-400 dark:text-rose-300 hover:text-red-600 dark:hover:text-rose-200 hover:bg-red-100 dark:hover:bg-rose-900/25 rounded disabled:opacity-40"
+                                    >
+                                      {deletingQuizId === quiz.id
+                                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                                        : <Trash2 className="h-4 w-4" />}
+                                    </button>
                                   </div>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                <button
-                                  onClick={() => onManageQuiz(quiz.id, courseId)}
-                                  className="text-xs font-medium text-green-600 dark:text-emerald-300 hover:text-green-800 dark:hover:text-emerald-200 px-3 py-1.5 border border-green-200 dark:border-emerald-700 rounded-md hover:bg-green-50 dark:hover:bg-emerald-900/30 transition-colors"
-                                >
-                                  Manage Quiz
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteQuiz(quiz.id)}
-                                  disabled={deletingQuizId === quiz.id}
-                                  className="p-1.5 text-red-400 dark:text-rose-300 hover:text-red-600 dark:hover:text-rose-200 hover:bg-red-100 dark:hover:bg-rose-900/25 rounded disabled:opacity-40"
-                                >
-                                  {deletingQuizId === quiz.id
-                                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                                    : <Trash2 className="h-4 w-4" />}
-                                </button>
-                              </div>
-                            </div>
+                            ))}
                           </div>
+                        )}
+
+                        {/* Add Quiz form or button */}
+                        {addingQuizForModule === mod.id ? (
+                          <AddQuizForm
+                            moduleId={mod.id}
+                            courseId={courseId}
+                            onCreated={(q) => {
+                              setQuizByModule(prev => ({
+                                ...prev,
+                                [mod.id]: [...(prev[mod.id] || []), q]
+                              }));
+                              setAddingQuizForModule(null);
+                            }}
+                            onCancel={() => setAddingQuizForModule(null)}
+                            onManageQuiz={onManageQuiz}
+                            apiPrefix={apiPrefix}
+                          />
                         ) : (
-                          addingQuizForModule === mod.id ? (
-                            <AddQuizForm
-                              moduleId={mod.id}
-                              courseId={courseId}
-                              onCreated={(q) => {
-                                setQuizByModule(prev => ({ ...prev, [mod.id]: q }));
-                                setAddingQuizForModule(null);
-                              }}
-                              onCancel={() => setAddingQuizForModule(null)}
-                              onManageQuiz={onManageQuiz}
-                              apiPrefix={apiPrefix}
-                            />
-                          ) : (
-                            <button
-                              onClick={() => setAddingQuizForModule(mod.id)}
-                              className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                            >
-                              <Plus className="h-3.5 w-3.5" /> Add Quiz
-                            </button>
-                          )
+                          <button
+                            onClick={() => setAddingQuizForModule(mod.id)}
+                            className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium"
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Add Quiz
+                          </button>
                         )}
                       </div>
                     </div>

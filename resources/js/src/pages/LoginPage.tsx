@@ -296,6 +296,9 @@ export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) 
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onCopy={(e) => e.preventDefault()}
+                  onCut={(e) => e.preventDefault()}
+                  onPaste={(e) => e.preventDefault()}
                   className={`login-auth-input block w-full pl-10 pr-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
                   placeholder="••••••••"
                 />

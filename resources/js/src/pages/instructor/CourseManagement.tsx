@@ -587,7 +587,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Courses &amp; Content</h1>
         <button
           onClick={openCreate}
-          className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
+          className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
         >
           <Plus className="h-4 w-4 mr-2" />
           Create Course

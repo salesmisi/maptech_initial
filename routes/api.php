@@ -430,6 +430,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
     // Quiz Management
     Route::get('/quizzes', [AdminQuizController::class, 'index']);
+    Route::get('/quiz-attempts', [AdminQuizController::class, 'attempts']);
     Route::get('/courses/{courseId}/quizzes', [AdminQuizController::class, 'forCourse']);
     Route::post('/courses/{courseId}/quizzes', [AdminQuizController::class, 'store']);
     Route::get('/modules/{moduleId}/quizzes', [AdminQuizController::class, 'forModule']);
@@ -547,6 +548,77 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             ], 500);
         }
     });
+
+    // Export Audit Logs to CSV
+    Route::get('/audit-logs/export', function (Request $request) {
+        $roleFilter = null;
+        if ($request->filled('role')) {
+            $roleFilter = strtolower($request->input('role'));
+            if (! in_array($roleFilter, ['admin', 'instructor', 'employee'])) {
+                return response()->json(['message' => 'Invalid role filter'], 422);
+            }
+        }
+
+        try {
+            $query = \Illuminate\Support\Facades\DB::table('audit_logs as a')
+                ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
+                ->whereNull('a.deleted_at')
+                ->select([
+                    'a.id',
+                    'a.user_id',
+                    'a.action',
+                    'a.ip_address',
+                    'a.created_at',
+                    'u.fullname as user_fullname',
+                    'u.email as user_email',
+                    'u.role as user_role',
+                    'u.department as user_department',
+                ]);
+
+            if ($roleFilter !== null) {
+                $query->where(\Illuminate\Support\Facades\DB::raw('LOWER(u.role)'), $roleFilter);
+            }
+
+            $logs = $query->orderByDesc('a.created_at')->limit(10000)->get();
+
+            $filename = 'audit_logs_' . date('Y-m-d_His') . '.csv';
+
+            $callback = function() use ($logs) {
+                $file = fopen('php://output', 'w');
+
+                // Add BOM for Excel UTF-8 compatibility
+                fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+
+                // CSV Headers
+                fputcsv($file, ['ID', 'User ID', 'Full Name', 'Email', 'Role', 'Department', 'Action', 'IP Address', 'Date & Time']);
+
+                foreach ($logs as $log) {
+                    fputcsv($file, [
+                        $log->id,
+                        $log->user_id,
+                        $log->user_fullname ?? '',
+                        $log->user_email ?? '',
+                        $log->user_role ?? '',
+                        $log->user_department ?? '',
+                        $log->action,
+                        $log->ip_address ?? '',
+                        $log->created_at ?? '',
+                    ]);
+                }
+
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Export failed: ' . $e->getMessage()], 500);
+        }
+    });
+
     // Bulk delete audit logs by id
     Route::post('/audit-logs/bulk-delete', function (Request $request) {
         $request->validate([

@@ -350,29 +350,28 @@ export function ResetPasswordPage({ email, resetToken, onSuccess, onBackToLogin,
                 )}
               </div>
 
-              {/* Password Requirements */}
-              <div className={`rounded-lg p-3 ${isDark ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
-                <p className={`text-sm font-medium mb-2 ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                  Password Requirements:
-                </p>
-                <ul className="space-y-1">
-                  {passwordRequirements.map((req) => {
-                    const isMet = req.validator(password);
-                    return (
-                      <li key={req.id} className="flex items-center gap-2 text-sm">
-                        {isMet ? (
-                          <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                        ) : (
-                          <X className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                        )}
-                        <span className={isMet ? 'text-green-600' : isDark ? 'text-slate-400' : 'text-slate-500'}>
-                          {req.label}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
+              {/* Password Requirements - Only show when password doesn't meet all requirements */}
+              {password.length > 0 && !allRequirementsMet && (
+                <div className={`rounded-lg p-3 border ${isDark ? 'bg-red-950/20 border-red-800/40' : 'bg-red-50 border-red-200'}`}>
+                  <p className={`text-sm font-medium mb-2 ${isDark ? 'text-red-300' : 'text-red-700'}`}>
+                    Password Requirements Not Met:
+                  </p>
+                  <ul className="space-y-1">
+                    {passwordRequirements.map((req) => {
+                      const isMet = req.validator(password);
+                      if (isMet) return null; // Only show unmet requirements
+                      return (
+                        <li key={req.id} className="flex items-center gap-2 text-sm">
+                          <X className="h-4 w-4 text-red-500 flex-shrink-0" />
+                          <span className={isDark ? 'text-red-300' : 'text-red-600'}>
+                            {req.label}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
 
               {/* Confirm Password */}
               <div>

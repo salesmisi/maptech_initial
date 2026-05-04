@@ -354,7 +354,7 @@ export function ForgotPasswordPage({ onBackToLogin, theme }: ForgotPasswordPageP
                   )}
                 </button>
               </div>
-              <p className={`mt-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <p className={`mt-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`} style={{ display: newPassword.length > 0 && (!newPassword || newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[!@#$%^&*(),.?":{}|<>_\-=+\[\]\\\/`~;']/.test(newPassword) || (newPassword.match(/[0-9]/g) || []).length < 2) ? 'block' : 'none' }}>
                 Min 8 chars, 1 uppercase, 1 special char, 2 numbers
               </p>
             </div>

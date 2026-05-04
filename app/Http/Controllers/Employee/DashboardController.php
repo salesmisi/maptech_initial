@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
-use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
@@ -132,10 +131,16 @@ class DashboardController extends Controller
         );
 
         // Attach enrollment progress to each course
-        $enrollments = CourseEnrollment::where('user_id', $user->id)
+        $enrollments = Enrollment::where('user_id', $user->id)
             ->whereIn('course_id', $courses->pluck('id'))
             ->get()
             ->keyBy('course_id');
+
+        // Recalculate progress for all enrollments from quiz attempts
+        foreach ($enrollments as $enrollment) {
+            Enrollment::recalculateProgress($user->id, $enrollment->course_id);
+            $enrollment->refresh();
+        }
 
         $coursesWithProgress = $courses->map(function (Course $course) use ($enrollments, $manuallyUnlockedCourseIds) {
             $enrollment = $enrollments->get($course->id);

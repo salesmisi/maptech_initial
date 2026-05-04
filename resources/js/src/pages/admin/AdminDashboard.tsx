@@ -331,96 +331,96 @@ export function AdminDashboard({ onNavigate }: Props) {
       {/* Stat Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
         <div
-          className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 cursor-pointer hover:shadow-md hover:border-blue-200 transition-all duration-200"
+          className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer hover:shadow-md hover:border-blue-200 dark:hover:border-blue-700 transition-all duration-200"
           onClick={openEmployeesModal}
           title="View all employees"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-500">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
                 Total Employees
               </p>
-              <p className="text-2xl font-bold text-slate-900">
+              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                 {loading ? '—' : stats?.total_employees ?? 0}
               </p>
             </div>
-            <div className="p-3 bg-blue-50 rounded-full">
-              <Users className="h-6 w-6 text-blue-600" />
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-full">
+              <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
-            <span className="text-slate-400">
+            <span className="text-slate-400 dark:text-slate-500">
               {loading ? 'Active employees' : `${stats?.active_employees ?? 0} active employees`}
             </span>
           </div>
         </div>
 
         <div
-          className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 cursor-pointer hover:shadow-md hover:border-green-200 transition-all duration-200"
+          className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer hover:shadow-md hover:border-green-200 dark:hover:border-green-700 transition-all duration-200"
           onClick={() => onNavigate?.('courses')}
           title="View all courses"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-500">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
                 Active Courses
               </p>
-              <p className="text-2xl font-bold text-slate-900">
+              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                 {loading ? '—' : stats?.active_courses ?? 0}
               </p>
             </div>
-            <div className="p-3 bg-green-50 rounded-full">
-              <BookOpen className="h-6 w-6 text-green-600" />
+            <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-full">
+              <BookOpen className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
-            <span className="text-slate-400">Published &amp; active</span>
+            <span className="text-slate-400 dark:text-slate-500">Published &amp; active</span>
           </div>
         </div>
 
         <div
-          className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 cursor-pointer hover:shadow-md hover:border-purple-200 transition-all duration-200"
+          className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer hover:shadow-md hover:border-purple-200 dark:hover:border-purple-700 transition-all duration-200"
           onClick={() => onNavigate?.('enrollments')}
           title="View enrollments"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-500">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
                 Completion Rate
               </p>
-              <p className="text-2xl font-bold text-slate-900">
+              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                 {loading ? '—' : `${stats?.completion_rate ?? 0}%`}
               </p>
             </div>
-            <div className="p-3 bg-purple-50 rounded-full">
-              <Award className="h-6 w-6 text-purple-600" />
+            <div className="p-3 bg-purple-50 dark:bg-purple-900/30 rounded-full">
+              <Award className="h-6 w-6 text-purple-600 dark:text-purple-400" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
-            <span className="text-slate-400">Across all enrollments</span>
+            <span className="text-slate-400 dark:text-slate-500">Across all enrollments</span>
           </div>
         </div>
 
         <div
-          className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 cursor-pointer hover:shadow-md hover:border-orange-200 transition-all duration-200"
+          className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer hover:shadow-md hover:border-orange-200 dark:hover:border-orange-700 transition-all duration-200"
           onClick={() => onNavigate?.('reports')}
           title="View reports & analytics"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-500">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
                 Avg Quiz Score
               </p>
-              <p className="text-2xl font-bold text-slate-900">
+              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                 {loading ? '—' : `${stats?.avg_quiz_score ?? 0}%`}
               </p>
             </div>
-            <div className="p-3 bg-orange-50 rounded-full">
-              <TrendingUp className="h-6 w-6 text-orange-600" />
+            <div className="p-3 bg-orange-50 dark:bg-orange-900/30 rounded-full">
+              <TrendingUp className="h-6 w-6 text-orange-600 dark:text-orange-400" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
-            <span className="text-slate-400">Average progress score</span>
+            <span className="text-slate-400 dark:text-slate-500">Average progress score</span>
           </div>
         </div>
       </div>

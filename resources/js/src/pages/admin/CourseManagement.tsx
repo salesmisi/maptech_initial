@@ -602,15 +602,8 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                <textarea
-                  rows={3}
-                  name="description"
-                  defaultValue={editingCourse?.description || 'Self Pace'}
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                />
-              </div>
+              {/* Description removed - now editable in Manage Content */}
+              <input type="hidden" name="description" value={editingCourse?.description || 'Self Pace'} />
 
               <div className="grid grid-cols-2 gap-4">
                 <div>

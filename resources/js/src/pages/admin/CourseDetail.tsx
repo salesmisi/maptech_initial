@@ -281,6 +281,11 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
   const [savingLesson, setSavingLesson] = useState(false);
   const editLessonFileRef = useRef<HTMLInputElement>(null);
 
+  // Edit course description state
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [editDescriptionValue, setEditDescriptionValue] = useState('');
+  const [savingDescription, setSavingDescription] = useState(false);
+
   // Drag-and-drop state
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -739,10 +744,83 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
             <div className="h-14 w-14 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
               <BookOpen className="h-7 w-7 text-green-600" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-xl font-bold text-slate-900">{course.title}</h1>
-              {course.description && (
-                <p className="text-sm text-slate-500 mt-1 max-w-xl">{course.description}</p>
+              {editingDescription ? (
+                <div className="mt-2 space-y-2">
+                  <textarea
+                    value={editDescriptionValue}
+                    onChange={(e) => setEditDescriptionValue(e.target.value)}
+                    rows={3}
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                    placeholder="Enter course description..."
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        setSavingDescription(true);
+                        try {
+                          const xsrf = await getXsrfToken();
+                          const res = await fetch(`${API_BASE}/admin/courses/${courseId}`, {
+                            method: 'PUT',
+                            credentials: 'include',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'X-XSRF-TOKEN': xsrf,
+                              Accept: 'application/json',
+                            },
+                            body: JSON.stringify({
+                              title: course.title,
+                              description: editDescriptionValue,
+                              department: course.department,
+                              status: course.status,
+                              instructor_id: course.instructor?.id || null,
+                            }),
+                          });
+                          if (!res.ok) throw new Error('Failed to update description');
+                          await loadCourse();
+                          setEditingDescription(false);
+                        } catch (e: any) {
+                          alert(e.message || 'Failed to update description');
+                        } finally {
+                          setSavingDescription(false);
+                        }
+                      }}
+                      disabled={savingDescription}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700 disabled:opacity-50"
+                    >
+                      <Save className="h-3 w-3" />
+                      {savingDescription ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingDescription(false);
+                        setEditDescriptionValue(course.description || '');
+                      }}
+                      disabled={savingDescription}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-slate-200 text-slate-700 text-xs rounded-md hover:bg-slate-300 disabled:opacity-50"
+                    >
+                      <X className="h-3 w-3" />
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-1 flex items-start gap-2 group">
+                  <p className="text-sm text-slate-500 max-w-xl flex-1">
+                    {course.description || 'No description'}
+                  </p>
+                  <button
+                    onClick={() => {
+                      setEditDescriptionValue(course.description || '');
+                      setEditingDescription(true);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-green-600 transition-opacity"
+                    title="Edit description"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               )}
               <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
                 <span className="font-medium text-slate-700">{course.department}</span>
