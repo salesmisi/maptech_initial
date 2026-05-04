@@ -686,7 +686,9 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 line-clamp-1 mb-2">{course.title}</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-200 line-clamp-2 mb-3">{course.description}</p>
 
-                <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-200 mb-4">\n                  <div className="flex items-center gap-1">\n                    <FileText className="h-4 w-4" />
+                <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-200 mb-4">
+                  <div className="flex items-center gap-1">
+                    <FileText className="h-4 w-4" />
                     {course.modules?.length ?? 0} Modules
                   </div>
                   <div className="flex items-center gap-1">
@@ -724,7 +726,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                       Manage Content &rarr;
                     </button>
                     {ended && (
-                      <div className="flex items-center gap-2">\n                        <button
+                      <div className="flex items-center gap-2">
+                        <button
                           onClick={() => onNavigate?.('course-detail', String(course.id))}
                           className="text-sm px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                         >
