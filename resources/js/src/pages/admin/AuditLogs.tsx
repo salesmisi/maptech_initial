@@ -1006,19 +1006,6 @@ export function AuditLogs() {
                       {/* Older sessions for this user */}
                       {group.slice(1).map((older) => (
                         <tr key={older.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/70">
-                          <td className="px-6 py-2 whitespace-nowrap">
-                            <input
-                              type="checkbox"
-                              checked={selectedLogIds.includes(sessionPrimaryId(older) || -1)}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                const id = sessionPrimaryId(older);
-                                if (!id) return;
-                                if (e.target.checked) setSelectedLogIds((s) => Array.from(new Set([...s, id])));
-                                else setSelectedLogIds((s) => s.filter((i) => i !== id));
-                              }}
-                            />
-                          </td>
                           <td className="px-6 py-2 whitespace-nowrap overflow-hidden" style={{width: '220px'}}>
                             <div className="ml-3 min-w-0">
                               <p className="text-sm font-medium text-gray-700 dark:text-slate-300 truncate">{older.user?.fullname || 'Unknown'}</p>
