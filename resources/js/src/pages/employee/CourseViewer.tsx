@@ -955,7 +955,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
           <button
             onClick={submitQuiz}
             disabled={!allAnswered || quizSubmitting}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-3 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white font-semibold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {quizSubmitting ? <><Loader className="h-4 w-4 animate-spin" /> Submitting...</> : 'Submit Quiz'}
           </button>
@@ -979,7 +979,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             </div>
             <button
               onClick={() => setShowResultRevealed(true)}
-              className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-base transition-colors"
+              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-semibold rounded-lg text-base transition-colors"
             >
               See Quiz Result
             </button>
@@ -1080,7 +1080,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
           {!quiz.has_passed && (
             <button
               onClick={startQuiz}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg flex-shrink-0"
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white text-sm font-semibold rounded-lg flex-shrink-0"
             >
               {quiz.best_attempt ? 'Retake Quiz' : 'Start Quiz'}
             </button>
@@ -1265,7 +1265,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                   }
                   window.location.assign(`${window.location.pathname}?page=certificates`);
                 }}
-                className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700"
               >
                 View Certificates
               </button>
@@ -1282,8 +1282,8 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             onClick={() => setShowSentenceModal(false)}
             aria-hidden="true"
           />
-          <div className="relative w-full max-w-2xl max-h-[80vh] rounded-2xl border border-emerald-300/30 bg-white dark:bg-slate-800 shadow-2xl overflow-hidden">
-            <div className="sticky top-0 bg-emerald-600 dark:bg-emerald-700 px-6 py-4 flex items-center justify-between">
+          <div className="relative w-full max-w-2xl max-h-[80vh] rounded-2xl border border-green-300/30 bg-white dark:bg-slate-800 shadow-2xl overflow-hidden">
+            <div className="sticky top-0 bg-green-600 dark:bg-green-700 px-6 py-4 flex items-center justify-between">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <BookOpen className="h-5 w-5" />
                 Sentence Information
@@ -1328,7 +1328,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
               <button
                 type="button"
                 onClick={() => setShowSentenceModal(false)}
-                className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+                className="rounded-lg bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors"
               >
                 Close
               </button>
@@ -1511,7 +1511,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                 ) : (
                   <button
                     onClick={() => selectQuiz(currentModule)}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg"
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white text-sm font-semibold rounded-lg"
                   >
                     Take Quiz
                   </button>

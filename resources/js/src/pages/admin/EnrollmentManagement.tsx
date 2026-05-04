@@ -101,13 +101,6 @@ export function EnrollmentManagement() {
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [unenrolling, setUnenrolling] = useState<number | null>(null);
 
-  // Persistent module enrollment lists (Admin view section)
-  const [listCourses, setListCourses] = useState<CourseOption[]>([]);
-  const [listCourseId, setListCourseId] = useState('');
-  const [listLoading, setListLoading] = useState(false);
-  const [listError, setListError] = useState<string | null>(null);
-  const [listEnrolledUsers, setListEnrolledUsers] = useState<UserOption[]>([]);
-
   const loadEnrollments = async () => {
     setLoading(true);
     setError(null);
@@ -128,62 +121,7 @@ export function EnrollmentManagement() {
 
   useEffect(() => { loadEnrollments(); }, []);
 
-  const loadCoursesForListSection = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/admin/courses`, {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      setListCourses(data.map((x: any) => ({
-        id: x.id,
-        title: x.title,
-        department: x.department,
-        modules: (x.modules || []).map((m: any) => ({ id: m.id, title: m.title })),
-      })));
-    } catch {
-      // ignore
-    }
-  };
 
-  useEffect(() => {
-    loadCoursesForListSection();
-  }, []);
-
-  const loadCourseEnrolledUsers = async (courseId: string) => {
-    if (!courseId) {
-      setListEnrolledUsers([]);
-      setListError(null);
-      return;
-    }
-
-    setListLoading(true);
-    setListError(null);
-    try {
-      const res = await fetch(`${API_BASE}/admin/courses/${courseId}/enrollments`, {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-      if (!res.ok) throw new Error('Failed to load enrolled employees.');
-      const data = await res.json();
-      setListEnrolledUsers((Array.isArray(data) ? data : []).map((u: any) => ({
-        id: u.id,
-        fullname: u.fullname,
-        email: u.email,
-        department: u.department,
-      })));
-    } catch (e: any) {
-      setListError(e.message || 'Failed to load enrolled employees.');
-      setListEnrolledUsers([]);
-    } finally {
-      setListLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadCourseEnrolledUsers(listCourseId);
-  }, [listCourseId]);
 
   const loadModalData = async () => {
     try {
@@ -479,7 +417,7 @@ export function EnrollmentManagement() {
         </h1>
         <button
           onClick={openModal}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-indigo-400">
+          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-green-400">
           <UserPlus className="h-4 w-4 mr-2" />
           New Enrollment
         </button>
@@ -516,58 +454,7 @@ export function EnrollmentManagement() {
         </div>
       </div>
 
-      {/* Module Enrollment Lists */}
-      <div className="bg-white dark:bg-slate-900/80 p-4 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Enrolled Employee Lists</h2>
-          <span className="text-xs text-slate-500">Employees currently enrolled in the selected course</span>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Course</label>
-            <select
-              className="mt-1 block w-full border border-slate-300 dark:border-slate-700 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-              value={listCourseId}
-              onChange={(e) => {
-                setListCourseId(e.target.value);
-                setListEnrolledUsers([]);
-              }}
-            >
-              <option value="">-- Select a course --</option>
-              {listCourses.map((c) => (
-                <option key={c.id} value={c.id}>{c.title} ({c.department})</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {listError && (
-          <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{listError}</div>
-        )}
-
-        <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
-          <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">Enrolled Employees ({listEnrolledUsers.length})</div>
-          {listLoading ? (
-            <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading...</div>
-          ) : !listCourseId ? (
-            <div className="text-xs text-slate-500">Select a course to view list.</div>
-          ) : listEnrolledUsers.length === 0 ? (
-            <div className="text-xs text-slate-500">No enrolled employees for this course.</div>
-          ) : (
-            <div className="max-h-56 overflow-auto divide-y divide-slate-100 dark:divide-slate-700">
-              {listEnrolledUsers.map((u) => (
-                <div key={u.id} className="py-2">
-                  <div className="text-sm text-slate-800 dark:text-slate-100">{u.fullname}</div>
-                  <div className="text-xs text-slate-500">{u.email} - {u.department || 'No Dept'}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Table */}
+      {/* Enrollments Table */}
       {loading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-green-600" />

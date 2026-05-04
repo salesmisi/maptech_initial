@@ -8,7 +8,6 @@ import {
   CheckCircle,
   PlayCircle,
   ArrowRight,
-  Bell,
   FileQuestion,
   GraduationCap,
   ExternalLink,
@@ -57,18 +56,6 @@ interface DashboardData {
   total_courses: number;
 }
 
-interface NotificationItem {
-  id: number;
-  type: string;
-  title: string;
-  message: string;
-  data: any;
-  course_id: string | null;
-  module_id: number | null;
-  read: boolean;
-  created_at: string;
-}
-
 interface CertificateAchievement {
   id: number;
   course_id: string;
@@ -107,14 +94,12 @@ interface EmployeeDashboardProps {
 export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [customModules, setCustomModules] = useState<CustomModule[]>([]);
   const [certificates, setCertificates] = useState<CertificateAchievement[]>([]);
   const [activeCertificateIndex, setActiveCertificateIndex] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const lastUnreadRef = React.useRef<number>(0);
   const { pushToast } = useToast();
 
   const closePreview = () => {
@@ -393,26 +378,6 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     }
   };
 
-  const loadNotifications = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/employee/notifications`, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        // API may return an object with `{ data: [...] }` or the array directly.
-        const list = Array.isArray(data) ? data : (data?.data || []);
-        setNotifications(list);
-        return list;
-      }
-      return [];
-    } catch (err) {
-      console.error('Failed to load notifications:', err);
-      return [];
-    }
-  };
-
   const loadCustomModules = async () => {
     try {
       const res = await fetch(`${API_BASE}/employee/custom-modules`, {
@@ -449,25 +414,6 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     } catch (err) {
       // ignore
       return [];
-    }
-  };
-
-  const markAsRead = async (id: number) => {
-    try {
-      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-      const getCookie = (name: string) => {
-        const match = document.cookie.match(new RegExp('(^|; )' + name + '=([^;]*)'));
-        return match ? decodeURIComponent(match[2]) : '';
-      };
-      const xsrf = getCookie('XSRF-TOKEN');
-      await fetch(`${API_BASE}/employee/notifications/${id}/read`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': xsrf },
-      });
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    } catch (err) {
-      console.error('Failed to mark notification as read:', err);
     }
   };
 
@@ -516,66 +462,10 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
     const handles: any = {};
     const runAsync = async () => {
-      const dashboard = await loadDashboard();
-      const initial = await loadNotifications();
+      await loadDashboard();
       await loadCustomModules();
       await loadCertificates();
       await loadQuizReminders();
-      // initialize last unread count after initial load
-      lastUnreadRef.current = (initial || []).filter((n: any) => !n.read).length;
-      // Subscribe to realtime notifications channel (if Echo is available)
-      try {
-        const Echo = (window as any).Echo;
-        const dashboardUserId = dashboard?.user?.id;
-        if (Echo && typeof Echo.private === 'function' && dashboardUserId) {
-          const notifChannel = Echo.private('notifications.' + dashboardUserId);
-          const createdHandler = (payload: any) => {
-            const n = payload?.notification || payload;
-            if (!n) return;
-            setNotifications(prev => [n, ...prev.filter(p => p.id !== n.id)]);
-            pushToast(n.title, n.message, 'info', 6000);
-          };
-          const countHandler = (payload: any) => {
-            const c = payload?.count ?? 0;
-            lastUnreadRef.current = c;
-          };
-          notifChannel.listen('NotificationCreated', createdHandler);
-          notifChannel.listen('NotificationCountUpdated', countHandler);
-
-          // store for cleanup
-          handles.notifChannel = notifChannel;
-        }
-      } catch (e) {
-        // ignore realtime subscription errors
-      }
-      // Poll for new notifications. If Echo (websockets) is available we'll poll infrequently;
-      // otherwise poll at a reduced rate to lower server load.
-      const Echo = (window as any).Echo;
-      const pollMs = (Echo && typeof Echo.private === 'function') ? 60_000 : 10_000;
-      handles.poll = setInterval(async () => {
-        try {
-          const res = await fetch(`${API_BASE}/employee/notifications/unread-count`, {
-            credentials: 'include',
-            headers: { 'Accept': 'application/json' },
-          });
-          if (!res.ok) return;
-          const data = await res.json();
-          const count = data.count || 0;
-          if (count > lastUnreadRef.current) {
-            // new notifications arrived
-            const latest = await loadNotifications();
-            const newOnes = (latest || []).filter((n: any) => !n.read).slice(0, count - lastUnreadRef.current);
-            newOnes.forEach((n: any) => {
-              pushToast(n.title, n.message, 'info', 6000);
-            });
-            lastUnreadRef.current = count;
-          } else {
-            lastUnreadRef.current = count;
-          }
-        } catch (err) {
-          // ignore polling errors
-        }
-      }, pollMs);
 
       // Reminders polling (every 15 minutes)
       const reminderInterval = setInterval(async () => {
@@ -592,19 +482,8 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     return () => {
       // cleanup polling intervals
       try {
-        if (handles.poll) clearInterval(handles.poll);
         if (handles.reminder) clearInterval(handles.reminder);
         if (handles.certificates) clearInterval(handles.certificates);
-      } catch (e) {
-        // ignore
-      }
-      // cleanup realtime notif subscription if present
-      try {
-        const notifChannel = handles.notifChannel;
-        if (notifChannel && typeof notifChannel.stopListening === 'function') {
-          notifChannel.stopListening('NotificationCreated');
-          notifChannel.stopListening('NotificationCountUpdated');
-        }
       } catch (e) {
         // ignore
       }
@@ -673,7 +552,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
           <div className="w-full sm:w-auto">
             <button
               onClick={() => onNavigate?.('course-viewer', resumeCourse.id)}
-              className="inline-flex w-full items-center justify-center rounded-md border border-transparent bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 sm:w-auto"
+              className="inline-flex w-full items-center justify-center rounded-md border border-transparent bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 sm:w-auto"
             >
               Resume Learning
               <ArrowRight className="ml-2 h-4 w-4" />

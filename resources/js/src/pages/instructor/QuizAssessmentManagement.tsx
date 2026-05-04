@@ -17,7 +17,10 @@ import {
   FolderOpen,
 } from 'lucide-react';
 
-const API_BASE = '/api';
+interface Props {
+  onOpenQuiz?: (quizId: number) => void;
+  apiPrefix?: string;
+}
 
 const getCookie = (name: string) => {
   const value = `; ${document.cookie}`;
@@ -64,10 +67,6 @@ const DEPT_HEADER_COLORS: Record<string, string> = {
   Marketing: 'bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-900/30 dark:border-orange-700/60 dark:text-orange-200',
 };
 
-interface Props {
-  onOpenQuiz?: (quizId: number) => void;
-}
-
 interface SubdeptGroup {
   id: number | null;
   name: string;
@@ -80,7 +79,8 @@ interface DeptGroup {
   totalQuizzes: number;
 }
 
-export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
+export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' }: Props) {
+  const API_BASE = `/api/${apiPrefix}`;
   const [quizzes, setQuizzes] = useState<QuizSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -112,7 +112,7 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
   const loadQuizzes = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/instructor/quizzes`, {
+      const res = await fetch(`${API_BASE}/quizzes`, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
@@ -134,7 +134,7 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
   const loadQuizQuestions = async (quizId: number) => {
     setLoadingQuestions(true);
     try {
-      const res = await fetch(`${API_BASE}/instructor/quizzes/${quizId}`, {
+      const res = await fetch(`${API_BASE}/quizzes/${quizId}`, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
@@ -175,7 +175,7 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
     setSavingEdit(true);
     try {
       const token = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/instructor/quizzes/${editingQuiz.id}`, {
+      const res = await fetch(`${API_BASE}/quizzes/${editingQuiz.id}`, {
         method: 'PUT',
         credentials: 'include',
         headers: {
@@ -230,7 +230,7 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
         })),
       };
 
-      const res = await fetch(`${API_BASE}/instructor/quizzes/${editingQuiz.id}/questions`, {
+      const res = await fetch(`${API_BASE}/quizzes/${editingQuiz.id}/questions`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -286,7 +286,7 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
     setSavingQuestionEdit(true);
     try {
       const token = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/instructor/quizzes/${editingQuiz.id}/questions/${editingQuestionId}`, {
+      const res = await fetch(`${API_BASE}/quizzes/${editingQuiz.id}/questions/${editingQuestionId}`, {
         method: 'PUT',
         credentials: 'include',
         headers: {
@@ -324,7 +324,7 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
       setDeletingQuestionId(questionId);
       try {
         const token = await getXsrfToken();
-        const res = await fetch(`${API_BASE}/instructor/quizzes/${editingQuiz.id}/questions/${questionId}`, {
+        const res = await fetch(`${API_BASE}/quizzes/${editingQuiz.id}/questions/${questionId}`, {
           method: 'DELETE',
           credentials: 'include',
           headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
@@ -351,7 +351,7 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
       setDeletingId(id);
       try {
         const token = await getXsrfToken();
-        const res = await fetch(`${API_BASE}/instructor/quizzes/${id}`, {
+        const res = await fetch(`${API_BASE}/quizzes/${id}`, {
           method: 'DELETE',
           credentials: 'include',
           headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
@@ -661,7 +661,7 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
                     <button
                       onClick={handleAddQuestion}
                       disabled={addingQuestion}
-                      className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                      className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 disabled:opacity-50"
                     >
                       {addingQuestion ? 'Adding...' : 'Add Question'}
                     </button>
@@ -789,3 +789,4 @@ export function QuizAssessmentManagement({ onOpenQuiz }: Props) {
     </div>
   );
 }
+

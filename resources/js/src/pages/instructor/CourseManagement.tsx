@@ -587,7 +587,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Courses &amp; Content</h1>
         <button
           onClick={openCreate}
-          className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
+          className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
         >
           <Plus className="h-4 w-4 mr-2" />
           Create Course
@@ -595,27 +595,31 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+          </div>
           <input
             type="text"
             placeholder="Search courses..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-green-500 focus:border-green-500"
+            className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
           />
         </div>
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-green-500 focus:border-green-500"
-        >
-          <option value="All">All Status</option>
-          <option value="Active">Active</option>
-          <option value="Draft">Draft</option>
-          <option value="Archived">Archived</option>
-        </select>
+        <div className="sm:w-48">
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="block w-full pl-3 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+          >
+            <option value="All">All Status</option>
+            <option value="Active">Active</option>
+            <option value="Draft">Draft</option>
+            <option value="Archived">Archived</option>
+          </select>
+        </div>
       </div>
 
       {/* Course Grid */}
@@ -678,13 +682,11 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 </div>
               </div>
 
-              <div className="p-5 flex-1 flex flex-col">
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-50 line-clamp-1 mb-1">{course.title}</h3>
+              <div className="p-6 flex-1 flex flex-col">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 line-clamp-1 mb-2">{course.title}</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-200 line-clamp-2 mb-3">{course.description}</p>
 
-                <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-200 mb-4">
-                  <div className="flex items-center gap-1">
-                    <FileText className="h-4 w-4" />
+                <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-200 mb-4">\n                  <div className="flex items-center gap-1">\n                    <FileText className="h-4 w-4" />
                     {course.modules?.length ?? 0} Modules
                   </div>
                   <div className="flex items-center gap-1">
@@ -713,17 +715,16 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   <p className="text-xs text-red-500 font-medium mb-3">Course has ended and is locked</p>
                 )}
 
-                <div className="mt-auto pt-3 border-t border-slate-100">
+                <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-700">
                   <div className="flex items-center justify-between">
                     <button
                       onClick={() => onNavigate?.('course-detail', String(course.id))}
-                      className="text-sm font-medium text-green-600 dark:text-green-300 hover:text-green-700 dark:hover:text-green-200"
+                      className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 rounded-md shadow-sm transition-colors"
                     >
                       Manage Content &rarr;
                     </button>
                     {ended && (
-                      <div className="flex items-center gap-2">
-                        <button
+                      <div className="flex items-center gap-2">\n                        <button
                           onClick={() => onNavigate?.('course-detail', String(course.id))}
                           className="text-sm px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                         >
@@ -755,8 +756,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 </span>
               </div>
 
-              <div className="p-5 flex-1 flex flex-col">
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-50 line-clamp-1 mb-1">{module.title}</h3>
+              <div className="p-6 flex-1 flex flex-col">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 line-clamp-1 mb-2">{module.title}</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-200 line-clamp-2 mb-3">{module.description || 'No description'}</p>
 
                 <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-200 mb-4">
@@ -778,10 +779,10 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   </p>
                 )}
 
-                <div className="mt-auto pt-3 border-t border-slate-100 space-y-2">
+                <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-700 space-y-2">
                   <button
                     onClick={() => onNavigate?.('custom-module-detail', undefined, module.id)}
-                    className="w-full text-sm font-medium text-purple-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-purple-200 text-left"
+                    className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 dark:bg-purple-600 dark:hover:bg-purple-700 rounded-md shadow-sm transition-colors"
                   >
                     View Content &rarr;
                   </button>

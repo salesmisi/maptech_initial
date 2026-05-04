@@ -178,7 +178,7 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz }: 
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
+          className="px-4 py-1.5 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
         >
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
           {saving ? 'Creating...' : 'Create & Add Questions'}

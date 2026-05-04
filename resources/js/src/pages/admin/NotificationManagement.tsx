@@ -165,6 +165,16 @@ export function NotificationManagement() {
     };
   }, []);
 
+  // Auto-dismiss success toast after 5 seconds
+  useEffect(() => {
+    if (successToast.show) {
+      const timer = setTimeout(() => {
+        setSuccessToast({ show: false, count: 0 });
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successToast.show]);
+
   const fetchNotifications = async () => {
     try {
       setLoading(true);
@@ -178,11 +188,25 @@ export function NotificationManagement() {
         data = null;
       }
 
-      const list = safeArray(data?.data ?? data?.notifications?.data);
-      if (!Array.isArray(data?.data) && !Array.isArray(data?.notifications?.data) && data !== null) {
+      // Handle different response formats from the API
+      let list: Notification[] = [];
+      if (Array.isArray(data)) {
+        // Direct array response
+        list = data;
+      } else if (Array.isArray(data?.data)) {
+        // Response with data property
+        list = data.data;
+      } else if (Array.isArray(data?.notifications)) {
+        // Response with notifications property
+        list = data.notifications;
+      } else if (data?.notifications?.data && Array.isArray(data.notifications.data)) {
+        // Paginated response
+        list = data.notifications.data;
+      } else if (data !== null) {
         console.warn('/api/admin/notifications returned unexpected shape', data);
       }
-      setNotifications(list);
+
+      setNotifications(safeArray(list));
     } catch (err) {
       console.error('Failed to load notifications:', err);
     } finally {
@@ -512,7 +536,7 @@ export function NotificationManagement() {
             onClick={async () => {
               setIsModalOpen(true);
             }}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
           >
             <Plus className="h-4 w-4 mr-2" />
             Send Announcement
@@ -558,17 +582,16 @@ export function NotificationManagement() {
 
       {/* Received Notifications */}
       {activeTab === 'received' && (
-        <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
           {loading ? (
             <LoadingState message="Loading notifications" className="p-8" />
           ) : safeArray(notifications).length === 0 ? (
-            <div className="p-8 text-center text-slate-500">
-              <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300" />
+            <div className="p-8 text-center text-slate-500 dark:text-slate-400">
+              <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
               <p>No notifications yet</p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-200">
-              {safeArray(notifications).map((notification) => (
+            <div className="divide-y divide-slate-200 dark:divide-slate-700">{safeArray(notifications).map((notification) => (
                 <div
                   key={notification.id}
                   onClick={() => setSelectedNotification(notification)}
@@ -677,23 +700,21 @@ export function NotificationManagement() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-slate-200">
+                <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
                   {safeArray(sentHistory).map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                    <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
                         {item.title}
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-200 truncate max-w-xs">
-                        {item.message}
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 truncate max-w-xs">{item.message}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
                         {item.target}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
                         {item.recipients_count} users
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
-                        {item.date}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{item.date}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <button
@@ -1091,15 +1112,18 @@ export function NotificationManagement() {
 
       {/* Success Toast */}
       {successToast.show && (
-        <div className="fixed bottom-4 right-4 z-50 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl flex items-center gap-3 animate-slide-up">
-          <CheckCircle className="h-6 w-6" />
-          <div>
-            <p className="font-semibold">Notification Sent Successfully!</p>
-            <p className="text-sm text-green-100">Sent to {successToast.count} recipient{successToast.count !== 1 ? 's' : ''}</p>
+        <div className="fixed bottom-6 right-6 z-50 bg-green-600 dark:bg-green-500 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 animate-toast-slide-up border border-green-500 dark:border-green-400">
+          <div className="flex-shrink-0 bg-white/20 rounded-full p-2">
+            <CheckCircle className="h-6 w-6" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-base">Notification Sent Successfully!</p>
+            <p className="text-sm text-green-50 dark:text-green-100 mt-0.5">Sent to {successToast.count} recipient{successToast.count !== 1 ? 's' : ''}</p>
           </div>
           <button
             onClick={() => setSuccessToast({ show: false, count: 0 })}
-            className="ml-4 text-white hover:text-green-100"
+            className="flex-shrink-0 ml-2 text-white/80 hover:text-white transition-colors"
+            aria-label="Dismiss notification"
           >
             <X className="h-5 w-5" />
           </button>

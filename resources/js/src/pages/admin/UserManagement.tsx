@@ -67,7 +67,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [departments, setDepartments] = useState<DeptWithSubs[]>([]);
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  // const [selectedIds, setSelectedIds] = useState<number[]>([]); // Removed: checkboxes disabled
   const [formDepartment, setFormDepartment] = useState('');
   const [formSubdepartment, setFormSubdepartment] = useState('');
   const [formRole, setFormRole] = useState<'Admin' | 'Instructor' | 'Employee'>('Employee');
@@ -195,8 +195,10 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     return matchesSearch && matchesDept && matchesRole;
   });
 
+  /*
   const selectionCheckboxClass =
     'h-4 w-4 rounded-md border border-slate-300 accent-emerald-500 cursor-pointer transition focus:ring-2 focus:ring-emerald-500/60 focus:ring-offset-0 dark:border-slate-600 dark:bg-slate-800';
+  */
 
   // Delete handler
   const handleDelete = async (id: number) => {
@@ -295,16 +297,17 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     }
   };
 
-  // Toggle selection for a single user
+  /*
+  // Toggle selection for a single user - REMOVED: checkboxes disabled
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   };
 
-  // Select or deselect all filtered users
+  // Select or deselect all filtered users (excluding admin users) - REMOVED: checkboxes disabled
   const toggleSelectAll = () => {
-    const filteredIds = filteredUsers.map(u => u.id);
+    const filteredIds = filteredUsers.filter(u => u.role !== 'Admin').map(u => u.id);
     const allSelected = filteredIds.every(id => selectedIds.includes(id));
     if (allSelected) {
       setSelectedIds(prev => prev.filter(id => !filteredIds.includes(id)));
@@ -313,10 +316,21 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
     }
   };
 
-  // Bulk delete selected users
+  // Bulk delete selected users - REMOVED: checkboxes disabled
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
-    showConfirm(`Are you sure you want to delete ${selectedIds.length} user(s)?`, async () => {
+
+    // Filter out admin users
+    const usersToDelete = users.filter(u => selectedIds.includes(u.id));
+    const adminUsers = usersToDelete.filter(u => u.role === 'Admin');
+    const nonAdminIds = usersToDelete.filter(u => u.role !== 'Admin').map(u => u.id);
+
+    if (adminUsers.length > 0) {
+      alert(`Cannot delete ${adminUsers.length} admin account(s). Admin accounts cannot be deleted for security reasons.`);
+      if (nonAdminIds.length === 0) return;
+    }
+
+    showConfirm(`Are you sure you want to delete ${nonAdminIds.length} user(s)?`, async () => {
       try {
         const xsrfToken = await getXsrfToken();
         const response = await fetch(`${API_BASE}/admin/users/bulk-delete`, {
@@ -328,7 +342,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
             'X-Requested-With': 'XMLHttpRequest',
             'X-XSRF-TOKEN': xsrfToken,
           },
-          body: JSON.stringify({ ids: selectedIds }),
+          body: JSON.stringify({ ids: nonAdminIds }),
         });
 
         if (!response.ok) {
@@ -337,13 +351,14 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
         }
 
         // Remove deleted users from state and clear selection
-        setUsers(prev => prev.filter(u => !selectedIds.includes(u.id)));
+        setUsers(prev => prev.filter(u => !nonAdminIds.includes(u.id)));
         setSelectedIds([]);
       } catch (err: any) {
         alert(err.message || 'Failed to delete users');
       }
     });
   };
+  */
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -571,18 +586,10 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
       <div className="relative z-40 overflow-visible flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 um-header">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 um-title">User Management</h1>
         <div className="flex items-center space-x-3">
-          <button
-            onClick={handleBulkDelete}
-            disabled={selectedIds.length === 0}
-            className="inline-flex items-center px-3 py-2 border border-rose-500/40 rounded-md shadow-sm text-sm font-medium text-rose-200 bg-rose-900/40 hover:bg-rose-800/50 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50 disabled:cursor-not-allowed um-action-btn"
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete Selected ({selectedIds.length})
-          </button>
           <div className="relative z-50" ref={addUserDropdownRef}>
             <button
               onClick={() => setShowAddUserDropdown(!showAddUserDropdown)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add User
@@ -678,17 +685,6 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
           <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
             <thead className="bg-slate-50 dark:bg-slate-800/80">
               <tr>
-                <th className="px-3 py-3 text-center align-middle text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
-                  <div className="flex items-center justify-center">
-                    <input
-                      type="checkbox"
-                      onChange={toggleSelectAll}
-                      checked={filteredUsers.length > 0 && filteredUsers.every(u => selectedIds.includes(u.id))}
-                      className={selectionCheckboxClass}
-                      aria-label="Select all users"
-                    />
-                  </div>
-                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                   Name
                 </th>
@@ -720,17 +716,6 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                     className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-800/50 um-row"
                     style={{ ['--um-row-delay' as any]: `${Math.min(index, 14) * 55}ms` }}
                   >
-                    <td className="px-3 py-4 whitespace-nowrap text-center align-middle">
-                      <div className="flex items-center justify-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(user.id)}
-                          onChange={() => toggleSelect(user.id)}
-                          className={selectionCheckboxClass}
-                          aria-label={`Select ${user.fullname}`}
-                        />
-                      </div>
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
@@ -819,8 +804,9 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                         </button>
                         <button
                           onClick={() => handleDelete(user.id)}
-                          className="text-rose-700 hover:text-rose-900 p-1 hover:bg-rose-50 rounded dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-slate-700 um-icon-btn"
-                          title="Delete user"
+                          disabled={user.role === 'Admin'}
+                          className="text-rose-700 hover:text-rose-900 p-1 hover:bg-rose-50 rounded dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-slate-700 um-icon-btn disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent dark:disabled:hover:bg-transparent"
+                          title={user.role === 'Admin' ? 'Admin accounts cannot be deleted' : 'Delete user'}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -954,7 +940,30 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
-                    {/* Password Strength Indicator */}
+                    {/* Password Requirements & Strength Indicator */}
+                    {!editingUser && (
+                      <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                        <p className="text-xs font-semibold text-blue-900 dark:text-blue-300 mb-2">Password Requirements:</p>
+                        <ul className="text-xs text-blue-800 dark:text-blue-400 space-y-1">
+                          <li className={`flex items-center gap-1 ${passwordValue.length >= 8 ? 'text-green-600 dark:text-green-400' : ''}`}>
+                            <span className={`w-1 h-1 rounded-full ${passwordValue.length >= 8 ? 'bg-green-600' : 'bg-blue-400'}`}></span>
+                            Minimum 8 characters
+                          </li>
+                          <li className="flex items-center gap-1 text-blue-700 dark:text-blue-400">
+                            <span className="w-1 h-1 rounded-full bg-blue-400"></span>
+                            Mix of uppercase & lowercase letters (recommended)
+                          </li>
+                          <li className="flex items-center gap-1 text-blue-700 dark:text-blue-400">
+                            <span className="w-1 h-1 rounded-full bg-blue-400"></span>
+                            Include numbers (recommended)
+                          </li>
+                          <li className="flex items-center gap-1 text-blue-700 dark:text-blue-400">
+                            <span className="w-1 h-1 rounded-full bg-blue-400"></span>
+                            Include special characters (recommended)
+                          </li>
+                        </ul>
+                      </div>
+                    )}
                     {passwordValue && (
                       <div className="mt-2">
                         <div className="flex gap-1 mb-1">
@@ -1006,9 +1015,6 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                               })()}
                         </p>
                       </div>
-                    )}
-                    {!passwordValue && !editingUser && (
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">Minimum 8 characters required</p>
                     )}
                   </div>
                   <div>
@@ -1139,7 +1145,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 hover:shadow-[0_10px_20px_rgba(99,102,241,0.22)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:col-start-2 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 hover:shadow-[0_10px_20px_rgba(34,197,94,0.22)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-green-400 sm:col-start-2 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {submitting ? (
                         <>
@@ -1264,7 +1270,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                     setIsRegeneratedKey(false);
                     setRecoveryKeyUserId(null);
                   }}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-emerald-600 text-base font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:text-sm"
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm"
                 >
                   Close
                 </button>

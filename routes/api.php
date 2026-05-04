@@ -559,6 +559,11 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             }
         }
 
+        $format = $request->input('format', 'csv'); // csv, excel, or pdf
+        if (!in_array($format, ['csv', 'excel', 'pdf'])) {
+            $format = 'csv';
+        }
+
         try {
             $query = \Illuminate\Support\Facades\DB::table('audit_logs as a')
                 ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
@@ -580,140 +585,152 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             }
 
             $logs = $query->orderByDesc('a.created_at')->limit(10000)->get();
+            $timestamp = date('Y-m-d_His');
 
-            $filename = 'audit_logs_' . date('Y-m-d_His') . '.csv';
+            // CSV Export
+            if ($format === 'csv') {
+                $filename = 'audit_logs_' . $timestamp . '.csv';
 
-            $callback = function() use ($logs) {
-                $file = fopen('php://output', 'w');
+                $callback = function() use ($logs) {
+                    $file = fopen('php://output', 'w');
 
-                // Add BOM for Excel UTF-8 compatibility
-                fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+                    // Add BOM for Excel UTF-8 compatibility
+                    fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
 
-                // CSV Headers
-                fputcsv($file, ['ID', 'User ID', 'Full Name', 'Email', 'Role', 'Department', 'Action', 'IP Address', 'Date & Time']);
+                    // CSV Headers
+                    fputcsv($file, ['ID', 'User ID', 'Full Name', 'Email', 'Role', 'Department', 'Action', 'IP Address', 'Date & Time']);
 
+                    foreach ($logs as $log) {
+                        fputcsv($file, [
+                            $log->id,
+                            $log->user_id,
+                            $log->user_fullname ?? '',
+                            $log->user_email ?? '',
+                            $log->user_role ?? '',
+                            $log->user_department ?? '',
+                            $log->action,
+                            $log->ip_address ?? '',
+                            $log->created_at ?? '',
+                        ]);
+                    }
+
+                    fclose($file);
+                };
+
+                return response()->stream($callback, 200, [
+                    'Content-Type' => 'text/csv',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                ]);
+            }
+
+            // Excel Export (HTML format that Excel can open)
+            if ($format === 'excel') {
+                $filename = 'audit_logs_' . $timestamp . '.xls';
+
+                $html = '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>';
+                $html .= '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
+                $html .= '<Worksheet ss:Name="Audit Logs"><Table>';
+
+                // Header row
+                $html .= '<Row>';
+                $html .= '<Cell><Data ss:Type="String">ID</Data></Cell>';
+                $html .= '<Cell><Data ss:Type="String">User ID</Data></Cell>';
+                $html .= '<Cell><Data ss:Type="String">Full Name</Data></Cell>';
+                $html .= '<Cell><Data ss:Type="String">Email</Data></Cell>';
+                $html .= '<Cell><Data ss:Type="String">Role</Data></Cell>';
+                $html .= '<Cell><Data ss:Type="String">Department</Data></Cell>';
+                $html .= '<Cell><Data ss:Type="String">Action</Data></Cell>';
+                $html .= '<Cell><Data ss:Type="String">IP Address</Data></Cell>';
+                $html .= '<Cell><Data ss:Type="String">Date & Time</Data></Cell>';
+                $html .= '</Row>';
+
+                // Data rows
                 foreach ($logs as $log) {
-                    fputcsv($file, [
-                        $log->id,
-                        $log->user_id,
-                        $log->user_fullname ?? '',
-                        $log->user_email ?? '',
-                        $log->user_role ?? '',
-                        $log->user_department ?? '',
-                        $log->action,
-                        $log->ip_address ?? '',
-                        $log->created_at ?? '',
-                    ]);
+                    $html .= '<Row>';
+                    $html .= '<Cell><Data ss:Type="Number">' . htmlspecialchars($log->id) . '</Data></Cell>';
+                    $html .= '<Cell><Data ss:Type="Number">' . htmlspecialchars($log->user_id) . '</Data></Cell>';
+                    $html .= '<Cell><Data ss:Type="String">' . htmlspecialchars($log->user_fullname ?? '') . '</Data></Cell>';
+                    $html .= '<Cell><Data ss:Type="String">' . htmlspecialchars($log->user_email ?? '') . '</Data></Cell>';
+                    $html .= '<Cell><Data ss:Type="String">' . htmlspecialchars($log->user_role ?? '') . '</Data></Cell>';
+                    $html .= '<Cell><Data ss:Type="String">' . htmlspecialchars($log->user_department ?? '') . '</Data></Cell>';
+                    $html .= '<Cell><Data ss:Type="String">' . htmlspecialchars($log->action) . '</Data></Cell>';
+                    $html .= '<Cell><Data ss:Type="String">' . htmlspecialchars($log->ip_address ?? '') . '</Data></Cell>';
+                    $html .= '<Cell><Data ss:Type="String">' . htmlspecialchars($log->created_at ?? '') . '</Data></Cell>';
+                    $html .= '</Row>';
                 }
 
-                fclose($file);
-            };
+                $html .= '</Table></Worksheet></Workbook>';
 
-            return response()->stream($callback, 200, [
-                'Content-Type' => 'text/csv',
-                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-            ]);
+                return response($html, 200, [
+                    'Content-Type' => 'application/vnd.ms-excel',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                ]);
+            }
+
+            // PDF Export (HTML page ready for printing)
+            if ($format === 'pdf') {
+                $filename = 'audit_logs_' . $timestamp . '.html';
+                $roleText = $roleFilter ? ucfirst($roleFilter) . ' ' : '';
+
+                $html = '<!DOCTYPE html><html><head><meta charset="UTF-8">';
+                $html .= '<title>Audit Logs Export</title>';
+                $html .= '<style>';
+                $html .= 'body { font-family: Arial, sans-serif; margin: 20px; }';
+                $html .= 'h1 { color: #333; border-bottom: 2px solid #4F46E5; padding-bottom: 10px; }';
+                $html .= '.meta { color: #666; font-size: 14px; margin-bottom: 20px; }';
+                $html .= 'table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }';
+                $html .= 'th { background-color: #4F46E5; color: white; padding: 10px; text-align: left; font-weight: bold; }';
+                $html .= 'td { padding: 8px; border-bottom: 1px solid #ddd; }';
+                $html .= 'tr:nth-child(even) { background-color: #f9f9f9; }';
+                $html .= 'tr:hover { background-color: #f0f0f0; }';
+                $html .= '@media print { body { margin: 0; } }';
+                $html .= '</style></head><body>';
+                $html .= '<h1>' . $roleText . 'Audit Logs Report</h1>';
+                $html .= '<div class="meta">Generated: ' . date('F j, Y g:i A') . ' | Total Records: ' . count($logs) . '</div>';
+                $html .= '<table><thead><tr>';
+                $html .= '<th>ID</th><th>User ID</th><th>Full Name</th><th>Email</th>';
+                $html .= '<th>Role</th><th>Department</th><th>Action</th><th>IP Address</th><th>Date & Time</th>';
+                $html .= '</tr></thead><tbody>';
+
+                foreach ($logs as $log) {
+                    $html .= '<tr>';
+                    $html .= '<td>' . htmlspecialchars($log->id) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->user_id) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->user_fullname ?? '') . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->user_email ?? '') . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->user_role ?? '') . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->user_department ?? '') . '</td>';
+                    $html .= '<td style="text-transform: capitalize;">' . htmlspecialchars($log->action) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->ip_address ?? '') . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->created_at ?? '') . '</td>';
+                    $html .= '</tr>';
+                }
+
+                $html .= '</tbody></table>';
+                $html .= '<script>window.onload = function() { window.print(); }</script>';
+                $html .= '</body></html>';
+
+                return response($html, 200, [
+                    'Content-Type' => 'text/html',
+                    'Content-Disposition' => 'inline; filename="' . $filename . '"',
+                ]);
+            }
 
         } catch (\Exception $e) {
             return response()->json(['message' => 'Export failed: ' . $e->getMessage()], 500);
         }
     });
 
-    // Bulk delete audit logs by id
-    Route::post('/audit-logs/bulk-delete', function (Request $request) {
-        $request->validate([
-            'ids' => 'required|array|min:1',
-            'ids.*' => 'integer|exists:audit_logs,id',
-        ]);
-        $ids = $request->input('ids', []);
-        $deleted = \App\Models\AuditLog::whereIn('id', $ids)->delete();
-
-        // Auto-cleanup: if recently deleted count >= 50, permanently delete oldest half
-        $trashedCount = \App\Models\AuditLog::onlyTrashed()->count();
-        $permanentlyDeleted = 0;
-        if ($trashedCount >= 50) {
-            $halfCount = (int) floor($trashedCount / 2);
-            $oldestIds = \App\Models\AuditLog::onlyTrashed()
-                ->orderBy('deleted_at', 'asc')
-                ->limit($halfCount)
-                ->pluck('id');
-            $permanentlyDeleted = \App\Models\AuditLog::onlyTrashed()
-                ->whereIn('id', $oldestIds)
-                ->forceDelete();
-        }
-
-        return response()->json(['deleted' => $deleted, 'permanently_deleted' => $permanentlyDeleted]);
-    });
-
-    // Bulk delete audit logs by user ids (delete all logs for selected users)
-    Route::post('/audit-logs/bulk-delete-by-users', function (Request $request) {
-        $request->validate([
-            'user_ids' => 'required|array|min:1',
-            'user_ids.*' => 'integer|exists:users,id',
-        ]);
-        $userIds = $request->input('user_ids', []);
-        $deleted = \App\Models\AuditLog::whereIn('user_id', $userIds)->delete();
-
-        // Auto-cleanup: if recently deleted count >= 50, permanently delete oldest half
-        $trashedCount = \App\Models\AuditLog::onlyTrashed()->count();
-        $permanentlyDeleted = 0;
-        if ($trashedCount >= 50) {
-            $halfCount = (int) floor($trashedCount / 2);
-            $oldestIds = \App\Models\AuditLog::onlyTrashed()
-                ->orderBy('deleted_at', 'asc')
-                ->limit($halfCount)
-                ->pluck('id');
-            $permanentlyDeleted = \App\Models\AuditLog::onlyTrashed()
-                ->whereIn('id', $oldestIds)
-                ->forceDelete();
-        }
-
-        return response()->json(['deleted' => $deleted, 'permanently_deleted' => $permanentlyDeleted]);
-    });
-
-    // Get recently deleted audit logs
-    Route::get('/audit-logs/recently-deleted', function (Request $request) {
-        $deleted = \App\Models\AuditLog::onlyTrashed()
-            ->with('user:id,fullname,email,role,department')
-            ->orderByDesc('deleted_at')
-            ->limit(100)
-            ->get()
-            ->map(function ($log) {
-                return [
-                    'id' => $log->id,
-                    'user_id' => $log->user_id,
-                    'action' => $log->action,
-                    'ip_address' => $log->ip_address,
-                    'created_at' => $log->created_at?->toIso8601String(),
-                    'deleted_at' => $log->deleted_at?->toIso8601String(),
-                    'user' => $log->user ? [
-                        'id' => $log->user->id,
-                        'fullname' => $log->user->fullname,
-                        'email' => $log->user->email,
-                        'role' => $log->user->role,
-                        'department' => $log->user->department,
-                    ] : null,
-                ];
-            });
-        return response()->json(['recently_deleted' => $deleted]);
-    });
-
-    // Restore a deleted audit log
-    Route::post('/audit-logs/{id}/restore', function (Request $request, int $id) {
-        $log = \App\Models\AuditLog::onlyTrashed()->findOrFail($id);
-        $log->restore();
-        return response()->json(['message' => 'Audit log restored']);
-    });
-
-    // Permanently delete an audit log
-    Route::delete('/audit-logs/{id}/permanent', function (Request $request, int $id) {
-        $log = \App\Models\AuditLog::onlyTrashed()->findOrFail($id);
-        $log->forceDelete();
-        return response()->json(['message' => 'Audit log permanently deleted']);
-        $deleted = AuditLog::whereIn('user_id', $userIds)->delete();
-
-        return response()->json(['deleted' => $deleted]);
-    });
+    // ==========================================
+    // AUDIT LOG DELETION DISABLED
+    // ==========================================
+    // Audit logs are immutable and cannot be deleted for compliance and security reasons.
+    // The following routes have been disabled:
+    // - POST /audit-logs/bulk-delete
+    // - POST /audit-logs/bulk-delete-by-users
+    // - GET /audit-logs/recently-deleted
+    // - POST /audit-logs/{id}/restore
+    // - DELETE /audit-logs/{id}/permanent
 
     // Notification Management (Admin)
     Route::prefix('notifications')->group(function () {

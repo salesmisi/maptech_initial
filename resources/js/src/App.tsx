@@ -657,6 +657,9 @@ export function App() {
             {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
             {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
             {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
+            {currentPage === 'quiz-management' && <QuizAssessmentManagement apiPrefix="admin" />}
+            {currentPage === 'evaluation' && <QuizEvaluation apiPrefix="admin" />}
+            {currentPage === 'lessons' && <LessonVideoUpload apiPrefix="admin" />}
             {currentPage === 'enrollments' && <EnrollmentManagement />}
             {currentPage === 'reports' && <ReportsAnalytics />}
             {currentPage === 'notifications' && <NotificationManagement />}
@@ -673,7 +676,7 @@ export function App() {
             )}
             {currentPage === 'settings' && <ProfileSettings />}
           {/* Fallback to custom module page for any unmatched route */}
-          {!['dashboard', 'departments', 'users', 'courses', 'custom-field', 'course-detail', 'course-content-editor', 'enrollments', 'reports', 'notifications', 'qa', 'audit-logs', 'business-details', 'feedbacks', 'product-logos', 'settings'].includes(currentPage) && (
+          {!['dashboard', 'departments', 'users', 'courses', 'custom-field', 'course-detail', 'quiz-management', 'evaluation', 'lessons', 'course-content-editor', 'enrollments', 'reports', 'notifications', 'qa', 'audit-logs', 'business-details', 'feedbacks', 'product-logos', 'settings'].includes(currentPage) && (
             <CustomModulePage routePath={currentPage} />
           )}
           </div>

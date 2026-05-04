@@ -1295,14 +1295,10 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2 leading-tight">{course.title}</h3>
 
               {/* Stats */}
-              <div className="flex items-center text-sm text-gray-600 dark:text-slate-300 mb-4 space-x-4">
+              <div className="flex items-center text-sm text-gray-600 dark:text-slate-300 mb-4">
                 <div className="flex items-center">
                   <UsersIcon className="h-4 w-4 mr-1" />
                   {course.enrolled_count} Enrolled
-                </div>
-                <div className="flex items-center">
-                  <AcademicCapIcon className="h-4 w-4 mr-1" />
-                  {course.modules_count} Modules
                 </div>
               </div>
 
@@ -1534,7 +1530,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     <button
                       onClick={handleAddModule}
                       disabled={isSubmitting || !newModuleTitle.trim()}
-                      className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:opacity-50 flex items-center gap-1"
+                      className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
                     >
                       <PlusIcon className="h-4 w-4" /> Add Module
                     </button>
@@ -2186,15 +2182,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                <textarea
-                  name="description"
-                  rows={3}
-                  placeholder="Brief course description..."
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                />
-              </div>
+              {/* Description removed - now editable in Manage Content */}
+              <input type="hidden" name="description" value="Self Pace" />
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
@@ -2355,15 +2344,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
-                  name="description"
-                  rows={3}
-                  defaultValue={editingCourse.description}
-                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                />
-              </div>
+              {/* Description removed - now editable in Manage Content */}
+              <input type="hidden" name="description" value={editingCourse.description} />
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>

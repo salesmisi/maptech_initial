@@ -368,9 +368,9 @@ export function UserTimeLog() {
         </span>
       </div>
       <div className="relative">
-        {/* Blur overlay for scrolled content */}
+        {/* Blur overlay for scrolled content - blurs out data that has been scrolled past */}
         {isScrolled && (
-          <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-white/80 via-white/50 to-transparent dark:from-slate-900/80 dark:via-slate-900/50 pointer-events-none z-20 backdrop-blur-sm" />
+          <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-white/95 via-white/70 to-transparent dark:from-slate-900/95 dark:via-slate-900/70 pointer-events-none z-20 backdrop-blur-md shadow-sm transition-opacity duration-300" />
         )}
         <div
           ref={scrollRef}
@@ -378,7 +378,7 @@ export function UserTimeLog() {
           className="overflow-x-auto overflow-y-auto max-h-[600px]"
         >
         <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-slate-700">
-          <thead className="bg-gray-50 dark:bg-slate-800/70 sticky top-0 z-10">
+          <thead className="bg-gray-50 dark:bg-slate-800/70 sticky top-0 z-30">
             <tr>
               <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-200">Date</th>
               <th className="px-4 py-2 text-left text-slate-700 dark:text-slate-200">Time In</th>
