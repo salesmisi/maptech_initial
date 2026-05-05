@@ -215,8 +215,11 @@ export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) 
 
       {videoFailed && (
         <div
-          className="absolute inset-0 h-full w-full bg-cover bg-center"
-          style={{ backgroundImage: 'url(/assets/pasted-image.jpg)' }}
+          className="absolute inset-0 h-full w-full"
+          style={{
+            background:
+              'radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.24), transparent 28%), radial-gradient(circle at 80% 18%, rgba(16, 185, 129, 0.2), transparent 24%), linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.84))',
+          }}
           aria-hidden="true"
         />
       )}

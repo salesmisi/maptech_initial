@@ -530,8 +530,11 @@ export function App() {
         <div className="relative min-h-screen overflow-hidden flex items-center justify-center bg-slate-950">
           <div
             aria-hidden="true"
-            className="absolute inset-0 bg-cover bg-center opacity-80"
-            style={{ backgroundImage: "url('/assets/pasted-image.jpg')" }}
+            className="absolute inset-0 opacity-80"
+            style={{
+              background:
+                'radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.24), transparent 28%), radial-gradient(circle at 80% 18%, rgba(16, 185, 129, 0.2), transparent 24%), linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.84))',
+            }}
           />
           <div aria-hidden="true" className="absolute inset-0 bg-slate-950/65" />
 

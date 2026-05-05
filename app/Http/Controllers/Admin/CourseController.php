@@ -1046,13 +1046,21 @@ class CourseController extends Controller
             'text_content' => 'nullable|string',
             // Allow large video files (up to ~5 GB)
             'content'      => 'nullable|file|max:5242880',
+            'content_url'  => 'nullable|url|max:2000',
         ]);
 
         if ($request->has('title')) $lesson->title = $request->input('title');
         if ($request->has('text_content')) $lesson->text_content = $request->input('text_content');
 
+        if ($request->has('content_url')) {
+            if ($lesson->content_path && !preg_match('#^https?://#i', $lesson->content_path)) {
+                Storage::disk('public')->delete($lesson->content_path);
+            }
+            $lesson->content_path = $request->filled('content_url') ? $request->input('content_url') : null;
+        }
+
         if ($request->hasFile('content')) {
-            if ($lesson->content_path) {
+            if ($lesson->content_path && !preg_match('#^https?://#i', $lesson->content_path)) {
                 Storage::disk('public')->delete($lesson->content_path);
             }
             $lesson->content_path = $request->file('content')->store('course-content', 'public');
