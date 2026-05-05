@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { createPortal } from 'react-dom';
 import { safeArray } from '../../utils/safe';
@@ -15,6 +15,8 @@ import {
   Upload,
   Trash } from
 'lucide-react';
+
+const COURSE_HEADER_CLASS = 'bg-gradient-to-r from-emerald-400 to-green-500 dark:from-emerald-500 dark:to-green-600';
 
 // Module interface for form handling
 interface ModuleInput {
@@ -465,76 +467,107 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
           return (
         <div
           key={course.id}
-          className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 ${notStarted ? 'bg-gray-200 border-gray-300' : ended ? 'border-red-200' : ''}`}>
+          className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow dark:bg-slate-800 dark:border-slate-600 ${notStarted ? 'bg-white border-emerald-200' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
 
-            {/* Course Header */}
-            <div className={`h-32 ${notStarted ? 'bg-gray-400' : ended ? 'bg-red-400' : 'bg-green-600 dark:bg-green-600'} relative flex items-center justify-center`}>
-              <BookOpen className="h-10 w-10 text-white opacity-60" />
-              <span className={`absolute top-3 left-3 text-xs font-semibold px-2 py-0.5 rounded-full ${notStarted ? 'bg-gray-100 text-gray-600' : ended ? 'bg-red-100 text-red-800' : course.status === 'Active' ? 'bg-green-100 text-green-800' : course.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-800'}`}>
-                {notStarted ? 'Not Started' : ended ? 'Locked' : course.status}
-              </span>
-              <div className="absolute top-3 right-3 flex gap-1">
-                <button
-                  onClick={() => handleOpenModal(course)}
-                  className="p-1.5 bg-white/80 hover:bg-white rounded text-slate-600">
-                  <Edit2 className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => handleDelete(course.id)}
-                  className="p-1.5 bg-white/80 hover:bg-red-50 rounded text-red-500">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
+            <div
+            className={`h-32 ${notStarted ? 'bg-gradient-to-r from-emerald-400 to-green-500' : COURSE_HEADER_CLASS} flex items-center justify-center`}>
+
+              {course.instructor_profile_picture ? (
+                <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-white/80 shadow-md">
+                  <img src={course.instructor_profile_picture} alt={course.instructor} className="w-full h-full object-cover" />
+                </div>
+              ) : course.instructor !== 'Unassigned' ? (
+                <div className="w-16 h-16 rounded-full bg-white/20 border-4 border-white/80 shadow-md flex items-center justify-center">
+                  <span className="text-2xl font-bold text-white">
+                    {course.instructor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-md ring-4 ring-white/25">
+                  <BookOpen className="h-8 w-8 text-green-600" />
+                </div>
+              )}
             </div>
+            <div className="p-6">
+              <div className="flex justify-between items-start">
+                <span
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${notStarted ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200' : ended ? 'bg-red-100 text-red-800' : course.status === 'Active' ? 'bg-green-100 text-green-800' : course.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-800'}`}>
 
-            <div className="p-6 flex-1 flex flex-col">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 line-clamp-1 mb-2">
+                  {notStarted ? 'Not Started' : ended ? 'Locked' : course.status}
+                </span>
+                <div className="flex space-x-1">
+                  <button
+                  onClick={() => handleOpenModal(course)}
+                  className="p-1 text-slate-400 hover:text-blue-600">
+
+                    <Edit2 className="h-4 w-4" />
+                  </button>
+                  <button
+                  onClick={() => handleDelete(course.id)}
+                  className="p-1 text-slate-400 hover:text-red-600">
+
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <h3 className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-50">
                 {course.title}
               </h3>
-              <p className="text-sm text-slate-500 dark:text-slate-200 line-clamp-2 mb-3">
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-200 line-clamp-2">
                 {course.description}
               </p>
 
-              <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-200 mb-4">
-                <div className="flex items-center gap-1">
-                  <FileText className="h-4 w-4" />
-                  {course.modulesCount} Modules
-                </div>
-                <div className="flex items-center gap-1">
-                  <BookOpen className="h-4 w-4" />
+              <div className="mt-4 flex items-center justify-between text-sm text-slate-500 dark:text-slate-200">
+                <div className="flex items-center">
+                  <Users className="h-4 w-4 mr-1" />
                   {course.enrolledCount} Enrolled
                 </div>
-              </div>
-
-              <div className="mb-4">
-                <div className="text-xs text-slate-400 dark:text-slate-300">Location</div>
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-100">
-                  {course.department}
-                </span>
+                <div className="flex items-center">
+                  <FileText className="h-4 w-4 mr-1" />
+                  {course.modulesCount} Modules
+                </div>
               </div>
 
               {notStarted && course.start_date && (
-                <p className="text-xs text-gray-500 dark:text-slate-300 mb-3">
-                  Course has not started yet — Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </p>
-              )}
-              {course.deadline && !ended && (
-                <p className="text-xs text-red-500 mb-3">
-                  End Date: {new Date(course.deadline).toLocaleDateString()}
+                <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-300">
+                  Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               )}
               {ended && (
-                <p className="text-xs text-red-500 font-medium mb-3">Course has ended and is locked</p>
+                <p className="mt-2 text-xs text-red-500 font-medium">Course has ended and is locked</p>
               )}
 
-              <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-700">
-                <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => onNavigate?.('course-detail', String(course.id))}
-                    className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 rounded-md shadow-sm transition-colors">
-                    Manage Content &rarr;
-                  </button>
+              <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  {course.instructor_profile_picture ? (
+                    <img
+                      src={course.instructor_profile_picture}
+                      alt={course.instructor}
+                      className="w-8 h-8 rounded-full object-cover border border-slate-200 flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-green-100 border border-slate-200 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-semibold text-green-700">
+                        {course.instructor !== 'Unassigned'
+                          ? course.instructor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+                          : '?'}
+                      </span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-xs font-medium text-slate-500 dark:text-slate-200 uppercase tracking-wide">
+                      {course.department}
+                    </span>
+                    <p className="text-xs text-slate-400 dark:text-slate-300 mt-0.5">
+                      {course.instructor}
+                    </p>
+                  </div>
                 </div>
+                <button
+                  onClick={() => onNavigate?.('course-detail', String(course.id))}
+                  className="text-sm font-medium text-green-600 hover:text-green-700">
+                  Manage Content &rarr;
+                </button>
               </div>
             </div>
           </div>
