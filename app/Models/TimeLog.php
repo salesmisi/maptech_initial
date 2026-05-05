@@ -50,14 +50,17 @@ class TimeLog extends Model
 
         if ($count >= 50) {
             $halfCount = (int) floor($count / 2);
+
             $oldestIds = static::where('user_id', $userId)
                 ->orderBy('time_in', 'asc')
                 ->limit($halfCount)
                 ->pluck('id');
 
+
             return static::whereIn('id', $oldestIds)->delete();
         }
 
         return 0;
+
     }
 }

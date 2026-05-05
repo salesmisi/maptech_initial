@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { createPortal } from 'react-dom';
 import { safeArray } from '../../utils/safe';
@@ -15,6 +15,8 @@ import {
   Upload,
   Trash } from
 'lucide-react';
+
+const COURSE_HEADER_CLASS = 'bg-gradient-to-r from-emerald-400 to-green-500 dark:from-emerald-500 dark:to-green-600';
 
 // Module interface for form handling
 interface ModuleInput {
@@ -488,10 +490,10 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
           return (
         <div
           key={course.id}
-          className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow dark:bg-slate-800 dark:border-slate-600 ${notStarted ? 'bg-gray-200 border-gray-300' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
+          className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow dark:bg-slate-800 dark:border-slate-600 ${notStarted ? 'bg-white border-emerald-200' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
 
             <div
-            className={`h-32 ${notStarted ? 'bg-gray-400' : course.thumbnail} flex items-center justify-center`}>
+            className={`h-32 ${notStarted ? 'bg-gradient-to-r from-emerald-400 to-green-500' : COURSE_HEADER_CLASS} flex items-center justify-center`}>
 
               {course.instructor_profile_picture ? (
                 <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-white/80 shadow-md">
@@ -504,15 +506,15 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   </span>
                 </div>
               ) : (
-                <div className="w-16 h-16 bg-white/20 rounded-lg flex items-center justify-center">
-                  <BookOpen className="h-12 w-12 text-white opacity-50" />
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-md ring-4 ring-white/25">
+                  <BookOpen className="h-8 w-8 text-green-600" />
                 </div>
               )}
             </div>
             <div className="p-6">
               <div className="flex justify-between items-start">
                 <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${notStarted ? 'bg-gray-100 text-gray-600' : ended ? 'bg-red-100 text-red-800' : course.status === 'Active' ? 'bg-green-100 text-green-800' : course.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-800'}`}>
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${notStarted ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200' : ended ? 'bg-red-100 text-red-800' : course.status === 'Active' ? 'bg-green-100 text-green-800' : course.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-800'}`}>
 
                   {notStarted ? 'Not Started' : ended ? 'Locked' : course.status}
                 </span>
@@ -550,7 +552,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
               </div>
 
               {notStarted && course.start_date && (
-                <p className="mt-2 text-xs text-gray-500 dark:text-slate-300">
+                <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-300">
                   Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               )}
@@ -625,15 +627,8 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                <textarea
-                  rows={3}
-                  name="description"
-                  defaultValue={editingCourse?.description || 'Self Pace'}
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                />
-              </div>
+              {/* Description removed - now editable in Manage Content */}
+              <input type="hidden" name="description" value={editingCourse?.description || 'Self Pace'} />
 
               <div className="grid grid-cols-2 gap-4">
                 <div>

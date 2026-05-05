@@ -10,7 +10,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
  * - Minimum of 8 characters
  * - At least 1 uppercase letter (A-Z)
  * - At least 1 special character (!@#$%^&*)
- * - Must contain 2 to 3 numeric digits (0-9 only)
+ * - At least 2 numeric digits (0-9)
  */
 class StrongPassword implements ValidationRule
 {
@@ -48,14 +48,9 @@ class StrongPassword implements ValidationRule
         // Count numeric digits
         $digitCount = preg_match_all('/[0-9]/', $value);
 
-        // Must contain exactly 2 to 3 numeric digits
+        // Must contain at least 2 numeric digits
         if ($digitCount < 2) {
             $fail('The :attribute must contain at least 2 numeric digits.');
-            return;
-        }
-
-        if ($digitCount > 3) {
-            $fail('The :attribute must contain no more than 3 numeric digits.');
             return;
         }
     }

@@ -6,8 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Maptech E-Learning</title>
     <link rel="icon" type="image/png" href="/assets/Maptech-Official-Logo.png">
-    <link rel="preload" href="/assets/loginvid.mp4" as="video" type="video/mp4">
-    <link rel="preload" href="/assets/pasted-image.jpg" as="image">
 
     <style>
         html,
@@ -38,7 +36,10 @@
             content: "";
             position: absolute;
             inset: 0;
-            background-image: url('/assets/pasted-image.jpg');
+            background:
+                radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.28), transparent 30%),
+                radial-gradient(circle at 80% 18%, rgba(16, 185, 129, 0.22), transparent 26%),
+                linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.82));
             background-size: cover;
             background-position: center;
             opacity: 0.75;

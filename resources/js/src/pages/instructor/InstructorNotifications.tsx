@@ -133,6 +133,64 @@ export function InstructorNotifications() {
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
+  async function fetchCourses() {
+    try {
+      const res = await fetch('/api/instructor/courses', fetchOptions('GET'));
+      const data = await res.json();
+      setCourses(Array.isArray(data) ? data : data.data || []);
+    } catch (err) {
+      console.error('Failed to load courses:', err);
+    }
+  }
+
+  async function fetchDepartments() {
+    try {
+      const res = await fetch('/api/departments', { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
+      const data = await res.json();
+      setDepartments(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load departments:', err);
+    }
+  }
+
+  async function fetchNotifications() {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/instructor/notifications', fetchOptions('GET'));
+      const data = await res.json();
+      setNotifications(safeArray(data?.data ?? data?.notifications?.data));
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchUnreadCount() {
+    try {
+      const res = await fetch('/api/instructor/notifications/unread-count', fetchOptions('GET'));
+      const data = await res.json();
+      setUnreadCount(data.count || 0);
+    } catch (err) {
+      console.error('Failed to load unread count:', err);
+    }
+  }
+
+  async function fetchRecentlyDeleted() {
+    try {
+      const res = await fetch('/api/instructor/notifications/recently-deleted', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      const data = await res.json();
+      setRecentlyDeleted(data.recently_deleted || []);
+    } catch (err) {
+      console.error('Failed to load recently deleted:', err);
+    }
+  }
+
   useEffect(() => {
     fetchNotifications();
     fetchSentHistory();
@@ -142,12 +200,12 @@ export function InstructorNotifications() {
     fetchDepartments();
 
     // Subscribe to realtime notifications if Echo is available
+    let cleanup: (() => void) | undefined;
     (async () => {
       try {
         const Echo = (window as any).Echo;
         if (!Echo || typeof Echo.private !== 'function') return;
-        // Try to fetch current user id (token auth may work via Bearer)
-        const res = await fetch('/user', { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
+        const res = await fetch('/user', { credentials: 'include', headers: { 'Accept': 'application/json' } });
         if (!res.ok) return;
         const me = await res.json();
         if (!me?.id) return;
@@ -164,7 +222,7 @@ export function InstructorNotifications() {
         channel.listen('NotificationCreated', createdHandler);
         channel.listen('NotificationCountUpdated', countHandler);
 
-        return () => {
+        cleanup = () => {
           try { channel.stopListening('NotificationCreated'); channel.stopListening('NotificationCountUpdated'); } catch (e) {}
         };
       } catch (e) {
@@ -173,97 +231,9 @@ export function InstructorNotifications() {
     })();
 
     return () => {
-      // no-op cleanup
+      if (cleanup) cleanup();
     };
   }, []);
-
-  const fetchCourses = async () => {
-    try {
-      const res = await fetch('/api/instructor/courses', fetchOptions('GET'));
-      const data = await res.json();
-      setCourses(Array.isArray(data) ? data : data.data || []);
-    } catch (err) {
-      console.error('Failed to load courses:', err);
-    }
-  };
-
-  const fetchDepartments = async () => {
-    try {
-      const res = await fetch('/api/departments', { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
-      const data = await res.json();
-      setDepartments(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Failed to load departments:', err);
-    }
-  };
-
-  const fetchNotifications = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/instructor/notifications', fetchOptions('GET'));
-      const data = await res.json();
-      setNotifications(extractNotificationItems(data));
-    } catch (err) {
-      console.error('Failed to load notifications:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchUnreadCount = async () => {
-    try {
-      const res = await fetch('/api/instructor/notifications/unread-count', fetchOptions('GET'));
-      const data = await res.json();
-      setUnreadCount(data.count || 0);
-    } catch (err) {
-      console.error('Failed to load unread count:', err);
-    }
-  };
-
-  const fetchSentHistory = async () => {
-    try {
-      const res = await fetch('/api/instructor/notifications/sent-history', fetchOptions('GET'));
-      const data = await res.json();
-      setSentHistory(data.sent_announcements || []);
-    } catch (err) {
-      console.error('Failed to load sent history:', err);
-    }
-  };
-
-  const tryOpenPendingNotification = React.useCallback(() => {
-    const pendingIdRaw = localStorage.getItem(PENDING_NOTIFICATION_ID_KEY);
-    const pendingRole = localStorage.getItem(PENDING_NOTIFICATION_ROLE_KEY);
-    if (!pendingIdRaw || pendingRole !== 'Instructor') return;
-
-    const pendingId = Number(pendingIdRaw);
-    if (!Number.isFinite(pendingId)) {
-      localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
-      localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
-      return;
-    }
-
-    const target = notifications.find((item) => item.id === pendingId);
-    if (!target) return;
-
-    setActiveTab('received');
-    setSelectedNotification(target);
-    localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
-    localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
-
-    if (!target.read_at) {
-      markAsRead(target.id);
-    }
-  }, [notifications]);
-
-  useEffect(() => {
-    tryOpenPendingNotification();
-  }, [notifications, tryOpenPendingNotification]);
-
-  useEffect(() => {
-    const handler = () => tryOpenPendingNotification();
-    window.addEventListener(OPEN_NOTIFICATION_EVENT, handler);
-    return () => window.removeEventListener(OPEN_NOTIFICATION_EVENT, handler);
-  }, [tryOpenPendingNotification]);
 
   const markAsRead = async (id: number) => {
     const target = notifications.find((item) => item.id === id);
@@ -318,20 +288,6 @@ export function InstructorNotifications() {
     });
   };
 
-  const fetchRecentlyDeleted = async () => {
-    try {
-      const res = await fetch('/api/instructor/notifications/recently-deleted', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
-      const data = await res.json();
-      setRecentlyDeleted(data.recently_deleted || []);
-    } catch (err) {
-      console.error('Failed to load recently deleted:', err);
-    }
-  };
 
   const restoreNotification = async (id: number) => {
     try {

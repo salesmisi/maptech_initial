@@ -82,9 +82,10 @@ interface AddQuizFormProps {
   onCancel: () => void;
   onManageQuiz: (quizId: number, courseId: string) => void;
   apiPrefix: string;
+  quizType?: 'pre-test' | 'post-test' | 'regular';
 }
 
-function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz, apiPrefix }: AddQuizFormProps) {
+function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz, apiPrefix, quizType = 'regular' }: AddQuizFormProps) {
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   const [passPercent, setPassPercent] = useState(70);
@@ -100,7 +101,7 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz, ap
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': xsrf },
-        body: JSON.stringify({ title: title.trim(), description: desc.trim() || null, pass_percentage: passPercent }),
+        body: JSON.stringify({ title: title.trim(), description: desc.trim() || null, pass_percentage: passPercent, quiz_type: quizType }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to create quiz.');
@@ -113,45 +114,50 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz, ap
     }
   };
 
+  const quizTypeLabel = quizType === 'pre-test' ? 'Pre-Test' : quizType === 'post-test' ? 'Post-Test' : 'Quiz';
+  const bgColor = quizType === 'pre-test' ? 'bg-blue-50 dark:bg-blue-900/20' : quizType === 'post-test' ? 'bg-purple-50 dark:bg-purple-900/20' : 'bg-indigo-50 dark:bg-indigo-900/20';
+  const borderColor = quizType === 'pre-test' ? 'border-blue-200 dark:border-blue-700/50' : quizType === 'post-test' ? 'border-purple-200 dark:border-purple-700/50' : 'border-indigo-200 dark:border-indigo-700/50';
+  const textColor = quizType === 'pre-test' ? 'text-blue-700 dark:text-blue-300' : quizType === 'post-test' ? 'text-purple-700 dark:text-purple-300' : 'text-indigo-700 dark:text-indigo-300';
+
   return (
-    <div className="mt-3 p-4 bg-indigo-50 border border-indigo-200 rounded-lg space-y-3">
-      <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">Attach Quiz to this Module</p>
-      {err && <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{err}</p>}
+    <div className={`mt-3 p-4 ${bgColor} border ${borderColor} rounded-lg space-y-3`}>
+      <p className={`text-xs font-semibold ${textColor} uppercase tracking-wide`}>Attach {quizTypeLabel} to this Module</p>
+      {err && <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{err}</p>}
       <input
         type="text"
         placeholder="Quiz title (e.g. Module 1 Assessment)"
         value={title}
         onChange={e => setTitle(e.target.value)}
-        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500"
       />
       <textarea
         rows={2}
         placeholder="Description (optional)"
         value={desc}
         onChange={e => setDesc(e.target.value)}
-        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 resize-none"
       />
       <div className="flex items-center gap-3">
-        <label className="text-xs font-medium text-slate-600 whitespace-nowrap">Pass Percentage</label>
+        <label className="text-xs font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">Pass Percentage</label>
         <input
           type="number"
           min={1} max={100}
           value={passPercent}
           onChange={e => setPassPercent(Number(e.target.value))}
-          className="w-20 border border-slate-300 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-indigo-500"
+          className="w-20 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
         />
-        <span className="text-xs text-slate-500">% to unlock next module</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">% to unlock next module</span>
       </div>
       <div className="flex gap-2">
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
+          className="px-4 py-1.5 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
         >
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
           {saving ? 'Creating...' : 'Create & Add Questions'}
         </button>
-        <button onClick={onCancel} className="px-4 py-1.5 border border-slate-300 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50">
+        <button onClick={onCancel} className="px-4 py-1.5 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-sm font-medium rounded-md bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
           Cancel
         </button>
       </div>
@@ -343,13 +349,14 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   const [lessonTitle, setLessonTitle] = useState('');
   const [lessonInfo, setLessonInfo] = useState('');
   const [lessonTextContent, setLessonTextContent] = useState('');
+  const [lessonLink, setLessonLink] = useState('');
   const [lessonFile, setLessonFile] = useState<File | null>(null);
   const [uploadingLesson, setUploadingLesson] = useState(false);
   const [lessonError, setLessonError] = useState<string | null>(null);
   const lessonFileRef = useRef<HTMLInputElement>(null);
 
-  // Quiz state — keyed by module_id
-  const [quizByModule, setQuizByModule] = useState<Record<number, QuizSummary>>({});
+  // Quiz state — keyed by module_id (now supports multiple quizzes per module)
+  const [quizByModule, setQuizByModule] = useState<Record<number, QuizSummary[]>>({});
   const [quizzesLoading, setQuizzesLoading] = useState(false);
   const [addingQuizForModule, setAddingQuizForModule] = useState<number | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
@@ -716,8 +723,13 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       });
       if (res.ok) {
         const quizzes: QuizSummary[] = await res.json();
-        const byModule: Record<number, QuizSummary> = {};
-        quizzes.forEach(q => { if (q.module_id !== null) byModule[q.module_id] = q; });
+        const byModule: Record<number, QuizSummary[]> = {};
+        quizzes.forEach(q => {
+          if (q.module_id !== null) {
+            if (!byModule[q.module_id]) byModule[q.module_id] = [];
+            byModule[q.module_id].push(q);
+          }
+        });
         setQuizByModule(byModule);
       }
     } catch (_) {
@@ -867,6 +879,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       fd.append('title', lessonTitle.trim());
       const combinedText = composeLessonContent(lessonInfo, lessonTextContent, {});
       if (combinedText.trim()) fd.append('text_content', combinedText);
+      if (lessonLink.trim()) fd.append('content_url', lessonLink.trim());
       if (lessonFile) fd.append('content', lessonFile);
 
       const res = await fetch(`${API_BASE}/${apiPrefix}/modules/${moduleId}/lessons`, {
@@ -882,6 +895,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       setLessonTitle('');
       setLessonInfo('');
       setLessonTextContent('');
+      setLessonLink('');
       setLessonFile(null);
       if (lessonFileRef.current) lessonFileRef.current.value = '';
       setAddingLessonForModule(null);
@@ -1277,7 +1291,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       <div className="text-center py-16">
         <AlertCircle className="mx-auto h-12 w-12 text-red-400" />
         <p className="mt-3 text-slate-600">{error || 'Course not found.'}</p>
-        <button onClick={onBack} className="mt-4 text-sm text-green-600 hover:underline">
+        <button onClick={onBack} className="inline-flex items-center gap-1.5 px-4 py-2 mt-4 text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 rounded-md shadow-sm transition-colors">
+          <ArrowLeft className="h-4 w-4" />
           &larr; Back to Courses
         </button>
       </div>
@@ -1292,7 +1307,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       {/* Back */}
       <button
         onClick={onBack}
-        className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors"
+        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to Courses &amp; Content
@@ -1494,7 +1509,9 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
             </div>
           ) : (
             safeArray(course.modules).map((mod, idx) => {
-              const quiz = quizByModule[mod.id];
+              const quizzes = quizByModule[mod.id] || [];
+              const quiz = quizzes[0]; // First quiz for backward compatibility
+              const hasQuiz = quizzes.length > 0;
               const isExpanded = expandedModules.has(mod.id);
               const isEditingMod = editingModuleId === mod.id;
               return (
@@ -1587,6 +1604,39 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                   {/* Expanded body: Lessons + Quiz */}
                   {isExpanded && (
                     <div className="border-t border-slate-100 dark:border-slate-700">
+
+                      {/* Pre-Test Section */}
+                      <div className="px-6 py-3 bg-blue-50/30 dark:bg-blue-900/10 border-b border-blue-100 dark:border-blue-900/30">
+                        <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-2 flex items-center gap-2">
+                          <HelpCircle className="h-3.5 w-3.5" />
+                          Pre-Test (Before Lessons)
+                        </p>
+                        {addingQuizForModule === `pre-test-${mod.id}` ? (
+                          <AddQuizForm
+                            moduleId={mod.id}
+                            courseId={courseId}
+                            quizType="pre-test"
+                            onCreated={(q) => {
+                              setQuizByModule(prev => ({
+                                ...prev,
+                                [mod.id]: [...(prev[mod.id] || []), q]
+                              }));
+                              setAddingQuizForModule(null);
+                            }}
+                            onCancel={() => setAddingQuizForModule(null)}
+                            onManageQuiz={onManageQuiz}
+                            apiPrefix={apiPrefix}
+                          />
+                        ) : (
+                          <button
+                            onClick={() => setAddingQuizForModule(`pre-test-${mod.id}`)}
+                            className="inline-flex items-center gap-1 px-3 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 rounded-md shadow-sm transition-colors"
+                          >
+                            <Plus className="h-4 w-4" /> Add Pre-Test
+                          </button>
+                        )}
+                      </div>
+
                       {/* Lessons list */}
                       <div className="px-6 py-3">
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Lessons</p>
@@ -1597,7 +1647,9 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                             {safeArray(mod.lessons).map((lesson, li) => {
                               const isEditingThisLesson = editingLessonId === lesson.id;
                               return (
-                                <div key={lesson.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/35 overflow-hidden">
+                                <div key={lesson.id}>
+                                  {/* Lesson Display */}
+                                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/35 overflow-hidden">
                                   {isEditingThisLesson ? (
                                     /* ── EDIT LESSON FORM ── */
                                     <div className="p-3 space-y-2 bg-amber-50/70 dark:bg-slate-800 border border-amber-200 dark:border-slate-700 rounded-md">
@@ -1654,7 +1706,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                         <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-100 truncate">{lesson.title}</span>
                                         {lesson.content_url && (
                                           <a href={lesson.content_url} target="_blank" rel="noreferrer"
-                                            className="text-xs text-green-600 hover:underline flex-shrink-0">View file</a>
+                                            className="inline-flex items-center px-3 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded border border-blue-200 dark:border-blue-700 flex-shrink-0">View file</a>
                                         )}
                                         <button onClick={() => startEditLesson(lesson)}
                                           className="p-1 text-slate-400 dark:text-slate-300 hover:text-green-600 dark:hover:text-emerald-300 hover:bg-green-50 dark:hover:bg-emerald-900/30 rounded flex-shrink-0" title="Edit lesson">
@@ -1723,6 +1775,37 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                     </>
                                   )}
                                 </div>
+                                {/* End Lesson Display */}
+
+                                {/* Add Quiz After This Lesson */}
+                                {addingQuizForModule === `after-lesson-${lesson.id}` ? (
+                                  <div className="mt-2 ml-6">
+                                    <AddQuizForm
+                                      moduleId={mod.id}
+                                      courseId={courseId}
+                                      onCreated={(q) => {
+                                        setQuizByModule(prev => ({
+                                          ...prev,
+                                          [mod.id]: [...(prev[mod.id] || []), q]
+                                        }));
+                                        setAddingQuizForModule(null);
+                                      }}
+                                      onCancel={() => setAddingQuizForModule(null)}
+                                      onManageQuiz={onManageQuiz}
+                                      apiPrefix={apiPrefix}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="mt-1 ml-6 mb-1">
+                                    <button
+                                      onClick={() => setAddingQuizForModule(`after-lesson-${lesson.id}`)}
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 rounded-md shadow-sm transition-colors"
+                                    >
+                                      <Plus className="h-3.5 w-3.5" /> Add Quiz After This Lesson
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                               );
                             })}
                           </div>
@@ -1753,6 +1836,18 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                               onChange={e => setLessonInfo(e.target.value)}
                               className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
                             />
+                            <div className="space-y-1">
+                              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                                Link URL <span className="text-slate-400 dark:text-slate-500">(optional)</span>
+                              </label>
+                              <input
+                                type="url"
+                                placeholder="https://..."
+                                value={lessonLink}
+                                onChange={e => setLessonLink(e.target.value)}
+                                className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                              />
+                            </div>
                             <div className="flex items-center gap-2">
                               <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md cursor-pointer bg-white/70 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900 text-xs text-slate-600 dark:text-slate-300 transition-colors">
                                 <Upload className="h-3.5 w-3.5" />
@@ -1784,7 +1879,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                 {uploadingLesson ? 'Saving...' : 'Save Lesson'}
                               </button>
                               <button
-                                onClick={() => { setAddingLessonForModule(null); setLessonTitle(''); setLessonInfo(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
+                                onClick={() => { setAddingLessonForModule(null); setLessonTitle(''); setLessonInfo(''); setLessonTextContent(''); setLessonLink(''); setLessonFile(null); setLessonError(null); }}
                                 className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-md bg-white/80 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900 transition-colors"
                               >
                                 Cancel
@@ -1794,76 +1889,118 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                         ) : (
                           <button
                             onClick={() => { setAddingLessonForModule(mod.id); setLessonTitle(''); setLessonInfo(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
-                            className="mt-2 flex items-center gap-1 text-xs text-green-600 hover:text-green-800 font-medium"
+                            className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 rounded-md shadow-sm transition-colors"
                           >
                             <Plus className="h-3.5 w-3.5" /> Add Lesson
                           </button>
                         )}
                       </div>
 
-                      {/* Quiz section */}
+                      {/* Quiz section - Support multiple quizzes */}
                       <div className="border-t border-slate-100 dark:border-slate-700 px-6 py-3">
-                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wide mb-2">Quiz</p>
-                        {quiz ? (
-                          <div className="bg-indigo-50 dark:bg-slate-700/50 border border-indigo-100 dark:border-slate-600 rounded-lg p-3">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex items-start gap-3">
-                                <div className="h-8 w-8 rounded-full bg-indigo-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
-                                  <HelpCircle className="h-4 w-4 text-indigo-600 dark:text-indigo-300" />
-                                </div>
-                                <div>
-                                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{quiz.title}</p>
-                                  {quiz.description && <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5">{quiz.description}</p>}
-                                  <div className="flex gap-3 mt-1 text-xs text-slate-500 dark:text-slate-300">
-                                    <span>{quiz.question_count} question{quiz.question_count !== 1 ? 's' : ''}</span>
-                                    <span>·</span>
-                                    <span className="flex items-center gap-1">
-                                      <Lock className="h-3 w-3 text-amber-500" />
-                                      Must score <strong className="text-amber-700 dark:text-amber-300 mx-0.5">{quiz.pass_percentage}%</strong> to unlock next module
-                                    </span>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wide mb-2">Quizzes</p>
+
+                        {/* Display all quizzes for this module */}
+                        {quizzes.length > 0 && (
+                          <div className="space-y-2 mb-3">
+                            {quizzes.map((quiz) => (
+                              <div key={quiz.id} className="bg-indigo-50 dark:bg-slate-700/50 border border-indigo-100 dark:border-slate-600 rounded-lg p-3">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex items-start gap-3">
+                                    <div className="h-8 w-8 rounded-full bg-indigo-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
+                                      <HelpCircle className="h-4 w-4 text-indigo-600 dark:text-indigo-300" />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{quiz.title}</p>
+                                      {quiz.description && <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5">{quiz.description}</p>}
+                                      <div className="flex gap-3 mt-1 text-xs text-slate-500 dark:text-slate-300">
+                                        <span>{quiz.question_count} question{quiz.question_count !== 1 ? 's' : ''}</span>
+                                        <span>·</span>
+                                        <span className="flex items-center gap-1">
+                                          <Lock className="h-3 w-3 text-amber-500" />
+                                          Must score <strong className="text-amber-700 dark:text-amber-300 mx-0.5">{quiz.pass_percentage}%</strong> to unlock next module
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <button
+                                      onClick={() => onManageQuiz(quiz.id, courseId)}
+                                      className="px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 rounded-md shadow-sm transition-colors"
+                                    >
+                                      Manage Quiz
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteQuiz(quiz.id)}
+                                      disabled={deletingQuizId === quiz.id}
+                                      className="p-1.5 text-red-400 dark:text-rose-300 hover:text-red-600 dark:hover:text-rose-200 hover:bg-red-100 dark:hover:bg-rose-900/25 rounded disabled:opacity-40"
+                                    >
+                                      {deletingQuizId === quiz.id
+                                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                                        : <Trash2 className="h-4 w-4" />}
+                                    </button>
                                   </div>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                <button
-                                  onClick={() => onManageQuiz(quiz.id, courseId)}
-                                  className="text-xs font-medium text-green-600 dark:text-emerald-300 hover:text-green-800 dark:hover:text-emerald-200 px-3 py-1.5 border border-green-200 dark:border-emerald-700 rounded-md hover:bg-green-50 dark:hover:bg-emerald-900/30 transition-colors"
-                                >
-                                  Manage Quiz
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteQuiz(quiz.id)}
-                                  disabled={deletingQuizId === quiz.id}
-                                  className="p-1.5 text-red-400 dark:text-rose-300 hover:text-red-600 dark:hover:text-rose-200 hover:bg-red-100 dark:hover:bg-rose-900/25 rounded disabled:opacity-40"
-                                >
-                                  {deletingQuizId === quiz.id
-                                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                                    : <Trash2 className="h-4 w-4" />}
-                                </button>
-                              </div>
-                            </div>
+                            ))}
                           </div>
+                        )}
+
+                        {/* Add Quiz form or button */}
+                        {addingQuizForModule === mod.id ? (
+                          <AddQuizForm
+                            moduleId={mod.id}
+                            courseId={courseId}
+                            onCreated={(q) => {
+                              setQuizByModule(prev => ({
+                                ...prev,
+                                [mod.id]: [...(prev[mod.id] || []), q]
+                              }));
+                              setAddingQuizForModule(null);
+                            }}
+                            onCancel={() => setAddingQuizForModule(null)}
+                            onManageQuiz={onManageQuiz}
+                            apiPrefix={apiPrefix}
+                          />
                         ) : (
-                          addingQuizForModule === mod.id ? (
-                            <AddQuizForm
-                              moduleId={mod.id}
-                              courseId={courseId}
-                              onCreated={(q) => {
-                                setQuizByModule(prev => ({ ...prev, [mod.id]: q }));
-                                setAddingQuizForModule(null);
-                              }}
-                              onCancel={() => setAddingQuizForModule(null)}
-                              onManageQuiz={onManageQuiz}
-                              apiPrefix={apiPrefix}
-                            />
-                          ) : (
-                            <button
-                              onClick={() => setAddingQuizForModule(mod.id)}
-                              className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                            >
-                              <Plus className="h-3.5 w-3.5" /> Add Quiz
-                            </button>
-                          )
+                          <button
+                            onClick={() => setAddingQuizForModule(mod.id)}
+                            className="inline-flex items-center gap-1 px-3 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 rounded-md shadow-sm transition-colors"
+                          >
+                            <Plus className="h-4 w-4" /> Add Quiz
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Post-Test Section */}
+                      <div className="px-6 py-3 bg-purple-50/30 dark:bg-purple-900/10 border-t border-purple-100 dark:border-purple-900/30">
+                        <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 uppercase tracking-wide mb-2 flex items-center gap-2">
+                          <HelpCircle className="h-3.5 w-3.5" />
+                          Post-Test (After All Content)
+                        </p>
+                        {addingQuizForModule === `post-test-${mod.id}` ? (
+                          <AddQuizForm
+                            moduleId={mod.id}
+                            courseId={courseId}
+                            quizType="post-test"
+                            onCreated={(q) => {
+                              setQuizByModule(prev => ({
+                                ...prev,
+                                [mod.id]: [...(prev[mod.id] || []), q]
+                              }));
+                              setAddingQuizForModule(null);
+                            }}
+                            onCancel={() => setAddingQuizForModule(null)}
+                            onManageQuiz={onManageQuiz}
+                            apiPrefix={apiPrefix}
+                          />
+                        ) : (
+                          <button
+                            onClick={() => setAddingQuizForModule(`post-test-${mod.id}`)}
+                            className="inline-flex items-center gap-1 px-3 py-2 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 dark:bg-purple-600 dark:hover:bg-purple-700 rounded-md shadow-sm transition-colors"
+                          >
+                            <Plus className="h-4 w-4" /> Add Post-Test
+                          </button>
                         )}
                       </div>
                     </div>

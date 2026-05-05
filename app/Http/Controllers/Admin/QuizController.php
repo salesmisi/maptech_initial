@@ -5,8 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Course;
 use App\Models\Module;
-use App\Models\Quiz;
-use App\Models\QuizQuestion;
+use App\Models\Quiz;use App\Models\QuizAttempt;use App\Models\QuizQuestion;
 use App\Models\QuizOption;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -44,6 +43,51 @@ class QuizController extends Controller
             });
 
         return response()->json($quizzes);
+    }
+
+    /** GET /admin/quizzes/attempts - all quiz attempts (admin has full access) */
+    public function attempts(Request $request)
+    {
+        $quizId = $request->query('quiz_id');
+
+        $query = QuizAttempt::with([
+            'user:id,fullname,email,department',
+            'quiz:id,title,course_id,module_id,pass_percentage',
+            'quiz.course:id,title,department,subdepartment_id,instructor_id',
+            'quiz.module:id,title',
+        ]);
+
+        if (!empty($quizId)) {
+            $query->where('quiz_id', (int) $quizId);
+        }
+
+        $attempts = $query->orderByDesc('created_at')
+            ->limit(1000)
+            ->get()
+            ->map(function ($attempt) {
+                return [
+                    'id' => $attempt->id,
+                    'user_id' => $attempt->user_id,
+                    'employee_name' => $attempt->user?->fullname,
+                    'employee_email' => $attempt->user?->email,
+                    'employee_department' => $attempt->user?->department,
+                    'quiz_id' => $attempt->quiz_id,
+                    'quiz_title' => $attempt->quiz?->title,
+                    'module_id' => $attempt->quiz?->module_id,
+                    'module_title' => $attempt->quiz?->module?->title,
+                    'course_id' => $attempt->quiz?->course_id,
+                    'course_title' => $attempt->quiz?->course?->title,
+                    'pass_percentage' => $attempt->quiz?->pass_percentage,
+                    'score' => $attempt->score,
+                    'total_questions' => $attempt->total_questions,
+                    'percentage' => (float) $attempt->percentage,
+                    'passed' => (bool) $attempt->passed,
+                    'submitted_at' => $attempt->created_at?->toISOString(),
+                ];
+            })
+            ->values();
+
+        return response()->json($attempts);
     }
 
     /** GET /admin/courses/{courseId}/quizzes — quizzes for a specific course */

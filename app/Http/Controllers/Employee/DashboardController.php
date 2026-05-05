@@ -144,11 +144,23 @@ class DashboardController extends Controller
 
         $manuallyUnlockedCourseIds = $this->getManuallyUnlockedCourseIdsForUser(
             $user->id,
-            $courseIds
+            $courses->pluck('id')
         );
 
-        $coursesWithProgress = $courses->map(function (Course $course) use ($enrollmentByCourse, $manuallyUnlockedCourseIds) {
-            $enrollment = $enrollmentByCourse->get($course->id);
+        // Attach enrollment progress to each course
+        $enrollments = Enrollment::where('user_id', $user->id)
+            ->whereIn('course_id', $courses->pluck('id'))
+            ->get()
+            ->keyBy('course_id');
+
+        // Recalculate progress for all enrollments from quiz attempts
+        foreach ($enrollments as $enrollment) {
+            Enrollment::recalculateProgress($user->id, $enrollment->course_id);
+            $enrollment->refresh();
+        }
+
+        $coursesWithProgress = $courses->map(function (Course $course) use ($enrollments, $manuallyUnlockedCourseIds) {
+            $enrollment = $enrollments->get($course->id);
             $locked     = (bool) ($enrollment->locked ?? false);
 
             // If at least one module is manually unlocked for this user

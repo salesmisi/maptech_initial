@@ -168,14 +168,19 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
     // Final locked state combines server-side locked flag, deadline lock,
     // and not-started-yet state.
     const isLocked = (course.locked ?? false) || isLockedByExpiry || !!notStartedYet;
+    const headerClass = isLocked
+      ? 'bg-gray-400'
+      : 'bg-gradient-to-r from-emerald-400 to-green-500';
 
     return (
       <div className={`rounded-lg shadow-sm border overflow-hidden transition-shadow flex flex-col ${
         isLocked ? 'bg-gray-100 border-gray-300 opacity-75' : 'bg-white border-slate-200 hover:shadow-md'
       }`}>
-        <div className={`h-40 ${isLocked ? 'bg-gray-400' : course.thumbnail} relative`}>
-          <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-            <BookOpen className="h-12 w-12 text-white opacity-75" />
+        <div className={`h-40 ${headerClass} relative`}>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-md ring-4 ring-white/25">
+              <BookOpen className={`h-6 w-6 ${isLocked ? 'text-gray-500' : 'text-green-600'}`} />
+            </div>
           </div>
           <div className="absolute top-4 right-4">
             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium shadow-sm ${
@@ -259,7 +264,7 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
                 onClick={() => !isLocked && onNavigate('course-enroll', course.id)}
                 disabled={isLocked}
                 className={`w-full flex justify-center items-center py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white transition-colors ${
-                  isLocked ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+                  isLocked ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700'
                 }`}
               >
                 View &amp; Enroll
