@@ -59,6 +59,7 @@ export function ProfileSettings() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showPicPreview, setShowPicPreview] = useState(false);
   const [showSignaturePreview, setShowSignaturePreview] = useState(false);
+  const [showRemovePicConfirm, setShowRemovePicConfirm] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const signatureInputRef = useRef<HTMLInputElement>(null);
@@ -235,6 +236,11 @@ export function ProfileSettings() {
     } finally {
       setUploadingPic(false);
     }
+  };
+
+  const handleConfirmRemovePicture = async () => {
+    await handleRemovePicture();
+    setShowRemovePicConfirm(false);
   };
 
   const uploadSignatureFile = async (file: File): Promise<boolean> => {
@@ -492,6 +498,42 @@ export function ProfileSettings() {
                 <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-600"></div>
                 Uploading...
               </p>
+            )}
+            {profile.profile_picture && (
+              <div className="mt-3 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRemovePicConfirm(true)}
+                  disabled={uploadingPic}
+                  className="inline-flex items-center rounded-md border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Remove photo
+                </button>
+
+                {showRemovePicConfirm && (
+                  <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    <div>Remove profile photo?</div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleConfirmRemovePicture}
+                        disabled={uploadingPic}
+                        className="rounded-md bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowRemovePicConfirm(false)}
+                        disabled={uploadingPic}
+                        className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        No
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

@@ -91,6 +91,9 @@ const STATUS_COLORS: Record<string, string> = {
   Inactive: 'bg-red-100 text-red-700',
 };
 
+const COURSE_HEADER_CLASS = 'bg-gradient-to-r from-emerald-400 to-green-500 dark:from-emerald-500 dark:to-green-600';
+const CUSTOM_MODULE_HEADER_CLASS = 'bg-gradient-to-r from-emerald-400 to-green-500 dark:from-emerald-500 dark:to-green-600';
+
 const toUtcIsoString = (value: FormDataEntryValue | null): string | null => {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -647,17 +650,19 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
               key={course.id}
               className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col dark:bg-slate-800 dark:border-slate-600 ${
                 notStarted
-                  ? 'bg-gray-200 border-gray-300'
+                  ? 'bg-white border-emerald-200'
                   : ended
                     ? 'bg-white border-red-200'
                     : 'bg-white border-slate-200'
               }`}
             >
-              <div className={`h-32 ${notStarted ? 'bg-gray-400' : DEPT_COLORS[course.department] || 'bg-slate-500'} relative flex items-center justify-center`}>
-                <BookOpen className="h-10 w-10 text-white opacity-60" />
+              <div className={`h-32 ${notStarted ? 'bg-gradient-to-r from-emerald-400 to-green-500' : COURSE_HEADER_CLASS} relative flex items-center justify-center`}>
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-md ring-4 ring-white/25">
+                  <BookOpen className="h-6 w-6 text-green-600" />
+                </div>
                 <span className={`absolute top-3 left-3 text-xs font-semibold px-2 py-0.5 rounded-full ${
                   notStarted
-                    ? 'bg-gray-100 text-gray-600'
+                    ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
                     : ended
                       ? 'bg-red-100 text-red-800'
                       : showNotAvailable
@@ -709,7 +714,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   </p>
                 )}
                 {notStarted && course.start_date && (
-                  <p className="text-xs text-gray-500 dark:text-slate-300 mb-3">
+                  <p className="text-xs text-emerald-600 dark:text-emerald-300 mb-3">
                     Course has not started yet — Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 )}
@@ -752,9 +757,11 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
           {filteredCustomModules.map((module) => (
             <div key={`custom-${module.id}`} className="rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600">
               {/* Custom Module Header */}
-              <div className="h-32 bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-500 dark:to-indigo-500 relative flex items-center justify-center">
-                <GraduationCap className="h-10 w-10 text-white opacity-60" />
-                <span className="absolute top-3 left-3 text-xs font-semibold px-2 py-0.5 rounded-full bg-white/90 dark:bg-slate-800/90 text-purple-700 dark:text-purple-300">
+              <div className={`h-32 ${CUSTOM_MODULE_HEADER_CLASS} relative flex items-center justify-center`}>
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-md ring-4 ring-white/25">
+                  <GraduationCap className="h-6 w-6 text-green-600" />
+                </div>
+                <span className="absolute top-3 left-3 text-xs font-semibold px-2 py-0.5 rounded-full bg-white/90 dark:bg-slate-800/90 text-green-700 dark:text-green-300">
                   Custom Module
                 </span>
               </div>
@@ -785,13 +792,13 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-700 space-y-2">
                   <button
                     onClick={() => onNavigate?.('custom-module-detail', undefined, module.id)}
-                    className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 dark:bg-purple-600 dark:hover:bg-purple-700 rounded-md shadow-sm transition-colors"
+                    className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 rounded-md shadow-sm transition-colors"
                   >
                     View Content &rarr;
                   </button>
                   <button
                     onClick={() => openPushToDeptModal(module.id)}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors text-sm font-medium"
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm font-medium"
                   >
                     <Users className="h-4 w-4" />
                     Push to My Employee
@@ -841,15 +848,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                <textarea
-                  rows={3}
-                  name="description"
-                  defaultValue={editingCourse?.description || 'Self Pace'}
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                />
-              </div>
+              <input type="hidden" name="description" value={editingCourse?.description || 'Self Pace'} />
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1168,7 +1167,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                         onClick={handlePushToDepartment}
                         disabled={pushing || deptEmployees.length === 0 || allPushed}
                         title={allPushed ? 'All employees have already received this module' : undefined}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {pushing ? 'Pushing...' : 'Push to My Employee'}
                       </button>
