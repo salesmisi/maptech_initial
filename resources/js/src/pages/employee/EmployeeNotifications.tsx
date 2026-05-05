@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { Bell, Send, Eye, Trash2, MessageCircle, AlertCircle, X, User, RotateCcw, Archive } from 'lucide-react';
 import { safeArray, resolveImageUrl } from '../../utils/safe';
@@ -37,6 +37,7 @@ const NOTIFICATION_LIMIT = 50;
 const PENDING_NOTIFICATION_ID_KEY = 'maptech_pending_notification_id';
 const PENDING_NOTIFICATION_ROLE_KEY = 'maptech_pending_notification_role';
 const OPEN_NOTIFICATION_EVENT = 'maptech-open-notification';
+const NOTIFICATION_READ_EVENT = 'maptech-notification-read';
 
 function extractNotificationItems(payload: any): Notification[] {
   const candidates = [
@@ -69,6 +70,8 @@ export function EmployeeNotifications() {
   const [isSending, setIsSending] = useState(false);
   const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const [highlightedNotificationId, setHighlightedNotificationId] = useState<number | null>(null);
+  const notifRowRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const [employeeDepartment, setEmployeeDepartment] = useState<string>('');
   const [infoModal, setInfoModal] = useState<{ open: boolean; title: string; message: string; variant: 'info' | 'success' | 'warning' | 'error' }>({ open: false, title: '', message: '', variant: 'info' });
 
@@ -282,6 +285,9 @@ export function EmployeeNotifications() {
     if (!target) return;
 
     setActiveTab('received');
+    const targetIdx = notifications.findIndex((item) => item.id === pendingId);
+    if (targetIdx >= 0) setVisibleCount((c) => Math.max(c, targetIdx + 1));
+    setHighlightedNotificationId(pendingId);
     localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
     localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
     openNotificationDetail(target);
@@ -296,6 +302,29 @@ export function EmployeeNotifications() {
     window.addEventListener(OPEN_NOTIFICATION_EVENT, handler);
     return () => window.removeEventListener(OPEN_NOTIFICATION_EVENT, handler);
   }, [tryOpenPendingNotification]);
+
+  // When the bell marks a notification as read, immediately reflect it in the received list.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent<{ id: number }>).detail?.id;
+      if (!id) return;
+      setNotifications((prev) =>
+        prev.map((item) => (item.id === id && !item.read_at ? { ...item, read_at: new Date().toISOString() } : item))
+      );
+      setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
+    };
+    window.addEventListener(NOTIFICATION_READ_EVENT, handler);
+    return () => window.removeEventListener(NOTIFICATION_READ_EVENT, handler);
+  }, []);
+
+  // Scroll to and briefly highlight a notification when opened from the bell.
+  useEffect(() => {
+    if (highlightedNotificationId == null) return;
+    const el = notifRowRefs.current[highlightedNotificationId];
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const timer = setTimeout(() => setHighlightedNotificationId(null), 2500);
+    return () => clearTimeout(timer);
+  }, [highlightedNotificationId]);
 
   const markAllAsRead = async () => {
     setNotifications((prev) =>
@@ -589,10 +618,11 @@ export function EmployeeNotifications() {
               {notifications.slice(0, visibleCount).map((notification) => (
                 <div
                   key={notification.id}
+                  ref={el => { notifRowRefs.current[notification.id] = el; }}
                   onClick={() => openNotificationDetail(notification)}
                   className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer ${
                     !notification.read_at ? 'bg-emerald-50 dark:bg-emerald-950/40' : 'bg-white dark:bg-slate-900'
-                  }`}
+                  }${notification.id === highlightedNotificationId ? ' ring-2 ring-inset ring-emerald-400 dark:ring-emerald-500' : ''}`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3">

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Bell, CheckCheck } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Bell, CheckCheck, X } from 'lucide-react';
 import { LoadingState } from './ui/LoadingState';
 import { resolveImageUrl } from '../utils/safe';
 
@@ -37,6 +38,7 @@ type NotificationItem = {
 const PENDING_NOTIFICATION_ID_KEY = 'maptech_pending_notification_id';
 const PENDING_NOTIFICATION_ROLE_KEY = 'maptech_pending_notification_role';
 const OPEN_NOTIFICATION_EVENT = 'maptech-open-notification';
+const NOTIFICATION_READ_EVENT = 'maptech-notification-read';
 
 function extractNotificationItems(payload: any): NotificationItem[] {
   const candidates = [
@@ -61,10 +63,17 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>([]);
+  const [banner, setBanner] = useState<NotificationItem | null>(null);
   const [loading, setLoading] = useState(false);
   const [marking, setMarking] = useState(false);
   const isCancelledRef = useRef(false);
   const fetchingRecentRef = useRef(false);
+  const latestNotificationIdRef = useRef<number | null>(null);
+  const seenBannerNotificationIdsRef = useRef<Set<number>>(new Set());
+  const bannerTimeoutRef = useRef<number | null>(null);
+  // -1 = baseline not yet set (skip first comparison to avoid banner on page load)
+  const prevUnreadCountRef = useRef<number>(-1);
+  const fetchRecentForBannerRef = useRef<(() => void) | null>(null);
 
   const messagePreviewText = (value: string) => {
     const html = String(value || '');
@@ -88,10 +97,29 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
   const prefix = role === 'Admin' ? 'admin' : role === 'Instructor' ? 'instructor' : 'employee';
   const prefixLabel = role === 'Admin' ? 'Admin' : role === 'Instructor' ? 'Instructor' : 'Employee';
 
+  const showIncomingBanner = useCallback((notification: NotificationItem | null | undefined) => {
+    if (!notification?.id) return;
+    if (notification.read_at) return;
+    if (seenBannerNotificationIdsRef.current.has(notification.id)) return;
+
+    seenBannerNotificationIdsRef.current.add(notification.id);
+    setBanner(notification);
+
+    if (bannerTimeoutRef.current !== null) {
+      window.clearTimeout(bannerTimeoutRef.current);
+    }
+
+    bannerTimeoutRef.current = window.setTimeout(() => {
+      setBanner((current) => (current?.id === notification.id ? null : current));
+      bannerTimeoutRef.current = null;
+    }, 6500);
+  }, []);
+
   const fetchUnread = useCallback(async () => {
     const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
     try {
       const res = await fetch(`/api/${prefix}/notifications/unread-count`, {
+        credentials: 'include',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           Accept: 'application/json',
@@ -99,19 +127,27 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
       });
       if (!res.ok) return;
       const data = await res.json();
+      const newCount: number = data.count || 0;
       if (!isCancelledRef.current) {
-        setUnreadCount(data.count || 0);
+        const prev = prevUnreadCountRef.current;
+        prevUnreadCountRef.current = newCount;
+        setUnreadCount(newCount);
+        // When count goes up, a new notification arrived — immediately fetch latest and show banner
+        if (prev !== -1 && newCount > prev) {
+          fetchRecentForBannerRef.current?.();
+        }
       }
     } catch {
       // ignore
     }
   }, [prefix]);
 
-  const fetchRecent = useCallback(async (options?: { silent?: boolean }) => {
+  const fetchRecent = useCallback(async (options?: { silent?: boolean; notifyOnNew?: boolean }) => {
     if (fetchingRecentRef.current) return;
     fetchingRecentRef.current = true;
 
     const silent = options?.silent ?? false;
+    const notifyOnNew = options?.notifyOnNew ?? false;
     const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
     try {
       if (!silent) {
@@ -149,6 +185,16 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
       }
 
       if (!isCancelledRef.current) {
+        const latest = list.length > 0 ? list[0] : null;
+        if (latest?.id) {
+          const previousLatest = latestNotificationIdRef.current;
+          latestNotificationIdRef.current = latest.id;
+
+          // Polling fallback: show banner if there is a newly arrived unread entry.
+          if (notifyOnNew && previousLatest !== null && previousLatest !== latest.id) {
+            showIncomingBanner(latest);
+          }
+        }
         setItems(list);
       }
     } catch (error) {
@@ -160,22 +206,30 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
       }
       fetchingRecentRef.current = false;
     }
-  }, [prefix]);
+  }, [prefix, showIncomingBanner]);
+
+  // Keep fetchRecentForBannerRef current so fetchUnread can call it without circular deps
+  useEffect(() => {
+    fetchRecentForBannerRef.current = () => fetchRecent({ silent: true, notifyOnNew: true });
+  }, [fetchRecent]);
 
   useEffect(() => {
     isCancelledRef.current = false;
+    let channel: any = null;
+    let isMounted = true;
 
     fetchUnread();
     fetchRecent({ silent: true });
 
     // Subscribe to realtime updates via Echo if available
     const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
-    (async () => {
+    const initializeRealtime = async () => {
       try {
         const Echo = (window as any).Echo;
         if (!Echo || typeof Echo.private !== 'function') return;
 
         const res = await fetch('/user', {
+          credentials: 'include',
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             Accept: 'application/json',
@@ -183,9 +237,9 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
         });
         if (!res.ok) return;
         const me = await res.json();
-        if (!me?.id) return;
+        if (!isMounted || !me?.id) return;
 
-        const channel = Echo.private('notifications.' + me.id);
+        channel = Echo.private('notifications.' + me.id);
         const countHandler = (payload: any) => {
           if (typeof payload?.count === 'number') {
             setUnreadCount(payload.count);
@@ -195,6 +249,8 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
           const incoming = payload?.notification || payload;
           if (incoming?.id) {
             setItems((prev) => [incoming, ...prev.filter((item) => item.id !== incoming.id)].slice(0, 5));
+            latestNotificationIdRef.current = incoming.id;
+            showIncomingBanner(incoming);
           }
           // Fallback in case count event is missed.
           fetchUnread();
@@ -202,24 +258,26 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
 
         channel.listen('NotificationCountUpdated', countHandler);
         channel.listen('NotificationCreated', createdHandler);
-
-        return () => {
-          try {
-            channel.stopListening('NotificationCountUpdated');
-            channel.stopListening('NotificationCreated');
-          } catch {
-            // ignore
-          }
-        };
       } catch {
         // ignore
       }
-    })();
+    };
+
+    void initializeRealtime();
 
     return () => {
+      isMounted = false;
       isCancelledRef.current = true;
+      if (channel) {
+        try {
+          channel.stopListening('NotificationCountUpdated');
+          channel.stopListening('NotificationCreated');
+        } catch {
+          // ignore
+        }
+      }
     };
-  }, [role, fetchUnread, fetchRecent]);
+  }, [role, fetchUnread, fetchRecent, showIncomingBanner]);
 
   useEffect(() => {
     if (!open) return;
@@ -238,6 +296,27 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
       document.removeEventListener('visibilitychange', handleFocus);
     };
   }, [open, fetchUnread, fetchRecent]);
+
+  useEffect(() => {
+    // Poll as a fallback when websocket events are delayed or unavailable.
+    // fetchUnread already triggers fetchRecent when count increases (via fetchRecentForBannerRef)
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      fetchUnread();
+    }, 2000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [fetchUnread]);
+
+  useEffect(() => {
+    return () => {
+      if (bannerTimeoutRef.current !== null) {
+        window.clearTimeout(bannerTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const hasUnread = unreadCount > 0;
   const displayCount = unreadCount > 9 ? '9+' : unreadCount.toString();
@@ -271,6 +350,7 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
         },
       });
       // Update UI immediately
+      prevUnreadCountRef.current = 0;
       setUnreadCount(0);
       setItems((prev) => prev.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })));
     } catch {
@@ -302,28 +382,78 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
     // Only mark as read if currently unread
     if (!n || n.read_at !== null) return;
 
-    // Optimistically update UI
+    // Optimistically update UI — also sync prevUnreadCountRef so the background
+    // poll does not treat the server's (not-yet-updated) count as a new notification.
+    const optimisticCount = Math.max(0, unreadCount - 1);
+    prevUnreadCountRef.current = optimisticCount;
+    setUnreadCount(optimisticCount);
     setItems((prev) =>
       prev.map((item) => (item.id === n.id ? { ...item, read_at: new Date().toISOString() } : item))
     );
-    setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
 
     try {
       const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+      const xsrfToken = getCookie('XSRF-TOKEN');
       await fetch(`/api/${prefix}/notifications/${n.id}/read`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
           Accept: 'application/json',
         },
       });
+      // Notify all open notification pages so they update their received list immediately
+      window.dispatchEvent(new CustomEvent(NOTIFICATION_READ_EVENT, { detail: { id: n.id } }));
     } catch {
-      // If it fails, silently ignore; realtime count events will eventually correct the badge.
+      // ignore
     }
   };
 
   return (
     <div className={`relative ${className}`.trim()}>
+      {banner && createPortal(
+        <div
+          role="alert"
+          aria-live="polite"
+          className="fixed right-4 top-20 z-[9999] w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-2xl dark:border-emerald-700 dark:bg-slate-900"
+        >
+          <div className="flex items-start gap-3 p-4">
+            {banner.data?.from_user_profile_picture ? (
+              <img
+                src={resolveImageUrl(banner.data.from_user_profile_picture)}
+                alt=""
+                className="h-10 w-10 flex-shrink-0 rounded-full border border-slate-200 object-cover dark:border-slate-700"
+              />
+            ) : (
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+                <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                  {(banner.data?.from_user_name || 'S').charAt(0).toUpperCase()}
+                </span>
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">New notification</p>
+              <p className="mt-0.5 line-clamp-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{banner.title}</p>
+              <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                From {banner.data?.from_user_name || 'System'}{banner.data?.from_role ? ` · ${banner.data.from_role}` : ''}
+              </p>
+              <p className="mt-1 line-clamp-2 text-xs text-slate-600 dark:text-slate-300">{messagePreviewText(banner.message)}</p>
+            </div>
+            <button
+              type="button"
+              aria-label="Dismiss notification"
+              className="-mr-1 -mt-1 flex-shrink-0 rounded-full p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              onClick={() => setBanner(null)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="h-1 bg-emerald-500" />
+        </div>,
+        document.body
+      )}
+
       <button
         type="button"
         onClick={toggleOpen}
