@@ -30,7 +30,7 @@ class CourseController extends Controller
             'subdepartment:id,name,department_id',
             'modules'
         ])
-            ->withCount('enrollments');
+            ->withCount(['enrollments', 'modules']);
 
         // Filter by department
         if ($request->has('department')) {

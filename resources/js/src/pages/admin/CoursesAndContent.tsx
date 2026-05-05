@@ -1424,7 +1424,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           const hasManualUnlock = Boolean((course as any).has_manual_unlock);
           const notStarted = Boolean(course.start_date && new Date(course.start_date) > new Date());
           const ended = Boolean(course.deadline && new Date(course.deadline) <= new Date() && !hasManualUnlock);
-          const hasAnyModule = (course.modules_count ?? 0) > 0;
+          const modulesCount = course.modules_count ?? ((course as any).modules?.length ?? 0);
+          const hasAnyModule = modulesCount > 0;
           const showNotAvailable = !notStarted && !ended && course.status === 'Active' && !hasAnyModule;
           const badgeClass = notStarted
             ? 'bg-gray-100 text-gray-600'
@@ -1442,8 +1443,12 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             style={{ animationDelay: `${Math.min(index * 45, 360)}ms` }}
           >
             {/* Course Icon */}
-            <div className="h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-teal-500 rounded-t-xl flex items-center justify-center">
-              <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md">
+            <div className="h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-teal-500 rounded-t-xl flex items-center justify-center relative">
+              <div className="absolute top-2 right-2 px-2.5 h-7 rounded-full bg-white/95 text-slate-800 text-xs font-semibold flex items-center justify-center border border-white/70 shadow z-10 pointer-events-none" title={`${modulesCount} modules`}>
+                <span className="mr-1 text-emerald-600">●</span>
+                {modulesCount} Modules
+              </div>
+              <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md relative">
                 {course.instructor_profile_picture ? (
                   <img src={course.instructor_profile_picture} alt={course.instructor} className="w-full h-full object-cover" />
                 ) : course.instructor !== 'Unassigned' ? (
@@ -1492,7 +1497,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 </div>
                 <div className="flex items-center">
                   <AcademicCapIcon className="h-4 w-4 mr-1" />
-                  {course.modules_count} Modules
+                  {modulesCount} Modules
                 </div>
               </div>
 
