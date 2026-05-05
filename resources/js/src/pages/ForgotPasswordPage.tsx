@@ -210,8 +210,11 @@ export function ForgotPasswordPage({ onBackToLogin, theme }: ForgotPasswordPageP
 
       {videoFailed && (
         <div
-          className="absolute inset-0 h-full w-full bg-cover bg-center"
-          style={{ backgroundImage: 'url(/assets/pasted-image.jpg)' }}
+          className="absolute inset-0 h-full w-full"
+          style={{
+            background:
+              'radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.24), transparent 28%), radial-gradient(circle at 80% 18%, rgba(16, 185, 129, 0.2), transparent 24%), linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.84))',
+          }}
           aria-hidden="true"
         />
       )}
@@ -354,7 +357,7 @@ export function ForgotPasswordPage({ onBackToLogin, theme }: ForgotPasswordPageP
                   )}
                 </button>
               </div>
-              <p className={`mt-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <p className={`mt-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`} style={{ display: newPassword.length > 0 && (!newPassword || newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[!@#$%^&*(),.?":{}|<>_\-=+\[\]\\\/`~;']/.test(newPassword) || (newPassword.match(/[0-9]/g) || []).length < 2) ? 'block' : 'none' }}>
                 Min 8 chars, 1 uppercase, 1 special char, 2 numbers
               </p>
             </div>

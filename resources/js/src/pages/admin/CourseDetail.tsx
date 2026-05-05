@@ -182,7 +182,7 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz }: 
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
+          className="px-4 py-1.5 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
         >
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
           {saving ? 'Creating...' : 'Create & Add Questions'}
@@ -253,6 +253,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
   const [lessonTitle, setLessonTitle] = useState('');
   const [lessonFile, setLessonFile] = useState<File | null>(null);
   const [lessonTextContent, setLessonTextContent] = useState('');
+  const [lessonLink, setLessonLink] = useState('');
   const [uploadingLesson, setUploadingLesson] = useState(false);
   const [lessonError, setLessonError] = useState<string | null>(null);
   const lessonFileRef = useRef<HTMLInputElement>(null);
@@ -284,6 +285,11 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
   const [editLessonFile, setEditLessonFile] = useState<File | null>(null);
   const [savingLesson, setSavingLesson] = useState(false);
   const editLessonFileRef = useRef<HTMLInputElement>(null);
+
+  // Edit course description state
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [editDescriptionValue, setEditDescriptionValue] = useState('');
+  const [savingDescription, setSavingDescription] = useState(false);
 
   // Drag-and-drop state
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -532,6 +538,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
       const fd = new FormData();
       fd.append('title', lessonTitle.trim());
       if (lessonTextContent.trim()) fd.append('text_content', lessonTextContent.trim());
+      if (lessonLink.trim()) fd.append('content_url', lessonLink.trim());
       if (lessonFile) fd.append('content', lessonFile);
 
       const res = await fetch(`${API_BASE}/admin/modules/${moduleId}/lessons`, {
@@ -546,6 +553,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
       }
       setLessonTitle('');
       setLessonTextContent('');
+      setLessonLink('');
       setLessonFile(null);
       if (lessonFileRef.current) lessonFileRef.current.value = '';
       setAddingLessonForModule(null);
@@ -768,10 +776,83 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
             <div className="h-14 w-14 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
               <BookOpen className="h-7 w-7 text-green-600" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-xl font-bold text-slate-900">{course.title}</h1>
-              {course.description && (
-                <p className="text-sm text-slate-500 mt-1 max-w-xl">{course.description}</p>
+              {editingDescription ? (
+                <div className="mt-2 space-y-2">
+                  <textarea
+                    value={editDescriptionValue}
+                    onChange={(e) => setEditDescriptionValue(e.target.value)}
+                    rows={3}
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                    placeholder="Enter course description..."
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        setSavingDescription(true);
+                        try {
+                          const xsrf = await getXsrfToken();
+                          const res = await fetch(`${API_BASE}/admin/courses/${courseId}`, {
+                            method: 'PUT',
+                            credentials: 'include',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'X-XSRF-TOKEN': xsrf,
+                              Accept: 'application/json',
+                            },
+                            body: JSON.stringify({
+                              title: course.title,
+                              description: editDescriptionValue,
+                              department: course.department,
+                              status: course.status,
+                              instructor_id: course.instructor?.id || null,
+                            }),
+                          });
+                          if (!res.ok) throw new Error('Failed to update description');
+                          await loadCourse();
+                          setEditingDescription(false);
+                        } catch (e: any) {
+                          alert(e.message || 'Failed to update description');
+                        } finally {
+                          setSavingDescription(false);
+                        }
+                      }}
+                      disabled={savingDescription}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700 disabled:opacity-50"
+                    >
+                      <Save className="h-3 w-3" />
+                      {savingDescription ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingDescription(false);
+                        setEditDescriptionValue(course.description || '');
+                      }}
+                      disabled={savingDescription}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-slate-200 text-slate-700 text-xs rounded-md hover:bg-slate-300 disabled:opacity-50"
+                    >
+                      <X className="h-3 w-3" />
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-1 flex items-start gap-2 group">
+                  <p className="text-sm text-slate-500 max-w-xl flex-1">
+                    {course.description || 'No description'}
+                  </p>
+                  <button
+                    onClick={() => {
+                      setEditDescriptionValue(course.description || '');
+                      setEditingDescription(true);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-green-600 transition-opacity"
+                    title="Edit description"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               )}
               <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
                 <span className="font-medium text-slate-700">{course.department}</span>
@@ -1071,6 +1152,18 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                                 placeholder="Type the lesson content here — use the toolbar for bold, headings, lists..."
                                 minHeight="120px"
                               />
+                              <div className="space-y-1">
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                                  Link URL <span className="text-slate-400 dark:text-slate-500">(optional)</span>
+                                </label>
+                                <input
+                                  type="url"
+                                  placeholder="https://..."
+                                  value={lessonLink}
+                                  onChange={e => setLessonLink(e.target.value)}
+                                  className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                />
+                              </div>
                               <div className="flex items-center gap-2">
                                 <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md cursor-pointer bg-white/70 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900 text-xs text-slate-600 dark:text-slate-300 transition-colors">
                                   <Upload className="h-3.5 w-3.5" />
@@ -1102,7 +1195,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                                   {uploadingLesson ? 'Saving...' : 'Save Lesson'}
                                 </button>
                                 <button
-                                  onClick={() => { setAddingLessonForModule(null); setLessonTitle(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
+                                  onClick={() => { setAddingLessonForModule(null); setLessonTitle(''); setLessonTextContent(''); setLessonLink(''); setLessonFile(null); setLessonError(null); }}
                                   className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-md bg-white/80 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900 transition-colors"
                                 >
                                   Cancel

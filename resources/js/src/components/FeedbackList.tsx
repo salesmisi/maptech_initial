@@ -15,8 +15,6 @@ interface Props {
 
 export function FeedbackList({ url }: Props) {
   const [items, setItems] = useState<FeedbackItem[]>([]);
-  const [replies, setReplies] = useState<Record<number, any[]>>({});
-  const [replyText, setReplyText] = useState<Record<number, string>>({});
   const [selected, setSelected] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(false);
 
@@ -32,34 +30,6 @@ export function FeedbackList({ url }: Props) {
     } catch (err) {
       console.error(err);
     } finally { setLoading(false); }
-  };
-
-  const fetchReplies = async (feedbackId: number) => {
-    try {
-      const base = url.split('/feedbacks')[0] + '/feedbacks';
-      const res = await fetch(`${base}/${feedbackId}/replies`, { credentials: 'include', headers: { Accept: 'application/json' } });
-      if (!res.ok) return;
-      const data = await res.json();
-      setReplies(r => ({ ...r, [feedbackId]: data }));
-    } catch (err) { console.error(err); }
-  };
-
-  const postReply = async (feedbackId: number) => {
-    const base = url.split('/feedbacks')[0] + '/feedbacks';
-    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-    const xsrf = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)?.[2];
-    const res = await fetch(`${base}/${feedbackId}/replies`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': xsrf ? decodeURIComponent(xsrf) : '' },
-      body: JSON.stringify({ comment: replyText[feedbackId] || '' }),
-    });
-    if (res.ok) {
-      setReplyText(t => ({ ...t, [feedbackId]: '' }));
-      fetchReplies(feedbackId);
-    } else {
-      alert('Failed to post reply');
-    }
   };
 
   useEffect(() => {
@@ -79,45 +49,36 @@ export function FeedbackList({ url }: Props) {
 
   return (
     <div>
+      {/* Info banner */}
+      <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 rounded-lg">
+        <p className="text-sm text-blue-800 dark:text-blue-200">
+          <strong>View-Only Mode:</strong> This page displays student feedback for your review. Feedbacks are one-way communications from students and cannot be responded to.
+        </p>
+      </div>
+
       <div className="flex items-center gap-2 mb-4">
-        <button onClick={selectAll} className="px-3 py-1 bg-slate-100 rounded">Select all</button>
-        <button onClick={clearAll} className="px-3 py-1 bg-slate-100 rounded">Clear</button>
-        <div className="text-sm text-slate-500 ml-auto">{loading ? 'Refreshing...' : ''}</div>
+        <button onClick={selectAll} className="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded hover:bg-slate-200 dark:hover:bg-slate-600">Select all</button>
+        <button onClick={clearAll} className="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded hover:bg-slate-200 dark:hover:bg-slate-600">Clear</button>
+        <div className="text-sm text-slate-500 dark:text-slate-400 ml-auto">{loading ? 'Refreshing...' : ''}</div>
       </div>
 
       <div className="space-y-3">
         {items.map(item => (
-          <div key={item.id} className="bg-white p-4 rounded shadow border">
+          <div key={item.id} className="bg-white dark:bg-slate-800 p-4 rounded shadow border border-slate-200 dark:border-slate-700">
             <div className="flex items-start justify-between">
               <div>
-                <div className="font-semibold">{item.lesson.title}</div>
-                <div className="text-xs text-slate-500">{item.lesson.course} › {item.lesson.module}</div>
-                <div className="mt-2 text-sm text-slate-700">{item.comment || '—'}</div>
-                <div className="mt-2 text-xs text-slate-400">Rating: {item.rating} • {item.created_at ? new Date(item.created_at).toLocaleString() : ''}</div>
+                <div className="font-semibold text-slate-900 dark:text-slate-100">{item.lesson.title}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">{item.lesson.course} › {item.lesson.module}</div>
+                <div className="mt-2 text-sm text-slate-700 dark:text-slate-300">{item.comment || '—'}</div>
+                <div className="mt-2 text-xs text-slate-400 dark:text-slate-500">Rating: {item.rating} • {item.created_at ? new Date(item.created_at).toLocaleString() : ''}</div>
               </div>
               <div className="ml-4 text-right">
                 <input type="checkbox" checked={!!selected[item.id]} onChange={() => toggle(item.id)} className="mb-2" />
-                <div className="text-xs text-slate-500">{item.user.name}<br/>{item.user.department}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">{item.user.name}<br/>{item.user.department}</div>
               </div>
             </div>
 
-            <div className="mt-3 border-t pt-3">
-              <div className="space-y-2">
-                {(replies[item.id] || []).map(r => (
-                  <div key={r.id} className="bg-slate-50 p-2 rounded">
-                    <div className="text-xs text-slate-600">{r.user?.fullname || r.user?.name} • {r.user?.department}</div>
-                    <div className="text-sm text-slate-800">{r.comment}</div>
-                    <div className="text-xs text-slate-400">{r.created_at ? new Date(r.created_at).toLocaleString() : ''}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-2 flex gap-2">
-                <input value={replyText[item.id] || ''} onChange={(e) => setReplyText(t => ({ ...t, [item.id]: e.target.value }))} className="flex-1 border rounded px-2 py-1" placeholder="Write a reply..." />
-                <button onClick={() => postReply(item.id)} className="px-3 py-1 bg-green-600 text-white rounded">Reply</button>
-                <button onClick={() => fetchReplies(item.id)} className="px-3 py-1 bg-slate-100 rounded">Refresh</button>
-              </div>
-            </div>
+            {/* No reply functionality - Feedbacks are one-way communication, not conversations */}
           </div>
         ))}
       </div>

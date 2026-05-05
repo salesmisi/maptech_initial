@@ -271,6 +271,16 @@ export function NotificationManagement() {
     };
   }, []);
 
+  // Auto-dismiss success toast after 5 seconds
+  useEffect(() => {
+    if (successToast.show) {
+      const timer = setTimeout(() => {
+        setSuccessToast({ show: false, count: 0 });
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successToast.show]);
+
   const fetchNotifications = async () => {
     try {
       setLoading(true);
@@ -284,11 +294,25 @@ export function NotificationManagement() {
         data = null;
       }
 
-      const list = extractNotificationItems(data);
-      if (!Array.isArray(data?.data) && !Array.isArray(data?.notifications?.data) && data !== null) {
+      // Handle different response formats from the API
+      let list: Notification[] = [];
+      if (Array.isArray(data)) {
+        // Direct array response
+        list = data;
+      } else if (Array.isArray(data?.data)) {
+        // Response with data property
+        list = data.data;
+      } else if (Array.isArray(data?.notifications)) {
+        // Response with notifications property
+        list = data.notifications;
+      } else if (data?.notifications?.data && Array.isArray(data.notifications.data)) {
+        // Paginated response
+        list = data.notifications.data;
+      } else if (data !== null) {
         console.warn('/api/admin/notifications returned unexpected shape', data);
       }
-      setNotifications(list);
+
+      setNotifications(safeArray(list));
     } catch (err) {
       console.error('Failed to load notifications:', err);
     } finally {
@@ -921,42 +945,31 @@ export function NotificationManagement() {
           {unreadCount > 0 && (
             <button
               onClick={markAllAsRead}
-              className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
+              className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
             >
               <CheckCircle className="h-4 w-4 mr-2" />
               Mark All Read
             </button>
           )}
-          <div className="relative" ref={sendDropdownRef}>
-            <button
-              onClick={() => setShowSendDropdown((v) => !v)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Send Announcement
-              <ChevronDown className="ml-2 h-4 w-4" />
-            </button>
-            {showSendDropdown && (
-              <div className="absolute right-0 top-full mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-slate-800 ring-1 ring-black ring-opacity-5 z-[120]">
-                <div className="py-1">
-                  <button
-                    onClick={() => { setShowSendDropdown(false); setIsModalOpen(true); }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-slate-700 flex items-center"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-blue-500 mr-3"></span>
-                    Group
-                  </button>
-                  <button
-                    onClick={() => { setShowSendDropdown(false); setIsOnePersonModalOpen(true); }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-slate-700 flex items-center"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 mr-3"></span>
-                    One Person
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <button
+            onClick={() => {
+              fetchNotifications();
+              fetchUnreadCount();
+            }}
+            className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
+          >
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Refresh
+          </button>
+          <button
+            onClick={async () => {
+              setIsModalOpen(true);
+            }}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Send Announcement
+          </button>
         </div>
       </div>
 
@@ -1018,17 +1031,16 @@ export function NotificationManagement() {
 
       {/* Received Notifications */}
       {activeTab === 'received' && (
-        <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
           {loading ? (
             <LoadingState message="Loading notifications" className="p-8" />
-          ) : filteredNotifications.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">
-              <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300" />
+          ) : safeArray(notifications).length === 0 ? (
+            <div className="p-8 text-center text-slate-500 dark:text-slate-400">
+              <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
               <p>No notifications yet</p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-200">
-              {filteredNotifications.map((notification) => (
+            <div className="divide-y divide-slate-200 dark:divide-slate-700">{safeArray(notifications).map((notification) => (
                 <div
                   key={notification.id}
                   onClick={() => openReceivedDetail(notification)}
@@ -1138,31 +1150,20 @@ export function NotificationManagement() {
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
-                  {filteredSentHistory.map((item) => (
-                    <tr
-                      key={item.id}
-                      onClick={() => openSentDetail(item)}
-                      className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                    >
+                  {safeArray(sentHistory).map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
-                        <div className="flex items-center gap-2">
-                          <span>{item.title}</span>
-                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${item.announcement_mode === 'one_person' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'}`}>
-                            {item.announcement_mode === 'one_person' ? 'One Person' : 'Group'}
-                          </span>
-                        </div>
+                        {item.title}
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-200 truncate max-w-xs">
-                        {messagePreviewText(item.message)}
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 truncate max-w-xs">{item.message}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
                         {item.target}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
                         {item.recipients_count} users
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
-                        {item.date}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{item.date}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <button
@@ -1884,6 +1885,26 @@ export function NotificationManagement() {
         variant={previewModal.error ? 'error' : 'info'}
         icon={previewModal.error ? undefined : <Users className="w-6 h-6" />}
       />
+
+      {/* Success Toast */}
+      {successToast.show && (
+        <div className="fixed bottom-6 right-6 z-50 bg-green-600 dark:bg-green-500 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 animate-toast-slide-up border border-green-500 dark:border-green-400">
+          <div className="flex-shrink-0 bg-white/20 rounded-full p-2">
+            <CheckCircle className="h-6 w-6" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-base">Notification Sent Successfully!</p>
+            <p className="text-sm text-green-50 dark:text-green-100 mt-0.5">Sent to {successToast.count} recipient{successToast.count !== 1 ? 's' : ''}</p>
+          </div>
+          <button
+            onClick={() => setSuccessToast({ show: false, count: 0 })}
+            className="flex-shrink-0 ml-2 text-white/80 hover:text-white transition-colors"
+            aria-label="Dismiss notification"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

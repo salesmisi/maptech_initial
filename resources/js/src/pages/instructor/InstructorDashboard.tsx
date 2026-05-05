@@ -106,41 +106,42 @@ export function InstructorDashboard({ onNavigate }: InstructorDashboardProps) {
         {/* Page Header */}
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm text-slate-500 mt-1">Welcome back</p>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 sm:text-2xl">Instructor Dashboard</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Welcome back</p>
           </div>
-          <div className="self-start text-xs text-slate-500 sm:self-auto sm:text-sm">Last updated: Today</div>
+          <div className="self-start text-xs text-slate-500 dark:text-slate-400 sm:self-auto sm:text-sm">Last updated: Today</div>
         </div>
 
         {/* Summary Cards */}
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="bg-white rounded shadow p-4 flex flex-col items-start">
-            <span className="text-slate-500 text-xs mb-1">Student Questions</span>
-            <span className="text-2xl font-bold text-blue-600">{recentQuestions.length}</span>
-            <span className="text-xs text-blue-600 mt-1">Recent Q&A activity</span>
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
+          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6 flex flex-col items-start">
+            <span className="text-slate-500 dark:text-slate-400 text-xs mb-1">Student Questions</span>
+            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">{recentQuestions.length}</span>
+            <span className="text-xs text-blue-600 dark:text-blue-400 mt-1">Recent Q&A activity</span>
           </div>
-          <div className="bg-white rounded shadow p-4 flex flex-col items-start">
-            <span className="text-slate-500 text-xs mb-1">My Courses</span>
-            <span className="text-2xl font-bold text-green-600">{courseStats.length}</span>
-            <span className="text-xs text-slate-400 mt-1">Active courses assigned</span>
+          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6 flex flex-col items-start">
+            <span className="text-slate-500 dark:text-slate-400 text-xs mb-1">My Courses</span>
+            <span className="text-2xl font-bold text-green-600 dark:text-green-400">{courseStats.length}</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500 mt-1">Active courses assigned</span>
           </div>
-          <div className="bg-white rounded shadow p-4 flex flex-col items-start">
-            <span className="text-slate-500 text-xs mb-1">Total Students</span>
-            <span className="text-2xl font-bold text-purple-600">{studentCount}</span>
-            <span className="text-xs text-green-600 mt-1">+{newStudentsMonth} this month</span>
+          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6 flex flex-col items-start">
+            <span className="text-slate-500 dark:text-slate-400 text-xs mb-1">Total Students</span>
+            <span className="text-2xl font-bold text-purple-600 dark:text-purple-400">{studentCount}</span>
+            <span className="text-xs text-green-600 dark:text-green-400 mt-1">+{newStudentsMonth} this month</span>
           </div>
-          <div className="bg-white rounded shadow p-4 flex flex-col items-start">
-            <span className="text-slate-500 text-xs mb-1">Avg. Pass Rate</span>
-            <span className="text-2xl font-bold text-orange-600">{avgPassRate}%</span>
-            <span className={`text-xs mt-1 ${passRateDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}>{passRateDelta >= 0 ? '+' : ''}{passRateDelta}% from last month</span>
+          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6 flex flex-col items-start">
+            <span className="text-slate-500 dark:text-slate-400 text-xs mb-1">Avg. Pass Rate</span>
+            <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">{avgPassRate}%</span>
+            <span className={`text-xs mt-1 ${passRateDelta >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{passRateDelta >= 0 ? '+' : ''}{passRateDelta}% from last month</span>
           </div>
         </div>
 
         {/* Trends and Course Stats */}
-        <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2 sm:gap-6">
           {/* Student Performance Trends */}
-          <div className="bg-white rounded shadow p-4">
-            <div className="font-semibold mb-2">Student Performance Trends</div>
-            <div className="h-48">
+          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Student Performance Trends</h3>
+            <div className="h-72 sm:h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={performanceData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -155,9 +156,9 @@ export function InstructorDashboard({ onNavigate }: InstructorDashboardProps) {
             </div>
           </div>
           {/* Course Enrollment vs Completion */}
-          <div className="bg-white rounded shadow p-4">
-            <div className="font-semibold mb-2">Course Enrollment vs Completion</div>
-            <div className="h-48">
+          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Course Enrollment vs Completion</h3>
+            <div className="h-72 sm:h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={courseStats}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -174,27 +175,27 @@ export function InstructorDashboard({ onNavigate }: InstructorDashboardProps) {
         </div>
 
         {/* Recent Student Questions */}
-        <div className="rounded bg-white p-4 shadow sm:p-5">
-          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span className="font-semibold">Recent Student Questions</span>
+        <div className="rounded-lg bg-white dark:bg-slate-900/80 border border-slate-100 dark:border-slate-700 p-4 sm:p-6 shadow-sm">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Recent Student Questions</h3>
             <button
               onClick={() => onNavigate?.('qa-discussion')}
-              className="text-blue-600 text-xs hover:text-blue-800 hover:underline"
+              className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 rounded-md shadow-sm transition-colors"
             >
               View All Q&A
             </button>
           </div>
           <ul>
             {recentQuestions.map((q) => (
-              <li key={q.id} className="flex flex-col gap-2 border-b py-2 last:border-b-0 sm:flex-row sm:items-center">
-                <span className="bg-slate-200 rounded-full w-7 h-7 flex items-center justify-center font-bold text-slate-600 mr-3">
+              <li key={q.id} className="flex flex-col gap-2 border-b border-slate-200 dark:border-slate-700 py-3 last:border-b-0 sm:flex-row sm:items-center">
+                <span className="bg-slate-200 dark:bg-slate-700 rounded-full w-8 h-8 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 mr-3">
                   {q.student?.[0] || '?'}
                 </span>
                 <div className="flex-1">
-                  <span className="font-medium">{q.student}</span> in <span className="text-slate-500">{q.course}</span>
-                  <div className="text-slate-600 text-sm mt-0.5">{q.question}</div>
+                  <span className="font-medium text-slate-900 dark:text-slate-100">{q.student}</span> <span className="text-slate-500 dark:text-slate-400">in</span> <span className="text-slate-500 dark:text-slate-400">{q.course}</span>
+                  <div className="text-slate-600 dark:text-slate-300 text-sm mt-0.5">{q.question}</div>
                 </div>
-                <span className="text-xs text-slate-400 sm:ml-2">{q.time}</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500 sm:ml-2">{q.time}</span>
               </li>
             ))}
           </ul>

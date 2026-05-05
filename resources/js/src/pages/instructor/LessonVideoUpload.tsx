@@ -21,6 +21,10 @@ import {
 const API = '/api';
 import { safeArray } from '../../utils/safe';
 
+interface Props {
+  apiPrefix?: string;
+}
+
 // ─── helpers ────────────────────────────────────────────────────────────
 
 function getCookie(name: string) {
@@ -83,9 +87,13 @@ interface CourseOption {
   title: string;
 }
 
+interface Props {
+  apiPrefix?: string;
+}
+
 // ─── component ──────────────────────────────────────────────────────────
 
-export function LessonVideoUpload() {
+export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
   const confirm = useConfirm();
   const { showConfirm } = confirm;
   const [courses, setCourses] = useState<CourseOption[]>([]);
@@ -163,12 +171,7 @@ export function LessonVideoUpload() {
   useEffect(() => {
     (async () => {
       try {
-        let data: any[];
-        try {
-          data = await apiFetch('/admin/courses');
-        } catch {
-          data = await apiFetch('/instructor/courses');
-        }
+        const data = await apiFetch(`/${apiPrefix}/courses`);
         const list = safeArray(data).map((c: any) => ({ id: c.id, title: c.title }));
         setCourses(list);
         if (list.length > 0) {
@@ -178,7 +181,7 @@ export function LessonVideoUpload() {
         setError('Failed to load courses');
       }
     })();
-  }, []);
+  }, [apiPrefix]);
 
   // ── fetch modules when course changes ──
   const fetchModules = useCallback(async () => {

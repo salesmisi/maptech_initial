@@ -530,8 +530,11 @@ export function App() {
         <div className="relative min-h-screen overflow-hidden flex items-center justify-center bg-slate-950">
           <div
             aria-hidden="true"
-            className="absolute inset-0 bg-cover bg-center opacity-80"
-            style={{ backgroundImage: "url('/assets/pasted-image.jpg')" }}
+            className="absolute inset-0 opacity-80"
+            style={{
+              background:
+                'radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.24), transparent 28%), radial-gradient(circle at 80% 18%, rgba(16, 185, 129, 0.2), transparent 24%), linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.84))',
+            }}
           />
           <div aria-hidden="true" className="absolute inset-0 bg-slate-950/65" />
 
@@ -654,6 +657,9 @@ export function App() {
             {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} />}
             {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
             {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
+            {currentPage === 'quiz-management' && <QuizAssessmentManagement apiPrefix="admin" />}
+            {currentPage === 'evaluation' && <QuizEvaluation apiPrefix="admin" />}
+            {currentPage === 'lessons' && <LessonVideoUpload apiPrefix="admin" />}
             {currentPage === 'enrollments' && <EnrollmentManagement />}
             {currentPage === 'reports' && <ReportsAnalytics />}
             {currentPage === 'notifications' && <NotificationManagement />}
@@ -670,7 +676,7 @@ export function App() {
             )}
             {currentPage === 'settings' && <ProfileSettings />}
           {/* Fallback to custom module page for any unmatched route */}
-          {!['dashboard', 'departments', 'users', 'courses', 'custom-field', 'course-detail', 'course-content-editor', 'enrollments', 'reports', 'notifications', 'qa', 'audit-logs', 'business-details', 'feedbacks', 'product-logos', 'settings'].includes(currentPage) && (
+          {!['dashboard', 'departments', 'users', 'courses', 'custom-field', 'course-detail', 'quiz-management', 'evaluation', 'lessons', 'course-content-editor', 'enrollments', 'reports', 'notifications', 'qa', 'audit-logs', 'business-details', 'feedbacks', 'product-logos', 'settings'].includes(currentPage) && (
             <CustomModulePage routePath={currentPage} />
           )}
           </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import useConfirm from '../../hooks/useConfirm';
 import usePrompt from '../../hooks/usePrompt';
-import { LogIn, LogOut, Search, ChevronLeft, ChevronRight, Filter, Users, GraduationCap, Shield, Clock, RefreshCw, Archive, RotateCcw, Trash2, X } from "lucide-react";
+import { LogIn, LogOut, Search, ChevronLeft, ChevronRight, Filter, Users, GraduationCap, Shield, Clock, RefreshCw, X, Download, FileText, FileSpreadsheet, ChevronDown } from "lucide-react";
 import { LoadingState } from '../../components/ui/LoadingState';
 
 interface AuditUser {
@@ -25,16 +25,6 @@ interface AuditEntry {
     time_out: string | null;
     note?: string | null;
   } | null;
-}
-
-interface DeletedAuditEntry {
-  id: number;
-  user_id: number;
-  action: "login" | "logout";
-  ip_address: string | null;
-  created_at: string;
-  deleted_at: string;
-  user: AuditUser | null;
 }
 
 interface PaginatedResponse {
@@ -79,10 +69,8 @@ export function AuditLogs() {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("All");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Recently deleted state
-  const [recentlyDeleted, setRecentlyDeleted] = useState<DeletedAuditEntry[]>([]);
-  const [showDeletedModal, setShowDeletedModal] = useState(false);
-  const [loadingDeleted, setLoadingDeleted] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const doFetch = useCallback(async (pageNum: number, _silent = false) => {
     try {
@@ -134,68 +122,6 @@ export function AuditLogs() {
   const showToast = (msg: string, ms = 3500) => {
     setToastMessage(msg);
     window.setTimeout(() => setToastMessage(null), ms);
-  };
-
-  const fetchRecentlyDeleted = async () => {
-    try {
-      setLoadingDeleted(true);
-      const res = await fetch(`${API}/audit-logs/recently-deleted`, {
-        credentials: "include",
-        headers: {
-          Accept: "application/json",
-          "X-Requested-With": "XMLHttpRequest",
-          "X-XSRF-TOKEN": decodeURIComponent(getCookie("XSRF-TOKEN") || ""),
-        },
-      });
-      if (!res.ok) throw new Error("Failed to load recently deleted");
-      const data = await res.json();
-      setRecentlyDeleted(data.recently_deleted || []);
-    } catch (err) {
-      showToast("Failed to load recently deleted logs");
-    } finally {
-      setLoadingDeleted(false);
-    }
-  };
-
-  const restoreAuditLog = async (id: number) => {
-    try {
-      const res = await fetch(`${API}/audit-logs/${id}/restore`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          Accept: "application/json",
-          "X-Requested-With": "XMLHttpRequest",
-          "X-XSRF-TOKEN": decodeURIComponent(getCookie("XSRF-TOKEN") || ""),
-        },
-      });
-      if (!res.ok) throw new Error("Restore failed");
-      showToast("Audit log restored");
-      fetchRecentlyDeleted();
-      fetchLogs(1);
-    } catch (err) {
-      showToast("Failed to restore audit log");
-    }
-  };
-
-  const permanentlyDeleteAuditLog = async (id: number) => {
-    showConfirm("Permanently delete this audit log? This cannot be undone.", async () => {
-      try {
-        const res = await fetch(`${API}/audit-logs/${id}/permanent`, {
-          method: "DELETE",
-          credentials: "include",
-          headers: {
-            Accept: "application/json",
-            "X-Requested-With": "XMLHttpRequest",
-            "X-XSRF-TOKEN": decodeURIComponent(getCookie("XSRF-TOKEN") || ""),
-          },
-        });
-        if (!res.ok) throw new Error("Delete failed");
-        showToast("Audit log permanently deleted");
-        fetchRecentlyDeleted();
-      } catch (err) {
-        showToast("Failed to permanently delete audit log");
-      }
-    });
   };
 
   // Initial load + start 30-second auto-poll
@@ -378,6 +304,19 @@ export function AuditLogs() {
     };
   }, []);
 
+  // Close export menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    if (showExportMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showExportMenu]);
+
   // Modal state for managing a user's time logs
   const [modalOpen, setModalOpen] = useState(false);
   const [modalUser, setModalUser] = useState<AuditUser | null>(null);
@@ -523,6 +462,12 @@ export function AuditLogs() {
     }
   };
 
+  const handleExport = (format: 'csv' | 'excel' | 'pdf') => {
+    const roleParam = roleFilter !== 'All' ? `?role=${encodeURIComponent(roleFilter)}` : '';
+    const formatParam = roleParam ? `&format=${format}` : `?format=${format}`;
+    window.open(`/api/admin/audit-logs/export${roleParam}${formatParam}`, '_blank');
+    setShowExportMenu(false);
+  };
 
   const roleFilterButtons: { value: RoleFilter; label: string; icon: React.ReactNode; color: string }[] = [
     { value: "All", label: "All Roles", icon: <Filter className="w-4 h-4" />, color: "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" },
@@ -538,7 +483,7 @@ export function AuditLogs() {
         <div className="fixed top-6 right-6 z-50">
           <div className="bg-white border border-slate-200 rounded-lg shadow px-4 py-2 text-sm text-gray-800 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 flex items-center gap-3">
             <div>{toastMessage}</div>
-            <button onClick={() => setToastMessage(null)} className="text-gray-400 hover:text-gray-600">×</button>
+            <button onClick={() => setToastMessage(null)} className="text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300">×</button>
           </div>
         </div>
       )}
@@ -551,16 +496,51 @@ export function AuditLogs() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <button
-            onClick={() => {
-              setShowDeletedModal(true);
-              fetchRecentlyDeleted();
-            }}
-            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-          >
-            <Archive className="w-4 h-4" />
-            Recently Deleted
-          </button>
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Export
+              <ChevronDown className={`w-4 h-4 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50">
+                <button
+                  onClick={() => handleExport('csv')}
+                  className="w-full px-4 py-2.5 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition-colors"
+                >
+                  <FileText className="w-4 h-4 text-green-600 dark:text-green-400" />
+                  <div>
+                    <div className="font-medium">CSV File</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">Comma-separated values</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleExport('excel')}
+                  className="w-full px-4 py-2.5 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition-colors"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <div>
+                    <div className="font-medium">Excel File</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">Microsoft Excel format</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleExport('pdf')}
+                  className="w-full px-4 py-2.5 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition-colors"
+                >
+                  <FileText className="w-4 h-4 text-red-600 dark:text-red-400" />
+                  <div>
+                    <div className="font-medium">PDF Document</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">Portable document format</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
           <span className="text-sm text-gray-500 dark:text-slate-400">{total} total entries</span>
         </div>
       </div>
@@ -586,11 +566,12 @@ export function AuditLogs() {
               <div>
                 <h3 className="text-lg font-medium">Manage Time Logs for {modalUser?.fullname}</h3>
                 {modalLastRefreshed && (
-                  <div className="text-xs text-gray-500">Updated {modalLastRefreshed.toLocaleTimeString()}</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400">Updated {modalLastRefreshed.toLocaleTimeString()}</div>
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {modalTimeLogs.length > 0 && (
+                {/* Delete All button disabled - audit logs cannot be deleted */}
+                {/* {modalTimeLogs.length > 0 && (
                   <button
                     onClick={() => {
                       showConfirm(`Delete all ${modalTimeLogs.length} time logs for ${modalUser?.fullname}?`, async () => {
@@ -601,33 +582,33 @@ export function AuditLogs() {
                   >
                     Delete All
                   </button>
-                )}
+                )} */}
                 <button
                   onClick={refreshModal}
                   disabled={modalRefreshing}
-                  className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-50 flex items-center"
+                  className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-50 flex items-center dark:bg-slate-800 dark:border-slate-600 dark:hover:bg-slate-700"
                 >
                   <RefreshCw className="w-4 h-4 mr-1" />
                   {modalRefreshing ? 'Refreshing...' : 'Refresh'}
                 </button>
-                <button onClick={closeManageModal} className="text-gray-500">Close</button>
+                <button onClick={closeManageModal} className="text-gray-500 dark:text-slate-400">Close</button>
               </div>
             </div>
             <div className="max-h-[400px] overflow-y-auto">
               {modalLoading ? (
                 <LoadingState message="Loading time logs" />
               ) : modalTimeLogs.length === 0 ? (
-                <div className="text-center text-gray-500">No time logs for this user.</div>
+                <div className="text-center text-gray-500 dark:text-slate-400">No time logs for this user.</div>
               ) : (
                 <div className="space-y-3 pr-2">
                   {modalTimeLogs.map((tl) => (
                     <div key={tl.id} className="border rounded p-3 flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-sm text-gray-600">Time In: {tl.time_in || '—'}</div>
-                        <div className="text-sm text-gray-600">Time Out: {tl.time_out || '—'}</div>
-                        <div className="text-sm text-gray-600">Status: {(tl.time_out == null) ? 'Active' : 'Inactive'}</div>
-                        <div className="text-sm text-gray-500">Note: {tl.note || '—'}</div>
-                        <div className="text-sm text-gray-400">Archived: {tl.archived ? 'Yes' : 'No'}</div>
+                        <div className="text-sm text-gray-600 dark:text-slate-300">Time In: {tl.time_in || '—'}</div>
+                        <div className="text-sm text-gray-600 dark:text-slate-300">Time Out: {tl.time_out || '—'}</div>
+                        <div className="text-sm text-gray-600 dark:text-slate-300">Status: {(tl.time_out == null) ? 'Active' : 'Inactive'}</div>
+                        <div className="text-sm text-gray-500 dark:text-slate-400">Note: {tl.note || '—'}</div>
+                        <div className="text-sm text-gray-400 dark:text-slate-500">Archived: {tl.archived ? 'Yes' : 'No'}</div>
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <button
@@ -701,7 +682,7 @@ export function AuditLogs() {
           <p className="text-2xl font-bold text-green-800 dark:text-emerald-300">{stats.employee}</p>
         </div>
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 dark:bg-slate-800/70 dark:border-slate-700">
-          <div className="flex items-center gap-2 text-gray-700 mb-1">
+          <div className="flex items-center gap-2 text-gray-700 dark:text-slate-300 mb-1">
             <Clock className="w-4 h-4" />
             <span className="text-xs font-medium">Total Sessions</span>
           </div>
@@ -749,93 +730,34 @@ export function AuditLogs() {
           {roleFilter !== "All" && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-slate-800 rounded-full text-xs">
               {roleFilter}
-              <button onClick={() => setRoleFilter("All")} className="ml-1 text-gray-400 hover:text-gray-600">×</button>
+              <button onClick={() => setRoleFilter("All")} className="ml-1 text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300">×</button>
             </span>
           )}
           {search && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-slate-800 rounded-full text-xs">
               "{search}"
-              <button onClick={() => setSearch("")} className="ml-1 text-gray-400 hover:text-gray-600">×</button>
+              <button onClick={() => setSearch("")} className="ml-1 text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300">×</button>
             </span>
           )}
           <span className="text-gray-400 dark:text-slate-500">({filteredSessions.length} sessions)</span>
         </div>
       )}
 
-      {/* Bulk actions (visible when users selected) */}
-      {selectedLogIds.length > 0 && (
+      {/* Bulk actions disabled - audit logs cannot be deleted */}
+      {/* {selectedLogIds.length > 0 && (
         <div className="mb-4 flex items-center gap-3">
           <div className="text-sm text-gray-700 dark:text-slate-300">{selectedLogIds.length} item(s) selected</div>
-          <button
-            onClick={async () => {
-              showConfirm(`Delete ${selectedLogIds.length} selected log(s)?`, async () => {
-                try {
-                  setLoading(true);
-                  await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-                  const res = await fetch('/api/admin/audit-logs/bulk-delete', {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
-                    body: JSON.stringify({ ids: selectedLogIds }),
-                  });
-                  if (!res.ok) {
-                    const txt = await res.text().catch(() => '');
-                    throw new Error(txt || 'Bulk delete failed');
-                  }
-                  const data = await res.json().catch(() => null);
-                  await fetchLogs(1);
-                  setSelectedLogIds([]);
-                  setSelectedUserIds([]);
-                  showToast(data && data.deleted !== undefined ? `Deleted ${data.deleted} rows` : 'Bulk delete completed');
-                } catch (e: any) {
-                  if ((e?.message || '').toLowerCase().includes('forbidden') || (e?.message || '').toLowerCase().includes('unauthorized')) {
-                    showToast('Bulk delete failed: not authorized');
-                  } else {
-                    showToast('Bulk delete failed');
-                  }
-                } finally { setLoading(false); }
-              });
-            }}
-            className="px-3 py-1 text-sm bg-red-50 text-red-700 border border-red-200 rounded hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800/40 dark:hover:bg-red-900/35"
-          >
-            Delete Logs
-          </button>
           <button onClick={() => { setSelectedLogIds([]); setSelectedUserIds([]); }} className="px-2 py-1 text-sm border border-slate-300 rounded bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">Clear</button>
         </div>
-      )}
+      )} */}
 
-      {/* Bulk actions (visible when users selected) */}
-      {selectedUserIds.length > 0 && (
+      {/* Bulk actions disabled - audit logs cannot be deleted */}
+      {/* {selectedUserIds.length > 0 && (
         <div className="mb-4 flex items-center gap-3">
           <div className="text-sm text-gray-700 dark:text-slate-300">{selectedUserIds.length} user(s) selected</div>
-          <button
-            onClick={async () => {
-              showConfirm(`Delete all audit logs for ${selectedUserIds.length} selected user(s)?`, async () => {
-                try {
-                  setLoading(true);
-                  await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-                  const res = await fetch('/api/admin/audit-logs/bulk-delete-by-users', {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
-                    body: JSON.stringify({ user_ids: selectedUserIds }),
-                  });
-                  if (!res.ok) throw new Error('Bulk delete by users failed');
-                  const data = await res.json().catch(() => null);
-                  await fetchLogs(1);
-                  setSelectedUserIds([]);
-                  setSelectedLogIds([]);
-                  showToast(data && data.deleted !== undefined ? `Deleted ${data.deleted} rows` : 'Bulk delete completed');
-                } catch (e) { alert('Bulk delete failed'); } finally { setLoading(false); }
-              });
-            }}
-            className="px-3 py-1 text-sm bg-red-600 text-white border rounded hover:bg-red-700"
-          >
-            Delete All Logs For Selected Users
-          </button>
           <button onClick={() => setSelectedUserIds([])} className="px-2 py-1 text-sm border border-slate-300 rounded bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">Clear</button>
         </div>
-      )}
+      )} */}
 
       {/* Table */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden border border-slate-200 dark:border-slate-700">
@@ -843,48 +765,29 @@ export function AuditLogs() {
           <table style={{minWidth: '1400px'}} className="min-w-full divide-y divide-gray-200 table-fixed w-full">
             <thead className="bg-gray-50 dark:bg-slate-800/80 sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <input
-                    type="checkbox"
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      if (e.target.checked) {
-                        setSelectedLogIds(visibleSessionIds);
-                        // select all visible users as well
-                        const visibleUserIds = userGroups.map((g) => g[0].user_id).filter(Boolean) as number[];
-                        setSelectedUserIds(visibleUserIds);
-                      } else {
-                        setSelectedLogIds([]);
-                        setSelectedUserIds([]);
-                      }
-                    }}
-                    checked={visibleSessionIds.length > 0 && selectedLogIds.length === visibleSessionIds.length}
-                    className="h-4 w-4 text-green-600 border-slate-300 rounded"
-                  />
-                </th>
-                <th style={{width: '220px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                <th style={{width: '220px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
                   User
                 </th>
-                <th style={{width: '90px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                <th style={{width: '90px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
                   Role
                 </th>
-                <th style={{width: '120px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                <th style={{width: '120px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
                   Department
                 </th>
-                <th style={{width: '120px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                <th style={{width: '120px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
                   IP Address
                 </th>
-                <th style={{width: '150px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                <th style={{width: '150px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
                   Date
                 </th>
-                <th style={{width: '140px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  <div className="flex items-center gap-1 text-green-600">
+                <th style={{width: '140px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                  <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
                     <LogIn className="w-3 h-3" />
                     Login (Audit)
                   </div>
                 </th>
-                <th style={{width: '140px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  <div className="flex items-center gap-1 text-green-700">
+                <th style={{width: '140px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                  <div className="flex items-center gap-1 text-green-700 dark:text-green-400">
                     <Clock className="w-3 h-3" />
                     Actual Time In
                   </div>
@@ -895,22 +798,22 @@ export function AuditLogs() {
                     Time Out (Actual)
                   </div>
                 </th>
-                <th style={{width: '100px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider whitespace-nowrap">
+                <th style={{width: '100px'}} className="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
                   Status
                 </th>
-                <th style={{width: '100px'}} className="px-6 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider whitespace-nowrap">
-                  <div className="flex items-center gap-1 text-blue-700">
+                <th style={{width: '100px'}} className="px-6 py-3 text-left text-xs font-medium text-blue-700 dark:text-blue-400 uppercase tracking-wider whitespace-nowrap">
+                  <div className="flex items-center gap-1 text-blue-700 dark:text-blue-400">
                     <Clock className="w-3 h-3" />
                     Duration
                   </div>
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             {loading ? (
               <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
                 <tr>
-                  <td colSpan={12} className="px-6 py-8 text-center text-gray-400 dark:text-slate-500">
+                  <td colSpan={11} className="px-6 py-8 text-center text-gray-400 dark:text-slate-500">
                     <LoadingState message="Loading audit logs" size="sm" className="py-2" />
                   </td>
                 </tr>
@@ -918,7 +821,7 @@ export function AuditLogs() {
             ) : userGroups.length === 0 ? (
               <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
                 <tr>
-                  <td colSpan={12} className="px-6 py-8 text-center text-gray-400 dark:text-slate-500">
+                  <td colSpan={11} className="px-6 py-8 text-center text-gray-400 dark:text-slate-500">
                     {loadError ? "Unable to load audit logs right now." : "No audit logs found."}
                   </td>
                 </tr>
@@ -929,25 +832,6 @@ export function AuditLogs() {
                 return (
                   <tbody key={`group-${latest.user_id}`} className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
                     <tr className="bg-gray-50 hover:bg-gray-100 dark:bg-slate-800/60 dark:hover:bg-slate-800">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                          <input
-                            type="checkbox"
-                            checked={selectedLogIds.includes(sessionPrimaryId(latest) || -1)}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              const id = sessionPrimaryId(latest);
-                              if (!id) return;
-                              if (e.target.checked) {
-                                setSelectedLogIds((s) => Array.from(new Set([...s, id])));
-                                // also select the user for user-level bulk actions
-                                if (latest.user_id) setSelectedUserIds((u) => Array.from(new Set([...u, latest.user_id])));
-                              } else {
-                                setSelectedLogIds((s) => s.filter((i) => i !== id));
-                                if (latest.user_id) setSelectedUserIds((u) => u.filter((x) => x !== latest.user_id));
-                              }
-                            }}
-                          />
-                        </td>
                         <td className="px-6 py-4 whitespace-nowrap overflow-hidden" style={{width: '220px'}}>
                           <div className="flex items-center gap-3">
                             <div className="flex items-center min-w-0">
@@ -963,8 +847,8 @@ export function AuditLogs() {
                                 {(latest.user?.fullname || "?").charAt(0).toUpperCase()}
                               </div>
                               <div className="ml-3 min-w-0">
-                                <p className="text-sm font-medium text-gray-900 truncate">{latest.user?.fullname || "Unknown"}</p>
-                                <p className="text-xs text-gray-500 truncate">{latest.user?.email || "—"}</p>
+                                <p className="text-sm font-medium text-gray-900 dark:text-slate-100 truncate">{latest.user?.fullname || "Unknown"}</p>
+                                <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{latest.user?.email || "—"}</p>
                               </div>
                             </div>
                           </div>
@@ -982,48 +866,48 @@ export function AuditLogs() {
                             {latest.user?.role || "—"}
                           </span>
                         </td>
-                        <td style={{width: '120px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-600">{latest.user?.department || "—"}</td>
-                        <td style={{width: '120px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-500 font-mono">{latest.ip_address || "—"}</td>
-                        <td style={{width: '150px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-600">
+                        <td style={{width: '120px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-600 dark:text-slate-300">{latest.user?.department || "—"}</td>
+                        <td style={{width: '120px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-500 dark:text-slate-400 font-mono">{latest.ip_address || "—"}</td>
+                        <td style={{width: '150px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-gray-600 dark:text-slate-300">
                           {formatYmd(resolvedTimeIn(latest) || resolvedTimeOut(latest))}
                         </td>
                         <td style={{width: '140px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
                           {formatDateTime(latest.audit_login_at) ? (
                             <div className="flex flex-col">
-                              <span className="text-xs text-gray-500">{formatDateTime(latest.audit_login_at)?.date}</span>
+                              <span className="text-xs text-gray-500 dark:text-slate-400">{formatDateTime(latest.audit_login_at)?.date}</span>
                               <div className="flex items-center gap-2">
-                                <span className="inline-block w-12 text-right tabular-nums text-sm font-medium text-green-600">{formatDateTime(latest.audit_login_at)?.time}</span>
-                                <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(latest.audit_login_at)?.period}</span>
+                                <span className="inline-block w-12 text-right tabular-nums text-sm font-medium text-green-600 dark:text-green-400">{formatDateTime(latest.audit_login_at)?.time}</span>
+                                <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-medium">{formatDateTime(latest.audit_login_at)?.period}</span>
                               </div>
                             </div>
                           ) : (
-                            <span className="text-sm text-gray-400">—</span>
+                            <span className="text-sm text-gray-400 dark:text-slate-500">—</span>
                           )}
                         </td>
                         <td style={{width: '140px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
                           {resolvedTimeIn(latest) ? (
                             <div className="flex flex-col">
-                              <span className="text-xs text-gray-500">{formatDateTime(resolvedTimeIn(latest))?.date}</span>
+                              <span className="text-xs text-gray-500 dark:text-slate-400">{formatDateTime(resolvedTimeIn(latest))?.date}</span>
                               <div className="flex items-center gap-2">
-                                <span className="inline-block w-12 text-right tabular-nums text-sm font-medium text-green-700">{formatDateTime(resolvedTimeIn(latest))?.time}</span>
-                                <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(resolvedTimeIn(latest))?.period}</span>
+                                <span className="inline-block w-12 text-right tabular-nums text-sm font-medium text-green-700 dark:text-green-400">{formatDateTime(resolvedTimeIn(latest))?.time}</span>
+                                <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-medium">{formatDateTime(resolvedTimeIn(latest))?.period}</span>
                               </div>
                             </div>
                           ) : (
-                            <span className="text-sm text-gray-400">—</span>
+                            <span className="text-sm text-gray-400 dark:text-slate-500">—</span>
                           )}
                         </td>
                         <td style={{width: '140px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
                           {resolvedTimeOut(latest) ? (
                             <div className="flex flex-col">
-                              <span className="text-xs text-gray-500">{formatDateTime(resolvedTimeOut(latest))?.date}</span>
+                              <span className="text-xs text-gray-500 dark:text-slate-400">{formatDateTime(resolvedTimeOut(latest))?.date}</span>
                               <div className="flex items-center gap-2">
-                                <span className="inline-block w-12 text-right tabular-nums text-sm font-medium text-red-600">{formatDateTime(resolvedTimeOut(latest))?.time}</span>
-                                <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(resolvedTimeOut(latest))?.period}</span>
+                                <span className="inline-block w-12 text-right tabular-nums text-sm font-medium text-red-600 dark:text-red-400">{formatDateTime(resolvedTimeOut(latest))?.time}</span>
+                                <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-medium">{formatDateTime(resolvedTimeOut(latest))?.period}</span>
                               </div>
                             </div>
                           ) : (
-                            <span className="text-sm text-gray-400">—</span>
+                            <span className="text-sm text-gray-400 dark:text-slate-500">—</span>
                           )}
                         </td>
                         <td style={{width: '100px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden">
@@ -1033,7 +917,7 @@ export function AuditLogs() {
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-800 border border-slate-300 dark:bg-slate-800/80 dark:text-slate-200 dark:border-slate-600">Inactive</span>
                           )}
                         </td>
-                        <td style={{width: '100px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-blue-700 font-semibold">
+                        <td style={{width: '100px'}} className="px-6 py-4 whitespace-nowrap overflow-hidden text-sm text-blue-700 dark:text-blue-400 font-semibold">
                           {(() => {
                             const timeIn = resolvedTimeIn(latest);
                             const timeOut = resolvedTimeOut(latest);
@@ -1083,61 +967,48 @@ export function AuditLogs() {
                       {/* Older sessions for this user */}
                       {group.slice(1).map((older) => (
                         <tr key={older.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/70">
-                          <td className="px-6 py-2 whitespace-nowrap">
-                            <input
-                              type="checkbox"
-                              checked={selectedLogIds.includes(sessionPrimaryId(older) || -1)}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                const id = sessionPrimaryId(older);
-                                if (!id) return;
-                                if (e.target.checked) setSelectedLogIds((s) => Array.from(new Set([...s, id])));
-                                else setSelectedLogIds((s) => s.filter((i) => i !== id));
-                              }}
-                            />
-                          </td>
                           <td className="px-6 py-2 whitespace-nowrap overflow-hidden" style={{width: '220px'}}>
                             <div className="ml-3 min-w-0">
-                              <p className="text-sm font-medium text-gray-700 truncate">{older.user?.fullname || 'Unknown'}</p>
-                              <p className="text-xs text-gray-400 truncate">Past session</p>
+                              <p className="text-sm font-medium text-gray-700 dark:text-slate-300 truncate">{older.user?.fullname || 'Unknown'}</p>
+                              <p className="text-xs text-gray-400 dark:text-slate-500 truncate">Past session</p>
                             </div>
                           </td>
-                          <td className="px-6 py-2 whitespace-nowrap overflow-hidden" style={{width: '90px'}}><span className="text-xs text-gray-500">{older.user?.role || '—'}</span></td>
-                          <td style={{width: '120px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-gray-600">{older.user?.department || '—'}</td>
-                          <td style={{width: '120px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-gray-500 font-mono">{older.ip_address || '—'}</td>
-                          <td style={{width: '150px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-gray-600">{formatYmd(resolvedTimeIn(older) || resolvedTimeOut(older))}</td>
+                          <td className="px-6 py-2 whitespace-nowrap overflow-hidden" style={{width: '90px'}}><span className="text-xs text-gray-500 dark:text-slate-400">{older.user?.role || '—'}</span></td>
+                          <td style={{width: '120px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-gray-600 dark:text-slate-300">{older.user?.department || '—'}</td>
+                          <td style={{width: '120px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-gray-500 dark:text-slate-400 font-mono">{older.ip_address || '—'}</td>
+                          <td style={{width: '150px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-gray-600 dark:text-slate-300">{formatYmd(resolvedTimeIn(older) || resolvedTimeOut(older))}</td>
                           <td style={{width: '140px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden">
                             {formatDateTime(older.audit_login_at) ? (
                               <div>
-                                <span className="text-xs text-gray-500">{formatDateTime(older.audit_login_at)?.date}</span>
+                                <span className="text-xs text-gray-500 dark:text-slate-400">{formatDateTime(older.audit_login_at)?.date}</span>
                                 <div className="flex items-center gap-2">
-                                  <span className="inline-block w-12 text-right tabular-nums text-sm text-gray-700">{formatDateTime(older.audit_login_at)?.time}</span>
-                                  <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(older.audit_login_at)?.period}</span>
+                                  <span className="inline-block w-12 text-right tabular-nums text-sm text-gray-700 dark:text-slate-300">{formatDateTime(older.audit_login_at)?.time}</span>
+                                  <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-medium">{formatDateTime(older.audit_login_at)?.period}</span>
                                 </div>
                               </div>
-                            ) : <span className="text-sm text-gray-400">—</span>}
+                            ) : <span className="text-sm text-gray-400 dark:text-slate-500">—</span>}
                           </td>
                           <td style={{width: '140px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden">
                             {resolvedTimeIn(older) ? (
                               <div>
-                                <span className="text-xs text-gray-500">{formatDateTime(resolvedTimeIn(older))?.date}</span>
+                                <span className="text-xs text-gray-500 dark:text-slate-400">{formatDateTime(resolvedTimeIn(older))?.date}</span>
                                 <div className="flex items-center gap-2">
-                                  <span className="inline-block w-12 text-right tabular-nums text-sm text-gray-700">{formatDateTime(resolvedTimeIn(older))?.time}</span>
-                                  <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(resolvedTimeIn(older))?.period}</span>
+                                  <span className="inline-block w-12 text-right tabular-nums text-sm text-gray-700 dark:text-slate-300">{formatDateTime(resolvedTimeIn(older))?.time}</span>
+                                  <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-medium">{formatDateTime(resolvedTimeIn(older))?.period}</span>
                                 </div>
                               </div>
-                            ) : <span className="text-sm text-gray-400">—</span>}
+                            ) : <span className="text-sm text-gray-400 dark:text-slate-500">—</span>}
                           </td>
                           <td style={{width: '140px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden">
                             {formatDateTime(resolvedTimeOut(older)) ? (
                               <div>
-                                <span className="text-xs text-gray-500">{formatDateTime(resolvedTimeOut(older))?.date}</span>
+                                <span className="text-xs text-gray-500 dark:text-slate-400">{formatDateTime(resolvedTimeOut(older))?.date}</span>
                                 <div className="flex items-center gap-2">
-                                  <span className="inline-block w-12 text-right tabular-nums text-sm text-gray-600">{formatDateTime(resolvedTimeOut(older))?.time}</span>
-                                  <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{formatDateTime(resolvedTimeOut(older))?.period}</span>
+                                  <span className="inline-block w-12 text-right tabular-nums text-sm text-gray-600 dark:text-slate-300">{formatDateTime(resolvedTimeOut(older))?.time}</span>
+                                  <span className="inline-flex w-10 justify-center text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-medium">{formatDateTime(resolvedTimeOut(older))?.period}</span>
                                 </div>
                               </div>
-                            ) : <span className="text-sm text-gray-400">—</span>}
+                            ) : <span className="text-sm text-gray-400 dark:text-slate-500">—</span>}
                           </td>
                           <td style={{width: '100px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden">
                             {resolvedTimeOut(older) == null ? (
@@ -1146,7 +1017,7 @@ export function AuditLogs() {
                               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-800 border border-slate-300 dark:bg-slate-800/80 dark:text-slate-200 dark:border-slate-600">Inactive</span>
                             )}
                           </td>
-                          <td style={{width: '100px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-blue-700 font-semibold">
+                          <td style={{width: '100px'}} className="px-6 py-2 whitespace-nowrap overflow-hidden text-sm text-blue-700 dark:text-blue-400 font-semibold">
                             {(() => {
                               const timeIn = resolvedTimeIn(older);
                               const timeOut = resolvedTimeOut(older);
@@ -1204,14 +1075,14 @@ export function AuditLogs() {
               <button
                 disabled={page <= 1}
                 onClick={() => fetchLogs(page - 1)}
-                className="px-3 py-1 text-sm border rounded-md disabled:opacity-40 hover:bg-gray-100"
+                className="px-3 py-1 text-sm border rounded-md disabled:opacity-40 hover:bg-gray-100 dark:border-slate-600 dark:hover:bg-slate-800 dark:bg-slate-900 dark:text-slate-200"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 disabled={page >= lastPage}
                 onClick={() => fetchLogs(page + 1)}
-                className="px-3 py-1 text-sm border rounded-md disabled:opacity-40 hover:bg-gray-100"
+                className="px-3 py-1 text-sm border rounded-md disabled:opacity-40 hover:bg-gray-100 dark:border-slate-600 dark:hover:bg-slate-800 dark:bg-slate-900 dark:text-slate-200"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -1219,112 +1090,6 @@ export function AuditLogs() {
           </div>
         )}
       </div>
-
-      {/* Recently Deleted Modal */}
-      {showDeletedModal && (
-        <div className="fixed inset-0 z-50">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 overflow-y-auto">
-            <div
-              className="fixed inset-0 transition-opacity bg-slate-900 bg-opacity-75"
-              aria-hidden="true"
-              onClick={() => setShowDeletedModal(false)}
-            ></div>
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white dark:bg-slate-900 rounded-lg text-left overflow-y-auto max-h-[90vh] shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Archive className="w-5 h-5" />
-                  Recently Deleted Audit Logs ({recentlyDeleted.length})
-                </h3>
-                <button
-                  onClick={() => setShowDeletedModal(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="max-h-[60vh] overflow-y-auto">
-                {loadingDeleted ? (
-                  <div className="p-8 text-center text-slate-500 dark:text-slate-400">Loading...</div>
-                ) : recentlyDeleted.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500 dark:text-slate-400">
-                    <Archive className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
-                    <p>No recently deleted audit logs</p>
-                  </div>
-                ) : (
-                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-                    <thead className="bg-slate-50 dark:bg-slate-800">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">User</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Action</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">IP</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Created</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Deleted</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
-                      {recentlyDeleted.map((log) => (
-                        <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="text-sm font-medium text-slate-900 dark:text-white">{log.user?.fullname || 'Unknown'}</div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400">{log.user?.email}</div>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded ${
-                              log.action === 'login'
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                                : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                            }`}>
-                              {log.action === 'login' ? <LogIn className="w-3 h-3" /> : <LogOut className="w-3 h-3" />}
-                              {log.action}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
-                            {log.ip_address || '—'}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
-                            {log.created_at ? new Date(log.created_at).toLocaleString() : '—'}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
-                            {log.deleted_at ? new Date(log.deleted_at).toLocaleString() : '—'}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => restoreAuditLog(log.id)}
-                                className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
-                                title="Restore"
-                              >
-                                <RotateCcw className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => permanentlyDeleteAuditLog(log.id)}
-                                className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                                title="Delete permanently"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-              <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end">
-                <button
-                  onClick={() => setShowDeletedModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {confirm.ConfirmModalRenderer()}
       <PromptModalRenderer />
