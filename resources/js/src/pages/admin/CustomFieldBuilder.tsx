@@ -1,27 +1,27 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { useToast } from '../../components/ToastProvider';
 import {
-  MagnifyingGlassIcon,
-  PlusIcon,
-  PencilIcon,
-  TrashIcon,
-  DocumentTextIcon,
-  VideoCameraIcon,
-  LinkIcon,
-  DocumentArrowUpIcon,
-  AcademicCapIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  XMarkIcon,
-  ArrowsUpDownIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  ClockIcon,
-  TagIcon,
-  FolderIcon,
-  EyeIcon,
-} from '@heroicons/react/24/outline';
+  Search as MagnifyingGlassIcon,
+  Plus as PlusIcon,
+  Edit2 as PencilIcon,
+  Trash2 as TrashIcon,
+  FileText as DocumentTextIcon,
+  Video as VideoCameraIcon,
+  Link as LinkIcon,
+  FileUp as DocumentArrowUpIcon,
+  GraduationCap as AcademicCapIcon,
+  ChevronDown as ChevronDownIcon,
+  ChevronRight as ChevronRightIcon,
+  X as XMarkIcon,
+  ArrowUpDown as ArrowsUpDownIcon,
+  CheckCircle as CheckCircleIcon,
+  XCircle as XCircleIcon,
+  Clock as ClockIcon,
+  Tag as TagIcon,
+  Folder as FolderIcon,
+  Eye as EyeIcon,
+} from 'lucide-react';
 
 // Types
 interface CustomLesson {
@@ -98,7 +98,7 @@ interface TargetUser {
 // Status badge component
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+    draft: 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300',
     published: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
     unpublished: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
   };
@@ -521,33 +521,33 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Quick Stats</h3>
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Quick Stats</h3>
         <span class="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300 px-3 py-1 rounded-full text-sm font-medium">New</span>
       </div>
       <p class="text-gray-600 dark:text-gray-400">View your module statistics here</p>
     </div>
 
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Activity</h3>
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Recent Activity</h3>
         <span class="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 px-3 py-1 rounded-full text-sm font-medium">Live</span>
       </div>
       <p class="text-gray-600 dark:text-gray-400">Track recent activities and updates</p>
     </div>
 
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Actions</h3>
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Actions</h3>
         <span class="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 px-3 py-1 rounded-full text-sm font-medium">Ready</span>
       </div>
       <p class="text-gray-600 dark:text-gray-400">Perform quick actions from here</p>
     </div>
   </div>
 
-  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
-    <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">${safeTitle} Content</h3>
+  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
+    <h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">${safeTitle} Content</h3>
     <p class="text-gray-600 dark:text-gray-400 mb-4">
       Welcome to your custom ${safeTitle.toLowerCase()} module. You can customize this page by editing the module in the Custom Field Builder.
     </p>
@@ -987,13 +987,13 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 p-6">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6">
       <ConfirmModalRenderer />
 
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Custom Field Builder</h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Custom Field Builder</h1>
+        <p className="mt-2 text-slate-600 dark:text-slate-400">
           Create and manage custom learning modules. All published modules are automatically synced to Courses and Content.
         </p>
       </div>
@@ -1002,13 +1002,13 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
       <div className="mb-6 flex flex-col sm:flex-row gap-4">
         {/* Search */}
         <div className="relative flex-1">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <input
             type="text"
             placeholder="Search modules..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
           />
         </div>
 
@@ -1016,7 +1016,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
         >
           <option value="">All Status</option>
           <option value="draft">Draft</option>
@@ -1027,7 +1027,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
         <select
           value={filterCategory}
           onChange={(e) => setFilterCategory(e.target.value)}
-          className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
         >
           <option value="">All Categories</option>
           {categories.map((cat) => (
@@ -1041,7 +1041,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
         <select
           value={filterTag}
           onChange={(e) => setFilterTag(e.target.value)}
-          className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
         >
           <option value="">All Tags</option>
           {allTags.map((tag) => (
@@ -1055,7 +1055,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
         <div className="flex gap-2">
           <button
             onClick={() => openCreateModule('learning')}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-medium transition-colors"
             title="Create a learning module with lessons (visible to instructors and employees when published)"
           >
             <PlusIcon className="w-5 h-5" />
@@ -1070,14 +1070,14 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       ) : modules.length === 0 ? (
-        <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
-          <FolderIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-white">No modules yet</h3>
-          <p className="mt-2 text-gray-500 dark:text-gray-400">Get started by creating your first custom module.</p>
+        <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+          <FolderIcon className="mx-auto h-12 w-12 text-slate-400" />
+          <h3 className="mt-4 text-lg font-medium text-slate-900 dark:text-white">No modules yet</h3>
+          <p className="mt-2 text-slate-500 dark:text-slate-400">Get started by creating your first custom module.</p>
           <div className="mt-4 flex gap-2 justify-center">
             <button
               onClick={() => openCreateModule('learning')}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-medium transition-colors"
               title="Create a learning module with lessons (visible to instructors and employees when published)"
             >
               <PlusIcon className="w-5 h-5" />
@@ -1099,10 +1099,10 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
             <div
               key={module.id}
               id={`custom-module-${module.id}`}
-              className={`bg-white dark:bg-slate-800 rounded-xl border overflow-hidden transition-all ${
+              className={`bg-white dark:bg-slate-800 rounded-lg border overflow-hidden transition-all ${
                 initialExpandedModuleId === module.id
                   ? 'border-purple-500 dark:border-purple-400 ring-2 ring-purple-200 dark:ring-purple-800'
-                  : 'border-gray-200 dark:border-slate-700'
+                  : 'border-slate-200 dark:border-slate-700'
               }`}
             >
               {/* Module Header */}
@@ -1124,8 +1124,8 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                       className="w-24 h-16 rounded-lg object-cover"
                     />
                   ) : (
-                    <div className="w-24 h-16 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
-                      <FolderIcon className="w-8 h-8 text-gray-400" />
+                    <div className="w-24 h-16 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                      <FolderIcon className="w-8 h-8 text-slate-400" />
                     </div>
                   )}
                 </div>
@@ -1134,9 +1134,9 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{module.title}</h3>
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{module.title}</h3>
                       {module.description && (
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 line-clamp-2">
                           {module.description}
                         </p>
                       )}
@@ -1148,20 +1148,20 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               Sidebar Navigation
                             </span>
                             {module.route_path && (
-                              <span className="text-sm text-gray-500 dark:text-gray-400">• /{module.route_path}</span>
+                              <span className="text-sm text-slate-500 dark:text-slate-400">• /{module.route_path}</span>
                             )}
                           </>
                         ) : (
                           <>
-                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                            <span className="text-sm text-slate-500 dark:text-slate-400">
                               {module.lessons_count} lesson{module.lessons_count !== 1 ? 's' : ''}
                             </span>
                             {module.category && (
-                              <span className="text-sm text-gray-500 dark:text-gray-400">• {module.category}</span>
+                              <span className="text-sm text-slate-500 dark:text-slate-400">• {module.category}</span>
                             )}
                           </>
                         )}
-                        <span className="text-sm text-gray-500 dark:text-gray-400">• v{module.version}</span>
+                        <span className="text-sm text-slate-500 dark:text-slate-400">• v{module.version}</span>
                       </div>
                       {module.tags && module.tags.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">
@@ -1222,7 +1222,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                       {module.module_type === 'learning' && (
                         <button
                           onClick={() => toggleModuleExpand(module.id)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
                         >
                           <EyeIcon className="w-4 h-4" />
                           View Lesson
@@ -1235,18 +1235,18 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
 
               {/* Lessons List (Expandable) - Only for learning modules */}
               {expandedModules.has(module.id) && module.module_type === 'learning' && (
-                <div className="border-t border-gray-200 dark:border-slate-700">
-                  <div className="p-4 bg-gray-50 dark:bg-slate-800/50">
+                <div className="border-t border-slate-200 dark:border-slate-700">
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-medium text-gray-900 dark:text-white">Lessons</h4>
+                        <h4 className="font-medium text-slate-900 dark:text-white">Lessons</h4>
                         <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded-full">
                           {module.lessons?.length || 0}
                         </span>
                       </div>
                       <button
                         onClick={() => openCreateLesson(module.id)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md font-medium transition-colors"
                       >
                         <PlusIcon className="w-4 h-4" />
                         Add Lesson
@@ -1258,15 +1258,15 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                         {module.lessons.map((lesson, index) => (
                           <div
                             key={lesson.id}
-                            className="flex items-center gap-4 p-3 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700"
+                            className="flex items-center gap-4 p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700"
                           >
-                            <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-slate-700 text-sm font-medium text-gray-600 dark:text-gray-400">
+                            <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-sm font-medium text-slate-600 dark:text-slate-400">
                               {index + 1}
                             </span>
-                            <ContentTypeIcon type={lesson.content_type} className="w-5 h-5 text-gray-400" />
+                            <ContentTypeIcon type={lesson.content_type} className="w-5 h-5 text-slate-400" />
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900 dark:text-white truncate">{lesson.title}</p>
-                              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                              <p className="font-medium text-slate-900 dark:text-white truncate">{lesson.title}</p>
+                              <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                                 <span className="capitalize">{lesson.content_type}</span>
                                 {lesson.formatted_duration && <span>• {lesson.formatted_duration}</span>}
                                 {lesson.formatted_file_size && <span>• {lesson.formatted_file_size}</span>}
@@ -1291,7 +1291,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                      <div className="text-center py-8 text-slate-500 dark:text-slate-400">
                         <AcademicCapIcon className="w-12 h-12 mx-auto mb-3 opacity-40" />
                         <p className="font-medium mb-1">No lessons yet</p>
                         <p className="text-sm">Click "Add Lesson" above to create your first lesson. You can add as many lessons as you need!</p>
@@ -1303,7 +1303,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
 
               {/* UI Component Info (Expandable) - Only for ui_component modules */}
               {expandedModules.has(module.id) && module.module_type === 'ui_component' && (
-                <div className="border-t border-gray-200 dark:border-slate-700">
+                <div className="border-t border-slate-200 dark:border-slate-700">
                   <div className="p-4 bg-purple-50 dark:bg-purple-900/20">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-800/50 flex items-center justify-center">
@@ -1320,12 +1320,12 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                     </div>
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
-                        <p className="text-gray-500 dark:text-gray-400 mb-1">Route Path</p>
-                        <p className="font-medium text-gray-900 dark:text-white font-mono">/{module.route_path || 'not-set'}</p>
+                        <p className="text-slate-500 dark:text-slate-400 mb-1">Route Path</p>
+                        <p className="font-medium text-slate-900 dark:text-white font-mono">/{module.route_path || 'not-set'}</p>
                       </div>
                       <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
-                        <p className="text-gray-500 dark:text-gray-400 mb-1">Icon</p>
-                        <p className="font-medium text-gray-900 dark:text-white">{module.icon_name || 'Default'}</p>
+                        <p className="text-slate-500 dark:text-slate-400 mb-1">Icon</p>
+                        <p className="font-medium text-slate-900 dark:text-white">{module.icon_name || 'Default'}</p>
                       </div>
                     </div>
                     <p className="mt-4 text-xs text-purple-600 dark:text-purple-400">
@@ -1342,10 +1342,10 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
       {/* Module Modal */}
       {showModuleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
                   {editingModule
                     ? `Edit ${editingModule.module_type === 'ui_component' ? 'UI Component' : 'Learning Module'}`
                     : `Create ${moduleForm.module_type === 'ui_component' ? 'UI Component' : 'Learning Module'}`
@@ -1353,7 +1353,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                 </h2>
                 <button
                   onClick={() => setShowModuleModal(false)}
-                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                 >
                   <XMarkIcon className="w-5 h-5" />
                 </button>
@@ -1363,18 +1363,18 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                 {/* Title - For learning modules OR editing UI components */}
                 {(moduleForm.module_type === 'learning' || (moduleForm.module_type === 'ui_component' && editingModule)) && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Title *
                     </label>
                     <input
                       type="text"
                       value={moduleForm.title}
                       onChange={(e) => setModuleForm((prev) => ({ ...prev, title: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                       placeholder={moduleForm.module_type === 'ui_component' ? "Sidebar navigation title" : "Module title"}
                     />
                     {moduleForm.module_type === 'ui_component' && (
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         This name will appear in the sidebar navigation
                       </p>
                     )}
@@ -1384,7 +1384,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                 {/* Icon Name - Only for editing UI components */}
                 {moduleForm.module_type === 'ui_component' && editingModule && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Icon Name *
                     </label>
                     <div className="flex gap-2">
@@ -1392,7 +1392,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                         type="text"
                         value={moduleForm.icon_name}
                         onChange={(e) => setModuleForm((prev) => ({ ...prev, icon_name: e.target.value }))}
-                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                        className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                         placeholder="e.g., Cake, Gift, Calendar, Bell"
                       />
                       <button
@@ -1407,7 +1407,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                         Auto
                       </button>
                     </div>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       Click "Auto" to suggest an icon based on the title, or enter manually (e.g., Cake, Gift, Calendar)
                     </p>
                   </div>
@@ -1415,8 +1415,8 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
 
                 {/* Button Configuration - Only for editing UI components */}
                 {moduleForm.module_type === 'ui_component' && editingModule && (
-                  <div className="border-t border-gray-200 dark:border-slate-700 pt-4 mt-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
                       Page Buttons
                     </label>
                     <div className="space-y-3">
@@ -1424,7 +1424,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                         { label: 'Get Started', url: '', style: 'primary', visible: true },
                         { label: 'Learn More', url: '', style: 'secondary', visible: true }
                       ]).map((btn: any, idx: number) => (
-                        <div key={idx} className="bg-gray-50 dark:bg-slate-700/50 p-3 rounded-lg">
+                        <div key={idx} className="bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
                           <div className="flex items-center gap-2 mb-2">
                             <input
                               type="checkbox"
@@ -1440,9 +1440,9 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                                   component_config: { ...prev.component_config, buttons }
                                 }));
                               }}
-                              className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                              className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
                             />
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                               Button {idx + 1} {idx === 0 ? '(Primary)' : '(Secondary)'}
                             </span>
                           </div>
@@ -1461,7 +1461,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                                   component_config: { ...prev.component_config, buttons }
                                 }));
                               }}
-                              className="px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                              className="px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                               placeholder="Button text"
                             />
                             <input
@@ -1478,14 +1478,14 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                                   component_config: { ...prev.component_config, buttons }
                                 }));
                               }}
-                              className="px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                              className="px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                               placeholder="URL (optional)"
                             />
                           </div>
                         </div>
                       ))}
                     </div>
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                       Customize the buttons shown on the module page. Uncheck to hide a button.
                     </p>
                   </div>
@@ -1494,13 +1494,13 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                 {/* Module Type - Only show when editing */}
                 {editingModule && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Module Type
                     </label>
-                    <div className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-900 text-gray-700 dark:text-gray-300">
+                    <div className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300">
                       {moduleForm.module_type === 'ui_component' ? 'UI Component (sidebar navigation)' : 'Learning Module (with lessons)'}
                     </div>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       Module type cannot be changed after creation
                     </p>
                   </div>
@@ -1510,7 +1510,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                 {moduleForm.module_type === 'ui_component' && !editingModule && (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         Select Module Type *
                       </label>
                       <select
@@ -1546,39 +1546,39 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Pending</h3>
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Pending</h3>
         <span class="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 px-3 py-1 rounded-full text-sm font-medium">12</span>
       </div>
       <p class="text-gray-600 dark:text-gray-400">Tasks awaiting action</p>
     </div>
 
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">In Progress</h3>
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">In Progress</h3>
         <span class="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 px-3 py-1 rounded-full text-sm font-medium">8</span>
       </div>
       <p class="text-gray-600 dark:text-gray-400">Currently being worked on</p>
     </div>
 
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Completed</h3>
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Completed</h3>
         <span class="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 px-3 py-1 rounded-full text-sm font-medium">45</span>
       </div>
       <p class="text-gray-600 dark:text-gray-400">Successfully finished</p>
     </div>
   </div>
 
-  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
-    <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Recent Tasks</h3>
+  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
+    <h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Recent Tasks</h3>
     <div class="space-y-3">
       <div class="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-slate-700">
         <input type="checkbox" class="w-5 h-5 rounded border-gray-300" />
         <div class="flex-1">
-          <p class="text-gray-900 dark:text-white font-medium">Review quarterly reports</p>
-          <p class="text-sm text-gray-500 dark:text-gray-400">Due: April 15, 2026</p>
+          <p class="text-slate-900 dark:text-white font-medium">Review quarterly reports</p>
+          <p class="text-sm text-slate-500 dark:text-slate-400">Due: April 15, 2026</p>
         </div>
         <span class="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 px-2 py-1 rounded text-xs">High Priority</span>
       </div>
@@ -1596,38 +1596,38 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Total Users</p>
-      <p class="text-3xl font-bold text-gray-900 dark:text-white">1,234</p>
+      <p class="text-3xl font-bold text-slate-900 dark:text-white">1,234</p>
       <p class="text-sm text-green-600 mt-2">↑ 12% from last month</p>
     </div>
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Active Courses</p>
-      <p class="text-3xl font-bold text-gray-900 dark:text-white">48</p>
+      <p class="text-3xl font-bold text-slate-900 dark:text-white">48</p>
       <p class="text-sm text-green-600 mt-2">↑ 8% from last month</p>
     </div>
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Completion Rate</p>
-      <p class="text-3xl font-bold text-gray-900 dark:text-white">87%</p>
+      <p class="text-3xl font-bold text-slate-900 dark:text-white">87%</p>
       <p class="text-sm text-green-600 mt-2">↑ 5% from last month</p>
     </div>
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Avg. Score</p>
-      <p class="text-3xl font-bold text-gray-900 dark:text-white">92%</p>
+      <p class="text-3xl font-bold text-slate-900 dark:text-white">92%</p>
       <p class="text-sm text-green-600 mt-2">↑ 3% from last month</p>
     </div>
   </div>
 
-  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
-    <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Quick Reports</h3>
+  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
+    <h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Quick Reports</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
       <button class="p-4 border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 text-left">
-        <p class="font-medium text-gray-900 dark:text-white">User Activity Report</p>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Export user engagement data</p>
+        <p class="font-medium text-slate-900 dark:text-white">User Activity Report</p>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Export user engagement data</p>
       </button>
       <button class="p-4 border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 text-left">
-        <p class="font-medium text-gray-900 dark:text-white">Course Completion Report</p>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Track completion rates</p>
+        <p class="font-medium text-slate-900 dark:text-white">Course Completion Report</p>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Track completion rates</p>
       </button>
     </div>
   </div>
@@ -1642,8 +1642,8 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
     <p class="text-green-100">Stay on top of important dates and events</p>
   </div>
 
-  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
-    <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Upcoming Events</h3>
+  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
+    <h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Upcoming Events</h3>
     <div class="space-y-3">
       <div class="flex gap-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
         <div class="text-center">
@@ -1651,7 +1651,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
           <p class="text-sm text-blue-600 dark:text-blue-400">APR</p>
         </div>
         <div class="flex-1">
-          <p class="font-semibold text-gray-900 dark:text-white">Team Training Session</p>
+          <p class="font-semibold text-slate-900 dark:text-white">Team Training Session</p>
           <p class="text-sm text-gray-600 dark:text-gray-400">10:00 AM - 12:00 PM</p>
           <p class="text-sm text-gray-500 dark:text-gray-500 mt-1">Conference Room A</p>
         </div>
@@ -1662,7 +1662,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
           <p class="text-sm text-green-600 dark:text-green-400">APR</p>
         </div>
         <div class="flex-1">
-          <p class="font-semibold text-gray-900 dark:text-white">Department Meeting</p>
+          <p class="font-semibold text-slate-900 dark:text-white">Department Meeting</p>
           <p class="text-sm text-gray-600 dark:text-gray-400">2:00 PM - 3:30 PM</p>
           <p class="text-sm text-gray-500 dark:text-gray-500 mt-1">Virtual Meeting</p>
         </div>
@@ -1680,13 +1680,13 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
     <p class="text-orange-100">Stay updated with important announcements</p>
   </div>
 
-  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
     <div class="space-y-4">
       <div class="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <div class="flex items-start gap-3">
           <span class="bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 p-2 rounded-lg">⚠️</span>
           <div class="flex-1">
-            <p class="font-semibold text-gray-900 dark:text-white">System Maintenance</p>
+            <p class="font-semibold text-slate-900 dark:text-white">System Maintenance</p>
             <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Scheduled maintenance on April 15, 2026 from 2:00 AM - 4:00 AM</p>
             <p class="text-xs text-gray-500 dark:text-gray-500 mt-2">2 hours ago</p>
           </div>
@@ -1696,7 +1696,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
         <div class="flex items-start gap-3">
           <span class="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 p-2 rounded-lg">ℹ️</span>
           <div class="flex-1">
-            <p class="font-semibold text-gray-900 dark:text-white">New Course Available</p>
+            <p class="font-semibold text-slate-900 dark:text-white">New Course Available</p>
             <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Advanced Safety Training is now available for enrollment</p>
             <p class="text-xs text-gray-500 dark:text-gray-500 mt-2">5 hours ago</p>
           </div>
@@ -1723,7 +1723,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                             }));
                           }
                         }}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                         disabled={!!editingModule}
                       >
                         <option value="">-- Select a Module Type --</option>
@@ -1733,7 +1733,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                         <option value="notifications">Notifications Center</option>
                         <option value="custom">Custom (Create your own)</option>
                       </select>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         {isCustomModule ? 'Create a custom module with your own configuration' : 'Select a pre-built module template'}
                       </p>
                     </div>
@@ -1742,7 +1742,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                     {isCustomModule && (
                       <>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                             Title *
                           </label>
                           <input
@@ -1757,39 +1757,39 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                                 icon_name: suggestedIcon // Auto-suggest icon based on title
                               }));
                             }}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                             placeholder="e.g., Birthday, Task Dashboard, Calendar"
                           />
-                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                             The display name - icon will be auto-suggested based on this
                           </p>
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                             Icon Name * <span className="text-purple-600 dark:text-purple-400 font-normal">(auto-suggested)</span>
                           </label>
                           <input
                             type="text"
                             value={moduleForm.icon_name}
                             onChange={(e) => setModuleForm((prev) => ({ ...prev, icon_name: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                             placeholder="e.g., Cake, Gift, Calendar, Bell"
                           />
-                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                             Icon is auto-suggested from title. You can change it manually if needed.
                           </p>
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                             Page Description
                           </label>
                           <textarea
                             value={moduleForm.description}
                             onChange={(e) => setModuleForm((prev) => ({ ...prev, description: e.target.value }))}
                             rows={3}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                             placeholder="Brief description of what this module does"
                           />
                         </div>
@@ -1812,14 +1812,14 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                 {/* Description - Only for learning modules */}
                 {moduleForm.module_type === 'learning' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Description
                     </label>
                     <textarea
                       value={moduleForm.description}
                       onChange={(e) => setModuleForm((prev) => ({ ...prev, description: e.target.value }))}
                       rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                       placeholder="Module description"
                     />
                   </div>
@@ -1828,7 +1828,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                 {/* Category - Only for learning modules */}
                 {moduleForm.module_type === 'learning' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Category
                     </label>
                     <input
@@ -1836,7 +1836,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                       value={moduleForm.category}
                       onChange={(e) => setModuleForm((prev) => ({ ...prev, category: e.target.value }))}
                       list="categories-list"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                       placeholder="e.g., Safety, Compliance"
                     />
                     <datalist id="categories-list">
@@ -1850,7 +1850,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                 {/* Tags - Only for learning modules */}
                 {moduleForm.module_type === 'learning' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Tags
                     </label>
                     <div className="flex gap-2 mb-2">
@@ -1859,13 +1859,13 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                         value={tagInput}
                         onChange={(e) => setTagInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                        className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                         placeholder="Add a tag"
                       />
                       <button
                         type="button"
                         onClick={addTag}
-                        className="px-3 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600"
+                        className="px-3 py-2 bg-gray-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600"
                       >
                         Add
                       </button>
@@ -1895,7 +1895,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                 {/* Thumbnail - Only for learning modules */}
                 {moduleForm.module_type === 'learning' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Thumbnail
                     </label>
                     <div className="flex items-center gap-4">
@@ -1918,7 +1918,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
 
                 {/* Status */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Status *
                   </label>
                   <select
@@ -1929,13 +1929,13 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                         status: e.target.value as 'draft' | 'published' | 'unpublished',
                       }))
                     }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                   >
                     <option value="draft">Draft</option>
                     <option value="published">Published</option>
                   </select>
                   {moduleForm.module_type === 'ui_component' && (
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       UI components must be published to appear in the sidebar
                     </p>
                   )}
@@ -1945,7 +1945,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
               <div className="mt-6 flex justify-end gap-3">
                 <button
                   onClick={() => setShowModuleModal(false)}
-                  className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                  className="px-4 py-2 text-slate-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
@@ -1969,22 +1969,22 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
       {/* Lesson Modal */}
       {showLessonModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
                   {editingLesson ? 'Edit Lesson' : 'Add New Lesson'}
                 </h2>
                 <button
                   onClick={() => setShowLessonModal(false)}
-                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                 >
                   <XMarkIcon className="w-5 h-5" />
                 </button>
               </div>
 
               {!editingLesson && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                   💡 You can add multiple lessons to this module. Click "Save & Add Another" to add more lessons quickly.
                 </p>
               )}
@@ -1992,35 +1992,35 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
               <div className="space-y-4">
                 {/* Title */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Title *
                   </label>
                   <input
                     type="text"
                     value={lessonForm.title}
                     onChange={(e) => setLessonForm((prev) => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                     placeholder="Lesson title"
                   />
                 </div>
 
                 {/* Description */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Description
                   </label>
                   <textarea
                     value={lessonForm.description}
                     onChange={(e) => setLessonForm((prev) => ({ ...prev, description: e.target.value }))}
                     rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                     placeholder="Lesson description"
                   />
                 </div>
 
                 {/* Content Type */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Content Type
                   </label>
                   <select
@@ -2031,7 +2031,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                         content_type: e.target.value as any,
                       }))
                     }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                   >
                     <option value="text">Text</option>
                     <option value="video">Video</option>
@@ -2044,14 +2044,14 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                 {/* Content based on type */}
                 {lessonForm.content_type === 'text' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Text Content
                     </label>
                     <textarea
                       value={lessonForm.text_content}
                       onChange={(e) => setLessonForm((prev) => ({ ...prev, text_content: e.target.value }))}
                       rows={6}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                       placeholder="Enter lesson content..."
                     />
                   </div>
@@ -2059,18 +2059,18 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
 
                 {(lessonForm.content_type === 'link' || lessonForm.content_type === 'video') && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       {lessonForm.content_type === 'video' ? 'Video URL (Optional)' : 'Link URL'}
                     </label>
                     <input
                       type="url"
                       value={lessonForm.content_url}
                       onChange={(e) => setLessonForm((prev) => ({ ...prev, content_url: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                       placeholder={lessonForm.content_type === 'video' ? 'https://youtube.com/... or upload below' : 'https://...'}
                     />
                     {lessonForm.content_type === 'video' && (
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         Provide a video URL (YouTube, Vimeo, etc.) or upload a video file below
                       </p>
                     )}
@@ -2079,7 +2079,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
 
                 {(lessonForm.content_type === 'file' || lessonForm.content_type === 'video') && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       {lessonForm.content_type === 'video' ? 'Upload Video File (Optional)' : 'Upload File'}
                     </label>
                     <input
@@ -2094,13 +2094,13 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                       className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
                     {lessonForm.content_type === 'video' && (
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         Supported formats: MP4, AVI, MOV, etc. Maximum file size: 5GB. No video length limit.
                       </p>
                     )}
                     {editingLesson?.file_name && !removeCurrentFile && !contentFile && (
                       <div className="mt-2 flex items-center gap-2">
-                        <span className="text-sm text-gray-500 dark:text-gray-400">Current: </span>
+                        <span className="text-sm text-slate-500 dark:text-slate-400">Current: </span>
                         <a
                           href={editingLesson.content_full_url || editingLesson.content_url || undefined}
                           target="_blank"
@@ -2147,7 +2147,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
 
                 {/* Status */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Status
                   </label>
                   <select
@@ -2158,7 +2158,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                         status: e.target.value as 'draft' | 'published',
                       }))
                     }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
                   >
                     <option value="draft">Draft</option>
                     <option value="published">Published</option>
@@ -2169,7 +2169,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
               <div className="mt-6 flex justify-end gap-3">
                 <button
                   onClick={() => setShowLessonModal(false)}
-                  className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                  className="px-4 py-2 text-slate-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
@@ -2198,13 +2198,13 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
       {/* Push to Instructor Modal */}
       {showPushModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Push to Instructor</h2>
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Push to Instructor</h2>
                 <button
                   onClick={() => setShowPushModal(false)}
-                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                 >
                   <XMarkIcon className="w-5 h-5" />
                 </button>
@@ -2244,11 +2244,11 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                           checked={selectedUserIds.includes(user.id)}
                           onChange={() => !user.is_pushed && toggleUserSelection(user.id)}
                           disabled={user.is_pushed}
-                          className="h-4 w-4 text-blue-600 rounded border-gray-300 dark:border-slate-500 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="h-4 w-4 text-blue-600 rounded border-gray-300 dark:border-slate-500 focus:ring-green-500 disabled:cursor-not-allowed disabled:opacity-50"
                         />
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900 dark:text-white">{user.fullname}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                          <p className="font-medium text-slate-900 dark:text-white">{user.fullname}</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
                             {user.department || 'No department'}
                           </p>
                         </div>
@@ -2261,7 +2261,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                     ))}
 
                     {availableUsers.length === 0 && (
-                      <p className="text-center text-gray-500 dark:text-gray-400 py-4">
+                      <p className="text-center text-slate-500 dark:text-slate-400 py-4">
                         No instructors found.
                       </p>
                     )}
@@ -2270,7 +2270,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                   <div className="mt-6 flex justify-end gap-3">
                     <button
                       onClick={() => setShowPushModal(false)}
-                      className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                      className="px-4 py-2 text-slate-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                     >
                       Cancel
                     </button>
