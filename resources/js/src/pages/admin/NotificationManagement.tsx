@@ -140,7 +140,7 @@ export function NotificationManagement() {
   const [activeTab, setActiveTab] = useState<'received' | 'sent' | 'deleted'>('received');
   const [selectedAnnouncementDetail, setSelectedAnnouncementDetail] = useState<AnnouncementDetail | null>(null);
   const [successToast, setSuccessToast] = useState<{ show: boolean; count: number }>({ show: false, count: 0 });
-  const [previewModal, setPreviewModal] = useState<{ open: boolean; recipientCount: number | null; error?: string }>({ open: false, recipientCount: null });
+  const [previewModal, setPreviewModal] = useState<{ open: boolean; recipientCount: number | null; recipients?: { id: number; fullname: string }[]; error?: string }>({ open: false, recipientCount: null });
   const [listSearchQuery, setListSearchQuery] = useState('');
   const [highlightedNotificationId, setHighlightedNotificationId] = useState<number | null>(null);
   const notifRowRefs = useRef<Record<number, HTMLDivElement | null>>({});
@@ -731,7 +731,7 @@ export function NotificationManagement() {
       }
 
       if (res.ok) {
-        setPreviewModal({ open: true, recipientCount: data?.recipients_count ?? null });
+        setPreviewModal({ open: true, recipientCount: data?.recipients_count ?? null, recipients: data?.recipients ?? [] });
       } else {
         setPreviewModal({ open: true, recipientCount: null, error: data?.message || `Failed to preview recipients (status ${res.status})` });
       }
@@ -1312,81 +1312,90 @@ export function NotificationManagement() {
       {/* Create Announcement Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-slate-500 opacity-75"></div>
+              <div className="absolute inset-0 bg-slate-900/70"></div>
             </div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-y-auto max-h-[90vh] shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="absolute top-4 right-4">
-                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+            <div className="relative inline-block align-bottom bg-white dark:bg-slate-800 rounded-xl text-left overflow-y-auto max-h-[88vh] shadow-2xl transform transition-all sm:my-8 sm:align-middle w-full max-w-2xl">
+              <div className="absolute top-3 right-3 z-10">
+                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <h3 className="text-lg leading-6 font-medium text-slate-900 mb-4">
+              <div className="px-5 pt-5 pb-4">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                  <Send className="h-4 w-4 text-green-600" />
                   Send Announcement
                 </h3>
-                <form onSubmit={handleSend} className="space-y-4">
+                <form onSubmit={handleSend} className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Title *</label>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Title <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                      className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
                       placeholder="Announcement title"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Message *</label>
-                    <div className="mt-1">
-                      <RichTextEditor
-                        value={formData.message}
-                        onChange={(html) => setFormData({ ...formData, message: html })}
-                        placeholder="Type your announcement here..."
-                        minHeight="140px"
-                      />
-                    </div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Message <span className="text-red-500">*</span>
+                    </label>
+                    <RichTextEditor
+                      value={formData.message}
+                      onChange={(html) => setFormData({ ...formData, message: html })}
+                      placeholder="Type your announcement here..."
+                      minHeight="120px"
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Message Images (optional)</label>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Message Images <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
+                    </label>
                     <input
                       type="file"
                       multiple
                       accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
                       onChange={(e) => setAnnouncementImages(Array.from(e.target.files || []))}
-                      className="mt-1 block w-full text-sm text-slate-700 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
+                      className="mt-1 block w-full text-sm text-slate-700 dark:text-slate-300 file:mr-3 file:py-1.5 file:px-2 file:rounded-md file:border-0 file:bg-slate-100 dark:file:bg-slate-700 file:text-slate-700 dark:file:text-slate-200 hover:file:bg-slate-200 dark:hover:file:bg-slate-600"
                     />
                     {announcementImages.length > 0 && (
-                      <div className="mt-2 space-y-2">
-                        <p className="text-xs text-slate-500">Selected: {announcementImages.length} image{announcementImages.length === 1 ? '' : 's'}</p>
+                      <div className="mt-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-slate-500 dark:text-slate-400">
+                            {announcementImages.length} image{announcementImages.length !== 1 ? 's' : ''} selected
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setAnnouncementImages([])}
+                            className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400"
+                          >
+                            Remove all images
+                          </button>
+                        </div>
                         <div className="flex flex-wrap gap-2">
                           {announcementImagePreviewUrls.map((url, idx) => (
                             <img
                               key={url}
                               src={url}
                               alt={`Selected announcement image ${idx + 1}`}
-                              className="h-24 w-24 rounded-md border border-slate-200 object-cover"
+                              className="h-16 w-16 rounded-md border border-slate-200 dark:border-slate-600 object-cover"
                             />
                           ))}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setAnnouncementImages([])}
-                          className="inline-flex items-center rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                        >
-                          Remove all images
-                        </button>
                       </div>
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Target Audience *
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      Target Audience <span className="text-red-500">*</span>
                     </label>
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       <label className="flex items-center">
                         <input
                           type="checkbox"
@@ -1400,7 +1409,7 @@ export function NotificationManagement() {
                           }}
                           className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
                         />
-                        <span className="ml-2 text-sm text-slate-700 font-medium">Select All</span>
+                        <span className="ml-2 text-sm text-slate-700 dark:text-slate-200 font-medium">Select All</span>
                       </label>
                       {['Instructor', 'Employee', 'Admin'].map((role) => (
                         <label key={role} className="flex items-center">
@@ -1410,17 +1419,19 @@ export function NotificationManagement() {
                             onChange={() => handleRoleToggle(role)}
                             className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
                           />
-                          <span className="ml-2 text-sm text-slate-700">{role}s</span>
+                          <span className="ml-2 text-sm text-slate-700 dark:text-slate-200">{role}s</span>
                         </label>
                       ))}
                     </div>
-                    <div className="mt-3 grid grid-cols-1 gap-3">
+                    <div className="mt-2 grid grid-cols-1 gap-2">
                       <div>
-                        <label className="block text-sm font-medium text-slate-700">Department (optional)</label>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                          Department <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
+                        </label>
                         <select
                           value={selectedDepartment}
                           onChange={(e) => setSelectedDepartment(e.target.value)}
-                          className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                          className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
                         >
                           <option value="">All departments</option>
                           {departments.map(d => (
@@ -1430,11 +1441,13 @@ export function NotificationManagement() {
                       </div>
                       {selectedDepartment && (
                         <div>
-                          <label className="block text-sm font-medium text-slate-700">Sub Department (optional)</label>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            Sub Department <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
+                          </label>
                           <select
                             value={selectedSubdepartment}
                             onChange={(e) => setSelectedSubdepartment(e.target.value)}
-                            className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                            className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
                           >
                             <option value="">All sub departments</option>
                             {availableSubdepartments.map((sub) => (
@@ -1444,58 +1457,61 @@ export function NotificationManagement() {
                         </div>
                       )}
                       <div>
-                        <label className="block text-sm font-medium text-slate-700">Search Users (by name)</label>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                          Search Users <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(by name)</span>
+                        </label>
                         <input
                           type="text"
                           value={userQuery}
                           onChange={(e) => setUserQuery(e.target.value)}
                           placeholder="Type a name to search instructors or employees"
-                          className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                          className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
                         />
-                      {searchResults.length > 0 && (
-                        <div className="mt-1 border border-slate-200 rounded bg-white max-h-48 overflow-auto">
-                          {searchResults.map(u => (
-                            <div key={u.id} className="px-3 py-2 hover:bg-slate-50 cursor-pointer" onClick={() => handleAddUser(u)}>
-                              <div className="text-sm font-medium text-slate-900">{u.fullname}</div>
-                              <div className="text-xs text-slate-400">{u.role}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {selectedUsers.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {selectedUsers.map(u => (
-                            <span key={u.id} className="inline-flex items-center gap-2 px-2 py-1 bg-slate-100 text-slate-700 rounded-full text-xs">
-                              <span>{u.fullname}</span>
-                              <button type="button" onClick={() => handleRemoveUser(u.id)} className="text-slate-400 hover:text-red-600">×</button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                        {searchResults.length > 0 && (
+                          <div className="mt-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 max-h-48 overflow-auto divide-y divide-slate-100 dark:divide-slate-800">
+                            {searchResults.map(u => (
+                              <div key={u.id} className="px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" onClick={() => handleAddUser(u)}>
+                                <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{u.fullname}</div>
+                                <div className="text-xs text-slate-400 dark:text-slate-500">{u.role}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {selectedUsers.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {selectedUsers.map(u => (
+                              <span key={u.id} className="inline-flex items-center gap-2 px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-full text-xs">
+                                <span>{u.fullname}</span>
+                                <button type="button" onClick={() => handleRemoveUser(u.id)} className="text-slate-400 hover:text-red-600">×</button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
-                  <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => setIsModalOpen(false)}
-                      className="w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 sm:text-sm"
+                      className="py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={handlePreview}
-                      className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 sm:text-sm mr-2"
+                      className="py-2 border border-blue-400 dark:border-blue-500 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center justify-center gap-2 transition-colors"
                     >
+                      <Eye className="h-4 w-4" />
                       Preview Recipients
                     </button>
                     <button
                       type="submit"
                       disabled={isSending}
-                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 disabled:opacity-50 sm:text-sm"
+                      className="col-span-2 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-medium rounded-lg flex items-center justify-center gap-2 text-sm transition-colors"
                     >
-                      <Send className="h-4 w-4 mr-2" />
+                      <Send className="h-4 w-4" />
                       {isSending ? 'Sending...' : 'Send Announcement'}
                     </button>
                   </div>
@@ -1903,12 +1919,26 @@ export function NotificationManagement() {
       {/* Preview Recipients Modal */}
       <InfoModal
         open={previewModal.open}
-        onClose={() => setPreviewModal({ open: false, recipientCount: null })}
-        title={previewModal.error ? 'Preview Failed' : 'Preview Recipients'}
+        onClose={() => setPreviewModal({ open: false, recipientCount: null, recipients: [] })}
+        title={previewModal.error ? 'Preview Failed' : `Preview Recipients (${previewModal.recipientCount ?? 0})`}
         message={
           previewModal.error
             ? previewModal.error
-            : `This announcement will be sent to ${previewModal.recipientCount ?? 'unknown'} recipient${previewModal.recipientCount !== 1 ? 's' : ''}.`
+            : previewModal.recipients && previewModal.recipients.length > 0
+              ? (
+                <span>
+                  <span className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">This announcement will be sent to:</span>
+                  <span className="block max-h-48 overflow-y-auto space-y-1 pr-1">
+                    {previewModal.recipients.map((r) => (
+                      <span key={r.id} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0 inline-block" />
+                        {r.fullname}
+                      </span>
+                    ))}
+                  </span>
+                </span>
+              )
+              : 'No recipients found.'
         }
         variant={previewModal.error ? 'error' : 'info'}
         icon={previewModal.error ? undefined : <Users className="w-6 h-6" />}

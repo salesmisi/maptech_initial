@@ -6,7 +6,7 @@ interface InfoModalProps {
   open: boolean;
   onClose: () => void;
   title?: string;
-  message: string;
+  message: React.ReactNode;
   buttonText?: string;
   variant?: 'info' | 'success' | 'warning' | 'error';
   icon?: React.ReactNode;

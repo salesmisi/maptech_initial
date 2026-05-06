@@ -293,9 +293,11 @@ class NotificationController extends Controller
 
         // Preview should only report recipients and never create notifications/history.
         if ($request->boolean('preview')) {
+            $recipientNames = $users->map(fn($u) => ['id' => $u->id, 'fullname' => $u->fullname])->values()->all();
             $payload = [
                 'message' => 'Preview recipients calculated',
                 'recipients_count' => $users->count(),
+                'recipients' => $recipientNames,
             ];
             if (config('app.debug')) {
                 $payload['matched_user_ids'] = $users->pluck('id')->values()->all();
@@ -428,7 +430,12 @@ class NotificationController extends Controller
             'course_id' => 'nullable|exists:courses,id',
             'department' => 'nullable|string|max:255',
             'department_id' => 'nullable|integer|exists:departments,id',
+            'subdepartment_id' => 'nullable|integer|exists:subdepartments,id',
+            'target_user_id' => 'nullable|integer|exists:users,id',
             'type' => 'nullable|string|in:announcement,lesson_update,quiz_reminder',
+            'preview' => 'nullable|boolean',
+            'message_images' => 'nullable|array',
+            'message_images.*' => 'image|mimes:jpg,jpeg,png,gif,webp|max:4096',
         ]);
 
         /** @var User|null $instructor */
@@ -440,6 +447,8 @@ class NotificationController extends Controller
         $courseId = $request->input('course_id');
         $department = $request->input('department');
         $departmentId = $request->input('department_id');
+        $subdepartmentId = $request->input('subdepartment_id');
+        $targetUserId = $request->input('target_user_id');
 
         // If department_id provided, resolve to name
         if ($departmentId && !$department) {
@@ -450,7 +459,41 @@ class NotificationController extends Controller
         $notifications = [];
         $recipients = collect();
 
-        if ($courseId) {
+        if ($targetUserId) {
+            // Send to a specific employee
+            $targetUser = User::find($targetUserId);
+            if (!$targetUser || strtolower($targetUser->role) !== 'employee') {
+                return response()->json(['message' => 'Target user must be an employee'], 422);
+            }
+
+            // Process uploaded images
+            $imageUrls = [];
+            if ($request->hasFile('message_images')) {
+                foreach ($request->file('message_images') as $imageFile) {
+                    $path = $imageFile->store('notification-images', 'public');
+                    $imageUrls[] = \Illuminate\Support\Facades\Storage::url($path);
+                }
+            }
+
+            $notifications[] = Notification::create([
+                'user_id' => $targetUserId,
+                'type' => $request->input('type', 'announcement'),
+                'title' => $request->input('title'),
+                'message' => $request->input('message'),
+                'data' => [
+                    'from_user_id' => $instructor->id,
+                    'from_user_name' => $instructor->fullname,
+                    'from_role' => 'Instructor',
+                    'from_user_profile_picture' => $instructor->profile_picture,
+                    'image_urls' => $imageUrls,
+                ],
+            ]);
+
+            return response()->json([
+                'message' => 'Notification sent to employee',
+                'recipients_count' => 1,
+            ]);
+        } elseif ($courseId) {
             // Verify instructor has access to the course (ownership or assigned area)
             $course = \App\Models\Course::findOrFail($courseId);
             $assignedSubIds = $instructor->subdepartments()->pluck('subdepartments.id')->toArray();
@@ -480,10 +523,19 @@ class NotificationController extends Controller
 
             $courses = \App\Models\Course::where('department', $department)
                 ->get()
-                ->filter(function ($c) use ($instructor, $assignedSubIds, $assignedDept) {
-                    return ($c->instructor_id === $instructor->id)
+                ->filter(function ($c) use ($instructor, $assignedSubIds, $assignedDept, $subdepartmentId) {
+                    $passesAccess = ($c->instructor_id === $instructor->id)
                         || (!empty($assignedSubIds) && in_array($c->subdepartment_id, $assignedSubIds))
                         || ($assignedDept && $c->department === $assignedDept);
+
+                    if (!$passesAccess) return false;
+
+                    // If a subdepartment filter was requested, apply it
+                    if ($subdepartmentId) {
+                        return (int) $c->subdepartment_id === (int) $subdepartmentId;
+                    }
+
+                    return true;
                 });
 
             foreach ($courses as $course) {
@@ -493,11 +545,34 @@ class NotificationController extends Controller
                 }
             }
         } else {
-            return response()->json(['message' => 'Please provide course_id or department'], 422);
+            return response()->json(['message' => 'Please provide course_id, department, or target_user_id'], 422);
         }
 
         // Deduplicate recipients by user_id
         $unique = $recipients->unique(function ($item) { return $item[0]; });
+
+        // If preview mode, return count without creating notifications
+        if ($request->boolean('preview')) {
+            $recipientNames = User::whereIn('id', $unique->pluck(0)->all())
+                ->select('id', 'fullname')
+                ->get()
+                ->map(fn($u) => ['id' => $u->id, 'fullname' => $u->fullname])
+                ->values()->all();
+            return response()->json([
+                'message' => 'Preview only',
+                'recipients_count' => $unique->count(),
+                'recipients' => $recipientNames,
+            ]);
+        }
+
+        // Process uploaded images
+        $imageUrls = [];
+        if ($request->hasFile('message_images')) {
+            foreach ($request->file('message_images') as $imageFile) {
+                $path = $imageFile->store('notification-images', 'public');
+                $imageUrls[] = \Illuminate\Support\Facades\Storage::url($path);
+            }
+        }
 
         foreach ($unique as $item) {
             [$userId, $courseTitle, $courseIdForData] = $item;
@@ -513,6 +588,7 @@ class NotificationController extends Controller
                     'from_role' => 'Instructor',
                     'from_user_profile_picture' => $instructor->profile_picture,
                     'course_title' => $courseTitle,
+                    'image_urls' => $imageUrls,
                 ],
             ]);
         }

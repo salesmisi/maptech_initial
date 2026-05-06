@@ -4,7 +4,8 @@ import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle, RotateCc
 import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ToastProvider';
-import { sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
+import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
+import InfoModal from '../../components/InfoModal';
 
 // Helper to get cookie value
 const getCookie = (name: string) => {
@@ -59,13 +60,6 @@ interface SentNotification {
   subdepartment_name?: string | null;
 }
 
-interface FormData {
-  message: string;
-  course_id: string;
-  department_id: string | number;
-  type: string;
-}
-
 const NOTIFICATION_LIMIT = 50;
 const PENDING_NOTIFICATION_ID_KEY = 'maptech_pending_notification_id';
 const PENDING_NOTIFICATION_ROLE_KEY = 'maptech_pending_notification_role';
@@ -98,28 +92,28 @@ export function InstructorNotifications() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
-  const [departments, setDepartments] = useState<{id:number;name:string}[]>([]);
+  const [departments, setDepartments] = useState<{id:number;name:string;subdepartments?:{id:number;name:string}[]}[]>([]);
   const [activeTab, setActiveTab] = useState<'received' | 'sent' | 'deleted'>('received');
+  // Unified announcement modal state
+  const [announcementTarget, setAnnouncementTarget] = useState<'employees' | 'specific_employee' | 'admin'>('employees');
+  const [announcementTitle, setAnnouncementTitle] = useState('');
+  const [announcementMessage, setAnnouncementMessage] = useState('');
+  const [announcementType, setAnnouncementType] = useState('announcement');
+  const [selectedDeptId, setSelectedDeptId] = useState('');
+  const [selectedSubdeptId, setSelectedSubdeptId] = useState('');
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [allEmployees, setAllEmployees] = useState<{id:number;fullname:string;department:string}[]>([]);
+  const [selectedEmployee, setSelectedEmployee] = useState<{id:number;fullname:string} | null>(null);
+  const [announcementImages, setAnnouncementImages] = useState<File[]>([]);
+  const [announcementImagePreviewUrls, setAnnouncementImagePreviewUrls] = useState<string[]>([]);
+  const [previewModal, setPreviewModal] = useState<{open:boolean;recipientCount:number|null;recipients?:{id:number;fullname:string}[];error?:string}>({open:false,recipientCount:null});
   const [listSearchQuery, setListSearchQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(5);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const [highlightedNotificationId, setHighlightedNotificationId] = useState<number | null>(null);
   const notifRowRefs = useRef<Record<number, HTMLDivElement | null>>({});
-
-  const [formData, setFormData] = useState<FormData>({
-    message: '',
-    course_id: '',
-    department_id: '',
-    type: 'announcement',
-  });
-
-  const [adminFormData, setAdminFormData] = useState({
-    message: '',
-    type: 'report',
-  });
 
   const token = localStorage.getItem('token');
   const confirm = useConfirm();
@@ -153,6 +147,16 @@ export function InstructorNotifications() {
       setDepartments(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to load departments:', err);
+    }
+  }
+
+  async function fetchAllEmployees() {
+    try {
+      const res = await fetch('/api/instructor/users', { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
+      const data = await res.json();
+      setAllEmployees(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load employees:', err);
     }
   }
 
@@ -211,6 +215,7 @@ export function InstructorNotifications() {
     fetchRecentlyDeleted();
     fetchCourses();
     fetchDepartments();
+    fetchAllEmployees();
 
     // Subscribe to realtime notifications if Echo is available
     let cleanup: (() => void) | undefined;
@@ -435,110 +440,205 @@ export function InstructorNotifications() {
     }
   }, [notifications.length]);
 
-  const handleSendToEmployees = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const closeAnnouncementModal = () => {
+    setIsModalOpen(false);
+    setAnnouncementTitle('');
+    setAnnouncementMessage('');
+    setAnnouncementType('announcement');
+    setSelectedDeptId('');
+    setSelectedSubdeptId('');
+    setEmployeeSearch('');
+    setSelectedEmployee(null);
+    setAnnouncementTarget('employees');
+    setAnnouncementImages([]);
+  };
 
-    // allow either department or course selection
-    if (!formData.course_id && !formData.department_id) {
-      pushToast('Missing Selection', 'Please select a department or a course', 'warning');
+  // Build image preview URLs whenever announcementImages changes
+  useEffect(() => {
+    if (announcementImages.length === 0) {
+      setAnnouncementImagePreviewUrls([]);
       return;
     }
+    const urls = announcementImages.map((f) => URL.createObjectURL(f));
+    setAnnouncementImagePreviewUrls(urls);
+    return () => { urls.forEach((u) => URL.revokeObjectURL(u)); };
+  }, [announcementImages]);
 
-    // Auto-generate title from type
-    const typeLabels: Record<string, string> = {
+  const isMessageEmpty = (html: string) => {
+    const text = String(html || '')
+      .replace(/<br\s*\/?\s*>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .trim();
+    return text.length === 0;
+  };
+
+  const buildEmployeePayload = (preview = false) => {
+    const employeeTypeLabels: Record<string, string> = {
       announcement: 'Announcement',
       lesson_update: 'Lesson Update',
       quiz_reminder: 'Quiz Reminder',
     };
-    const title = typeLabels[formData.type] || 'Announcement';
+    const title = announcementTitle.trim() || employeeTypeLabels[announcementType] || 'Announcement';
 
-    setIsSending(true);
-    try {
-      const payload: any = {
-        title: title,
-        message: formData.message,
-        type: formData.type,
-      };
-      if (formData.course_id) payload.course_id = formData.course_id;
-      if (formData.department_id) payload.department_id = formData.department_id;
+    const fd = new FormData();
+    fd.append('title', title);
+    fd.append('message', announcementMessage);
+    fd.append('type', announcementType);
+    if (preview) fd.append('preview', 'true');
 
-      const res = await fetch('/api/instructor/notifications/notify-employees', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} enrolled employees!`, 'success');
-        setIsModalOpen(false);
-        setFormData({ message: '', course_id: '', department_id: '', type: 'announcement' });
-        fetchSentHistory();
-      } else {
-        pushToast('Failed', data.message || 'Failed to send notification', 'error');
-      }
-    } catch (err) {
-      console.error('Failed to send notification:', err);
-      pushToast('Error', 'Failed to send notification', 'error');
-    } finally {
-      setIsSending(false);
+    if (announcementTarget === 'specific_employee' && selectedEmployee) {
+      fd.append('target_user_id', String(selectedEmployee.id));
+    } else if (announcementTarget === 'employees') {
+      if (selectedDeptId) fd.append('department_id', selectedDeptId);
+      if (selectedSubdeptId) fd.append('subdepartment_id', selectedSubdeptId);
     }
+
+    announcementImages.forEach((img) => fd.append('message_images[]', img));
+    return fd;
   };
 
-  const handleSendToAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!adminFormData.message.trim()) {
-      pushToast('Missing Message', 'Please fill in the message', 'warning');
+  const handlePreview = async () => {
+    if (isMessageEmpty(announcementMessage)) {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please enter a message.' });
+      return;
+    }
+    if (announcementTarget === 'employees' && !selectedDeptId) {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please select a department.' });
+      return;
+    }
+    if (announcementTarget === 'specific_employee' && !selectedEmployee) {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please select an employee.' });
+      return;
+    }
+    if (announcementTarget === 'admin') {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Admin target does not support preview.' });
+      return;
+    }
+    // specific_employee: we already have the name, no need to call API
+    if (announcementTarget === 'specific_employee' && selectedEmployee) {
+      setPreviewModal({ open: true, recipientCount: 1, recipients: [{ id: selectedEmployee.id, fullname: selectedEmployee.fullname }] });
       return;
     }
 
-    // Auto-generate title from type
-    const typeLabels: Record<string, string> = {
+    try {
+      const fd = buildEmployeePayload(true);
+      const res = await fetch('/api/instructor/notifications/notify-employees', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
+        body: fd,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPreviewModal({ open: true, recipientCount: data.recipients_count ?? null, recipients: data.recipients ?? [] });
+      } else {
+        setPreviewModal({ open: true, recipientCount: null, error: data.message || 'Preview failed.' });
+      }
+    } catch {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Preview failed.' });
+    }
+  };
+
+  const handleSendAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!announcementTitle.trim()) {
+      pushToast('Missing Title', 'Please enter a title', 'warning');
+      return;
+    }
+    if (isMessageEmpty(announcementMessage)) {
+      pushToast('Missing Message', 'Please write a message', 'warning');
+      return;
+    }
+
+    const adminTypeLabels: Record<string, string> = {
       report: 'Report',
       feedback: 'Feedback',
       issue: 'Issue',
       suggestion: 'Suggestion',
     };
-    const title = typeLabels[adminFormData.type] || 'Report';
 
     setIsSending(true);
     try {
-      // Fetch CSRF cookie first
-      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      if (announcementTarget === 'admin') {
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const xsrfToken = getCookie('XSRF-TOKEN');
+        const title = adminTypeLabels[announcementType] || 'Report';
 
-      // Get XSRF token from cookie
-      const xsrfToken = getCookie('XSRF-TOKEN');
-
-      const res = await fetch('/api/instructor/notifications/notify-admin', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
-        },
-        body: JSON.stringify({ ...adminFormData, title }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} admin(s)!`, 'success');
-        setIsAdminModalOpen(false);
-        setAdminFormData({ message: '', type: 'report' });
-        fetchSentHistory();
+        const res = await fetch('/api/instructor/notifications/notify-admin', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
+          },
+          body: JSON.stringify({ message: announcementMessage, type: announcementType, title }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} admin(s)!`, 'success');
+          closeAnnouncementModal();
+          fetchSentHistory();
+        } else {
+          pushToast('Failed', data.message || 'Failed to send notification', 'error');
+        }
+      } else if (announcementTarget === 'specific_employee') {
+        if (!selectedEmployee) {
+          pushToast('Missing Selection', 'Please select an employee', 'warning');
+          setIsSending(false);
+          return;
+        }
+        const title = employeeTypeLabels[announcementType] || 'Announcement';
+        const res = await fetch('/api/instructor/notifications/notify-employees', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({ title, message: announcementMessage, type: announcementType, target_user_id: selectedEmployee.id }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          pushToast('Sent Successfully', `Notification sent to ${selectedEmployee.fullname}!`, 'success');
+          closeAnnouncementModal();
+          fetchSentHistory();
+        } else {
+          pushToast('Failed', data.message || 'Failed to send notification', 'error');
+        }
       } else {
-        pushToast('Failed', data.message || 'Failed to send notification', 'error');
+        // employees by department
+        if (!selectedDeptId) {
+          pushToast('Missing Selection', 'Please select a department', 'warning');
+          setIsSending(false);
+          return;
+        }
+        const title = employeeTypeLabels[announcementType] || 'Announcement';
+        const payload: any = { title, message: announcementMessage, type: announcementType, department_id: Number(selectedDeptId) };
+        if (selectedSubdeptId) payload.subdepartment_id = Number(selectedSubdeptId);
+
+        const res = await fetch('/api/instructor/notifications/notify-employees', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} employee(s)!`, 'success');
+          closeAnnouncementModal();
+          fetchSentHistory();
+        } else {
+          pushToast('Failed', data.message || 'Failed to send notification', 'error');
+        }
       }
     } catch (err) {
-      console.error('Failed to send notification to admin:', err);
+      console.error('Failed to send announcement:', err);
       pushToast('Error', 'Failed to send notification', 'error');
     } finally {
       setIsSending(false);
@@ -643,6 +743,19 @@ export function InstructorNotifications() {
     }
   };
 
+  const selectedDeptSubdepartments = useMemo(() => {
+    if (!selectedDeptId) return [];
+    const dept = departments.find(d => d.id === Number(selectedDeptId));
+    return (dept as any)?.subdepartments || [];
+  }, [departments, selectedDeptId]);
+
+  const filteredEmployees = useMemo(() => {
+    if (employeeSearch.trim().length < 2) return [];
+    return allEmployees
+      .filter(e => e.fullname.toLowerCase().includes(employeeSearch.toLowerCase()))
+      .slice(0, 8);
+  }, [allEmployees, employeeSearch]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -666,15 +779,8 @@ export function InstructorNotifications() {
             onClick={() => setIsModalOpen(true)}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
           >
-            <Users className="h-4 w-4 mr-2" />
-            Notify Employees
-          </button>
-          <button
-            onClick={() => setIsAdminModalOpen(true)}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
-          >
-            <Shield className="h-4 w-4 mr-2" />
-            Notify Admin
+            <Send className="h-4 w-4 mr-2" />
+            + Send Announcement
           </button>
         </div>
       </div>
@@ -997,99 +1103,263 @@ export function InstructorNotifications() {
         </div>
       )}
 
-      {/* Send to Employees Modal */}
+      {/* Send Announcement Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity" aria-hidden="true">
               <div className="absolute inset-0 bg-slate-900/70"></div>
             </div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white dark:bg-slate-900 rounded-lg text-left overflow-y-auto max-h-[90vh] shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-slate-200 dark:border-slate-700">
-              <div className="absolute top-4 right-4">
-                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 dark:text-slate-300 hover:text-slate-600 dark:hover:text-white">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="bg-white dark:bg-slate-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <h3 className="text-lg leading-6 font-medium text-slate-900 dark:text-slate-100 mb-4">
-                  <Users className="h-5 w-5 inline mr-2" />
-                  Notify Enrolled Employees
+            <div className="relative inline-block align-bottom bg-white dark:bg-slate-800 rounded-xl text-left overflow-y-auto max-h-[88vh] shadow-2xl transform transition-all sm:my-8 sm:align-middle w-full max-w-2xl">
+              <button
+                onClick={closeAnnouncementModal}
+                className="absolute top-3 right-3 z-10 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              <div className="px-5 pt-5 pb-4">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                  <Send className="h-4 w-4 text-green-600" />
+                  Send Announcement
                 </h3>
-                <form onSubmit={handleSendToEmployees} className="space-y-4">
+
+                <form onSubmit={handleSendAnnouncement} className="space-y-3">
+                  {/* Title */}
                   <div>
-                    <label htmlFor="notify-department" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Department *</label>
-                    <select
-                      id="notify-department"
-                      name="department_id"
-                      value={(formData as any).department_id ?? ''}
-                      onChange={(e) => setFormData({ ...formData, course_id: '', department_id: e.target.value ? Number(e.target.value) : '' })}
-                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    >
-                      <option value="">Select a department</option>
-                      {departments.map((d) => (
-                        <option key={d.id} value={d.id}>{d.name}</option>
-                      ))}
-                    </select>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
-                      Notification will be sent to all enrolled employees across courses in this department (where you have access)
-                    </p>
-                    <div className="mt-3 text-xs text-slate-500 dark:text-slate-300">Or choose a specific course below:</div>
-                    <select
-                      id="notify-course"
-                      name="course_id"
-                      value={formData.course_id}
-                      onChange={(e) => setFormData({ ...formData, course_id: e.target.value, department_id: '' })}
-                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    >
-                      <option value="">Select a course (optional)</option>
-                      {courses.map((course) => (
-                        <option key={course.id} value={course.id}>{course.title}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="notify-type" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Type</label>
-                    <select
-                      id="notify-type"
-                      name="type"
-                      value={formData.type}
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    >
-                      <option value="announcement">Announcement</option>
-                      <option value="lesson_update">Lesson Update</option>
-                      <option value="quiz_reminder">Quiz Reminder</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="notify-message" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Message *</label>
-                    <textarea
-                      id="notify-message"
-                      name="message"
-                      rows={4}
-                      required
-                      value={formData.message}
-                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                      placeholder="Type your message here..."
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Title <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={announcementTitle}
+                      onChange={(e) => setAnnouncementTitle(e.target.value)}
+                      placeholder="Enter announcement title..."
+                      className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
                     />
                   </div>
-                  <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
+
+                  {/* Message */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Message <span className="text-red-500">*</span>
+                    </label>
+                    <RichTextEditor
+                      value={announcementMessage}
+                      onChange={setAnnouncementMessage}
+                      placeholder="Type your announcement here..."
+                      minHeight="120px"
+                    />
+                  </div>
+
+                  {/* Message Images */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Message Images <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
+                    </label>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/png,image/jpeg,image/gif,image/webp"
+                      onChange={(e) => setAnnouncementImages(Array.from(e.target.files || []))}
+                      className="mt-1 block w-full text-sm text-slate-700 dark:text-slate-300 file:mr-3 file:py-1.5 file:px-2 file:rounded-md file:border-0 file:bg-slate-100 dark:file:bg-slate-700 file:text-slate-700 dark:file:text-slate-200 hover:file:bg-slate-200 dark:hover:file:bg-slate-600"
+                    />
+                    {announcementImagePreviewUrls.length > 0 && (
+                      <div className="mt-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-slate-500 dark:text-slate-400">
+                            {announcementImages.length} image{announcementImages.length !== 1 ? 's' : ''} selected
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setAnnouncementImages([])}
+                            className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400"
+                          >
+                            Remove all images
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {announcementImagePreviewUrls.map((url, i) => (
+                            <img
+                              key={i}
+                              src={url}
+                              alt={`Preview ${i + 1}`}
+                              className="h-16 w-16 object-cover rounded-md border border-slate-200 dark:border-slate-600"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Target Audience */}
+                  <div>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      Target Audience <span className="text-red-500">*</span>
+                    </p>
+                    <div className="space-y-1.5">
+                      {[
+                        { value: 'employees', label: 'Employees (by Department / Sub-department)', icon: <Users className="h-4 w-4 text-blue-500" /> },
+                        { value: 'specific_employee', label: 'Specific Employee', icon: <Search className="h-4 w-4 text-emerald-500" /> },
+                        { value: 'admin', label: 'Admin', icon: <Shield className="h-4 w-4 text-purple-500" /> },
+                      ].map(({ value, label, icon }) => (
+                        <label
+                          key={value}
+                          className={`flex items-center gap-3 cursor-pointer px-3 py-2 rounded-lg border transition-colors ${
+                            announcementTarget === value
+                              ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                              : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="announcementTarget"
+                            value={value}
+                            checked={announcementTarget === value}
+                            onChange={() => {
+                              setAnnouncementTarget(value as any);
+                              setAnnouncementType(value === 'admin' ? 'report' : 'announcement');
+                            }}
+                            className="accent-green-600"
+                          />
+                          {icon}
+                          <span className="text-sm text-slate-700 dark:text-slate-200">{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Employees: dept + subdept selectors */}
+                  {announcementTarget === 'employees' && (
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                          Department <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={selectedDeptId}
+                          onChange={(e) => { setSelectedDeptId(e.target.value); setSelectedSubdeptId(''); }}
+                          className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                        >
+                          <option value="">Select department...</option>
+                          {departments.map((d) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {selectedDeptSubdepartments.length > 0 && (
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            Sub-department <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
+                          </label>
+                          <select
+                            value={selectedSubdeptId}
+                            onChange={(e) => setSelectedSubdeptId(e.target.value)}
+                            className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                          >
+                            <option value="">All sub-departments</option>
+                            {selectedDeptSubdepartments.map((s: any) => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Specific employee search */}
+                  {announcementTarget === 'specific_employee' && (
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Search Employee <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={employeeSearch}
+                          onChange={(e) => { setEmployeeSearch(e.target.value); setSelectedEmployee(null); }}
+                          placeholder="Type employee name..."
+                          className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 pl-9 pr-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                        />
+                      </div>
+                      {selectedEmployee ? (
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700">
+                          <span className="text-sm font-medium text-green-800 dark:text-green-200">{selectedEmployee.fullname}</span>
+                          <button type="button" onClick={() => { setSelectedEmployee(null); setEmployeeSearch(''); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : filteredEmployees.length > 0 ? (
+                        <div className="max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-100 dark:divide-slate-800">
+                          {filteredEmployees.map(e => (
+                            <button
+                              key={e.id}
+                              type="button"
+                              onClick={() => { setSelectedEmployee(e); setEmployeeSearch(e.fullname); }}
+                              className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                            >
+                              <span className="font-medium">{e.fullname}</span>
+                              {e.department && <span className="text-slate-400 ml-2 text-xs">{e.department}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      ) : employeeSearch.trim().length >= 2 ? (
+                        <p className="text-sm text-slate-500 dark:text-slate-400 px-1">No employees found</p>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {/* Type selector (admin only) */}
+                  {announcementTarget === 'admin' && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Message Type</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {['report', 'feedback', 'issue', 'suggestion'].map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => setAnnouncementType(type)}
+                            className={`py-2 px-3 rounded-lg text-sm font-medium capitalize transition-colors ${
+                              announcementType === type
+                                ? 'bg-green-600 text-white'
+                                : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                            }`}
+                          >
+                            {type}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Buttons */}
+                  <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
-                      onClick={() => setIsModalOpen(false)}
-                      className="w-full inline-flex justify-center rounded-md border border-slate-300 dark:border-slate-600 shadow-sm px-4 py-2 bg-white dark:bg-slate-800 text-base font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 sm:text-sm"
+                      onClick={closeAnnouncementModal}
+                      className="py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                     >
                       Cancel
                     </button>
+                    {announcementTarget !== 'admin' && (
+                      <button
+                        type="button"
+                        onClick={handlePreview}
+                        className="py-2 border border-blue-400 dark:border-blue-500 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <Eye className="h-4 w-4" />
+                        Preview Recipients
+                      </button>
+                    )}
                     <button
                       type="submit"
                       disabled={isSending}
-                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 disabled:opacity-50 sm:text-sm"
+                      className="col-span-2 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-medium rounded-lg flex items-center justify-center gap-2 text-sm transition-colors"
                     >
-                      <Send className="h-4 w-4 mr-2" />
-                      {isSending ? 'Sending...' : 'Send'}
+                      <Send className="h-4 w-4" />
+                      {isSending ? 'Sending...' : 'Send Announcement'}
                     </button>
                   </div>
                 </form>
@@ -1099,65 +1369,33 @@ export function InstructorNotifications() {
         </div>
       )}
 
-      {/* Send to Admin Modal */}
-      {isAdminModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setIsAdminModalOpen(false)}></div>
-          <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md p-6">
-            <button
-              onClick={() => setIsAdminModalOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-green-100 dark:bg-green-900/50 rounded-lg">
-                <Shield className="h-6 w-6 text-green-600 dark:text-green-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-slate-900 dark:text-white">Contact Admin</h3>
-            </div>
-
-            <form onSubmit={handleSendToAdmin} className="space-y-4">
-              <div className="grid grid-cols-2 gap-2">
-                {['report', 'feedback', 'issue', 'suggestion'].map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setAdminFormData({ ...adminFormData, type })}
-                    className={`py-2 px-3 rounded-lg text-sm font-medium capitalize transition-colors ${
-                      adminFormData.type === type
-                        ? 'bg-green-600 text-white'
-                        : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
-                    }`}
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
-
-              <textarea
-                name="message"
-                rows={4}
-                required
-                value={adminFormData.message}
-                onChange={(e) => setAdminFormData({ ...adminFormData, message: e.target.value })}
-                className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
-                placeholder="Write your message to admin..."
-              />
-
-              <button
-                type="submit"
-                disabled={isSending || !adminFormData.message.trim()}
-                className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium rounded-lg flex items-center justify-center gap-2 transition-colors"
-              >
-                <Send className="h-4 w-4" />
-                {isSending ? 'Sending...' : 'Send to Admin'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Preview Recipients Info Modal */}
+      <InfoModal
+        open={previewModal.open}
+        onClose={() => setPreviewModal({ open: false, recipientCount: null, recipients: [] })}
+        title={previewModal.error ? 'Preview Failed' : `Preview Recipients (${previewModal.recipientCount ?? 0})`}
+        message={
+          previewModal.error
+            ? previewModal.error
+            : previewModal.recipients && previewModal.recipients.length > 0
+              ? (
+                <span>
+                  <span className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">This announcement will be sent to:</span>
+                  <span className="block max-h-48 overflow-y-auto space-y-1 pr-1">
+                    {previewModal.recipients.map((r) => (
+                      <span key={r.id} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0 inline-block" />
+                        {r.fullname}
+                      </span>
+                    ))}
+                  </span>
+                </span>
+              )
+              : 'No recipients found.'
+        }
+        variant={previewModal.error ? 'error' : 'info'}
+        icon={<Users className="h-6 w-6" />}
+      />
 
       {/* Notification Detail Modal */}
       {selectedNotification && (
