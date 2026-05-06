@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import useConfirm from '../../hooks/useConfirm';
-import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle, RotateCcw, Archive, CheckCircle, Shield, Search } from 'lucide-react';
+import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle, RotateCcw, Archive, CheckCircle, Shield, Search, ChevronDown } from 'lucide-react';
 import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ToastProvider';
@@ -109,6 +109,7 @@ export function InstructorNotifications() {
   const [announcementImages, setAnnouncementImages] = useState<File[]>([]);
   const [announcementImagePreviewUrls, setAnnouncementImagePreviewUrls] = useState<string[]>([]);
   const [previewModal, setPreviewModal] = useState<{open:boolean;recipientCount:number|null;recipients?:{id:number;fullname:string}[];error?:string}>({open:false,recipientCount:null});
+  const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
   const [listSearchQuery, setListSearchQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(5);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
@@ -442,6 +443,7 @@ export function InstructorNotifications() {
 
   const closeAnnouncementModal = () => {
     setIsModalOpen(false);
+    setIsTargetModalOpen(false);
     setAnnouncementTitle('');
     setAnnouncementMessage('');
     setAnnouncementType('announcement');
@@ -780,7 +782,7 @@ export function InstructorNotifications() {
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
           >
             <Send className="h-4 w-4 mr-2" />
-            + Send Announcement
+            Send Announcement
           </button>
         </div>
       </div>
@@ -1193,41 +1195,23 @@ export function InstructorNotifications() {
                     )}
                   </div>
 
-                  {/* Target Audience */}
+                  {/* Send to */}
                   <div>
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      Target Audience <span className="text-red-500">*</span>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Send to <span className="text-red-500">*</span>
                     </p>
-                    <div className="space-y-1.5">
-                      {[
-                        { value: 'employees', label: 'Employees (by Department / Sub-department)', icon: <Users className="h-4 w-4 text-blue-500" /> },
-                        { value: 'specific_employee', label: 'Specific Employee', icon: <Search className="h-4 w-4 text-emerald-500" /> },
-                        { value: 'admin', label: 'Admin', icon: <Shield className="h-4 w-4 text-purple-500" /> },
-                      ].map(({ value, label, icon }) => (
-                        <label
-                          key={value}
-                          className={`flex items-center gap-3 cursor-pointer px-3 py-2 rounded-lg border transition-colors ${
-                            announcementTarget === value
-                              ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                              : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="announcementTarget"
-                            value={value}
-                            checked={announcementTarget === value}
-                            onChange={() => {
-                              setAnnouncementTarget(value as any);
-                              setAnnouncementType(value === 'admin' ? 'report' : 'announcement');
-                            }}
-                            className="accent-green-600"
-                          />
-                          {icon}
-                          <span className="text-sm text-slate-700 dark:text-slate-200">{label}</span>
-                        </label>
-                      ))}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsTargetModalOpen(true)}
+                      className="w-full flex items-center justify-between px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/10 transition-colors text-sm"
+                    >
+                      <span className="flex items-center gap-2">
+                        {announcementTarget === 'employees' && (<><Users className="h-4 w-4 text-blue-500" /><span>Employees</span></>)}
+                        {announcementTarget === 'specific_employee' && (<><Search className="h-4 w-4 text-emerald-500" /><span>Specific Employee</span></>)}
+                        {announcementTarget === 'admin' && (<><Shield className="h-4 w-4 text-purple-500" /><span>Admin</span></>)}
+                      </span>
+                      <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                    </button>
                   </div>
 
                   {/* Employees: dept + subdept selectors */}
@@ -1311,29 +1295,6 @@ export function InstructorNotifications() {
                     </div>
                   )}
 
-                  {/* Type selector (admin only) */}
-                  {announcementTarget === 'admin' && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Message Type</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {['report', 'feedback', 'issue', 'suggestion'].map((type) => (
-                          <button
-                            key={type}
-                            type="button"
-                            onClick={() => setAnnouncementType(type)}
-                            className={`py-2 px-3 rounded-lg text-sm font-medium capitalize transition-colors ${
-                              announcementType === type
-                                ? 'bg-green-600 text-white'
-                                : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
-                            }`}
-                          >
-                            {type}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
                   {/* Buttons */}
                   <div className="grid grid-cols-2 gap-3">
                     <button
@@ -1363,6 +1324,63 @@ export function InstructorNotifications() {
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Target Audience Picker Modal */}
+      {isTargetModalOpen && (
+        <div className="fixed inset-0 z-[60]">
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <div
+              className="fixed inset-0 bg-slate-900/60"
+              onClick={() => setIsTargetModalOpen(false)}
+            />
+            <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md z-10">
+              <div className="px-5 pt-5 pb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-base font-semibold text-slate-900 dark:text-white">Select Recipient</h4>
+                  <button
+                    onClick={() => setIsTargetModalOpen(false)}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    { value: 'employees', label: 'Employees', icon: <Users className="h-4 w-4 text-blue-500" /> },
+                    { value: 'specific_employee', label: 'Specific Employee', icon: <Search className="h-4 w-4 text-emerald-500" /> },
+                    { value: 'admin', label: 'Admin', icon: <Shield className="h-4 w-4 text-purple-500" /> },
+                  ].map(({ value, label, icon }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        setAnnouncementTarget(value as any);
+                        setAnnouncementType(value === 'admin' ? 'report' : 'announcement');
+                        setIsTargetModalOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
+                        announcementTarget === value
+                          ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                          : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                        announcementTarget === value ? 'border-green-500' : 'border-slate-400 dark:border-slate-500'
+                      }`}>
+                        {announcementTarget === value && (
+                          <span className="w-2 h-2 rounded-full bg-green-500" />
+                        )}
+                      </span>
+                      {icon}
+                      <span className="text-sm text-slate-700 dark:text-slate-200">{label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

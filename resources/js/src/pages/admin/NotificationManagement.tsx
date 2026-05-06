@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import useConfirm from '../../hooks/useConfirm';
-import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X, RotateCcw, Archive, ChevronDown, User, Search } from 'lucide-react';
+import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X, RotateCcw, Archive, ChevronDown, User, Search, Shield } from 'lucide-react';
 import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
 import InfoModal from '../../components/InfoModal';
@@ -141,6 +141,7 @@ export function NotificationManagement() {
   const [selectedAnnouncementDetail, setSelectedAnnouncementDetail] = useState<AnnouncementDetail | null>(null);
   const [successToast, setSuccessToast] = useState<{ show: boolean; count: number }>({ show: false, count: 0 });
   const [previewModal, setPreviewModal] = useState<{ open: boolean; recipientCount: number | null; recipients?: { id: number; fullname: string }[]; error?: string }>({ open: false, recipientCount: null });
+  const [isAdminTargetModalOpen, setIsAdminTargetModalOpen] = useState(false);
   const [listSearchQuery, setListSearchQuery] = useState('');
   const [highlightedNotificationId, setHighlightedNotificationId] = useState<number | null>(null);
   const notifRowRefs = useRef<Record<number, HTMLDivElement | null>>({});
@@ -994,7 +995,7 @@ export function NotificationManagement() {
             }}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
           >
-            <Plus className="h-4 w-4 mr-2" />
+            <Send className="h-4 w-4 mr-2" />
             Send Announcement
           </button>
         </div>
@@ -1391,104 +1392,98 @@ export function NotificationManagement() {
                       </div>
                     )}
                   </div>
+                  {/* Send to */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      Target Audience <span className="text-red-500">*</span>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Send to <span className="text-red-500">*</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setIsAdminTargetModalOpen(true)}
+                      className="w-full flex items-center justify-between px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/10 transition-colors text-sm"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                        <span className={formData.roles.length === 0 ? 'text-slate-400 dark:text-slate-500' : ''}>
+                          {formData.roles.length === 0
+                            ? 'Select recipients...'
+                            : formData.roles.length === 2
+                              ? 'Everyone'
+                              : formData.roles.map(r => r + 's').join(', ')}
+                        </span>
+                      </span>
+                      <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                    </button>
+                  </div>
+
+                  {/* Department */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Department <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
                     </label>
-                    <div className="space-y-1">
-                      <label className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={formData.roles.length === 3}
-                          onChange={() => {
-                            const allRoles = ['Instructor', 'Employee', 'Admin'];
-                            setFormData(prev => ({
-                              ...prev,
-                              roles: prev.roles.length === 3 ? [] : allRoles
-                            }));
-                          }}
-                          className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
-                        />
-                        <span className="ml-2 text-sm text-slate-700 dark:text-slate-200 font-medium">Select All</span>
-                      </label>
-                      {['Instructor', 'Employee', 'Admin'].map((role) => (
-                        <label key={role} className="flex items-center">
-                          <input
-                            type="checkbox"
-                            checked={formData.roles.includes(role)}
-                            onChange={() => handleRoleToggle(role)}
-                            className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
-                          />
-                          <span className="ml-2 text-sm text-slate-700 dark:text-slate-200">{role}s</span>
-                        </label>
+                    <select
+                      value={selectedDepartment}
+                      onChange={(e) => setSelectedDepartment(e.target.value)}
+                      className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                    >
+                      <option value="">All departments</option>
+                      {departments.map(d => (
+                        <option key={d.id} value={String(d.id)}>{d.name}</option>
                       ))}
+                    </select>
+                  </div>
+
+                  {/* Sub-department */}
+                  {selectedDepartment && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Sub Department <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
+                      </label>
+                      <select
+                        value={selectedSubdepartment}
+                        onChange={(e) => setSelectedSubdepartment(e.target.value)}
+                        className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                      >
+                        <option value="">All sub departments</option>
+                        {availableSubdepartments.map((sub) => (
+                          <option key={sub.id} value={String(sub.id)}>{sub.name}</option>
+                        ))}
+                      </select>
                     </div>
-                    <div className="mt-2 grid grid-cols-1 gap-2">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                          Department <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
-                        </label>
-                        <select
-                          value={selectedDepartment}
-                          onChange={(e) => setSelectedDepartment(e.target.value)}
-                          className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
-                        >
-                          <option value="">All departments</option>
-                          {departments.map(d => (
-                            <option key={d.id} value={String(d.id)}>{d.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                      {selectedDepartment && (
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                            Sub Department <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
-                          </label>
-                          <select
-                            value={selectedSubdepartment}
-                            onChange={(e) => setSelectedSubdepartment(e.target.value)}
-                            className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
-                          >
-                            <option value="">All sub departments</option>
-                            {availableSubdepartments.map((sub) => (
-                              <option key={sub.id} value={String(sub.id)}>{sub.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                          Search Users <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(by name)</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={userQuery}
-                          onChange={(e) => setUserQuery(e.target.value)}
-                          placeholder="Type a name to search instructors or employees"
-                          className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
-                        />
-                        {searchResults.length > 0 && (
-                          <div className="mt-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 max-h-48 overflow-auto divide-y divide-slate-100 dark:divide-slate-800">
-                            {searchResults.map(u => (
-                              <div key={u.id} className="px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" onClick={() => handleAddUser(u)}>
-                                <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{u.fullname}</div>
-                                <div className="text-xs text-slate-400 dark:text-slate-500">{u.role}</div>
-                              </div>
-                            ))}
+                  )}
+
+                  {/* Search Users */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Search Users <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(by name)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={userQuery}
+                      onChange={(e) => setUserQuery(e.target.value)}
+                      placeholder="Type a name to search instructors or employees"
+                      className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                    />
+                    {searchResults.length > 0 && (
+                      <div className="mt-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 max-h-48 overflow-auto divide-y divide-slate-100 dark:divide-slate-800">
+                        {searchResults.map(u => (
+                          <div key={u.id} className="px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" onClick={() => handleAddUser(u)}>
+                            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{u.fullname}</div>
+                            <div className="text-xs text-slate-400 dark:text-slate-500">{u.role}</div>
                           </div>
-                        )}
-                        {selectedUsers.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {selectedUsers.map(u => (
-                              <span key={u.id} className="inline-flex items-center gap-2 px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-full text-xs">
-                                <span>{u.fullname}</span>
-                                <button type="button" onClick={() => handleRemoveUser(u.id)} className="text-slate-400 hover:text-red-600">×</button>
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                        ))}
                       </div>
-                    </div>
+                    )}
+                    {selectedUsers.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {selectedUsers.map(u => (
+                          <span key={u.id} className="inline-flex items-center gap-2 px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-full text-xs">
+                            <span>{u.fullname}</span>
+                            <button type="button" onClick={() => handleRemoveUser(u.id)} className="text-slate-400 hover:text-red-600">×</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <button
@@ -1521,6 +1516,91 @@ export function NotificationManagement() {
           </div>
         </div>
       )}
+      {/* Admin Recipient Picker Modal */}
+      {isAdminTargetModalOpen && (
+        <div className="fixed inset-0 z-[60]">
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <div
+              className="fixed inset-0 bg-slate-900/60"
+              onClick={() => setIsAdminTargetModalOpen(false)}
+            />
+            <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md z-10">
+              <div className="px-5 pt-5 pb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-base font-semibold text-slate-900 dark:text-white">Select Recipient</h4>
+                  <button
+                    onClick={() => setIsAdminTargetModalOpen(false)}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {/* Everyone / Select All */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allRoles = ['Instructor', 'Employee'];
+                      setFormData(prev => ({ ...prev, roles: prev.roles.length === 2 ? [] : allRoles }));
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
+                      formData.roles.length === 2
+                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                    }`}
+                  >
+                    <span className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                      formData.roles.length === 2 ? 'border-green-500 bg-green-500' : 'border-slate-400 dark:border-slate-500'
+                    }`}>
+                      {formData.roles.length === 2 && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      )}
+                    </span>
+                    <Users className="h-4 w-4 text-green-500" />
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Everyone</span>
+                  </button>
+                  {/* Individual roles */}
+                  {[
+                    { value: 'Instructor', label: 'Instructors', icon: <User className="h-4 w-4 text-blue-500" /> },
+                    { value: 'Employee', label: 'Employees', icon: <Users className="h-4 w-4 text-emerald-500" /> },
+                  ].map(({ value, label, icon }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => handleRoleToggle(value)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
+                        formData.roles.includes(value)
+                          ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                          : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                        formData.roles.includes(value) ? 'border-green-500 bg-green-500' : 'border-slate-400 dark:border-slate-500'
+                      }`}>
+                        {formData.roles.includes(value) && (
+                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        )}
+                      </span>
+                      {icon}
+                      <span className="text-sm text-slate-700 dark:text-slate-200">{label}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsAdminTargetModalOpen(false)}
+                    className="w-full py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg text-sm transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Announcement Detail Modal */}
       {selectedAnnouncementDetail && (
         <div className="fixed inset-0 z-50">
