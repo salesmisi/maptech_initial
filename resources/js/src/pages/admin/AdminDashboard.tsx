@@ -445,14 +445,14 @@ export function AdminDashboard({ onNavigate }: Props) {
     completions: monthlyTrendsByMonth[index]?.completions ?? 0,
   }));
 
-  const ArrowDot = ({ cx, cy, fill }: any) => {
+  const ArrowDot = ({ cx, cy, fill, stroke }: any) => {
     if (cx == null || cy == null) return null;
 
     return (
       <g>
         <path
           d={`M ${cx} ${cy - 5} L ${cx + 7} ${cy} L ${cx} ${cy + 5} L ${cx + 2} ${cy}`}
-          fill={fill}
+          fill={stroke || fill}
           opacity={0.95}
         />
       </g>
