@@ -444,10 +444,20 @@ export function AdminDashboard({ onNavigate }: Props) {
     enrollments: monthlyTrendsByMonth[index]?.enrollments ?? 0,
     completions: monthlyTrendsByMonth[index]?.completions ?? 0,
   }));
-  const compactMonthlyTrends = fullYearMonthlyTrends.filter(
-    (trend) => trend.enrollments > 0 || trend.completions > 0,
-  );
-  const monthlyTrendChartData = compactMonthlyTrends.length >= 2 ? compactMonthlyTrends : fullYearMonthlyTrends;
+
+  const ArrowDot = ({ cx, cy, fill, stroke }: any) => {
+    if (cx == null || cy == null) return null;
+
+    return (
+      <g>
+        <path
+          d={`M ${cx} ${cy - 5} L ${cx + 7} ${cy} L ${cx} ${cy + 5} L ${cx + 2} ${cy}`}
+          fill={stroke || fill}
+          opacity={0.95}
+        />
+      </g>
+    );
+  };
 
   const renderCompletionTooltip = ({ active, payload }: any) => {
     if (!active || !payload || payload.length === 0) return null;
