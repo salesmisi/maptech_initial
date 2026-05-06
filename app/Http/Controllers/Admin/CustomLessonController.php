@@ -34,7 +34,7 @@ class CustomLessonController extends Controller
      */
     public function show(int $moduleId, int $lessonId)
     {
-        $lesson = CustomLesson::where('custom_module_id', $moduleId)
+        $lesson = CustomLesson::query()->where('custom_module_id', $moduleId)
             ->with('quiz')
             ->findOrFail($lessonId);
 
@@ -139,7 +139,7 @@ class CustomLessonController extends Controller
     public function update(Request $request, int $moduleId, int $lessonId)
     {
         $module = CustomModule::findOrFail($moduleId);
-        $lesson = CustomLesson::where('custom_module_id', $moduleId)->findOrFail($lessonId);
+        $lesson = CustomLesson::query()->where('custom_module_id', $moduleId)->findOrFail($lessonId);
 
         Log::info('Updating custom lesson', ['id' => $lessonId]);
 
@@ -223,7 +223,7 @@ class CustomLessonController extends Controller
     public function destroy(int $moduleId, int $lessonId)
     {
         $module = CustomModule::findOrFail($moduleId);
-        $lesson = CustomLesson::where('custom_module_id', $moduleId)->findOrFail($lessonId);
+        $lesson = CustomLesson::query()->where('custom_module_id', $moduleId)->findOrFail($lessonId);
 
         try {
             // Delete file
@@ -231,7 +231,7 @@ class CustomLessonController extends Controller
                 Storage::disk('public')->delete($lesson->content_path);
             }
 
-            $lesson->delete();
+            CustomLesson::destroy($lesson->id);
 
             // Sync to course modules if published
             if ($module->status === 'published') {
@@ -267,7 +267,7 @@ class CustomLessonController extends Controller
 
         DB::transaction(function () use ($validated, $moduleId) {
             foreach ($validated['lessons'] as $item) {
-                CustomLesson::where('id', $item['id'])
+                CustomLesson::query()->where('id', $item['id'])
                     ->where('custom_module_id', $moduleId)
                     ->update(['order' => $item['order']]);
             }
@@ -288,7 +288,7 @@ class CustomLessonController extends Controller
      */
     public function content(int $moduleId, int $lessonId)
     {
-        $lesson = CustomLesson::where('custom_module_id', $moduleId)->findOrFail($lessonId);
+        $lesson = CustomLesson::query()->where('custom_module_id', $moduleId)->findOrFail($lessonId);
 
         if (!$lesson->content_path) {
             return response()->json(['message' => 'No content file'], 404);

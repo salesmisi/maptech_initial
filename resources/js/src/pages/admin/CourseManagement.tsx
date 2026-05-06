@@ -600,7 +600,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   name="title"
                   defaultValue={editingCourse?.title}
                   required
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
 
@@ -615,7 +615,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                     defaultValue={editingCourse?.department || ''}
                     required
                     onChange={(e) => setSelectedDepartment(e.target.value)}
-                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-slate-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="" disabled>Select Department</option>
                     {safeArray(departments).map(dept => (
@@ -628,7 +628,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   <select
                     name="subdepartment_id"
                     defaultValue={editingCourse?.subdepartment_id ?? ''}
-                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-slate-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="">All (entire department)</option>
                     {safeArray(departments.find(d => d.name === selectedDepartment)?.subdepartments).map(sub => (
@@ -663,7 +663,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                     name="start_date"
                     defaultValue={editingCourse?.start_date ? new Date(editingCourse.start_date).toISOString().slice(0, 16) : ''}
                     min={minDateTimeInput}
-                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                    className="w-full border border-slate-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
                   />
                 </div>
                 <div>
@@ -675,7 +675,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                     name="deadline"
                     defaultValue={editingCourse?.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
                     min={minDateTimeInput}
-                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                    className="w-full border border-slate-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
                   />
                 </div>
               </div>

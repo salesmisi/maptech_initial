@@ -256,7 +256,7 @@ class QuizController extends Controller
     {
         $module = $this->ownedModule($moduleId, $request);
 
-        if (Quiz::where('module_id', $moduleId)->exists()) {
+        if (Quiz::query()->where('module_id', $moduleId)->exists()) {
             return response()->json(['message' => 'This module already has a quiz. Delete it first to create a new one.'], 422);
         }
 
@@ -334,7 +334,7 @@ class QuizController extends Controller
             if ($question->video_path) Storage::disk('public')->delete($question->video_path);
         }
 
-        $quiz->delete();
+        Quiz::destroy($quiz->id);
 
         return response()->json(['message' => 'Quiz deleted.']);
     }
@@ -400,7 +400,7 @@ class QuizController extends Controller
     public function updateQuestion(Request $request, int $quizId, int $questionId)
     {
         $quiz     = $this->ownedQuiz($quizId, $request);
-        $question = QuizQuestion::where('quiz_id', $quizId)->findOrFail($questionId);
+        $question = QuizQuestion::query()->where('quiz_id', $quizId)->findOrFail($questionId);
 
         $request->validate([
             'question_text'        => 'required|string',
@@ -459,12 +459,12 @@ class QuizController extends Controller
     public function deleteQuestion(Request $request, int $quizId, int $questionId)
     {
         $quiz     = $this->ownedQuiz($quizId, $request);
-        $question = QuizQuestion::where('quiz_id', $quizId)->findOrFail($questionId);
+        $question = QuizQuestion::query()->where('quiz_id', $quizId)->findOrFail($questionId);
 
         if ($question->image_path) Storage::disk('public')->delete($question->image_path);
         if ($question->video_path) Storage::disk('public')->delete($question->video_path);
 
-        $question->delete();
+        QuizQuestion::destroy($question->id);
 
         return response()->json(['message' => 'Question deleted.']);
     }

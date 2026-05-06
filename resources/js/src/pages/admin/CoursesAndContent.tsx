@@ -1827,7 +1827,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     <select
                       value={selectedModuleId || ''}
                       onChange={e => setSelectedModuleId(Number(e.target.value) || null)}
-                      className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      className="w-full border border-gray-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     >
                       <option value="">-- Choose a module --</option>
                       {safeArray(courseModules).map(m => (
@@ -2341,7 +2341,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   type="text"
                   defaultValue={editingCourse.title}
                   required
-                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
               {/* Description removed - now editable in Manage Content */}
@@ -2358,7 +2358,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                       setEditInstructorId(null);
                     }}
                     required
-                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-gray-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="" disabled>Select Department</option>
                     {departments.map(dept => (
@@ -2371,7 +2371,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <select
                     name="status"
                     defaultValue={editingCourse.status}
-                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-gray-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="Active">Active</option>
                     <option value="Draft">Draft</option>
@@ -2390,7 +2390,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     setEditInstructorId(null);
                   }}
                   disabled={!editDepartment}
-                  className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-gray-300 bg-white text-slate-900 disabled:bg-slate-100 disabled:text-slate-500 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">Select Sub Department</option>
                   {(departments.find(d => d.name === editDepartment)?.subdepartments || []).map((s) => (
