@@ -99,7 +99,7 @@ function toLocalDateTimeInputValue(value?: string | null): string {
   const parsed = new Date(normalized);
   if (Number.isNaN(parsed.getTime())) return '';
 
-  return formatLocalDateTimeInput(parsed);
+  return formatDateTimeForTimeZone(parsed, 'Asia/Manila');
 }
 
 function getMinDateTimeInputValue(): string {
@@ -139,13 +139,10 @@ function toUtcIsoFromManilaInput(value: FormDataEntryValue | null): string | nul
 }
 
 function isPastDateTimeInput(value: FormDataEntryValue | null): boolean {
-  if (typeof value !== 'string') return false;
-  const trimmed = value.trim();
-  if (!trimmed) return false;
-
-  const selected = new Date(trimmed);
-  if (Number.isNaN(selected.getTime())) return false;
-
+  // Treat input as Manila time before comparing
+  const utcString = toUtcIsoFromManilaInput(value);
+  if (!utcString) return false;
+  const selected = new Date(utcString);
   const now = new Date();
   now.setSeconds(0, 0);
   return selected.getTime() < now.getTime();
@@ -665,8 +662,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           description: editingCourse.description || '',
           department: formData.get('department'),
           subdepartment_id: formData.get('subdepartment_id') || null,
-          start_date: toUtcIsoString(formData.get('start_date')),
-          deadline: toUtcIsoString(formData.get('deadline')),
+          start_date: toUtcIsoFromManilaInput(formData.get('start_date')),
+          deadline: toUtcIsoFromManilaInput(formData.get('deadline')),
           instructor_id: formData.get('instructor_id') || null,
           status: formData.get('status'),
         }),
@@ -2354,8 +2351,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   return;
                 }
 
-                const startDateValue = toUtcIsoString(fd.get('start_date'));
-                const deadlineValue = toUtcIsoString(fd.get('deadline'));
+                const startDateValue = toUtcIsoFromManilaInput(fd.get('start_date'));
+                const deadlineValue = toUtcIsoFromManilaInput(fd.get('deadline'));
                 if (startDateValue) fd.set('start_date', startDateValue); else fd.delete('start_date');
                 if (deadlineValue) fd.set('deadline', deadlineValue); else fd.delete('deadline');
                 try {

@@ -137,26 +137,20 @@ const toLocalDateTimeInputValue = (value?: string | null): string => {
   if (!value) return '';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '';
-
-  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
+  return formatDateTimeForTimeZone(parsed, 'Asia/Manila');
 };
 
 const getMinDateTimeInputValue = (): string => {
   const now = new Date();
   now.setSeconds(0, 0);
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
+  return formatDateTimeForTimeZone(now, 'Asia/Manila');
 };
 
 const isPastDateTimeInput = (value: FormDataEntryValue | null): boolean => {
   if (typeof value !== 'string') return false;
-  const trimmed = value.trim();
-  if (!trimmed) return false;
-
-  const selected = new Date(trimmed);
-  if (Number.isNaN(selected.getTime())) return false;
-
+  const utcString = toUtcIsoFromManilaInput(value);
+  if (!utcString) return false;
+  const selected = new Date(utcString);
   const now = new Date();
   now.setSeconds(0, 0);
   return selected.getTime() < now.getTime();
@@ -541,8 +535,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       return;
     }
 
-    const startDateUtc = toUtcIsoString(formData.get('start_date'));
-    const deadlineUtc = toUtcIsoString(formData.get('deadline'));
+    const startDateUtc = toUtcIsoFromManilaInput(formData.get('start_date') as string);
+    const deadlineUtc = toUtcIsoFromManilaInput(formData.get('deadline') as string);
     if (startDateUtc) formData.set('start_date', startDateUtc); else formData.delete('start_date');
     if (deadlineUtc) formData.set('deadline', deadlineUtc); else formData.delete('deadline');
 
