@@ -741,33 +741,35 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 }`}>
                   {notStarted ? 'Not Started' : ended ? 'Locked' : showNotAvailable ? 'Not available' : course.status}
                 </span>
-                <div className="absolute top-3 right-3 flex gap-1">
-                  <button
-                    onClick={() => openEdit(course)}
-                    className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-amber-700 hover:bg-amber-50 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800"
-                    title="Edit"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(course.id)}
-                    className="course-card-icon-btn p-1.5 rounded-md text-gray-600 hover:text-rose-700 hover:bg-rose-50 dark:text-slate-300 dark:hover:text-rose-300 dark:hover:bg-slate-800"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                <div className="absolute top-2 right-2 px-2.5 h-7 rounded-full bg-white/95 text-slate-800 text-xs font-semibold flex items-center justify-center border border-white/70 shadow z-10 pointer-events-none" title={`${modulesCount} modules`}>
+                  <span className="mr-1 text-emerald-600">●</span>
+                  {modulesCount} Modules
                 </div>
               </div>
 
               <div className="p-6 flex-1 flex flex-col">
+                <div className="flex justify-end mb-1 -mt-1">
+                  <div className="flex space-x-1">
+                    <button
+                      onClick={() => openEdit(course)}
+                      className="course-card-icon-btn p-1.5 rounded-md text-slate-600 hover:text-amber-700 hover:bg-amber-50 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800"
+                      title="Edit"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(course.id)}
+                      className="course-card-icon-btn p-1.5 rounded-md text-slate-600 hover:text-rose-700 hover:bg-rose-50 dark:text-slate-300 dark:hover:text-rose-300 dark:hover:bg-slate-800"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 line-clamp-1 mb-2">{course.title}</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-200 line-clamp-2 mb-3">{course.description}</p>
 
                 <div className="flex items-center text-sm text-gray-600 dark:text-slate-300 mb-4 space-x-4">
-                  <div className="flex items-center">
-                    <GraduationCap className="h-4 w-4 mr-1" />
-                    {course.modules?.length ?? 0} Modules
-                  </div>
                   <div className="flex items-center">
                     <Users className="h-4 w-4 mr-1" />
                     {(course as any).enrollments_count ?? 0} Enrolled
@@ -795,31 +797,21 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   <p className="text-xs text-red-500 font-medium mb-3">Course has ended and is locked</p>
                 )}
 
-                <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-700">
-                  <div className="flex items-center justify-between">
+                <div className="mt-auto pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2">
+                  <button
+                    onClick={() => onNavigate?.('course-detail', String(course.id))}
+                    className="course-manage-button w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors font-medium"
+                  >
+                    Manage Content &rarr;
+                  </button>
+                  {ended && (
                     <button
-                      onClick={() => onNavigate?.('course-detail', String(course.id))}
-                      className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 rounded-md shadow-sm transition-colors"
+                      onClick={() => openCourseUnlockModal(course)}
+                      className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                     >
-                      Manage Content &rarr;
+                      Unlock
                     </button>
-                    {ended && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => onNavigate?.('course-detail', String(course.id))}
-                          className="text-sm px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
-                        >
-                          Manage Enrollments
-                        </button>
-                        <button
-                          onClick={() => openCourseUnlockModal(String(course.id))}
-                          className="text-sm px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-                        >
-                          Unlock
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
