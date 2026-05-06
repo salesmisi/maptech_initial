@@ -625,6 +625,9 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
             // Excel Export — real XLSX (OpenXML / ZIP) so Excel opens it without warnings
             if ($format === 'excel') {
+                if (!class_exists('ZipArchive')) {
+                    return response()->json(['message' => 'Server is missing the PHP zip extension. Please contact the administrator.'], 500);
+                }
                 $filename  = 'audit_logs_' . $timestamp . '.xlsx';
                 $roleLabel = $roleFilter ? ucfirst($roleFilter) . ' ' : '';
                 $logoPath  = public_path('assets/Maptech-Official-Logo.png');
