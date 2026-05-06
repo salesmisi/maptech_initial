@@ -627,39 +627,66 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             if ($format === 'excel') {
                 $filename = 'audit_logs_' . $timestamp . '.xls';
 
-                $html = '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>';
-                $html .= '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
-                $html .= '<Worksheet ss:Name="Audit Logs"><Table>';
+                $logoPath = public_path('assets/Maptech-Official-Logo.png');
+                $logoBase64 = file_exists($logoPath)
+                    ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
+                    : null;
 
-                // Header row
-                $html .= '<Row>';
-                $html .= '<Cell><Data ss:Type="String">ID</Data></Cell>';
-                $html .= '<Cell><Data ss:Type="String">User ID</Data></Cell>';
-                $html .= '<Cell><Data ss:Type="String">Full Name</Data></Cell>';
-                $html .= '<Cell><Data ss:Type="String">Email</Data></Cell>';
-                $html .= '<Cell><Data ss:Type="String">Role</Data></Cell>';
-                $html .= '<Cell><Data ss:Type="String">Department</Data></Cell>';
-                $html .= '<Cell><Data ss:Type="String">Action</Data></Cell>';
-                $html .= '<Cell><Data ss:Type="String">IP Address</Data></Cell>';
-                $html .= '<Cell><Data ss:Type="String">Date & Time</Data></Cell>';
-                $html .= '</Row>';
+                $roleLabel = $roleFilter ? ucfirst($roleFilter) . ' ' : '';
+
+                // Use HTML-based XLS so we can embed the logo image and styled header rows
+                $html  = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
+                $html .= '<head><meta charset="UTF-8">';
+                $html .= '<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>';
+                $html .= '<x:Name>Audit Logs</x:Name>';
+                $html .= '<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>';
+                $html .= '</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->';
+                $html .= '<style>';
+                $html .= 'body { font-family: Arial, sans-serif; }';
+                $html .= '.logo-cell { padding: 8px 4px; }';
+                $html .= '.logo-cell img { height: 48px; width: auto; }';
+                $html .= '.report-title { font-size: 16pt; font-weight: bold; color: #1a237e; padding: 4px; }';
+                $html .= '.report-meta { font-size: 9pt; color: #555; padding: 2px 4px 8px; }';
+                $html .= 'table { border-collapse: collapse; width: 100%; }';
+                $html .= 'th { background-color: #1a237e; color: white; padding: 8px; font-size: 10pt; text-align: left; border: 1px solid #ccc; }';
+                $html .= 'td { padding: 6px 8px; font-size: 9pt; border: 1px solid #ddd; }';
+                $html .= 'tr:nth-child(even) td { background-color: #f5f5f5; }';
+                $html .= '</style></head><body>';
+
+                // Logo + title header
+                $html .= '<table style="border:none;margin-bottom:8px;">';
+                $html .= '<tr>';
+                if ($logoBase64) {
+                    $html .= '<td class="logo-cell" style="border:none;width:160px;"><img src="' . $logoBase64 . '" alt="Maptech Logo" /></td>';
+                }
+                $html .= '<td style="border:none;vertical-align:middle;">';
+                $html .= '<div class="report-title">' . $roleLabel . 'Audit Logs Report</div>';
+                $html .= '<div class="report-meta">Generated: ' . date('F j, Y g:i A') . ' | Total Records: ' . count($logs) . '</div>';
+                $html .= '</td></tr></table>';
+
+                // Data table
+                $html .= '<table>';
+                $html .= '<thead><tr>';
+                $html .= '<th>ID</th><th>User ID</th><th>Full Name</th><th>Email</th>';
+                $html .= '<th>Role</th><th>Department</th><th>Action</th><th>IP Address</th><th>Date &amp; Time</th>';
+                $html .= '</tr></thead><tbody>';
 
                 // Data rows
                 foreach ($logs as $log) {
-                    $html .= '<Row>';
-                    $html .= '<Cell><Data ss:Type="Number">' . htmlspecialchars($log->id) . '</Data></Cell>';
-                    $html .= '<Cell><Data ss:Type="Number">' . htmlspecialchars($log->user_id) . '</Data></Cell>';
-                    $html .= '<Cell><Data ss:Type="String">' . htmlspecialchars($log->user_fullname ?? '') . '</Data></Cell>';
-                    $html .= '<Cell><Data ss:Type="String">' . htmlspecialchars($log->user_email ?? '') . '</Data></Cell>';
-                    $html .= '<Cell><Data ss:Type="String">' . htmlspecialchars($log->user_role ?? '') . '</Data></Cell>';
-                    $html .= '<Cell><Data ss:Type="String">' . htmlspecialchars($log->user_department ?? '') . '</Data></Cell>';
-                    $html .= '<Cell><Data ss:Type="String">' . htmlspecialchars($log->action) . '</Data></Cell>';
-                    $html .= '<Cell><Data ss:Type="String">' . htmlspecialchars($log->ip_address ?? '') . '</Data></Cell>';
-                    $html .= '<Cell><Data ss:Type="String">' . htmlspecialchars($log->created_at ?? '') . '</Data></Cell>';
-                    $html .= '</Row>';
+                    $html .= '<tr>';
+                    $html .= '<td>' . htmlspecialchars($log->id) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->user_id) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->user_fullname ?? '') . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->user_email ?? '') . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->user_role ?? '') . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->user_department ?? '') . '</td>';
+                    $html .= '<td style="text-transform:capitalize;">' . htmlspecialchars($log->action) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->ip_address ?? '') . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->created_at ?? '') . '</td>';
+                    $html .= '</tr>';
                 }
 
-                $html .= '</Table></Worksheet></Workbook>';
+                $html .= '</tbody></table></body></html>';
 
                 return response($html, 200, [
                     'Content-Type' => 'application/vnd.ms-excel',
@@ -672,24 +699,38 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 $filename = 'audit_logs_' . $timestamp . '.html';
                 $roleText = $roleFilter ? ucfirst($roleFilter) . ' ' : '';
 
+                $logoPath = public_path('assets/Maptech-Official-Logo.png');
+                $logoBase64 = file_exists($logoPath)
+                    ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
+                    : null;
+
                 $html = '<!DOCTYPE html><html><head><meta charset="UTF-8">';
                 $html .= '<title>Audit Logs Export</title>';
                 $html .= '<style>';
-                $html .= 'body { font-family: Arial, sans-serif; margin: 20px; }';
-                $html .= 'h1 { color: #333; border-bottom: 2px solid #4F46E5; padding-bottom: 10px; }';
-                $html .= '.meta { color: #666; font-size: 14px; margin-bottom: 20px; }';
-                $html .= 'table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }';
-                $html .= 'th { background-color: #4F46E5; color: white; padding: 10px; text-align: left; font-weight: bold; }';
-                $html .= 'td { padding: 8px; border-bottom: 1px solid #ddd; }';
-                $html .= 'tr:nth-child(even) { background-color: #f9f9f9; }';
-                $html .= 'tr:hover { background-color: #f0f0f0; }';
-                $html .= '@media print { body { margin: 0; } }';
+                $html .= 'body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }';
+                $html .= '.header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #1a237e; padding-bottom: 12px; margin-bottom: 8px; }';
+                $html .= '.header img { height: 56px; width: auto; }';
+                $html .= '.header-text h1 { margin: 0 0 4px; font-size: 18px; color: #1a237e; }';
+                $html .= '.header-text .meta { margin: 0; color: #555; font-size: 11px; }';
+                $html .= 'table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 11px; }';
+                $html .= 'th { background-color: #1a237e; color: white; padding: 8px 6px; text-align: left; font-weight: bold; }';
+                $html .= 'td { padding: 6px; border-bottom: 1px solid #ddd; }';
+                $html .= 'tr:nth-child(even) td { background-color: #f5f5f5; }';
+                $html .= '@media print { body { margin: 0; } @page { margin: 1cm; } }';
                 $html .= '</style></head><body>';
+
+                $html .= '<div class="header">';
+                if ($logoBase64) {
+                    $html .= '<img src="' . $logoBase64 . '" alt="Maptech Logo" />';
+                }
+                $html .= '<div class="header-text">';
                 $html .= '<h1>' . $roleText . 'Audit Logs Report</h1>';
-                $html .= '<div class="meta">Generated: ' . date('F j, Y g:i A') . ' | Total Records: ' . count($logs) . '</div>';
+                $html .= '<p class="meta">Generated: ' . date('F j, Y g:i A') . ' &nbsp;|&nbsp; Total Records: ' . count($logs) . '</p>';
+                $html .= '</div></div>';
+
                 $html .= '<table><thead><tr>';
                 $html .= '<th>ID</th><th>User ID</th><th>Full Name</th><th>Email</th>';
-                $html .= '<th>Role</th><th>Department</th><th>Action</th><th>IP Address</th><th>Date & Time</th>';
+                $html .= '<th>Role</th><th>Department</th><th>Action</th><th>IP Address</th><th>Date &amp; Time</th>';
                 $html .= '</tr></thead><tbody>';
 
                 foreach ($logs as $log) {
