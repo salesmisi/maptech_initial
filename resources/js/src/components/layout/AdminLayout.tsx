@@ -481,19 +481,19 @@ export function AdminLayout({
       {!isDesktop && isMobileSidebarOpen && <button type="button" aria-label="Close sidebar" className="fixed inset-0 z-20 bg-slate-950/60" onClick={() => setIsMobileSidebarOpen(false)} />}
       {/* Sidebar (fixed on all viewports to avoid layout shift when zooming) */}
       <div
-        className={`fixed inset-y-0 left-0 z-30 flex ${sidebarWidthClass} flex-col border-r transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${sidebarTranslateClass} ${isDark ? 'border-slate-800/80 bg-slate-950/95 text-white' : 'border-slate-200 bg-slate-900 text-white'}`}
+        className={`fixed inset-y-0 left-0 z-30 flex ${sidebarWidthClass} flex-col border-r transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${sidebarTranslateClass} ${isDark ? 'border-slate-800/80 bg-slate-950/95 text-white' : 'border-slate-200 bg-white text-slate-800'}`}
         onMouseEnter={() => { if (isDesktop) setIsSidebarHovered(true); }}
         onMouseLeave={() => { if (isDesktop) setIsSidebarHovered(false); }}
       >
         <div className="flex-1 flex flex-col min-h-0">
-          <div className={`flex flex-col items-center bg-slate-950 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'px-2 pt-6 pb-4' : 'px-4 pt-8 pb-6'}`}>
+          <div className={`flex flex-col items-center border-b transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'bg-slate-950 border-transparent' : 'bg-slate-50 border-slate-200'} ${isSidebarCompact ? 'px-2 pt-6 pb-4' : 'px-4 pt-8 pb-6'}`}>
             <img
-              className={`w-auto brightness-110 contrast-110 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'mb-0 h-10' : 'mb-3 h-16'}`}
+              className={`w-auto transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'brightness-110 contrast-110' : ''} ${isSidebarCompact ? 'mb-0 h-10' : 'mb-3 h-16'}`}
               src={businessDetails.logo_url}
               alt="Maptech"
             />
             <p
-              className={`overflow-hidden text-center text-sm font-medium leading-tight transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'text-slate-400' : 'text-slate-300'} ${isSidebarCompact ? 'mt-0 max-h-0 opacity-0 -translate-y-1' : 'mt-1 max-h-12 opacity-100 translate-y-0'}`}
+              className={`overflow-hidden text-center text-sm font-medium leading-tight transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'text-slate-400' : 'text-slate-600'} ${isSidebarCompact ? 'mt-0 max-h-0 opacity-0 -translate-y-1' : 'mt-1 max-h-12 opacity-100 translate-y-0'}`}
             >
               {businessDetails.company_name}
             </p>
@@ -509,10 +509,10 @@ export function AdminLayout({
                     onClick={() => handleSidebarNavigate(item.id)}
                     title={isSidebarCompact ? item.label : undefined}
                     aria-label={item.label}
-                    className={`sidebar-nav-item group flex w-full items-center justify-start rounded-lg text-sm font-medium transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'px-2 py-3' : 'px-3 py-2.5'} ${isActive ? 'is-active bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}>
+                    className={`sidebar-nav-item group flex w-full items-center justify-start rounded-lg text-sm font-medium transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'px-2 py-3' : 'px-3 py-2.5'} ${isActive ? (isDark ? 'is-active bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/50' : 'is-active bg-emerald-600 text-white') : isDark ? 'text-slate-300 hover:bg-slate-800/80 hover:text-white' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'}`}>
 
                     <Icon
-                      className={`h-5 w-5 flex-shrink-0 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'mx-auto' : 'mr-3'} ${isActive ? 'text-emerald-300' : 'text-slate-400 group-hover:text-slate-200'}`} />
+                      className={`h-5 w-5 flex-shrink-0 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'mx-auto' : 'mr-3'} ${isActive ? (isDark ? 'text-emerald-300' : 'text-white') : isDark ? 'text-slate-400 group-hover:text-slate-200' : 'text-slate-500 group-hover:text-slate-900'}`} />
 
                     <span
                       className={`overflow-hidden whitespace-nowrap transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'max-w-0 opacity-0 -translate-x-2' : 'max-w-[170px] opacity-100 translate-x-0'}`}
@@ -524,13 +524,13 @@ export function AdminLayout({
               })}
             </nav>
           </div>
-          <div className={`flex-shrink-0 flex border-t p-4 ${isDark ? 'border-slate-800/80' : 'border-slate-800'}`}>
+          <div className={`flex-shrink-0 flex border-t p-4 ${isDark ? 'border-slate-800/80' : 'border-slate-200'}`}>
             <div className="flex-shrink-0 w-full group block">
               <div className="flex items-center gap-3">
                 <div className="ml-auto">
                   <button
                     onClick={onLogout}
-                    className="text-slate-400 hover:text-white transition-colors duration-300 flex items-center gap-2"
+                    className={`${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'} transition-colors duration-300 flex items-center gap-2`}
                     title="Logout"
                   >
                     <LogOut className="h-5 w-5" />
