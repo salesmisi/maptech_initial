@@ -2453,47 +2453,47 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Date</label>
                   <input
                     name="start_date"
                     type="datetime-local"
                     min={minDateTimeInput}
-                    className="course-datetime-input w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900"
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Due Date</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Due Date</label>
                   <input
                     name="deadline"
                     type="datetime-local"
                     min={minDateTimeInput}
-                    className="course-datetime-input w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900"
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Assign To</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Assign To</label>
                 {createInstructorId !== null && (() => {
                   const sel = instructors.find(i => i.id === createInstructorId);
                   return sel ? (
-                    <div className="flex items-center gap-3 mb-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                    <div className="flex items-center gap-3 mb-2 p-2 bg-green-50 dark:bg-slate-700/60 border border-green-200 dark:border-slate-600 rounded-md">
                       {sel.profile_picture ? (
                         <img
                           src={sel.profile_picture}
                           alt={sel.fullname}
-                          className="w-12 h-12 rounded-full object-cover border-2 border-green-300 flex-shrink-0"
+                          className="w-12 h-12 rounded-full object-cover border-2 border-green-300 dark:border-emerald-600 flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-full bg-green-200 border-2 border-green-300 flex items-center justify-center flex-shrink-0">
-                          <span className="text-base font-bold text-green-800">
+                        <div className="w-12 h-12 rounded-full bg-green-200 dark:bg-emerald-800/50 border-2 border-green-300 dark:border-emerald-600 flex items-center justify-center flex-shrink-0">
+                          <span className="text-base font-bold text-green-800 dark:text-emerald-300">
                             {sel.fullname.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                           </span>
                         </div>
                       )}
                       <div>
-                        <p className="text-sm font-semibold text-slate-800">{sel.fullname}</p>
-                        <p className="text-xs text-green-600">Assigned Instructor</p>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{sel.fullname}</p>
+                        <p className="text-xs text-green-600 dark:text-emerald-400">Assigned Instructor</p>
                       </div>
                     </div>
                   ) : null;
@@ -2612,32 +2612,32 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Start Date & Time</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Date & Time</label>
                   <input
                     name="start_date"
                     type="datetime-local"
                     defaultValue={toLocalDateTimeInputValue(editingCourse.start_date)}
                     min={minDateTimeInput}
-                    className="course-datetime-input w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Due Date & Time</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Due Date & Time</label>
                   <input
                     name="deadline"
                     type="datetime-local"
                     defaultValue={toLocalDateTimeInputValue(editingCourse.deadline)}
                     min={minDateTimeInput}
-                    className="course-datetime-input w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Assigned to</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Assigned to</label>
                 {editInstructorId !== null && (() => {
                   const sel = instructors.find(i => i.id === editInstructorId);
                   return sel ? (
-                    <div className="flex items-center gap-3 mb-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                    <div className="flex items-center gap-3 mb-2 p-3 bg-green-50 dark:bg-slate-700/60 border border-green-200 dark:border-slate-600 rounded-md">
                       {/* Clickable avatar with camera overlay */}
                       <div
                         className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-green-300 cursor-pointer flex-shrink-0 group"
@@ -2651,8 +2651,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full bg-green-200 flex items-center justify-center">
-                            <span className="text-base font-bold text-green-800">
+                          <div className="w-full h-full bg-green-200 dark:bg-emerald-800/50 flex items-center justify-center">
+                            <span className="text-base font-bold text-green-800 dark:text-emerald-300">
                               {sel.fullname.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                             </span>
                           </div>
@@ -2679,8 +2679,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                         }}
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 truncate">{sel.fullname}</p>
-                        <p className="text-xs text-green-600">Assigned Instructor</p>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{sel.fullname}</p>
+                        <p className="text-xs text-green-600 dark:text-emerald-400">Assigned Instructor</p>
                         {editInstructorPhotoFile && (
                           <p className="text-xs text-blue-600 mt-0.5">📷 New photo ready to save</p>
                         )}

@@ -962,23 +962,23 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Date</label>
                   <input
                     type="datetime-local"
                     name="start_date"
                     defaultValue={toLocalDateTimeInputValue(editingCourse?.start_date)}
                     min={minDateTimeInput}
-                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Due Date</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Due Date</label>
                   <input
                     type="datetime-local"
                     name="deadline"
                     defaultValue={toLocalDateTimeInputValue(editingCourse?.deadline)}
                     min={minDateTimeInput}
-                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
               </div>

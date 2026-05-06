@@ -82,14 +82,14 @@ html.dark select {
 
 /* Keep course datetime controls readable with visible native picker icon in dark mode */
 html.dark .course-datetime-input {
-	background-color: #ffffff !important;
-	color: #0f172a !important;
-	border-color: #cbd5e1 !important;
+	background-color: #1e293b !important;
+	color: #f1f5f9 !important;
+	border-color: #475569 !important;
 }
 
 html.dark .course-datetime-input::-webkit-calendar-picker-indicator {
-	filter: none !important;
-	opacity: 1 !important;
+	filter: invert(1) !important;
+	opacity: 0.85 !important;
 }
 
 /* Global select treatment to avoid harsh native arrow panels and improve hover comfort. */
