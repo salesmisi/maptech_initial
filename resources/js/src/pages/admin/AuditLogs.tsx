@@ -462,7 +462,7 @@ export function AuditLogs() {
     }
   };
 
-  const handleExport = (format: 'csv' | 'excel' | 'pdf') => {
+  const handleExport = (format: 'excel' | 'pdf') => {
     const roleParam = roleFilter !== 'All' ? `?role=${encodeURIComponent(roleFilter)}` : '';
     const formatParam = roleParam ? `&format=${format}` : `?format=${format}`;
     window.open(`/api/admin/audit-logs/export${roleParam}${formatParam}`, '_blank');
@@ -508,16 +508,6 @@ export function AuditLogs() {
 
             {showExportMenu && (
               <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50">
-                <button
-                  onClick={() => handleExport('csv')}
-                  className="w-full px-4 py-2.5 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition-colors"
-                >
-                  <FileText className="w-4 h-4 text-green-600 dark:text-green-400" />
-                  <div>
-                    <div className="font-medium">CSV File</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">Comma-separated values</div>
-                  </div>
-                </button>
                 <button
                   onClick={() => handleExport('excel')}
                   className="w-full px-4 py-2.5 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition-colors"
@@ -638,16 +628,7 @@ export function AuditLogs() {
                         >
                           {tl.archived ? 'Unarchive' : 'Archive'}
                         </button>
-                        <button
-                          onClick={() => {
-                            showConfirm('Delete this time log?', async () => {
-                              try { await deleteTimeLog(tl.id); alert('Deleted'); } catch (e) { alert('Delete failed'); }
-                            });
-                          }}
-                          className="px-2 py-1 text-xs border rounded border-rose-300 bg-rose-100 text-rose-800 hover:bg-rose-200 dark:border-rose-700 dark:bg-rose-900/35 dark:text-rose-300 dark:hover:bg-rose-900/55"
-                        >
-                          Delete
-                        </button>
+
                       </div>
                     </div>
                   ))}
@@ -936,30 +917,6 @@ export function AuditLogs() {
                             >
                               Manage
                             </button>
-                            <button
-                              onClick={async () => {
-                                const id = sessionPrimaryId(latest);
-                                if (!id) return;
-                                    showConfirm('Delete this audit log?', async () => {
-                                      try {
-                                        setLoading(true);
-                                        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-                                        const res = await fetch('/api/admin/audit-logs/bulk-delete', {
-                                          method: 'POST',
-                                          credentials: 'include',
-                                          headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
-                                          body: JSON.stringify({ ids: [id] }),
-                                        });
-                                        if (!res.ok) throw new Error('Delete failed');
-                                        await fetchLogs(1);
-                                        setSelectedLogIds((s) => s.filter((i) => i !== id));
-                                      } catch (e) { alert('Delete failed'); } finally { setLoading(false); }
-                                    });
-                              }}
-                              className="px-2 py-1 text-xs border rounded border-rose-300 bg-rose-100 text-rose-800 hover:bg-rose-200 dark:border-rose-700 dark:bg-rose-900/35 dark:text-rose-300 dark:hover:bg-rose-900/55"
-                            >
-                              Delete
-                            </button>
                           </div>
                         </td>
                       </tr>
@@ -1031,28 +988,10 @@ export function AuditLogs() {
                           <td style={{width: '170px'}} className="px-6 py-2 whitespace-nowrap text-right">
                             <div className="flex items-center justify-end gap-2">
                               <button
-                                onClick={async () => {
-                                  const id = sessionPrimaryId(older);
-                                  if (!id) return;
-                                  showConfirm('Delete this audit log?', async () => {
-                                    try {
-                                      setLoading(true);
-                                      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-                                      const res = await fetch('/api/admin/audit-logs/bulk-delete', {
-                                        method: 'POST',
-                                        credentials: 'include',
-                                        headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getXsrf() },
-                                        body: JSON.stringify({ ids: [id] }),
-                                      });
-                                      if (!res.ok) throw new Error('Delete failed');
-                                      await fetchLogs(1);
-                                      setSelectedLogIds((s) => s.filter((i) => i !== id));
-                                    } catch (e) { alert('Delete failed'); } finally { setLoading(false); }
-                                  });
-                                }}
-                                className="px-2 py-1 text-xs border rounded border-rose-300 bg-rose-100 text-rose-800 hover:bg-rose-200 dark:border-rose-700 dark:bg-rose-900/35 dark:text-rose-300 dark:hover:bg-rose-900/55"
+                                onClick={() => openManageModal(older.user)}
+                                className="px-2 py-1 text-xs border rounded border-cyan-300 bg-cyan-50 text-cyan-800 hover:bg-cyan-100 dark:border-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 dark:hover:bg-cyan-900/50"
                               >
-                                Delete
+                                Manage
                               </button>
                             </div>
                           </td>
