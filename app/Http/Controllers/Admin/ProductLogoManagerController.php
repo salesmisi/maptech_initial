@@ -20,14 +20,19 @@ class ProductLogoManagerController extends Controller
         $hasCourseLogoPath = Schema::hasColumn('courses', 'logo_path');
         $hasProductLogosTable = Schema::hasTable('product_logos');
         $hasProductLogosCourseId = $hasProductLogosTable && Schema::hasColumn('product_logos', 'course_id');
+        $hasSubdepartmentId = Schema::hasColumn('courses', 'subdepartment_id');
 
         $selectColumns = ['id', 'title', 'department', 'updated_at'];
         if ($hasCourseLogoPath) {
             $selectColumns[] = 'logo_path';
         }
+        if ($hasSubdepartmentId) {
+            $selectColumns[] = 'subdepartment_id';
+        }
 
         $courses = Course::query()
             ->select($selectColumns)
+            ->when($hasSubdepartmentId, fn ($q) => $q->with('subdepartment:id,name'))
             ->when($query !== '', function ($q) use ($query) {
                 $q->where(function ($sub) use ($query) {
                     $sub->where('title', 'like', "%{$query}%")
@@ -46,7 +51,7 @@ class ProductLogoManagerController extends Controller
                 ->keyBy('course_id');
         }
 
-        return response()->json($courses->map(function (Course $course) use ($logoByCourse, $hasCourseLogoPath) {
+        return response()->json($courses->map(function (Course $course) use ($logoByCourse, $hasCourseLogoPath, $hasSubdepartmentId) {
             $exists = false;
             $logoUrl = null;
             $logoName = null;
@@ -73,6 +78,7 @@ class ProductLogoManagerController extends Controller
                 'id' => $course->id,
                 'title' => $course->title,
                 'department' => $course->department,
+                'subdepartment_name' => $hasSubdepartmentId ? ($course->subdepartment?->name ?? null) : null,
                 'logo_path' => $effectivePath,
                 'logo_name' => $logoName,
                 'logo_url' => $logoUrl,
