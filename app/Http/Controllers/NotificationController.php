@@ -512,37 +512,26 @@ class NotificationController extends Controller
                 $recipients->push([$enrollment->user_id, $course->title, $course->id]);
             }
         } elseif ($department) {
-            // Send to enrolled employees across courses in the department that the instructor can manage
+            // Send to all employees in the department (by user record), optionally filtered by subdepartment
             $assignedSubIds = $instructor->subdepartments()->pluck('subdepartments.id')->toArray();
             $assignedDept = $instructor->department;
 
-            // Instructor must belong to the department or have assigned subdepartments matching the department
+            // Instructor must belong to the department or have assigned subdepartments in it
             if (!($assignedDept === $department) && empty($assignedSubIds)) {
                 return response()->json(['message' => 'Forbidden'], 403);
             }
 
-            $courses = \App\Models\Course::where('department', $department)
-                ->get()
-                ->filter(function ($c) use ($instructor, $assignedSubIds, $assignedDept, $subdepartmentId) {
-                    $passesAccess = ($c->instructor_id === $instructor->id)
-                        || (!empty($assignedSubIds) && in_array($c->subdepartment_id, $assignedSubIds))
-                        || ($assignedDept && $c->department === $assignedDept);
+            $employeeQuery = User::where('role', 'employee')
+                ->where('department', $department);
 
-                    if (!$passesAccess) return false;
+            if ($subdepartmentId) {
+                $employeeQuery->where('subdepartment_id', $subdepartmentId);
+            }
 
-                    // If a subdepartment filter was requested, apply it
-                    if ($subdepartmentId) {
-                        return (int) $c->subdepartment_id === (int) $subdepartmentId;
-                    }
+            $employeeIds = $employeeQuery->pluck('id');
 
-                    return true;
-                });
-
-            foreach ($courses as $course) {
-                $enrollments = \App\Models\Enrollment::where('course_id', $course->id)->with('user')->get();
-                foreach ($enrollments as $enrollment) {
-                    $recipients->push([$enrollment->user_id, $course->title, $course->id]);
-                }
+            foreach ($employeeIds as $uid) {
+                $recipients->push([$uid, null, null]);
             }
         } else {
             return response()->json(['message' => 'Please provide course_id, department, or target_user_id'], 422);
@@ -594,7 +583,7 @@ class NotificationController extends Controller
         }
 
         return response()->json([
-            'message' => 'Notification sent to enrolled employees',
+            'message' => 'Notification sent to employees',
             'recipients_count' => count($notifications),
         ]);
     }

@@ -594,7 +594,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
           <div className="w-full sm:w-auto">
             <button
               onClick={() => onNavigate?.('course-viewer', resumeCourse.id)}
-              className="inline-flex w-full items-center justify-center rounded-md border border-transparent bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 sm:w-auto"
+              className="btn btn-primary sm:w-auto"
             >
               Resume Learning
               <ArrowRight className="ml-2 h-4 w-4" />
@@ -711,7 +711,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                         <div className="mt-4">
                           <button
                             onClick={() => onNavigate?.('course-enroll', course.id)}
-                            className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700"
+                            className="btn btn-primary btn-sm"
                           >
                             View Offering
                           </button>

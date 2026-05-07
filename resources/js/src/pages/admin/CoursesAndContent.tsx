@@ -1385,7 +1385,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             setCreateInstructorId(null);
             setShowCreateModal(true);
           }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-green-600 text-white font-medium hover:bg-green-700 transition-colors"
+          className="btn btn-primary"
         >
           <PlusIcon className="h-5 w-5" />
           Create Course
@@ -1442,6 +1442,9 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           >
             {/* Course Icon */}
             <div className="h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-teal-500 rounded-t-lg flex items-center justify-center relative">
+              <span className={`absolute top-3 left-3 z-10 text-xs font-semibold px-2 py-0.5 rounded-full pointer-events-none ${badgeClass}`}>
+                {badgeLabel}
+              </span>
               <div className="absolute top-2 right-2 px-2.5 h-7 rounded-full bg-white/95 text-slate-800 text-xs font-semibold flex items-center justify-center border border-white/70 shadow z-10 pointer-events-none" title={`${modulesCount} modules`}>
                 <span className="mr-1 text-emerald-600">●</span>
                 {modulesCount} Modules
@@ -1461,11 +1464,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
             {/* Course Content */}
             <div className="p-5 flex flex-col flex-1">
-              {/* Status Badge */}
-              <div className="flex justify-between items-start mb-3">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${badgeClass}`}>
-                  {badgeLabel}
-                </span>
+              <div className="flex justify-end mb-1 -mt-1">
                 <div className="flex space-x-1">
                   <button
                     onClick={() => handleEditCourse(course)}
@@ -1532,7 +1531,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               <div className="mt-auto pt-3 border-t border-slate-100 space-y-2">
                 <button
                   onClick={() => onNavigate?.('course-detail', String(course.id))}
-                  className="course-manage-button w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors font-medium"
+                  className="course-manage-button btn btn-primary btn-full"
                 >
                   Manage Content →
                 </button>
@@ -1742,7 +1741,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     <button
                       onClick={handleAddModule}
                       disabled={isSubmitting || !newModuleTitle.trim()}
-                      className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
+                      className="btn btn-primary"
                     >
                       <PlusIcon className="h-4 w-4" /> Add Module
                     </button>
@@ -2022,7 +2021,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                         (uploadType !== 'Text' && !uploadFile) ||
                         (uploadType === 'Text' && !uploadText.trim())
                       }
-                      className="w-full bg-green-600 text-white py-2.5 rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors font-medium"
+                      className="btn btn-primary btn-full"
                     >
                       {isUploading ? `Uploading... ${uploadProgress}%` : 'Upload & Save'}
                     </button>
@@ -2117,7 +2116,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     <button
                       onClick={handleSaveQuiz}
                       disabled={isSubmitting || !selectedModuleId || quizQuestions.length === 0}
-                      className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 disabled:opacity-50"
+                      className="btn btn-primary"
                     >
                       {isSubmitting ? 'Saving...' : 'Save Quiz'}
                     </button>
@@ -2150,7 +2149,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                       <button
                         onClick={handleSendQuiz}
                         disabled={sendingQuiz || !sendQuizModuleId}
-                        className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 text-sm whitespace-nowrap"
+                        className="btn btn-primary btn-sm"
                       >
                         {sendingQuiz ? 'Sending...' : 'Send Quiz'}
                       </button>
@@ -2283,7 +2282,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             </div>
 
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowBulkAssignModal(false)} className="px-4 py-2 border rounded-md">Cancel</button>
+              <button onClick={() => setShowBulkAssignModal(false)} className="btn btn-secondary">Cancel</button>
               <button
                 onClick={async () => {
                   setIsBulkAssigning(true);
@@ -2314,7 +2313,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     setIsBulkAssigning(false);
                   }
                 }}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                className="btn btn-primary"
                 disabled={isBulkAssigning}
               >
                 {isBulkAssigning ? 'Assigning...' : 'Assign'}
@@ -2515,14 +2514,14 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 <button
                   type="button"
                   onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); setCreateDepartment(''); setCreateSubdepartmentId(''); }}
-                  className="flex-1 py-2 px-4 border border-slate-300 rounded-md text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
+                  className="btn btn-secondary flex-1"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 py-2 px-4 border border-transparent rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                  className="btn btn-primary flex-1"
                 >
                   {isSubmitting ? 'Creating...' : 'Publish Course'}
                 </button>
@@ -2711,14 +2710,14 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 bg-green-600 text-white py-2 rounded-md hover:bg-green-700 disabled:opacity-50"
+                  className="btn btn-primary flex-1"
                 >
                   {isSubmitting ? 'Saving...' : 'Save Changes'}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setShowEditModal(false); setEditingCourse(null); setEditInstructorPhotoFile(null); setEditInstructorPhotoPreview(null); }}
-                  className="flex-1 border border-slate-300 text-slate-700 py-2 rounded-md hover:bg-slate-50"
+                  className="btn btn-secondary flex-1"
                 >
                   Cancel
                 </button>
@@ -2779,7 +2778,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             <div className="flex gap-3 justify-end mt-6">
               <button
                 onClick={() => { setCourseUnlockModalOpen(false); setCourseUnlockTarget(null); }}
-                className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                className="btn btn-secondary"
                 disabled={unlocking}
               >
                 Cancel
@@ -2787,7 +2786,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               <button
                 onClick={handleUnlockCourse}
                 disabled={unlocking}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm disabled:opacity-50"
+                className="btn btn-primary"
               >
                 {unlocking ? 'Unlocking...' : 'Unlock Course'}
               </button>
@@ -2808,7 +2807,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             <div className="flex justify-end">
               <button
                 onClick={() => setUnlockSuccessModalOpen(false)}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm"
+                className="btn btn-primary"
               >
                 OK
               </button>

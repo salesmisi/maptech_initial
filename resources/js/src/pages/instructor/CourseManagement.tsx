@@ -85,10 +85,10 @@ const DEPT_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  Active:   'bg-green-100 text-green-800',
-  Draft:    'bg-yellow-100 text-yellow-800',
+  Active:   'bg-green-100 text-green-800 dark:bg-emerald-500/20 dark:text-emerald-300',
+  Draft:    'bg-yellow-100 text-yellow-800 dark:bg-amber-500/20 dark:text-amber-300',
   Archived: 'bg-slate-100 text-slate-600',
-  Inactive: 'bg-red-100 text-red-700',
+  Inactive: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 };
 
 const COURSE_HEADER_CLASS = 'bg-gradient-to-r from-emerald-400 to-green-500 dark:from-emerald-500 dark:to-green-600';
@@ -662,7 +662,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Courses &amp; Content</h1>
         <button
           onClick={openCreate}
-          className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
+          className="btn btn-primary"
         >
           <Plus className="h-4 w-4 mr-2" />
           Create Course
@@ -710,7 +710,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       ) : (
         <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((course) => {
+          {filtered.map((course, index) => {
             const notStarted = course.start_date && new Date(course.start_date) > new Date();
             const hasManualUnlock = Boolean((course as any).has_manual_unlock ?? false) || Boolean(course.availableByInstructor);
             const ended = course.deadline && new Date(course.deadline) <= new Date() && !hasManualUnlock;
@@ -720,25 +720,20 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
             return (
             <div
               key={course.id}
-              className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col dark:bg-slate-800 dark:border-slate-600 ${
-                notStarted
-                  ? 'bg-white border-emerald-200'
-                  : ended
-                    ? 'bg-white border-red-200'
-                    : 'bg-white border-slate-200'
-              }`}
+              className="course-management-card group relative bg-white border border-slate-200 rounded-lg shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)] flex flex-col"
+              style={{ animationDelay: `${Math.min(index * 45, 360)}ms` }}
             >
-              <div className={`h-32 ${notStarted ? 'bg-gradient-to-r from-emerald-400 to-green-500' : COURSE_HEADER_CLASS} relative flex items-center justify-center`}>
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-md ring-4 ring-white/25">
-                  <BookOpen className="h-6 w-6 text-green-600" />
+              <div className="h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-teal-500 rounded-t-lg flex items-center justify-center relative">
+                <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md">
+                  <BookOpen className="h-8 w-8 text-green-700 dark:text-emerald-300" />
                 </div>
-                <span className={`absolute top-3 left-3 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                <span className={`absolute top-3 left-3 z-10 text-xs font-semibold px-2 py-0.5 rounded-full pointer-events-none ${
                   notStarted
-                    ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
+                    ? 'bg-slate-100 text-slate-600'
                     : ended
                       ? 'bg-red-100 text-red-800'
                       : showNotAvailable
-                        ? 'bg-gray-100 text-gray-700'
+                        ? 'bg-slate-100 text-slate-700'
                         : STATUS_COLORS[course.status] || 'bg-slate-100 text-slate-600'
                 }`}>
                   {notStarted ? 'Not Started' : ended ? 'Locked' : showNotAvailable ? 'Not available' : course.status}
@@ -749,7 +744,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 </div>
               </div>
 
-              <div className="p-6 flex-1 flex flex-col">
+              <div className="p-5 flex-1 flex flex-col">
                 <div className="flex justify-end mb-1 -mt-1">
                   <div className="flex space-x-1">
                     <button
@@ -768,19 +763,19 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                     </button>
                   </div>
                 </div>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 line-clamp-1 mb-2">{course.title}</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-200 line-clamp-2 mb-3">{course.description}</p>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 leading-tight mb-2">{course.title}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 mb-3">{course.description}</p>
 
-                <div className="flex items-center text-sm text-gray-600 dark:text-slate-300 mb-4 space-x-4">
+                <div className="flex items-center text-sm text-slate-600 dark:text-slate-300 mb-4 space-x-4">
                   <div className="flex items-center">
                     <Users className="h-4 w-4 mr-1" />
                     {(course as any).enrollments_count ?? 0} Enrolled
                   </div>
                 </div>
 
-                <div className="mb-4 text-sm text-gray-600 dark:text-slate-300">
-                  <div className="text-xs text-slate-400 dark:text-slate-300">Location</div>
-                  <div className="font-medium text-gray-700 dark:text-slate-200 text-xs">
+                <div className="mb-4">
+                  <div className="text-xs text-slate-400 dark:text-slate-400">Location</div>
+                  <div className="text-sm font-medium text-slate-700 dark:text-slate-200">
                     {course.department}{getCourseSubdepartmentName(course) ? ` / ${getCourseSubdepartmentName(course)}` : ''}
                   </div>
                 </div>
@@ -791,7 +786,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   </p>
                 )}
                 {notStarted && course.start_date && (
-                  <p className="text-xs text-emerald-600 dark:text-emerald-300 mb-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-300 mb-3">
                     Course has not started yet — Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 )}
@@ -802,7 +797,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 <div className="mt-auto pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2">
                   <button
                     onClick={() => onNavigate?.('course-detail', String(course.id))}
-                    className="course-manage-button w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors font-medium"
+                    className="course-manage-button btn btn-primary btn-full"
                   >
                     Manage Content &rarr;
                   </button>
@@ -859,13 +854,13 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-700 space-y-2">
                   <button
                     onClick={() => onNavigate?.('custom-module-detail', undefined, module.id)}
-                    className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 rounded-md shadow-sm transition-colors"
+                    className="btn btn-primary btn-full"
                   >
                     View Content &rarr;
                   </button>
                   <button
                     onClick={() => openPushToDeptModal(module.id)}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm font-medium"
+                    className="btn btn-primary btn-full btn-sm"
                   >
                     <Users className="h-4 w-4" />
                     Push to My Employee
@@ -1041,14 +1036,14 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   type="button"
                   onClick={handleCloseModal}
                   disabled={isSubmitting}
-                  className="flex-1 py-2 px-4 border border-slate-300 rounded-md text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50"
+                  className="btn btn-secondary flex-1"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 py-2 px-4 border border-transparent rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                  className="btn btn-primary flex-1"
                 >
                   {isSubmitting ? 'Publishing...' : 'Publish Course'}
                 </button>
@@ -1122,7 +1117,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 <button
                   onClick={() => { void handleUnlockCourse(); }}
                   disabled={unlocking}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm disabled:opacity-50"
+                  className="btn btn-primary btn-sm"
                 >
                   {unlocking ? 'Unlocking...' : 'Unlock Course'}
                 </button>
@@ -1217,7 +1212,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                         onClick={handlePushToDepartment}
                         disabled={pushing || deptEmployees.length === 0 || allPushed}
                         title={allPushed ? 'All employees have already received this module' : undefined}
-                        className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="btn btn-primary"
                       >
                         {pushing ? 'Pushing...' : 'Push to My Employee'}
                       </button>

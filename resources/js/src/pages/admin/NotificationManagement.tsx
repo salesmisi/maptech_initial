@@ -6,6 +6,7 @@ import { LoadingState } from '../../components/ui/LoadingState';
 import InfoModal from '../../components/InfoModal';
 import { RichTextEditor } from '../../components/RichTextEditor';
 import { sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
+import { useToast } from '../../components/ToastProvider';
 
 interface Notification {
   id: number;
@@ -139,7 +140,6 @@ export function NotificationManagement() {
   const sendDropdownRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'received' | 'sent' | 'deleted'>('received');
   const [selectedAnnouncementDetail, setSelectedAnnouncementDetail] = useState<AnnouncementDetail | null>(null);
-  const [successToast, setSuccessToast] = useState<{ show: boolean; count: number }>({ show: false, count: 0 });
   const [previewModal, setPreviewModal] = useState<{ open: boolean; recipientCount: number | null; recipients?: { id: number; fullname: string }[]; error?: string }>({ open: false, recipientCount: null });
   const [isAdminTargetModalOpen, setIsAdminTargetModalOpen] = useState(false);
   const [listSearchQuery, setListSearchQuery] = useState('');
@@ -195,6 +195,7 @@ export function NotificationManagement() {
 
   const confirm = useConfirm();
   const { showConfirm } = confirm;
+  const { pushToast } = useToast();
 
   // Helper to read cookie value
   const getCookie = (name: string) => {
@@ -274,16 +275,6 @@ export function NotificationManagement() {
       if (cleanup) cleanup();
     };
   }, []);
-
-  // Auto-dismiss success toast after 5 seconds
-  useEffect(() => {
-    if (successToast.show) {
-      const timer = setTimeout(() => {
-        setSuccessToast({ show: false, count: 0 });
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [successToast.show]);
 
   const fetchNotifications = async () => {
     try {
@@ -610,7 +601,7 @@ export function NotificationManagement() {
       });
       const data = await res.json();
       if (res.ok) {
-        setSuccessToast({ show: true, count: 1 });
+        pushToast('Sent Successfully', 'Notification sent to 1 recipient!', 'success');
         setIsOnePersonModalOpen(false);
         resetOnePersonForm();
         fetchSentAnnouncements();
@@ -673,7 +664,7 @@ export function NotificationManagement() {
       const data = await res.json();
 
       if (res.ok) {
-        setSuccessToast({ show: true, count: data.recipients_count });
+        pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} recipient${data.recipients_count !== 1 ? 's' : ''}!`, 'success');
         setIsModalOpen(false);
         setFormData({ title: '', message: '', roles: [], course_id: '', target_user_ids: [] });
         setSelectedUsers([]);
@@ -2024,25 +2015,7 @@ export function NotificationManagement() {
         icon={previewModal.error ? undefined : <Users className="w-6 h-6" />}
       />
 
-      {/* Success Toast */}
-      {successToast.show && (
-        <div className="fixed bottom-6 right-6 z-50 bg-green-600 dark:bg-green-500 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 animate-toast-slide-up border border-green-500 dark:border-green-400">
-          <div className="flex-shrink-0 bg-white/20 rounded-full p-2">
-            <CheckCircle className="h-6 w-6" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-base">Notification Sent Successfully!</p>
-            <p className="text-sm text-green-50 dark:text-green-100 mt-0.5">Sent to {successToast.count} recipient{successToast.count !== 1 ? 's' : ''}</p>
-          </div>
-          <button
-            onClick={() => setSuccessToast({ show: false, count: 0 })}
-            className="flex-shrink-0 ml-2 text-white/80 hover:text-white transition-colors"
-            aria-label="Dismiss notification"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-      )}
+
     </div>
   );
 }

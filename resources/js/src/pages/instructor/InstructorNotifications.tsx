@@ -487,7 +487,7 @@ export function InstructorNotifications() {
     fd.append('title', title);
     fd.append('message', announcementMessage);
     fd.append('type', announcementType);
-    if (preview) fd.append('preview', 'true');
+    if (preview) fd.append('preview', '1');
 
     if (announcementTarget === 'specific_employee' && selectedEmployee) {
       fd.append('target_user_id', String(selectedEmployee.id));
@@ -524,10 +524,17 @@ export function InstructorNotifications() {
     }
 
     try {
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      const xsrfToken = getCookie('XSRF-TOKEN');
       const fd = buildEmployeePayload(true);
       const res = await fetch('/api/instructor/notifications/notify-employees', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+          'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
+        },
         body: fd,
       });
       const data = await res.json();
@@ -558,6 +565,12 @@ export function InstructorNotifications() {
       feedback: 'Feedback',
       issue: 'Issue',
       suggestion: 'Suggestion',
+    };
+
+    const employeeTypeLabels: Record<string, string> = {
+      announcement: 'Announcement',
+      lesson_update: 'Lesson Update',
+      quiz_reminder: 'Quiz Reminder',
     };
 
     setIsSending(true);
@@ -592,13 +605,17 @@ export function InstructorNotifications() {
           setIsSending(false);
           return;
         }
-        const title = employeeTypeLabels[announcementType] || 'Announcement';
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const xsrfToken = getCookie('XSRF-TOKEN');
+        const title = announcementTitle.trim() || employeeTypeLabels[announcementType] || 'Announcement';
         const res = await fetch('/api/instructor/notifications/notify-employees', {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
           },
           body: JSON.stringify({ title, message: announcementMessage, type: announcementType, target_user_id: selectedEmployee.id }),
         });
@@ -617,16 +634,20 @@ export function InstructorNotifications() {
           setIsSending(false);
           return;
         }
-        const title = employeeTypeLabels[announcementType] || 'Announcement';
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const xsrfToken = getCookie('XSRF-TOKEN');
+        const title = announcementTitle.trim() || employeeTypeLabels[announcementType] || 'Announcement';
         const payload: any = { title, message: announcementMessage, type: announcementType, department_id: Number(selectedDeptId) };
         if (selectedSubdeptId) payload.subdepartment_id = Number(selectedSubdeptId);
 
         const res = await fetch('/api/instructor/notifications/notify-employees', {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
           },
           body: JSON.stringify(payload),
         });
@@ -777,6 +798,16 @@ export function InstructorNotifications() {
               Mark All Read
             </button>
           )}
+          <button
+            onClick={() => {
+              fetchNotifications();
+              fetchUnreadCount();
+            }}
+            className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
+          >
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Refresh
+          </button>
           <button
             onClick={() => setIsModalOpen(true)}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"

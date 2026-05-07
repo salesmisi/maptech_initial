@@ -770,9 +770,9 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
           <div className="relative z-50" ref={addUserDropdownRef}>
             <button
               onClick={openCreateUserModal}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400"
+              className="btn btn-primary"
             >
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-4 w-4" />
               Add User
             </button>
           </div>
@@ -936,7 +936,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                       <div className="flex justify-end space-x-2">
                         <button
                           onClick={() => handleOpenModal(user)}
-                          className="text-sky-700 hover:text-sky-900 p-1 hover:bg-sky-50 rounded dark:text-sky-400 dark:hover:text-sky-300 dark:hover:bg-slate-700 um-icon-btn"
+                          className="btn-icon btn-icon-edit um-icon-btn"
                           title="Edit user"
                         >
                           <Edit2 className="h-4 w-4" />
@@ -944,7 +944,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                         <button
                           onClick={() => handleViewRecoveryKey(user.id)}
                           disabled={regeneratingKeyForId === user.id}
-                          className="text-amber-600 hover:text-amber-800 p-1 hover:bg-amber-50 rounded dark:text-amber-400 dark:hover:text-amber-300 dark:hover:bg-slate-700 um-icon-btn disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="btn-icon btn-icon-view um-icon-btn disabled:opacity-50 disabled:cursor-not-allowed"
                           title="View recovery key"
                         >
                           {regeneratingKeyForId === user.id ? (
@@ -956,7 +956,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                         <button
                           onClick={() => handleDelete(user.id)}
                           disabled={user.role === 'Admin'}
-                          className="text-rose-700 hover:text-rose-900 p-1 hover:bg-rose-50 rounded dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-slate-700 um-icon-btn disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent dark:disabled:hover:bg-transparent"
+                          className="btn-icon btn-icon-delete um-icon-btn disabled:opacity-40 disabled:cursor-not-allowed"
                           title={user.role === 'Admin' ? 'Admin accounts cannot be deleted' : 'Delete user'}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -1298,7 +1298,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 hover:shadow-[0_10px_20px_rgba(34,197,94,0.22)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-green-400 sm:col-start-2 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="btn btn-primary btn-full sm:col-start-2"
                     >
                       {submitting ? (
                         <>
@@ -1313,7 +1313,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                       type="button"
                       onClick={handleCloseModal}
                       disabled={submitting}
-                      className="mt-3 w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:mt-0 sm:col-start-1 sm:text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                      className="btn btn-secondary btn-full sm:mt-0 sm:col-start-1"
                     >
                       Cancel
                     </button>
@@ -1479,15 +1479,17 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                       {createShowPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
-                  <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
-                    <p className="text-xs font-semibold text-blue-900 dark:text-blue-300 mb-1">Password Requirements:</p>
-                    <ul className="text-xs space-y-0.5">
-                      <li className={createPasswordValue.length >= 8 ? 'text-green-600 dark:text-green-400' : 'text-blue-800 dark:text-blue-400'}>• Minimum 8 characters</li>
-                      <li className="text-blue-700 dark:text-blue-400">• Mix of uppercase &amp; lowercase letters (recommended)</li>
-                      <li className="text-blue-700 dark:text-blue-400">• Include numbers (recommended)</li>
-                      <li className="text-blue-700 dark:text-blue-400">• Include special characters (recommended)</li>
-                    </ul>
-                  </div>
+                  {createPasswordValue && createPasswordValue.length < 8 && (
+                    <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                      <p className="text-xs font-semibold text-blue-900 dark:text-blue-300 mb-1">Password Requirements:</p>
+                      <ul className="text-xs space-y-0.5">
+                        <li className="text-blue-800 dark:text-blue-400">• Minimum 8 characters</li>
+                        <li className="text-blue-700 dark:text-blue-400">• Mix of uppercase &amp; lowercase letters (recommended)</li>
+                        <li className="text-blue-700 dark:text-blue-400">• Include numbers (recommended)</li>
+                        <li className="text-blue-700 dark:text-blue-400">• Include special characters (recommended)</li>
+                      </ul>
+                    </div>
+                  )}
                   {createPasswordValue && (
                     <div className="mt-2">
                       <div className="flex gap-1 mb-1">
@@ -1627,14 +1629,14 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                   type="button"
                   onClick={closeCreateUserModal}
                   disabled={createSubmitting}
-                  className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none disabled:opacity-50"
+                  className="btn btn-secondary flex-1"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={createSubmitting}
-                  className="flex-1 rounded-md bg-green-600 hover:bg-green-700 px-4 py-2 text-sm font-medium text-white focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="btn btn-primary flex-1"
                 >
                   {createSubmitting ? (
                     <><Loader2 className="h-4 w-4 animate-spin" />Creating...</>
@@ -1731,7 +1733,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                 <button
                   type="button"
                   onClick={handleRegenerateRecoveryKey}
-                  className="w-full inline-flex justify-center rounded-md border border-amber-300 dark:border-amber-600 shadow-sm px-4 py-2 bg-amber-50 dark:bg-amber-900/20 text-base font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 sm:text-sm"
+                  className="btn btn-amber btn-full"
                 >
                   <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
@@ -1747,7 +1749,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                     setIsRegeneratedKey(false);
                     setRecoveryKeyUserId(null);
                   }}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm"
+                  className="btn btn-primary btn-full"
                 >
                   Close
                 </button>

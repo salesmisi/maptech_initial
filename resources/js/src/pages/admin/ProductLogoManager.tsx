@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ImagePlus, RefreshCw, Trash2, AlertTriangle, Search } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ImagePlus, RefreshCw, Trash2, AlertTriangle, Search, ChevronRight, X, Filter } from 'lucide-react';
 import { LoadingState } from '../../components/ui/LoadingState';
 
 interface CourseLogoItem {
   id: string;
   title: string;
   department: string | null;
+  subdepartment_name: string | null;
   logo_path: string | null;
   logo_name: string | null;
   logo_url: string | null;
@@ -16,6 +18,7 @@ interface CourseLogoItem {
 const API_BASE = '/api/admin/product-logos/courses';
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
+const PREVIEW_COUNT = 5;
 
 function getCookie(name: string): string | undefined {
   const value = `; ${document.cookie}`;
@@ -29,6 +32,184 @@ async function getXsrfToken(): Promise<string> {
   return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
 }
 
+/* ─── Course Picker Modal ─────────────────────────────────────── */
+interface CoursePickerModalProps {
+  items: CourseLogoItem[];
+  selectedCourseId: string | null;
+  onSelect: (id: string) => void;
+  onClose: () => void;
+}
+
+function CoursePickerModal({ items, selectedCourseId, onSelect, onClose }: CoursePickerModalProps) {
+  const [modalSearch, setModalSearch] = useState('');
+  const [filterDept, setFilterDept] = useState('');
+  const [filterSubdept, setFilterSubdept] = useState('');
+
+  const departments = useMemo(() => {
+    const set = new Set<string>();
+    items.forEach((i) => { if (i.department) set.add(i.department); });
+    return Array.from(set).sort();
+  }, [items]);
+
+  const subdepartments = useMemo(() => {
+    const set = new Set<string>();
+    items.forEach((i) => {
+      if (i.subdepartment_name && (!filterDept || i.department === filterDept)) {
+        set.add(i.subdepartment_name);
+      }
+    });
+    return Array.from(set).sort();
+  }, [items, filterDept]);
+
+  useEffect(() => { setFilterSubdept(''); }, [filterDept]);
+
+  const filtered = useMemo(() => {
+    const kw = modalSearch.trim().toLowerCase();
+    return items.filter((i) => {
+      if (filterDept && i.department !== filterDept) return false;
+      if (filterSubdept && i.subdepartment_name !== filterSubdept) return false;
+      if (kw && !i.title.toLowerCase().includes(kw) && !(i.department || '').toLowerCase().includes(kw)) return false;
+      return true;
+    });
+  }, [items, filterDept, filterSubdept, modalSearch]);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[88vh]">
+        {/* header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">All Courses</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Select a course to manage its logo</p>
+          </div>
+          <button type="button" onClick={onClose} className="btn-icon btn-icon-close">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* filters */}
+        <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-700 space-y-2">
+          <div className="relative">
+            <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              value={modalSearch}
+              onChange={(e) => setModalSearch(e.target.value)}
+              placeholder="Search course name..."
+              className="w-full rounded-md border border-slate-300 dark:border-slate-600 pl-9 pr-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Filter className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <select
+                value={filterDept}
+                onChange={(e) => setFilterDept(e.target.value)}
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 pl-8 pr-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 appearance-none"
+              >
+                <option value="">All Departments</option>
+                {departments.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+            <div className="relative flex-1">
+              <Filter className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <select
+                value={filterSubdept}
+                onChange={(e) => setFilterSubdept(e.target.value)}
+                disabled={subdepartments.length === 0}
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 pl-8 pr-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 appearance-none disabled:opacity-50"
+              >
+                <option value="">All Subdepartments</option>
+                {subdepartments.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* course list */}
+        <div className="overflow-y-auto flex-1 px-5 py-3 space-y-1.5">
+          {filtered.length === 0 ? (
+            <div className="py-10 text-center text-sm text-slate-500 dark:text-slate-400">No courses match the selected filters.</div>
+          ) : (
+            filtered.map((item) => {
+              const isSelected = item.id === selectedCourseId;
+              return (
+                <button
+                  type="button"
+                  key={item.id}
+                  onClick={() => { onSelect(item.id); onClose(); }}
+                  className={`group w-full text-left rounded-lg border px-3 py-2.5 transition ${
+                    isSelected
+                      ? 'border-emerald-500 bg-emerald-50 dark:border-emerald-500/70 dark:bg-emerald-900/35'
+                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className={`text-sm font-medium truncate ${isSelected ? 'text-emerald-900 dark:text-emerald-100' : 'text-slate-900 dark:text-slate-100'}`}>
+                        {item.title}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        {item.department && (
+                          <span className={`text-xs ${isSelected ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}`}>
+                            {item.department}
+                          </span>
+                        )}
+                        {item.subdepartment_name && (
+                          <>
+                            <span className="text-slate-300 dark:text-slate-600 text-xs">·</span>
+                            <span className={`text-xs ${isSelected ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                              {item.subdepartment_name}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {item.logo_url && (
+                        <img
+                          src={item.logo_url}
+                          alt=""
+                          className="h-7 w-7 rounded object-contain border border-slate-200 dark:border-slate-700 bg-slate-50"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      )}
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        isSelected
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                      }`}>
+                        {item.logo_path ? '✓ logo' : 'no logo'}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        {/* footer */}
+        <div className="px-5 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            {filtered.length} of {items.length} course{items.length !== 1 ? 's' : ''}
+          </span>
+          <button type="button" onClick={onClose} className="btn btn-secondary btn-sm">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export function ProductLogoManager() {
   const [items, setItems] = useState<CourseLogoItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +218,8 @@ export function ProductLogoManager() {
   const [busyCourseId, setBusyCourseId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [logoName, setLogoName] = useState('');
-  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [showPickerModal, setShowPickerModal] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const readCourseIdFromUrl = () => {
     const params = new URLSearchParams(window.location.search);
@@ -110,16 +292,18 @@ export function ProductLogoManager() {
     setLogoName(selected?.logo_name || '');
   }, [selectedCourseId, items]);
 
-  const filteredItems = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
-    return items.filter((item) => {
-      const matchSearch =
-        keyword.length === 0 ||
-        item.title.toLowerCase().includes(keyword) ||
-        (item.department || '').toLowerCase().includes(keyword);
+  const previewItems = useMemo(() => {
+    const kw = search.trim().toLowerCase();
+    const filtered = kw
+      ? items.filter((i) => i.title.toLowerCase().includes(kw) || (i.department || '').toLowerCase().includes(kw))
+      : items;
+    return filtered.slice(0, PREVIEW_COUNT);
+  }, [items, search]);
 
-      return matchSearch;
-    });
+  const totalFiltered = useMemo(() => {
+    const kw = search.trim().toLowerCase();
+    if (!kw) return items.length;
+    return items.filter((i) => i.title.toLowerCase().includes(kw) || (i.department || '').toLowerCase().includes(kw)).length;
   }, [items, search]);
 
   const selectedItem = useMemo(
@@ -192,8 +376,7 @@ export function ProductLogoManager() {
       setMessage({ type: 'error', text: error?.message || 'Could not upload logo.' });
     } finally {
       setBusyCourseId(null);
-      const input = fileInputRefs.current[courseId];
-      if (input) input.value = '';
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -265,8 +448,8 @@ export function ProductLogoManager() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold text-slate-900">Product Logo Manager</h1>
-        <p className="text-sm text-slate-600">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Product Logo Manager</h1>
+        <p className="text-sm text-slate-600 dark:text-slate-400">
           Select a course first, then add, replace, rename, or delete its logo. Uploaded logos are stored in storage/product_logos.
         </p>
       </div>
@@ -275,15 +458,16 @@ export function ProductLogoManager() {
         <div
           className={`rounded-md border px-4 py-3 text-sm ${
             message.type === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-              : 'border-rose-200 bg-rose-50 text-rose-800'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+              : 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
           }`}
         >
           {message.text}
         </div>
       )}
 
-      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+      {/* Search + Refresh bar */}
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <label className="relative">
             <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -291,124 +475,170 @@ export function ProductLogoManager() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search course or department..."
-              className="w-full rounded-md border border-slate-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full rounded-md border border-slate-300 dark:border-slate-600 pl-9 pr-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </label>
-
-          <button
-            type="button"
-            onClick={loadCourses}
-            className="inline-flex items-center justify-center rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-700 dark:hover:text-white transition-colors"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
+          <button type="button" onClick={loadCourses} className="btn btn-secondary">
+            <RefreshCw className="h-4 w-4" />
             Refresh
           </button>
         </div>
       </div>
 
-      <div className="text-xs text-slate-500">Allowed formats: PNG/JPG. Maximum file size: 2MB.</div>
+      <div className="text-xs text-slate-500 dark:text-slate-400">Allowed formats: PNG/JPG. Maximum file size: 2MB.</div>
 
       {loading ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-10">
-          <LoadingState message="Loading modules" />
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10">
+          <LoadingState message="Loading courses" />
         </div>
-      ) : filteredItems.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-500">No courses found.</div>
+      ) : items.length === 0 ? (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10 text-center text-slate-500 dark:text-slate-400">
+          No courses found.
+        </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-slate-900 mb-3">Courses</h2>
-            <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-              {filteredItems.map((item) => {
-                const isSelected = selectedCourseId === item.id;
-                return (
-                  <button
-                    type="button"
-                    key={item.id}
-                    onClick={() => setSelectedCourseId(item.id)}
-                    className={`group w-full text-left rounded-lg border px-3 py-2 transition ${
-                      isSelected
-                        ? 'border-emerald-500 bg-emerald-50 dark:border-emerald-500/70 dark:bg-emerald-900/35'
-                        : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className={`text-sm font-medium ${isSelected ? 'text-emerald-900 dark:text-emerald-100' : 'text-slate-900 dark:text-slate-100'}`}>{item.title}</div>
-                        <div className={`text-xs ${isSelected ? 'text-emerald-700 dark:text-emerald-200' : 'text-slate-500 dark:text-slate-300'}`}>{item.department || 'Unassigned department'}</div>
+          {/* Left: course preview list (max 5) */}
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm flex flex-col">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Courses</h2>
+
+            <div className="space-y-2">
+              {previewItems.length === 0 ? (
+                <p className="text-sm text-slate-400 dark:text-slate-500 py-4 text-center">No courses match your search.</p>
+              ) : (
+                previewItems.map((item) => {
+                  const isSelected = selectedCourseId === item.id;
+                  return (
+                    <button
+                      type="button"
+                      key={item.id}
+                      onClick={() => setSelectedCourseId(item.id)}
+                      className={`group w-full text-left rounded-lg border px-3 py-2 transition ${
+                        isSelected
+                          ? 'border-emerald-500 bg-emerald-50 dark:border-emerald-500/70 dark:bg-emerald-900/35'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className={`text-sm font-medium truncate ${isSelected ? 'text-emerald-900 dark:text-emerald-100' : 'text-slate-900 dark:text-slate-100'}`}>
+                            {item.title}
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                            <span className={`text-xs ${isSelected ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}`}>
+                              {item.department || 'Unassigned'}
+                            </span>
+                            {item.subdepartment_name && (
+                              <>
+                                <span className="text-slate-300 dark:text-slate-600 text-xs">·</span>
+                                <span className={`text-xs ${isSelected ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                                  {item.subdepartment_name}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] shrink-0 ${isSelected ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
+                          ID {item.id}
+                        </span>
                       </div>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] ${isSelected ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>ID {item.id}</span>
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })
+              )}
             </div>
+
+            {/* "See all courses" — shown when more than PREVIEW_COUNT exist */}
+            {totalFiltered > PREVIEW_COUNT && (
+              <button
+                type="button"
+                onClick={() => setShowPickerModal(true)}
+                className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 py-2.5 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:border-emerald-400 dark:hover:border-emerald-600 transition-colors"
+              >
+                <ChevronRight className="h-4 w-4" />
+                See all {totalFiltered} courses
+              </button>
+            )}
+
+            {/* Browse & filter — always available even with ≤5 courses */}
+            {totalFiltered <= PREVIEW_COUNT && totalFiltered > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowPickerModal(true)}
+                className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 py-2 text-xs text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors"
+              >
+                <Filter className="h-3.5 w-3.5" />
+                Browse &amp; filter courses
+              </button>
+            )}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col">
-            <h2 className="text-sm font-semibold text-slate-900 mb-3">Logo Actions</h2>
+          {/* Right: Logo Actions */}
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm flex flex-col">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Logo Actions</h2>
 
             {!selectedItem ? (
-              <div className="w-full flex-1 min-h-[220px] sm:min-h-[280px] rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-500 flex items-center justify-center leading-relaxed">
-                <span className="max-w-[28rem]">Select a course to manage its logo.</span>
+              <div className="w-full flex-1 min-h-[220px] sm:min-h-[280px] rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/30 p-4 text-center text-sm text-slate-500 dark:text-slate-400 flex items-center justify-center">
+                Select a course to manage its logo.
               </div>
             ) : (
               <>
                 <div className="mb-3">
-                  <div className="text-sm font-medium text-slate-900">{selectedItem.title}</div>
-                  <div className="text-xs text-slate-500">{selectedItem.department || 'Unassigned department'}</div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{selectedItem.title}</div>
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">{selectedItem.department || 'Unassigned'}</span>
+                    {selectedItem.subdepartment_name && (
+                      <>
+                        <span className="text-slate-300 dark:text-slate-600 text-xs">·</span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500">{selectedItem.subdepartment_name}</span>
+                      </>
+                    )}
+                  </div>
                 </div>
 
-                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 min-h-[180px] p-3 flex items-center justify-center">
+                <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/30 min-h-[180px] p-3 flex items-center justify-center">
                   {selectedItem.logo_url ? (
                     <img
                       src={selectedItem.logo_url}
                       alt={`${selectedItem.title} logo`}
                       className="max-h-[150px] w-auto object-contain"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.display = 'none';
-                      }}
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                     />
                   ) : (
-                    <div className="text-center text-xs text-slate-500">
-                      <ImagePlus className="h-5 w-5 mx-auto mb-1 text-slate-400" />
+                    <div className="text-center text-xs text-slate-500 dark:text-slate-400">
+                      <ImagePlus className="h-5 w-5 mx-auto mb-1 text-slate-400 dark:text-slate-500" />
                       No logo assigned
                     </div>
                   )}
                 </div>
 
                 {selectedItem.broken_logo && (
-                  <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
-                    <AlertTriangle className="h-4 w-4" />
+                  <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md px-2 py-1.5">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
                     Assigned logo file is missing. Upload a replacement.
                   </div>
                 )}
 
                 <div className="mt-4">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Logo Name</label>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Logo Name</label>
                   <input
                     value={logoName}
                     onChange={(e) => setLogoName(e.target.value)}
                     placeholder="Type logo name"
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
-                  <p className="mt-1 text-[11px] text-slate-500">
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                     You can set this while uploading, or edit it later when a logo already exists.
                   </p>
                 </div>
 
                 <input
-                  ref={(el) => {
-                    fileInputRefs.current[selectedItem.id] = el;
-                  }}
+                  ref={fileInputRef}
                   type="file"
                   accept="image/png,image/jpeg"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) {
-                      handleUpload(selectedItem.id, file);
-                    }
+                    if (file && selectedItem) handleUpload(selectedItem.id, file);
                   }}
                 />
 
@@ -416,10 +646,10 @@ export function ProductLogoManager() {
                   <button
                     type="button"
                     disabled={busyCourseId === selectedItem.id}
-                    onClick={() => fileInputRefs.current[selectedItem.id]?.click()}
-                    className="inline-flex items-center rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="btn btn-primary btn-sm"
                   >
-                    <ImagePlus className="h-4 w-4 mr-1.5" />
+                    <ImagePlus className="h-4 w-4" />
                     {selectedItem.logo_path ? 'Replace Logo' : 'Upload Logo'}
                   </button>
 
@@ -427,7 +657,7 @@ export function ProductLogoManager() {
                     type="button"
                     disabled={busyCourseId === selectedItem.id || !selectedItem.logo_path}
                     onClick={() => handleUpdateName(selectedItem.id)}
-                    className="inline-flex items-center rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                    className="btn btn-secondary btn-sm"
                   >
                     Save Logo Name
                   </button>
@@ -436,9 +666,9 @@ export function ProductLogoManager() {
                     type="button"
                     disabled={busyCourseId === selectedItem.id || !selectedItem.logo_path}
                     onClick={() => handleDelete(selectedItem.id)}
-                    className="inline-flex items-center rounded-md border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                    className="btn btn-danger-outline btn-sm"
                   >
-                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    <Trash2 className="h-4 w-4" />
                     Delete Logo
                   </button>
                 </div>
@@ -446,6 +676,16 @@ export function ProductLogoManager() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Course Picker Modal */}
+      {showPickerModal && (
+        <CoursePickerModal
+          items={items}
+          selectedCourseId={selectedCourseId}
+          onSelect={(id) => setSelectedCourseId(id)}
+          onClose={() => setShowPickerModal(false)}
+        />
       )}
     </div>
   );

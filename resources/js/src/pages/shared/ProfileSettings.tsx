@@ -602,7 +602,7 @@ export function ProfileSettings() {
                     type="button"
                     onClick={uploadDrawnSignature}
                     disabled={uploadingSignature}
-                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 transition-all duration-200 hover:-translate-y-0.5"
+                    className="btn btn-primary btn-xs"
                   >
                     <Save className="h-3.5 w-3.5 mr-1.5" />
                     Save Drawn Signature
@@ -616,7 +616,7 @@ export function ProfileSettings() {
                   type="button"
                   onClick={() => signatureInputRef.current?.click()}
                   disabled={uploadingSignature}
-                  className="mt-2 inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 transition-all duration-200 hover:-translate-y-0.5"
+                  className="btn btn-primary btn-sm mt-2"
                 >
                   <Upload className="h-4 w-4 mr-2" />
                   {profile.signature_path ? 'Replace E-Signature' : 'Upload E-Signature'}
@@ -847,7 +847,7 @@ export function ProfileSettings() {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 transition-all duration-200 hover:-translate-y-0.5"
+              className="btn btn-primary"
             >
               {saving ? (
                 <>
