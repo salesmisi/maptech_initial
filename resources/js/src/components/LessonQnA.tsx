@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import useConfirm from '../hooks/useConfirm';
 import { safeArray } from '../utils/safe';
 import { LoadingState } from './ui/LoadingState';
-import { Search } from 'lucide-react';
+import { Search, ChevronDown } from 'lucide-react';
+import LessonSelectModal from './LessonSelectModal';
 
 interface Question {
   id: number;
@@ -42,6 +43,7 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
 
   const [lessons, setLessons] = useState<LessonOption[]>([]);
   const [lessonId, setLessonId] = useState<number | null>(lessonIdProp ?? null);
+  const [lessonModalOpen, setLessonModalOpen] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [newQuestion, setNewQuestion] = useState('');
@@ -151,20 +153,30 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
 
       {/* Lesson Selector */}
       <div className="bg-white dark:bg-slate-900/80 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-        <label htmlFor="select-lesson" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">Select a Lesson</label>
-        <select
-          id="select-lesson"
-          name="lessonId"
-          value={lessonId ?? ''}
-          onChange={(e) => setLessonId(e.target.value ? Number(e.target.value) : null)}
-          className="w-full border border-slate-300 dark:border-slate-700 rounded-md py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500"
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">Select a Lesson</label>
+        <button
+          type="button"
+          onClick={() => setLessonModalOpen(true)}
+          className="w-full flex items-center justify-between border border-slate-300 dark:border-slate-700 rounded-md py-2 px-3 bg-white dark:bg-slate-800 text-left hover:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
         >
-          <option value="">{scope === 'employee' ? '-- Select a lesson to ask or view questions --' : '-- All Lessons (show all questions) --'}</option>
-            {safeArray(lessons).map(l => (
-            <option key={l.id} value={l.id}>{l.course_title} &rsaquo; {l.module_title} &rsaquo; {l.title}</option>
-          ))}
-        </select>
+          <span className={`text-sm ${lessonId ? 'text-slate-900 dark:text-slate-100' : 'text-slate-400'}`}>
+            {lessonId
+              ? (() => { const l = lessons.find(x => x.id === lessonId); return l ? `${l.course_title} › ${l.module_title} › ${l.title}` : 'Select a lesson'; })()
+              : scope === 'employee' ? '-- Select a lesson to ask or view questions --' : '-- All Lessons (show all questions) --'
+            }
+          </span>
+          <ChevronDown className="h-4 w-4 text-slate-400 shrink-0 ml-2" />
+        </button>
       </div>
+
+      <LessonSelectModal
+        open={lessonModalOpen}
+        lessons={safeArray(lessons)}
+        selectedId={lessonId}
+        scope={scope}
+        onConfirm={(id) => { setLessonId(id); setLessonModalOpen(false); }}
+        onCancel={() => setLessonModalOpen(false)}
+      />
 
       <div className="bg-white dark:bg-slate-900/80 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
         <label htmlFor="qa-search" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">Search in Q&A</label>
