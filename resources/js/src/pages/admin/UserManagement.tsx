@@ -1393,7 +1393,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                       type="text"
                       value={createLastName}
                       onChange={(e) => setCreateLastName(e.target.value)}
-                      placeholder="De leon"
+                      placeholder="Dela Cruz"
                       autoComplete="off"
                       className={modalFieldClass}
                     />
@@ -1406,18 +1406,18 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                       type="text"
                       value={createFirstName}
                       onChange={(e) => setCreateFirstName(e.target.value)}
-                      placeholder="Prud"
+                      placeholder="Juan"
                       autoComplete="off"
                       className={modalFieldClass}
                     />
                   </div>
                   <div className="col-span-1">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">M.I.</label>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">M.I. <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       value={createMiddleInitial}
                       onChange={(e) => setCreateMiddleInitial(e.target.value.replace(/[^a-zA-Z]/g, '').slice(0, 2).toUpperCase())}
-                      placeholder="DC"
+                      placeholder="M"
                       maxLength={2}
                       autoComplete="off"
                       className={modalFieldClass}
@@ -1547,7 +1547,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                 {/* Department */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
-                    Department{createRole === 'Employee' && <span className="text-red-500"> *</span>}
+                    Department <span className="text-red-500">*</span>
                   </label>
                   <div className="relative ui-select-wrap">
                     <select
@@ -1594,7 +1594,7 @@ export function UserManagement({ currentUserEmail, onLogout }: { currentUserEmai
                 {/* Instructor: Subdepartments multi-select + head */}
                 {createRole === 'Instructor' && createDepartment && (
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Instructor Subdepartments</label>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Instructor Subdepartments <span className="text-red-500">*</span></label>
                     <select
                       multiple
                       value={createSubdepartmentIds.map(String)}
