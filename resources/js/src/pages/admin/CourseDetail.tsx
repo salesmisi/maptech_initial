@@ -182,12 +182,12 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz }: 
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-4 py-1.5 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
+          className="btn btn-primary btn-sm"
         >
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
           {saving ? 'Creating...' : 'Create & Add Questions'}
         </button>
-        <button onClick={onCancel} className="px-4 py-1.5 border border-slate-300 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50">
+        <button onClick={onCancel} className="btn btn-secondary btn-sm">
           Cancel
         </button>
       </div>
@@ -1189,7 +1189,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                                 <button
                                   onClick={() => handleAddLesson(mod.id)}
                                   disabled={uploadingLesson}
-                                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-md disabled:opacity-50 flex items-center gap-1"
+                                  className="btn btn-primary btn-xs"
                                 >
                                   {uploadingLesson ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
                                   {uploadingLesson ? 'Saving...' : 'Save Lesson'}
@@ -1205,7 +1205,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                           ) : (
                             <button
                               onClick={() => { setAddingLessonForModule(mod.id); setLessonTitle(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
-                              className="mt-2 flex items-center gap-1 text-xs text-green-600 hover:text-green-800 font-medium"
+                              className="btn btn-secondary btn-xs mt-2"
                             >
                               <Plus className="h-3.5 w-3.5" /> Add Lesson
                             </button>
@@ -1272,7 +1272,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                             ) : (
                               <button
                                 onClick={() => setAddingQuizForModule(mod.id)}
-                                className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                                className="btn btn-secondary btn-xs"
                               >
                                 <Plus className="h-3.5 w-3.5" /> Add Quiz
                               </button>
@@ -1326,7 +1326,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                   <button
                     type="submit"
                     disabled={uploading}
-                    className="flex-1 py-2 px-4 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="btn btn-primary flex-1"
                   >
                     {uploading ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : <><Plus className="h-4 w-4" /> Add Module</>}
                   </button>
@@ -1336,7 +1336,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
           ) : (
             <button
               onClick={() => setAddingModule(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700"
+              className="btn btn-primary btn-sm"
             >
               <Plus className="h-4 w-4" />
               Add Module

@@ -1606,8 +1606,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                     <div className="border-t border-slate-100 dark:border-slate-700">
 
                       {/* Pre-Test Section */}
-                      <div className="px-6 py-3 bg-blue-50/30 dark:bg-blue-900/10 border-b border-blue-100 dark:border-blue-900/30">
-                        <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-2 flex items-center gap-2">
+                      <div className="px-6 py-3 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-200 dark:border-slate-700">
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-2">
                           <HelpCircle className="h-3.5 w-3.5" />
                           Pre-Test (Before Lessons)
                         </p>
@@ -1630,7 +1630,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                         ) : (
                           <button
                             onClick={() => setAddingQuizForModule(`pre-test-${mod.id}`)}
-                            className="inline-flex items-center gap-1 px-3 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 rounded-md shadow-sm transition-colors"
+                            className="btn btn-secondary btn-sm"
                           >
                             <Plus className="h-4 w-4" /> Add Pre-Test
                           </button>
@@ -1973,8 +1973,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                       </div>
 
                       {/* Post-Test Section */}
-                      <div className="px-6 py-3 bg-purple-50/30 dark:bg-purple-900/10 border-t border-purple-100 dark:border-purple-900/30">
-                        <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 uppercase tracking-wide mb-2 flex items-center gap-2">
+                      <div className="px-6 py-3 bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200 dark:border-slate-700">
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-2">
                           <HelpCircle className="h-3.5 w-3.5" />
                           Post-Test (After All Content)
                         </p>
@@ -1997,7 +1997,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                         ) : (
                           <button
                             onClick={() => setAddingQuizForModule(`post-test-${mod.id}`)}
-                            className="inline-flex items-center gap-1 px-3 py-2 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 dark:bg-purple-600 dark:hover:bg-purple-700 rounded-md shadow-sm transition-colors"
+                            className="btn btn-secondary btn-sm"
                           >
                             <Plus className="h-4 w-4" /> Add Post-Test
                           </button>
