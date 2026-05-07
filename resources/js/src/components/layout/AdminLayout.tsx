@@ -567,11 +567,11 @@ export function AdminLayout({
                 {pageDescription}
               </p>
             </div>
-            <div className="flex items-center gap-2 md:gap-0">
+            <div className="flex items-center gap-3">
               <button
                 onClick={onToggleTheme}
                 aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                className="mr-2 inline-flex items-center"
+                className="inline-flex items-center"
                 title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               >
                 <span className="inline-flex items-center gap-2 rounded-full border border-slate-300/60 bg-white/90 px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition-colors dark:border-slate-600/70 dark:bg-slate-900/85 dark:text-slate-100">
