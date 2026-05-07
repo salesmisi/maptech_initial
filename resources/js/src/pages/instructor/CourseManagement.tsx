@@ -162,6 +162,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [customModules, setCustomModules] = useState<CustomModule[]>([]);
+  const [currentInstructor, setCurrentInstructor] = useState<{ fullname?: string; fullName?: string; name?: string; profile_picture?: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
@@ -193,6 +194,13 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [pushError, setPushError] = useState<string | null>(null);
   const minDateTimeInput = formatDateTimeForTimeZone(new Date(), 'Asia/Manila');
   const hasOpenModal = isModalOpen || courseUnlockModalOpen || pushDeptModalOpen;
+
+  useEffect(() => {
+    fetch('/api/profile', { credentials: 'include', headers: { Accept: 'application/json' } })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setCurrentInstructor(data); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!hasOpenModal) return;
@@ -996,54 +1004,35 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 <p className="mt-1 text-xs text-slate-400">This logo will appear on certificates issued for this course.</p>
               </div>
 
-              {editingCourse && (
-                <div className="border-t border-slate-200 pt-4">
-                  <div className="flex justify-between items-center mb-3">
-                    <h4 className="text-sm font-medium text-slate-700">Add Modules / Content</h4>
-                    <button
-                      type="button"
-                      onClick={addModule}
-                      className="inline-flex items-center px-3 py-1.5 border border-green-300 rounded-md text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100"
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add Module
-                    </button>
-                  </div>
-
-                  {modules.length === 0 ? (
-                    <p className="text-sm text-slate-500 italic">No modules added yet.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {safeArray(modules).map((mod, idx) => (
-                        <div key={mod.id} className="p-3 bg-slate-50 rounded-md border border-slate-200">
-                          <div className="flex gap-2 items-start">
-                            <div className="flex-1 space-y-2">
-                              <input
-                                type="text"
-                                placeholder={`Module ${idx + 1} Title`}
-                                value={mod.title}
-                                onChange={(e) => updateModuleTitle(mod.id, e.target.value)}
-                                className="w-full border border-slate-300 rounded-md py-1.5 px-2 text-sm focus:ring-green-500 focus:border-green-500"
-                              />
-                              <input
-                                type="file"
-                                accept="video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
-                                onChange={(e) => updateModuleFile(mod.id, e.target.files?.[0] || null)}
-                                className="w-full text-sm text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-medium file:bg-green-50 file:text-green-700"
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => removeModule(mod.id)}
-                              className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
-                            >
-                              <Trash className="h-4 w-4" />
-                            </button>
-                          </div>
+              {/* Assigned to — read-only display for instructor */}
+              {editingCourse && currentInstructor && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Assigned to</label>
+                  <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-slate-700/60 border border-green-200 dark:border-slate-600 rounded-md">
+                    <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-green-300 flex-shrink-0">
+                      {currentInstructor.profile_picture ? (
+                        <img
+                          src={currentInstructor.profile_picture}
+                          alt={currentInstructor.fullname ?? currentInstructor.fullName ?? currentInstructor.name ?? ''}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-green-200 dark:bg-emerald-800/50 flex items-center justify-center">
+                          <span className="text-sm font-bold text-green-800 dark:text-emerald-300">
+                            {(currentInstructor.fullname ?? currentInstructor.fullName ?? currentInstructor.name ?? '?')
+                              .split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </span>
                         </div>
-                      ))}
+                      )}
                     </div>
-                  )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                        {currentInstructor.fullname ?? currentInstructor.fullName ?? currentInstructor.name}{' '}
+                        <span className="text-green-500 dark:text-emerald-400 font-normal">(You)</span>
+                      </p>
+                      <p className="text-xs text-green-600 dark:text-emerald-400">Assigned Instructor</p>
+                    </div>
+                  </div>
                 </div>
               )}
 
