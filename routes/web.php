@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,6 +17,32 @@ use App\Http\Controllers\YouTubeController;
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get('/media/profile-picture/{path}', function (string $path) {
+    $normalized = trim(str_replace('\\', '/', $path), '/');
+
+    if ($normalized === '' || str_contains($normalized, '..')) {
+        abort(404);
+    }
+
+    if (!str_starts_with($normalized, 'profile-pictures/')) {
+        $normalized = 'profile-pictures/' . ltrim($normalized, '/');
+    }
+
+    if (Storage::disk('public')->exists($normalized)) {
+        return response()->file(Storage::disk('public')->path($normalized));
+    }
+
+    $svg = <<<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+  <rect width="128" height="128" rx="64" fill="#D1D5DB"/>
+  <circle cx="64" cy="50" r="24" fill="#F8FAFC"/>
+  <path d="M26 108c7-20 25-30 38-30s31 10 38 30" fill="#F8FAFC"/>
+</svg>
+SVG;
+
+    return response($svg, 200, ['Content-Type' => 'image/svg+xml']);
+})->where('path', '.*');
 
 // =====================
 // LOGIN (Session-based for SPA)

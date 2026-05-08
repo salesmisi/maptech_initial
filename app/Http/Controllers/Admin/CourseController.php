@@ -435,13 +435,13 @@ class CourseController extends Controller
         $instructorId = $validated['instructor_id'] ?? null;
 
         try {
-            $updated = Course::whereIn('id', $courseIds)->update(['instructor_id' => $instructorId]);
+            $updated = DB::table('courses')->whereIn('id', $courseIds)->update(['instructor_id' => $instructorId]);
 
             // If an instructor was assigned, create a notification for them
             if ($instructorId) {
-                $instructor = \App\Models\User::find($instructorId);
+                $instructor = \App\Models\User::query()->find($instructorId);
                 if ($instructor) {
-                    $assignedCourses = Course::whereIn('id', $courseIds)->pluck('title')->toArray();
+                    $assignedCourses = DB::table('courses')->whereIn('id', $courseIds)->pluck('title')->toArray();
                     $title = 'Courses assigned to you';
                     $message = 'You have been assigned ' . count($assignedCourses) . ' course(s): ' . implode(', ', array_slice($assignedCourses, 0, 5));
 
@@ -868,7 +868,7 @@ class CourseController extends Controller
         // Notify enrolled users about new module
         try {
             $user = $request->user();
-            $enrolledUserIds = Enrollment::where('course_id', $course->id)
+            $enrolledUserIds = Enrollment::query()->where('course_id', $course->id)
                 ->where('status', '!=', 'Dropped')
                 ->pluck('user_id');
 
@@ -964,7 +964,7 @@ class CourseController extends Controller
         try {
             $user = $request->user();
             $course = $module->course;
-            $enrolledUserIds = Enrollment::where('course_id', $course->id)
+            $enrolledUserIds = Enrollment::query()->where('course_id', $course->id)
                 ->where('status', '!=', 'Dropped')
                 ->pluck('user_id');
 
@@ -1169,7 +1169,7 @@ class CourseController extends Controller
     {
         $course = Course::findOrFail($courseId);
 
-        $module = Module::where('course_id', $course->id)->where('id', $moduleId)->first();
+        $module = Module::query()->where('course_id', $course->id)->where('id', $moduleId)->first();
         if (!$module) return response()->json(['message' => 'Module not found'], 404);
 
         DB::table('module_user')->updateOrInsert(
@@ -1192,7 +1192,7 @@ class CourseController extends Controller
 
         $course = Course::findOrFail($courseId);
 
-        $module = Module::where('course_id', $course->id)->where('id', $moduleId)->first();
+        $module = Module::query()->where('course_id', $course->id)->where('id', $moduleId)->first();
         if (!$module) return response()->json(['message' => 'Module not found'], 404);
 
         // Upsert pivot

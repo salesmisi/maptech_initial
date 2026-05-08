@@ -15,6 +15,7 @@ use App\Models\Notification;
 use App\Events\EnrollmentUnlocked;
 use App\Events\ModuleUnlocked;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -32,25 +33,13 @@ class CourseController extends Controller
     {
         $user = $request->user();
 
-        // scope courses to instructor ownership OR to departments/subdepartments assigned to this instructor
-        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
-        $assignedDept = $user->department;
-
-        $courses = Course::with([
+        $courses = $this->accessibleCourseQuery($user)
+            ->with([
             'instructor:id,fullname,email,profile_picture',
             'subdepartment:id,name,department_id',
             'modules.lessons',
         ])
             ->withCount('enrollments')
-            ->where(function ($q) use ($user, $assignedSubIds, $assignedDept) {
-                $q->where('instructor_id', $user->id);
-                if (!empty($assignedSubIds) || $assignedDept) {
-                    $q->orWhere(function ($q2) use ($assignedSubIds, $assignedDept) {
-                        if (!empty($assignedSubIds)) $q2->whereIn('subdepartment_id', $assignedSubIds);
-                        if ($assignedDept) $q2->orWhere('department', $assignedDept);
-                    });
-                }
-            })
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -99,35 +88,23 @@ class CourseController extends Controller
     {
         $user = $request->user();
 
-        // IDs scoped to this instructor or to assigned departments/subdepartments
-        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
-        $assignedDept = $user->department;
-
-        $courseQueryForIds = Course::where(function ($q) use ($user, $assignedSubIds, $assignedDept) {
-            $q->where('instructor_id', $user->id);
-            if (!empty($assignedSubIds) || $assignedDept) {
-                $q->orWhere(function ($q2) use ($assignedSubIds, $assignedDept) {
-                    if (!empty($assignedSubIds)) $q2->whereIn('subdepartment_id', $assignedSubIds);
-                    if ($assignedDept) $q2->orWhere('department', $assignedDept);
-                });
-            }
-        });
+        $courseQueryForIds = $this->accessibleCourseQuery($user);
 
         $courseIds = $courseQueryForIds->pluck('id');
-        $quizIds   = Quiz::whereIn('course_id', $courseIds)->pluck('id');
+        $quizIds   = DB::table('quizzes')->whereIn('course_id', $courseIds)->pluck('id');
 
         // ── Stats ────────────────────────────────────────────────────────────
         $totalCourses  = $courseIds->count();
-        $totalStudents = Enrollment::whereIn('course_id', $courseIds)
+        $totalStudents = DB::table('enrollments')->whereIn('course_id', $courseIds)
                             ->distinct('user_id')
                             ->count('user_id');
         $avgPassRate   = $quizIds->isNotEmpty()
-                            ? (int) round(QuizAttempt::whereIn('quiz_id', $quizIds)->avg('percentage') ?? 0)
+                    ? (int) round(DB::table('quiz_attempts')->whereIn('quiz_id', $quizIds)->avg('percentage') ?? 0)
                             : 0;
-        $pendingCount  = Question::whereIn('course_id', $courseIds)
+        $pendingCount  = DB::table('questions')->whereIn('course_id', $courseIds)
                             ->whereNull('answer')
                             ->count();
-        $newThisMonth  = Enrollment::whereIn('course_id', $courseIds)
+        $newThisMonth  = DB::table('enrollments')->whereIn('course_id', $courseIds)
                             ->where('created_at', '>=', Carbon::now()->startOfMonth())
                             ->distinct('user_id')
                             ->count('user_id');
@@ -137,7 +114,7 @@ class CourseController extends Controller
         for ($i = 5; $i >= 0; $i--) {
             $start = Carbon::now()->startOfWeek()->subWeeks($i);
             $end   = Carbon::now()->startOfWeek()->subWeeks($i)->endOfWeek();
-            $agg   = QuizAttempt::whereIn('quiz_id', $quizIds)
+            $agg   = DB::table('quiz_attempts')->whereIn('quiz_id', $quizIds)
                         ->whereBetween('created_at', [$start, $end])
                         ->selectRaw('AVG(percentage) as avg_score, COUNT(*) as submissions')
                         ->first();
@@ -149,15 +126,7 @@ class CourseController extends Controller
         }
 
         // ── Course enrollment vs completion ───────────────────────────────────
-        $courseStats = Course::where(function ($q) use ($user, $assignedSubIds, $assignedDept) {
-                $q->where('instructor_id', $user->id);
-                if (!empty($assignedSubIds) || $assignedDept) {
-                    $q->orWhere(function ($q2) use ($assignedSubIds, $assignedDept) {
-                        if (!empty($assignedSubIds)) $q2->whereIn('subdepartment_id', $assignedSubIds);
-                        if ($assignedDept) $q2->orWhere('department', $assignedDept);
-                    });
-                }
-            })
+        $courseStats = $this->accessibleCourseQuery($user)
             ->withCount([
                 'enrollments',
                 'enrollments as completed_count' => fn ($q) => $q->where('status', 'Completed'),
@@ -170,12 +139,17 @@ class CourseController extends Controller
             ]);
 
         // ── Pending evaluations (unanswered student questions) ────────────────
-        $pendingEvaluations = Question::whereIn('course_id', $courseIds)
+        $pendingEvaluationIds = DB::table('questions')
+            ->whereIn('course_id', $courseIds)
             ->whereNull('answer')
-            ->with(['user:id,fullname', 'course:id,title'])
             ->orderBy('created_at', 'desc')
-            ->take(10)
-            ->get()
+            ->limit(10)
+            ->pluck('id');
+
+        $pendingEvaluations = Question::with(['user:id,fullname', 'course:id,title'])
+            ->findMany($pendingEvaluationIds)
+            ->sortByDesc('created_at')
+            ->values()
             ->map(fn ($q) => [
                 'id'        => $q->id,
                 'student'   => $q->user->fullname ?? 'Unknown',
@@ -186,11 +160,16 @@ class CourseController extends Controller
             ]);
 
         // ── Recent student questions ──────────────────────────────────────────
-        $recentQuestions = Question::whereIn('course_id', $courseIds)
-            ->with(['user:id,fullname', 'course:id,title'])
+        $recentQuestionIds = DB::table('questions')
+            ->whereIn('course_id', $courseIds)
             ->orderBy('created_at', 'desc')
-            ->take(5)
-            ->get()
+            ->limit(5)
+            ->pluck('id');
+
+        $recentQuestions = Question::with(['user:id,fullname', 'course:id,title'])
+            ->findMany($recentQuestionIds)
+            ->sortByDesc('created_at')
+            ->values()
             ->map(fn ($q) => [
                 'id'       => $q->id,
                 'student'  => $q->user->fullname ?? 'Unknown',
@@ -556,7 +535,7 @@ $module = $course->modules()->create($data);
 
         // Notify enrolled users about new module
         try {
-            $enrolledUserIds = Enrollment::where('course_id', $course->id)
+            $enrolledUserIds = Enrollment::query()->where('course_id', $course->id)
                 ->where('status', '!=', 'Dropped')
                 ->pluck('user_id');
 
@@ -676,7 +655,7 @@ $module = $course->modules()->create($data);
         // Notify enrolled users about new lesson
         try {
             $course = $module->course;
-            $enrolledUserIds = Enrollment::where('course_id', $course->id)
+            $enrolledUserIds = Enrollment::query()->where('course_id', $course->id)
                 ->where('status', '!=', 'Dropped')
                 ->pluck('user_id');
 
@@ -1055,7 +1034,7 @@ $module = $course->modules()->create($data);
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
-        $module = Module::where('course_id', $course->id)->where('id', $moduleId)->first();
+        $module = Module::query()->where('course_id', $course->id)->where('id', $moduleId)->first();
         if (!$module) return response()->json(['message' => 'Module not found'], 404);
 
         // Upsert pivot
@@ -1102,7 +1081,7 @@ $module = $course->modules()->create($data);
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
-        $module = Module::where('course_id', $course->id)->where('id', $moduleId)->first();
+        $module = Module::query()->where('course_id', $course->id)->where('id', $moduleId)->first();
         if (!$module) return response()->json(['message' => 'Module not found'], 404);
 
         DB::table('module_user')->updateOrInsert(
@@ -1139,7 +1118,7 @@ $module = $course->modules()->create($data);
 
         $validated = $request->validate(['department' => 'required|string']);
 
-        $module = Module::where('course_id', $course->id)->where('id', $moduleId)->first();
+        $module = Module::query()->where('course_id', $course->id)->where('id', $moduleId)->first();
         if (!$module) return response()->json(['message' => 'Module not found'], 404);
 
         // find enrolled users in that department for this course
@@ -1189,7 +1168,7 @@ $module = $course->modules()->create($data);
 
         $validated = $request->validate(['department' => 'required|string']);
 
-        $module = Module::where('course_id', $course->id)->where('id', $moduleId)->first();
+        $module = Module::query()->where('course_id', $course->id)->where('id', $moduleId)->first();
         if (!$module) return response()->json(['message' => 'Module not found'], 404);
 
         $userIds = $course->enrollments()->whereHas('user', function ($q) use ($validated) {
@@ -1371,6 +1350,27 @@ $module = $course->modules()->create($data);
         if (in_array($compact, ['salesandmarketing', 'marketingandsales'], true)) return 'salesandmarketing';
 
         return (string) $compact;
+    }
+
+    private function accessibleCourseQuery(User $user): Builder
+    {
+        $assignedSubIds = $user->subdepartments()->pluck('subdepartments.id')->toArray();
+        $assignedDept = $user->department;
+
+        return Course::query()->where(function (Builder $query) use ($user, $assignedSubIds, $assignedDept) {
+            $query->where('instructor_id', $user->id);
+
+            if (!empty($assignedSubIds) || $assignedDept) {
+                $query->orWhere(function (Builder $nestedQuery) use ($assignedSubIds, $assignedDept) {
+                    if (!empty($assignedSubIds)) {
+                        $nestedQuery->whereIn('subdepartment_id', $assignedSubIds);
+                    }
+                    if ($assignedDept) {
+                        $nestedQuery->orWhere('department', $assignedDept);
+                    }
+                });
+            }
+        });
     }
 
     private function departmentsMatch(?string $a, ?string $b): bool

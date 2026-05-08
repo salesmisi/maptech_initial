@@ -907,7 +907,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   defaultValue={editingCourse?.title}
                   placeholder="Enter Title here"
                   required
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
 
@@ -924,7 +924,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                       setModalSubdepartmentId('');
                     }}
                     required
-                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-slate-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="">Select Department</option>
                     {departments.map((dept) => (
@@ -937,7 +937,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   <select
                     name="status"
                     defaultValue={editingCourse?.status || 'Active'}
-                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-slate-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="Active">Active</option>
                     <option value="Draft">Draft</option>
