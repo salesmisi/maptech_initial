@@ -301,33 +301,7 @@ export function EmployeeLayout({
                 {pageDescription}
               </p>
             </div>
-            <div className="order-3 flex w-full items-center md:order-2 md:flex-1">
-              <form
-                className="w-full flex md:ml-0"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  onGlobalSearchSubmit?.(globalSearch);
-                }}
-              >
-                <label htmlFor="search-field" className="sr-only">
-                  Search
-                </label>
-                <div className={`relative w-full max-w-4xl h-10 text-slate-400 ${isDark ? 'focus-within:text-slate-300' : 'focus-within:text-slate-600'}`}>
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                    <Search className="h-5 w-5" />
-                  </div>
-                  <input
-                    id="search-field"
-                    className={`block w-full h-10 rounded-xl pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500/40 sm:text-sm ${isDark ? 'bg-slate-800/80 border border-slate-700 text-slate-100 placeholder-slate-400' : 'bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-500'}`}
-                    placeholder="Search all courses..."
-                    type="search"
-                    name="search"
-                    value={globalSearch}
-                    onChange={(e) => onGlobalSearch?.(e.target.value)} />
 
-                </div>
-              </form>
-            </div>
             <div className="order-2 ml-auto flex items-center gap-3 md:order-3 md:ml-6">
               <button
                 onClick={onToggleTheme}
