@@ -54,7 +54,7 @@ const getInstructorPageDescription = (page: string) => {
     quizzes: 'Maintain question sets and quiz content.',
     evaluation: 'Check learner quiz results and performance.',
     'qa-discussion': 'Answer learner questions and moderate discussions.',
-    notifications: 'Send updates and review incoming notifications.',
+    notifications: 'Send announcements and review message history.',
     feedbacks: 'Review feedback from learners and improve delivery.',
     settings: 'Manage your profile and personal preferences.',
   };

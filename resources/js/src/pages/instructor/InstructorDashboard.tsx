@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '../../components/ToastProvider';
 import { LoadingState } from '../../components/ui/LoadingState';
-// icons removed — not used in this component
+import { MessageSquare, BookOpen, Users, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 import { UserTimeLog } from '../../components/UserTimeLog';
 
@@ -22,6 +22,8 @@ export function InstructorDashboard({ onNavigate }: InstructorDashboardProps) {
   const [newStudentsMonth, setNewStudentsMonth] = useState<number>(0);
   const [passRateDelta, setPassRateDelta] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState('');
+  const [instructorName, setInstructorName] = useState('');
 
   useEffect(() => {
     setLoading(true);
@@ -35,9 +37,14 @@ export function InstructorDashboard({ onNavigate }: InstructorDashboardProps) {
         setStudentCount(data.stats?.total_students || 0);
         setAvgPassRate(data.stats?.avg_pass_rate || 0);
         setNewStudentsMonth(data.stats?.new_students_month || 0);
-        setPassRateDelta(data.stats?.pass_rate_delta || 0); // backend should provide this
+        setPassRateDelta(data.stats?.pass_rate_delta || 0);
+        if (data.user?.fullname) setInstructorName(data.user.fullname);
+        else if (data.user?.name) setInstructorName(data.user.name);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      });
   }, []);
 
   const { pushToast } = useToast();
@@ -104,35 +111,66 @@ export function InstructorDashboard({ onNavigate }: InstructorDashboardProps) {
       {!loading && (
         <>
         {/* Page Header */}
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 rounded-lg border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 sm:text-2xl">Instructor Dashboard</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Welcome back</p>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 sm:text-2xl">
+              Welcome back, {instructorName || 'Instructor'}! 👋
+            </h1>
+            <p className="mt-1 text-slate-500 dark:text-slate-400">
+              {lastUpdated ? `Last updated: Today, ${lastUpdated}` : 'Last updated: Today'}
+            </p>
           </div>
-          <div className="self-start text-xs text-slate-500 dark:text-slate-400 sm:self-auto sm:text-sm">Last updated: Today</div>
         </div>
 
         {/* Summary Cards */}
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
-          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6 flex flex-col items-start">
-            <span className="text-slate-500 dark:text-slate-400 text-xs mb-1">Student Questions</span>
-            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">{recentQuestions.length}</span>
-            <span className="text-xs text-blue-600 dark:text-blue-400 mt-1">Recent Q&A activity</span>
+          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Student Questions</p>
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{recentQuestions.length}</p>
+              </div>
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-full">
+                <MessageSquare className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              </div>
+            </div>
+            <div className="mt-4 text-xs text-blue-600 dark:text-blue-400">Recent Q&A activity</div>
           </div>
-          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6 flex flex-col items-start">
-            <span className="text-slate-500 dark:text-slate-400 text-xs mb-1">My Courses</span>
-            <span className="text-2xl font-bold text-green-600 dark:text-green-400">{courseStats.length}</span>
-            <span className="text-xs text-slate-400 dark:text-slate-500 mt-1">Active courses assigned</span>
+          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">My Courses</p>
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">{courseStats.length}</p>
+              </div>
+              <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-full">
+                <BookOpen className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+            </div>
+            <div className="mt-4 text-xs text-slate-400 dark:text-slate-500">Active courses assigned</div>
           </div>
-          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6 flex flex-col items-start">
-            <span className="text-slate-500 dark:text-slate-400 text-xs mb-1">Total Students</span>
-            <span className="text-2xl font-bold text-purple-600 dark:text-purple-400">{studentCount}</span>
-            <span className="text-xs text-green-600 dark:text-green-400 mt-1">+{newStudentsMonth} this month</span>
+          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Students</p>
+                <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{studentCount}</p>
+              </div>
+              <div className="p-3 bg-purple-50 dark:bg-purple-900/30 rounded-full">
+                <Users className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+              </div>
+            </div>
+            <div className="mt-4 text-xs text-green-600 dark:text-green-400">+{newStudentsMonth} this month</div>
           </div>
-          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6 flex flex-col items-start">
-            <span className="text-slate-500 dark:text-slate-400 text-xs mb-1">Avg. Pass Rate</span>
-            <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">{avgPassRate}%</span>
-            <span className={`text-xs mt-1 ${passRateDelta >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{passRateDelta >= 0 ? '+' : ''}{passRateDelta}% from last month</span>
+          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Avg. Pass Rate</p>
+                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{avgPassRate}%</p>
+              </div>
+              <div className="p-3 bg-orange-50 dark:bg-orange-900/30 rounded-full">
+                <TrendingUp className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+              </div>
+            </div>
+            <div className={`mt-4 text-xs ${passRateDelta >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{passRateDelta >= 0 ? '+' : ''}{passRateDelta}% from last month</div>
           </div>
         </div>
 

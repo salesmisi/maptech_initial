@@ -53,7 +53,7 @@ const getEmployeePageDescription = (page: string) => {
     certificates: 'Access and download your earned certificates.',
     qa: 'Ask questions and join lesson discussions.',
     feedback: 'Share feedback to help improve course quality.',
-    notifications: 'Review updates from instructors and admins.',
+    notifications: 'Send announcements and review message history.',
     settings: 'Manage your profile and account preferences.',
   };
 

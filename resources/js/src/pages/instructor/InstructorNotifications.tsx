@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import useConfirm from '../../hooks/useConfirm';
-import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle, RotateCcw, Archive, CheckCircle, Shield, Search, ChevronDown } from 'lucide-react';
+import { Bell, Send, Eye, Trash2, Users, User, AlertCircle, X, MessageCircle, RotateCcw, Archive, CheckCircle, Shield, Search, ChevronDown } from 'lucide-react';
 import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ToastProvider';
@@ -795,6 +795,7 @@ export function InstructorNotifications() {
               onClick={markAllAsRead}
               className="inline-flex items-center px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
             >
+              <CheckCircle className="h-4 w-4 mr-2" />
               Mark All Read
             </button>
           )}
@@ -1237,8 +1238,8 @@ export function InstructorNotifications() {
                       className="w-full flex items-center justify-between px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/10 transition-colors text-sm"
                     >
                       <span className="flex items-center gap-2">
-                        {announcementTarget === 'employees' && (<><Users className="h-4 w-4 text-blue-500" /><span>Employees</span></>)}
-                        {announcementTarget === 'specific_employee' && (<><Search className="h-4 w-4 text-emerald-500" /><span>Specific Employee</span></>)}
+                        {announcementTarget === 'employees' && (<><Users className="h-4 w-4 text-emerald-500" /><span>Employees</span></>)}
+                        {announcementTarget === 'specific_employee' && (<><User className="h-4 w-4 text-orange-500" /><span>Specific Employee</span></>)}
                         {announcementTarget === 'admin' && (<><Shield className="h-4 w-4 text-purple-500" /><span>Admin</span></>)}
                       </span>
                       <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
@@ -1313,10 +1314,10 @@ export function InstructorNotifications() {
                               key={e.id}
                               type="button"
                               onClick={() => { setSelectedEmployee(e); setEmployeeSearch(e.fullname); }}
-                              className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                              className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700"
                             >
-                              <span className="font-medium">{e.fullname}</span>
-                              {e.department && <span className="text-slate-400 ml-2 text-xs">{e.department}</span>}
+                              <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{e.fullname}</div>
+                              {e.department && <div className="text-xs text-slate-400 dark:text-slate-500">{e.department}</div>}
                             </button>
                           ))}
                         </div>
@@ -1382,9 +1383,9 @@ export function InstructorNotifications() {
                 </div>
                 <div className="space-y-2">
                   {[
-                    { value: 'employees', label: 'Employees', icon: <Users className="h-4 w-4 text-blue-500" /> },
-                    { value: 'specific_employee', label: 'Specific Employee', icon: <Search className="h-4 w-4 text-emerald-500" /> },
                     { value: 'admin', label: 'Admin', icon: <Shield className="h-4 w-4 text-purple-500" /> },
+                    { value: 'employees', label: 'Employees', icon: <Users className="h-4 w-4 text-emerald-500" /> },
+                    { value: 'specific_employee', label: 'Specific Employee', icon: <User className="h-4 w-4 text-orange-500" /> },
                   ].map(({ value, label, icon }) => (
                     <button
                       key={value}

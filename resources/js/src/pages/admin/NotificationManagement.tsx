@@ -142,6 +142,7 @@ export function NotificationManagement() {
   const [selectedAnnouncementDetail, setSelectedAnnouncementDetail] = useState<AnnouncementDetail | null>(null);
   const [previewModal, setPreviewModal] = useState<{ open: boolean; recipientCount: number | null; recipients?: { id: number; fullname: string }[]; error?: string }>({ open: false, recipientCount: null });
   const [isAdminTargetModalOpen, setIsAdminTargetModalOpen] = useState(false);
+  const [adminRecipientMode, setAdminRecipientMode] = useState<'everyone' | 'instructors' | 'employees' | 'specific_employee' | 'specific_instructor'>('employees');
   const [listSearchQuery, setListSearchQuery] = useState('');
   const [highlightedNotificationId, setHighlightedNotificationId] = useState<number | null>(null);
   const notifRowRefs = useRef<Record<number, HTMLDivElement | null>>({});
@@ -478,7 +479,7 @@ export function NotificationManagement() {
     }
     try {
       setIsSearchingUsers(true);
-      const roleParam = formData.roles.length === 1 ? `&role=${encodeURIComponent(formData.roles[0])}` : '';
+      const roleParam = adminRecipientMode === 'specific_employee' ? '&role=Employee' : adminRecipientMode === 'specific_instructor' ? '&role=Instructor' : '';
       const deptParam = selectedDepartment ? `&department_id=${encodeURIComponent(selectedDepartment)}` : '';
       const deptNameParam = selectedDepartmentOption?.name ? `&department=${encodeURIComponent(selectedDepartmentOption.name)}` : '';
       const subdeptParam = selectedSubdepartment ? `&subdepartment_id=${encodeURIComponent(selectedSubdepartment)}` : '';
@@ -501,7 +502,7 @@ export function NotificationManagement() {
       searchUsers(userQuery);
     }, 300) as unknown as number;
     return () => { if (userSearchTimer.current) window.clearTimeout(userSearchTimer.current); };
-  }, [userQuery, formData.roles, selectedDepartment, selectedSubdepartment]);
+  }, [userQuery, adminRecipientMode, selectedDepartment, selectedSubdepartment]);
 
   // load departments for selector
   useEffect(() => {
@@ -617,14 +618,24 @@ export function NotificationManagement() {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    const rolesArray = Array.isArray(formData.roles) ? formData.roles : (formData.roles ? [formData.roles] : []);
-    const hasSelectedUsers = Array.isArray(formData.target_user_ids) && formData.target_user_ids.length > 0;
+    const rolesArray = adminRecipientMode === 'everyone'
+      ? ['Instructor', 'Employee']
+      : adminRecipientMode === 'instructors'
+        ? ['Instructor']
+        : adminRecipientMode === 'specific_instructor'
+          ? ['Instructor']
+          : ['Employee']; // 'employees' and 'specific_employee'
+    const hasSelectedUsers = (adminRecipientMode === 'specific_employee' || adminRecipientMode === 'specific_instructor') && Array.isArray(formData.target_user_ids) && formData.target_user_ids.length > 0;
     if (isMessageEmpty(formData.message)) {
       setPreviewModal({ open: true, recipientCount: null, error: 'Please enter a message.' });
       return;
     }
-    if (!hasSelectedUsers && rolesArray.length === 0) {
-      setPreviewModal({ open: true, recipientCount: null, error: 'Please select at least one target role or choose specific users.' });
+    if (adminRecipientMode === 'specific_employee' && !hasSelectedUsers) {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please select a specific employee.' });
+      return;
+    }
+    if (adminRecipientMode === 'specific_instructor' && !hasSelectedUsers) {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please select a specific instructor.' });
       return;
     }
 
@@ -671,6 +682,7 @@ export function NotificationManagement() {
         setSelectedDepartment('');
         setSelectedSubdepartment('');
         setAnnouncementImages([]);
+        setAdminRecipientMode('employees');
 
         // Refresh sent history from server
         fetchSentAnnouncements();
@@ -687,14 +699,24 @@ export function NotificationManagement() {
   };
 
   const handlePreview = async () => {
-    const rolesArray = Array.isArray(formData.roles) ? formData.roles : (formData.roles ? [formData.roles] : []);
-    const hasSelectedUsers = Array.isArray(formData.target_user_ids) && formData.target_user_ids.length > 0;
+    const rolesArray = adminRecipientMode === 'everyone'
+      ? ['Instructor', 'Employee']
+      : adminRecipientMode === 'instructors'
+        ? ['Instructor']
+        : adminRecipientMode === 'specific_instructor'
+          ? ['Instructor']
+          : ['Employee'];
+    const hasSelectedUsers = (adminRecipientMode === 'specific_employee' || adminRecipientMode === 'specific_instructor') && Array.isArray(formData.target_user_ids) && formData.target_user_ids.length > 0;
     if (isMessageEmpty(formData.message)) {
       setPreviewModal({ open: true, recipientCount: null, error: 'Please enter a message.' });
       return;
     }
-    if (!hasSelectedUsers && rolesArray.length === 0) {
-      setPreviewModal({ open: true, recipientCount: null, error: 'Please select at least one target role or choose specific users.' });
+    if (adminRecipientMode === 'specific_employee' && !hasSelectedUsers) {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please select a specific employee.' });
+      return;
+    }
+    if (adminRecipientMode === 'specific_instructor' && !hasSelectedUsers) {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please select a specific instructor.' });
       return;
     }
 
@@ -1003,6 +1025,7 @@ export function NotificationManagement() {
                 : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
             }`}
           >
+            <Bell className="h-4 w-4 inline mr-2" />
             Received ({safeArray(notifications).length})
           </button>
           <button
@@ -1024,6 +1047,7 @@ export function NotificationManagement() {
                 : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
             }`}
           >
+            <Archive className="h-4 w-4 inline mr-2" />
             Recently Deleted ({recentlyDeleted.length})
           </button>
         </nav>
@@ -1394,27 +1418,42 @@ export function NotificationManagement() {
                       className="w-full flex items-center justify-between px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/10 transition-colors text-sm"
                     >
                       <span className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                        <span className={formData.roles.length === 0 ? 'text-slate-400 dark:text-slate-500' : ''}>
-                          {formData.roles.length === 0
-                            ? 'Select recipients...'
-                            : formData.roles.length === 2
-                              ? 'Everyone'
-                              : formData.roles.map(r => r + 's').join(', ')}
-                        </span>
+                        {adminRecipientMode === 'everyone' && <><Users className="h-4 w-4 text-green-500 flex-shrink-0" /><span>Everyone</span></>}
+                        {adminRecipientMode === 'instructors' && <><User className="h-4 w-4 text-blue-500 flex-shrink-0" /><span>Instructors</span></>}
+                        {adminRecipientMode === 'employees' && <><Users className="h-4 w-4 text-emerald-500 flex-shrink-0" /><span>Employees</span></>}
+                        {adminRecipientMode === 'specific_instructor' && (
+                          <>
+                            <User className="h-4 w-4 text-blue-400 flex-shrink-0" />
+                            <span className={selectedUsers.length === 0 ? 'text-slate-400 dark:text-slate-500' : ''}>
+                              {selectedUsers.length > 0
+                                ? selectedUsers.map(u => u.fullname).join(', ')
+                                : 'Specific Instructor...'}
+                            </span>
+                          </>
+                        )}
+                        {adminRecipientMode === 'specific_employee' && (
+                          <>
+                            <User className="h-4 w-4 text-orange-500 flex-shrink-0" />
+                            <span className={selectedUsers.length === 0 ? 'text-slate-400 dark:text-slate-500' : ''}>
+                              {selectedUsers.length > 0
+                                ? selectedUsers.map(u => u.fullname).join(', ')
+                                : 'Specific Employee...'}
+                            </span>
+                          </>
+                        )}
                       </span>
                       <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
                     </button>
                   </div>
 
-                  {/* Department */}
-                  <div>
+                  {/* Department — hidden when Everyone is selected */}
+                  {adminRecipientMode !== 'everyone' && <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Department <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
                     </label>
                     <select
                       value={selectedDepartment}
-                      onChange={(e) => setSelectedDepartment(e.target.value)}
+                      onChange={(e) => { setSelectedDepartment(e.target.value); setSelectedSubdepartment(''); }}
                       className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
                     >
                       <option value="">All departments</option>
@@ -1422,10 +1461,10 @@ export function NotificationManagement() {
                         <option key={d.id} value={String(d.id)}>{d.name}</option>
                       ))}
                     </select>
-                  </div>
+                  </div>}
 
                   {/* Sub-department */}
-                  {selectedDepartment && (
+                  {adminRecipientMode !== 'everyone' && selectedDepartment && (
                     <div>
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         Sub Department <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
@@ -1443,39 +1482,42 @@ export function NotificationManagement() {
                     </div>
                   )}
 
-                  {/* Search Users */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Search Users <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(by name)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={userQuery}
-                      onChange={(e) => setUserQuery(e.target.value)}
-                      placeholder="Type a name to search instructors or employees"
-                      className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
-                    />
-                    {searchResults.length > 0 && (
-                      <div className="mt-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 max-h-48 overflow-auto divide-y divide-slate-100 dark:divide-slate-800">
-                        {searchResults.map(u => (
-                          <div key={u.id} className="px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" onClick={() => handleAddUser(u)}>
-                            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{u.fullname}</div>
-                            <div className="text-xs text-slate-400 dark:text-slate-500">{u.role}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {selectedUsers.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {selectedUsers.map(u => (
-                          <span key={u.id} className="inline-flex items-center gap-2 px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-full text-xs">
-                            <span>{u.fullname}</span>
-                            <button type="button" onClick={() => handleRemoveUser(u.id)} className="text-slate-400 hover:text-red-600">×</button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  {/* Search — Specific Instructor or Specific Employee only */}
+                  {(adminRecipientMode === 'specific_employee' || adminRecipientMode === 'specific_instructor') && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        {adminRecipientMode === 'specific_instructor' ? 'Search Instructor' : 'Search Employee'} <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={userQuery}
+                        onChange={(e) => setUserQuery(e.target.value)}
+                        placeholder={adminRecipientMode === 'specific_instructor' ? 'Type a name to search instructors' : 'Type a name to search employees'}
+                        className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                      />
+                      {searchResults.length > 0 && (
+                        <div className="mt-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 max-h-40 overflow-auto divide-y divide-slate-100 dark:divide-slate-800">
+                          {searchResults.map(u => (
+                            <div key={u.id} className="px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" onClick={() => handleAddUser(u)}>
+                              <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{u.fullname}</div>
+                              <div className="text-xs text-slate-400 dark:text-slate-500">{u.role}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {selectedUsers.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {selectedUsers.map(u => (
+                            <span key={u.id} className="inline-flex items-center gap-2 px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-full text-xs">
+                              <span>{u.fullname}</span>
+                              <button type="button" onClick={() => handleRemoveUser(u.id)} className="text-slate-400 hover:text-red-600">×</button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
@@ -1516,76 +1558,70 @@ export function NotificationManagement() {
               onClick={() => setIsAdminTargetModalOpen(false)}
             />
             <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md z-10">
-              <div className="px-5 pt-5 pb-4">
+              <div className="px-5 pt-5 pb-5">
                 <div className="flex items-center justify-between mb-4">
                   <h4 className="text-base font-semibold text-slate-900 dark:text-white">Select Recipient</h4>
                   <button
+                    type="button"
                     onClick={() => setIsAdminTargetModalOpen(false)}
                     className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
                   >
                     <X className="h-5 w-5" />
                   </button>
                 </div>
-                <div className="space-y-2">
-                  {/* Everyone / Select All */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const allRoles = ['Instructor', 'Employee'];
-                      setFormData(prev => ({ ...prev, roles: prev.roles.length === 2 ? [] : allRoles }));
-                    }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
-                      formData.roles.length === 2
-                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                    }`}
-                  >
-                    <span className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
-                      formData.roles.length === 2 ? 'border-green-500 bg-green-500' : 'border-slate-400 dark:border-slate-500'
-                    }`}>
-                      {formData.roles.length === 2 && (
-                        <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      )}
-                    </span>
-                    <Users className="h-4 w-4 text-green-500" />
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Everyone</span>
-                  </button>
-                  {/* Individual roles */}
-                  {[
-                    { value: 'Instructor', label: 'Instructors', icon: <User className="h-4 w-4 text-blue-500" /> },
-                    { value: 'Employee', label: 'Employees', icon: <Users className="h-4 w-4 text-emerald-500" /> },
-                  ].map(({ value, label, icon }) => (
+
+                {/* Radio options */}
+                <div className="space-y-2 mb-4">
+                  {([
+                    { value: 'everyone',           label: 'Everyone',            icon: <Users className="h-4 w-4 text-green-500" /> },
+                    { value: 'instructors',         label: 'Instructors',         icon: <User className="h-4 w-4 text-blue-500" /> },
+                    { value: 'employees',           label: 'Employees',           icon: <Users className="h-4 w-4 text-emerald-500" /> },
+                    { value: 'specific_instructor', label: 'Specific Instructor', icon: <User className="h-4 w-4 text-blue-400" /> },
+                    { value: 'specific_employee',   label: 'Specific Employee',   icon: <User className="h-4 w-4 text-orange-500" /> },
+                  ] as const).map(({ value, label, icon }) => (
                     <button
                       key={value}
                       type="button"
-                      onClick={() => handleRoleToggle(value)}
+                      onClick={() => {
+                        setAdminRecipientMode(value);
+                        if (value !== 'specific_employee' && value !== 'specific_instructor') {
+                          setSelectedUsers([]);
+                          setFormData(prev => ({ ...prev, target_user_ids: [] }));
+                          setUserQuery('');
+                          setSearchResults([]);
+                        } else {
+                          setSelectedUsers([]);
+                          setFormData(prev => ({ ...prev, target_user_ids: [] }));
+                          setUserQuery('');
+                          setSearchResults([]);
+                        }
+                      }}
                       className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
-                        formData.roles.includes(value)
+                        adminRecipientMode === value
                           ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                           : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
                       }`}
                     >
-                      <span className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
-                        formData.roles.includes(value) ? 'border-green-500 bg-green-500' : 'border-slate-400 dark:border-slate-500'
+                      <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                        adminRecipientMode === value ? 'border-green-500' : 'border-slate-400 dark:border-slate-500'
                       }`}>
-                        {formData.roles.includes(value) && (
-                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        {adminRecipientMode === value && (
+                          <span className="w-2 h-2 rounded-full bg-green-500 block" />
                         )}
                       </span>
                       {icon}
-                      <span className="text-sm text-slate-700 dark:text-slate-200">{label}</span>
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</span>
                     </button>
                   ))}
                 </div>
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setIsAdminTargetModalOpen(false)}
-                    className="w-full py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg text-sm transition-colors"
-                  >
-                    Done
-                  </button>
-                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAdminTargetModalOpen(false)}
+                  className="w-full py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg text-sm transition-colors"
+                >
+                  Done
+                </button>
               </div>
             </div>
           </div>
