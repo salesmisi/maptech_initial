@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import useConfirm from '../../hooks/useConfirm';
-import { Bell, Send, Eye, Trash2, MessageCircle, AlertCircle, X, User, RotateCcw, Archive } from 'lucide-react';
+import { Bell, Send, Eye, Trash2, MessageCircle, AlertCircle, X, User, RotateCcw, Archive, Shield, Users } from 'lucide-react';
 import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
 import InfoModal from '../../components/InfoModal';
-import { sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
+import { sanitizeHtml, RICH_CONTENT_STYLES, RichTextEditor } from '../../components/RichTextEditor';
 
 interface Notification {
   id: number;
@@ -66,7 +66,7 @@ export function EmployeeNotifications() {
   const [activeTab, setActiveTab] = useState<'received' | 'deleted'>('received');
   const [visibleCount, setVisibleCount] = useState(5);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<'instructor' | 'admin'>('instructor');
+  const [modalType, setModalType] = useState<'instructor' | 'admin' | ''>('');
   const [isSending, setIsSending] = useState(false);
   const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
@@ -75,13 +75,15 @@ export function EmployeeNotifications() {
   const [employeeDepartment, setEmployeeDepartment] = useState<string>('');
   const [infoModal, setInfoModal] = useState<{ open: boolean; title: string; message: string; variant: 'info' | 'success' | 'warning' | 'error' }>({ open: false, title: '', message: '', variant: 'info' });
 
-  // Form state
-  const [formData, setFormData] = useState({
-    title: '',
-    message: '',
-    course_id: '',
-    type: 'feedback' as string,
-  });
+  // Send Message modal state
+  const [msgTitle, setMsgTitle] = useState('');
+  const [msgBody, setMsgBody] = useState('');
+  const [msgImages, setMsgImages] = useState<File[]>([]);
+  const [msgImagePreviews, setMsgImagePreviews] = useState<string[]>([]);
+  const [msgInstructorId, setMsgInstructorId] = useState('');
+  const [availableInstructors, setAvailableInstructors] = useState<{id: number; fullname: string}[]>([]);
+  const [instructorsLoading, setInstructorsLoading] = useState(false);
+  const [instructorsError, setInstructorsError] = useState('');
 
   const token = localStorage.getItem('token');
   const confirm = useConfirm();
@@ -435,44 +437,91 @@ export function EmployeeNotifications() {
     }
   }, [notifications.length]);
 
-  const openModal = (type: 'instructor' | 'admin') => {
+  const openModal = (type: 'instructor' | 'admin' | '' = '') => {
     setModalType(type);
-    setFormData({ title: '', message: '', course_id: '', type: type === 'admin' ? 'feedback' : '' });
+    setMsgTitle('');
+    setMsgBody('');
+    setMsgImages([]);
+    setMsgImagePreviews([]);
+    setMsgInstructorId('');
+    setAvailableInstructors([]);
+    setInstructorsError('');
     setIsModalOpen(true);
+    fetchAvailableInstructors();
+  };
+
+  const fetchAvailableInstructors = async () => {
+    setInstructorsLoading(true);
+    setInstructorsError('');
+    try {
+      const res = await fetch('/api/employee/notifications/instructors', {
+        method: 'GET',
+        credentials: 'include',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      const text = await res.text();
+      let data: unknown;
+      try { data = JSON.parse(text); } catch { data = text; }
+      if (res.ok && Array.isArray(data)) {
+        setAvailableInstructors(data as {id: number; fullname: string}[]);
+      } else {
+        setInstructorsError(`[${res.status}] ${typeof data === 'object' ? JSON.stringify(data) : String(data).slice(0, 120)}`);
+        setAvailableInstructors([]);
+      }
+    } catch (err) {
+      setInstructorsError(`Network error: ${String(err)}`);
+    } finally {
+      setInstructorsLoading(false);
+    }
   };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (modalType === 'instructor' && !formData.course_id) {
-      setInfoModal({ open: true, title: 'Missing Course', message: 'Please select a course', variant: 'warning' });
+    if (!modalType) {
+      setInfoModal({ open: true, title: 'Missing Recipient', message: 'Please select a recipient', variant: 'warning' });
+      return;
+    }
+    if (!msgTitle.trim()) {
+      setInfoModal({ open: true, title: 'Missing Title', message: 'Please enter a title', variant: 'warning' });
+      return;
+    }
+    if (!msgBody.trim()) {
+      setInfoModal({ open: true, title: 'Missing Message', message: 'Please enter a message', variant: 'warning' });
+      return;
+    }
+    if (modalType === 'instructor' && !msgInstructorId) {
+      setInfoModal({ open: true, title: 'Missing Instructor', message: 'Please select an instructor', variant: 'warning' });
       return;
     }
 
     setIsSending(true);
     try {
-      const endpoint = modalType === 'instructor'
-        ? '/api/employee/notifications/notify-instructor'
-        : '/api/employee/notifications/report-admin';
+      const xsrf = await getXsrfToken();
+      let res: Response;
 
-      const body = modalType === 'instructor'
-        ? {
-            title: formData.title,
-            message: formData.message,
-            course_id: formData.course_id,
-          }
-        : {
-            message: formData.message,
-            type: formData.type,
-          };
-
-      const res = await fetch(endpoint, await fetchOptionsWithCsrf('POST', body));
+      if (modalType === 'instructor') {
+        const fd = new FormData();
+        fd.append('title', msgTitle);
+        fd.append('message', msgBody);
+        fd.append('instructor_id', msgInstructorId);
+        msgImages.forEach((img) => fd.append('images[]', img));
+        res = await fetch('/api/employee/notifications/notify-instructor', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': xsrf, 'X-Requested-With': 'XMLHttpRequest' },
+          body: fd,
+        });
+      } else {
+        res = await fetch('/api/employee/notifications/report-admin', await fetchOptionsWithCsrf('POST', {
+          title: msgTitle,
+          message: msgBody,
+        }));
+      }
 
       const data = await res.json();
-
       if (res.ok) {
         setIsModalOpen(false);
-        setFormData({ title: '', message: '', course_id: '', type: 'feedback' });
         setInfoModal({ open: true, title: 'Success', message: data.message || 'Message sent successfully!', variant: 'success' });
       } else {
         setInfoModal({ open: true, title: 'Error', message: data.message || 'Failed to send message', variant: 'error' });
@@ -558,18 +607,21 @@ export function EmployeeNotifications() {
             </button>
           )}
           <button
-            onClick={() => openModal('instructor')}
-            className="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+            onClick={() => {
+              fetchNotifications();
+              fetchUnreadCount();
+            }}
+            className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
           >
-            <MessageCircle className="h-4 w-4 mr-2" />
-            Message Instructor
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Refresh
           </button>
           <button
-            onClick={() => openModal('admin')}
-            className="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700"
+            onClick={() => openModal('instructor')}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
           >
             <Send className="h-4 w-4 mr-2" />
-            Report to Admin
+            Send Message
           </button>
         </div>
       </div>
@@ -788,120 +840,140 @@ export function EmployeeNotifications() {
 
       {/* Send Message Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="fixed inset-0 z-50">
           <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-slate-500 opacity-75"></div>
+              <div className="absolute inset-0 bg-slate-900/70"></div>
             </div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="absolute top-4 right-4">
-                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <h3 className="text-lg leading-6 font-medium text-slate-900 mb-4">
-                  {modalType === 'instructor' ? (
-                    <>
-                      <MessageCircle className="h-5 w-5 inline mr-2 text-blue-600" />
-                      Message Course Instructor
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-5 w-5 inline mr-2 text-purple-600" />
-                      Report to Admin
-                    </>
-                  )}
+            <div className="relative inline-block align-bottom bg-white dark:bg-slate-800 rounded-xl text-left overflow-y-auto max-h-[88vh] shadow-2xl transform transition-all sm:my-8 sm:align-middle w-full max-w-2xl">
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="absolute top-3 right-3 z-10 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              <div className="px-5 pt-5 pb-4">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                  <Send className="h-4 w-4 text-green-600" />
+                  Send Message
                 </h3>
-                <form onSubmit={handleSend} className="space-y-4">
-                  {modalType === 'instructor' && (
-                    <div>
-                      <label htmlFor="notify-course" className="block text-sm font-medium text-slate-700">Course *</label>
-                      <select
-                        id="notify-course"
-                        name="course_id"
-                        required
-                        value={formData.course_id}
-                        onChange={(e) => setFormData({ ...formData, course_id: e.target.value })}
-                        className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                      >
-                        <option value="">Select a course</option>
-                        {safeArray(enrolledCourses).map((course) => (
-                          <option key={course.id} value={course.id}>{course.title}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  {modalType === 'admin' && (
-                    <>
-                      <div>
-                        <label htmlFor="notify-type" className="block text-sm font-medium text-slate-700">Type</label>
-                        <select
-                          id="notify-type"
-                          name="type"
-                          value={formData.type}
-                          onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                          className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm"
-                        >
-                          <option value="feedback">Feedback</option>
-                          <option value="issue">Report Issue</option>
-                          <option value="suggestion">Suggestion</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700">Department</label>
-                        <div className="mt-1 block w-full border border-slate-200 bg-slate-50 rounded-md py-2 px-3 text-sm text-slate-600">
-                          {employeeDepartment || 'No department assigned'}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  {modalType === 'instructor' && (
-                    <div>
-                      <label htmlFor="notify-title" className="block text-sm font-medium text-slate-700">Subject *</label>
-                      <input
-                        id="notify-title"
-                        name="title"
-                        type="text"
-                        required
-                        value={formData.title}
-                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                        className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                        placeholder="Message subject"
-                      />
-                    </div>
-                  )}
+
+                <form onSubmit={handleSend} className="space-y-3">
+                  {/* Title */}
                   <div>
-                    <label htmlFor="notify-message" className="block text-sm font-medium text-slate-700">Message *</label>
-                    <textarea
-                      id="notify-message"
-                      name="message"
-                      rows={4}
-                      required
-                      value={formData.message}
-                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                      placeholder="Type your message here..."
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Title <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={msgTitle}
+                      onChange={(e) => setMsgTitle(e.target.value)}
+                      placeholder="Enter message title..."
+                      className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
                     />
                   </div>
-                  <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
+
+                  {/* Message */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Message <span className="text-red-500">*</span>
+                    </label>
+                    <RichTextEditor
+                      value={msgBody}
+                      onChange={setMsgBody}
+                      placeholder="Type your message here..."
+                      minHeight="120px"
+                    />
+                  </div>
+
+                  {/* Message Images */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Message Images <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
+                    </label>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/png,image/jpeg,image/gif,image/webp"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        setMsgImages(files);
+                        setMsgImagePreviews(files.map((f) => URL.createObjectURL(f)));
+                      }}
+                      className="mt-1 block w-full text-sm text-slate-700 dark:text-slate-300 file:mr-3 file:py-1.5 file:px-2 file:rounded-md file:border-0 file:bg-slate-100 dark:file:bg-slate-700 file:text-slate-700 dark:file:text-slate-200 hover:file:bg-slate-200 dark:hover:file:bg-slate-600"
+                    />
+                    {msgImagePreviews.length > 0 && (
+                      <div className="mt-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-slate-500 dark:text-slate-400">{msgImages.length} image{msgImages.length !== 1 ? 's' : ''} selected</span>
+                          <button type="button" onClick={() => { setMsgImages([]); setMsgImagePreviews([]); }} className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400">Remove all</button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {msgImagePreviews.map((url, i) => (
+                            <img key={i} src={url} alt={`Preview ${i + 1}`} className="h-16 w-16 object-cover rounded-md border border-slate-200 dark:border-slate-600" />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Send to */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Send to <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={modalType === 'admin' ? 'admin' : msgInstructorId ? `inst_${msgInstructorId}` : ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === 'admin') {
+                          setModalType('admin');
+                          setMsgInstructorId('');
+                        } else if (val.startsWith('inst_')) {
+                          setModalType('instructor');
+                          setMsgInstructorId(val.replace('inst_', ''));
+                        } else {
+                          setModalType('');
+                          setMsgInstructorId('');
+                        }
+                      }}
+                      className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                    >
+                      <option value="" disabled>Select Recipient</option>
+                      {availableInstructors.map((inst) => (
+                        <option key={inst.id} value={`inst_${inst.id}`}>{inst.fullname} (Instructor)</option>
+                      ))}
+                      <option value="admin">Admin</option>
+                    </select>
+                    {instructorsLoading && (
+                      <p className="mt-1 text-xs text-slate-400 italic">Loading instructors...</p>
+                    )}
+                    {!instructorsLoading && instructorsError && (
+                      <p className="mt-1 text-xs text-red-500 break-all">{instructorsError}</p>
+                    )}
+                    {!instructorsLoading && !instructorsError && availableInstructors.length === 0 && (
+                      <p className="mt-1 text-xs text-slate-400 italic">No instructors found for your sub-department.</p>
+                    )}
+                  </div>
+
+                  {/* Buttons */}
+                  <div className="grid grid-cols-2 gap-3 pt-1">
                     <button
                       type="button"
                       onClick={() => setIsModalOpen(false)}
-                      className="w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 sm:text-sm"
+                      className="py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={isSending}
-                      className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white disabled:opacity-50 sm:text-sm ${
-                        modalType === 'instructor' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-purple-600 hover:bg-purple-700'
-                      }`}
+                      className="col-span-1 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-medium rounded-lg flex items-center justify-center gap-2 text-sm transition-colors"
                     >
-                      <Send className="h-4 w-4 mr-2" />
-                      {isSending ? 'Sending...' : 'Send'}
+                      <Send className="h-4 w-4" />
+                      {isSending ? 'Sending...' : 'Send Message'}
                     </button>
                   </div>
                 </form>

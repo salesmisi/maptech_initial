@@ -589,6 +589,56 @@ class NotificationController extends Controller
     }
 
     /**
+     * Employee: Get instructors who have courses in the employee's subdepartment.
+     */
+    public function getInstructorsForEmployee(Request $request)
+    {
+        $employee = Auth::user();
+        $instructorIds = collect();
+
+        if ($employee->subdepartment_id) {
+            // Primary: the subdepartment head (head_id on subdepartments table)
+            $subdept = \App\Models\Subdepartment::find($employee->subdepartment_id);
+            if ($subdept && $subdept->head_id) {
+                $instructorIds->push($subdept->head_id);
+            }
+
+            // Also include instructors linked via user_subdepartment pivot
+            $pivotIds = \DB::table('user_subdepartment')
+                ->where('subdepartment_id', $employee->subdepartment_id)
+                ->pluck('user_id');
+            $instructorIds = $instructorIds->merge($pivotIds)->unique();
+
+            if ($instructorIds->isNotEmpty()) {
+                $instructors = \App\Models\User::whereIn('id', $instructorIds)
+                    ->where('role', 'instructor')
+                    ->select('id', 'fullname', 'profile_picture')
+                    ->get()
+                    ->map(fn($i) => ['id' => $i->id, 'fullname' => $i->fullname]);
+                return response()->json($instructors->values());
+            }
+
+            // Fallback: all subdepartment heads within the same department
+            $deptId = $subdept->department_id ?? null;
+            if ($deptId) {
+                $instructors = \App\Models\User::where('role', 'instructor')
+                    ->whereIn('id', function ($q) use ($deptId) {
+                        $q->select('head_id')
+                          ->from('subdepartments')
+                          ->where('department_id', $deptId)
+                          ->whereNotNull('head_id');
+                    })
+                    ->select('id', 'fullname', 'profile_picture')
+                    ->get()
+                    ->map(fn($i) => ['id' => $i->id, 'fullname' => $i->fullname]);
+                return response()->json($instructors->values());
+            }
+        }
+
+        return response()->json([]);
+    }
+
+    /**
      * Employee: Send notification/question to instructor of a course.
      */
     public function employeeNotifyInstructor(Request $request)
@@ -596,30 +646,17 @@ class NotificationController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'message' => 'required|string',
-            'course_id' => 'required|exists:courses,id',
+            'instructor_id' => 'required|exists:users,id',
         ]);
 
         $employee = Auth::user();
-        $courseId = $request->input('course_id');
+        $instructorId = $request->input('instructor_id');
 
-        // Verify employee is enrolled in this course
-        $enrollment = \App\Models\Enrollment::where('course_id', $courseId)
-            ->where('user_id', $employee->id)
-            ->firstOrFail();
-
-        // Get the course and instructor
-        $course = \App\Models\Course::findOrFail($courseId);
-
-        if (!$course->instructor_id) {
-            return response()->json([
-                'message' => 'This course has no assigned instructor',
-            ], 400);
-        }
+        $instructor = \App\Models\User::findOrFail($instructorId);
 
         // Send notification to instructor
         $notification = Notification::create([
-            'user_id' => $course->instructor_id,
-            'course_id' => $courseId,
+            'user_id' => $instructorId,
             'type' => 'employee_message',
             'title' => $request->input('title'),
             'message' => $request->input('message'),
@@ -628,7 +665,7 @@ class NotificationController extends Controller
                 'from_user_name' => $employee->fullname,
                 'from_role' => 'Employee',
                 'from_user_profile_picture' => $employee->profile_picture,
-                'course_title' => $course->title,
+                'from_department' => $employee->department,
             ],
         ]);
 
@@ -644,26 +681,18 @@ class NotificationController extends Controller
     public function employeeReportToAdmin(Request $request)
     {
         $request->validate([
+            'title' => 'nullable|string|max:255',
             'message' => 'required|string',
             'type' => 'nullable|string|in:feedback,issue,suggestion',
         ]);
 
         $employee = Auth::user();
-        $type = $request->input('type', 'feedback');
-
-        // Build dynamic title based on type and employee's department
-        $typeLabels = [
-            'feedback' => 'Feedback',
-            'issue' => 'Issue Report',
-            'suggestion' => 'Suggestion',
-        ];
-        $typeLabel = $typeLabels[$type] ?? 'Report';
-
         $departmentName = $employee->department;
 
-        $title = $departmentName
-            ? "{$typeLabel} from {$employee->fullname} ({$departmentName})"
-            : "{$typeLabel} from {$employee->fullname}";
+        $title = $request->input('title')
+            ?: ($departmentName
+                ? "Message from {$employee->fullname} ({$departmentName})"
+                : "Message from {$employee->fullname}");
 
         // Get all admins (role is stored lowercase in DB due to mutator)
         $admins = User::where('role', 'admin')->get();
@@ -672,7 +701,7 @@ class NotificationController extends Controller
         foreach ($admins as $admin) {
             $notifications[] = Notification::create([
                 'user_id' => $admin->id,
-                'type' => $type,
+                'type' => $request->input('type', 'feedback'),
                 'title' => $title,
                 'message' => $request->input('message'),
                 'data' => [
