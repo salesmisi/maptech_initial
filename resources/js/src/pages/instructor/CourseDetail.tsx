@@ -1889,9 +1889,9 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                         ) : (
                           <button
                             onClick={() => { setAddingLessonForModule(mod.id); setLessonTitle(''); setLessonInfo(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
-                            className="btn btn-primary btn-xs mt-2"
+                            className="btn btn-primary btn-sm mt-2"
                           >
-                            <Plus className="h-3.5 w-3.5" /> Add Lesson
+                            <Plus className="h-4 w-4" /> Add Lesson
                           </button>
                         )}
                       </div>
