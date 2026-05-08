@@ -550,9 +550,12 @@ export function AdminDashboard({ onNavigate }: Props) {
   return (
     <>
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex justify-end">
-        <div className="self-start text-xs text-slate-500 sm:self-auto sm:text-sm">
-          {lastUpdated ? `Last updated: Today, ${lastUpdated}` : 'Loading…'}
+      <div className="flex flex-col gap-4 rounded-lg border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 sm:text-2xl">Welcome back, Admin! 👋</h1>
+          <p className="mt-1 text-slate-500 dark:text-slate-400">
+            {lastUpdated ? `Last updated: Today, ${lastUpdated}` : 'Loading…'}
+          </p>
         </div>
       </div>
 

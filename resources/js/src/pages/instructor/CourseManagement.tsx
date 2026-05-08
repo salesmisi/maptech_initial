@@ -659,7 +659,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Courses &amp; Content</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Course Management</h1>
         <button
           onClick={openCreate}
           className="btn btn-primary"
@@ -670,7 +670,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row gap-4">
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border border-slate-100 dark:border-slate-600 flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-slate-400 dark:text-slate-500" />
@@ -680,14 +680,14 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
             placeholder="Search courses..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+            className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
           />
         </div>
         <div className="sm:w-48">
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="block w-full pl-3 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+            className="block w-full pl-3 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
           >
             <option value="All">All Status</option>
             <option value="Active">Active</option>
@@ -772,10 +772,26 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   </div>
                 </div>
 
-                <div className="mb-4">
-                  <div className="text-xs text-slate-400 dark:text-slate-400">Location</div>
-                  <div className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                    {course.department}{getCourseSubdepartmentName(course) ? ` / ${getCourseSubdepartmentName(course)}` : ''}
+                <div className="flex items-center gap-2 mb-4">
+                  {currentInstructor?.profile_picture ? (
+                    <img
+                      src={currentInstructor.profile_picture}
+                      alt={currentInstructor.fullname || currentInstructor.fullName || currentInstructor.name || ''}
+                      className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-600 flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-emerald-500/20 border border-slate-200 dark:border-slate-600 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-semibold text-green-700 dark:text-emerald-300">
+                        {(currentInstructor?.fullname || currentInstructor?.fullName || currentInstructor?.name || '?')
+                          .split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <div className="text-sm text-slate-600 dark:text-slate-300">
+                    <div className="font-medium text-slate-700 dark:text-slate-200">
+                      {course.department}{getCourseSubdepartmentName(course) ? ` / ${getCourseSubdepartmentName(course)}` : ''}
+                    </div>
+                    <div>{currentInstructor?.fullname || currentInstructor?.fullName || currentInstructor?.name || ''}</div>
                   </div>
                 </div>
 
