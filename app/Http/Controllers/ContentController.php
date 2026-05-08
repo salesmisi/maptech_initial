@@ -121,7 +121,7 @@ class ContentController extends Controller
             }
         }
 
-        $module->delete();
+        Module::destroy($module->id);
 
         return response()->json(['message' => 'Module deleted successfully']);
     }

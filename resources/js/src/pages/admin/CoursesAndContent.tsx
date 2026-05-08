@@ -99,7 +99,7 @@ function toLocalDateTimeInputValue(value?: string | null): string {
   const parsed = new Date(normalized);
   if (Number.isNaN(parsed.getTime())) return '';
 
-  return formatLocalDateTimeInput(parsed);
+  return formatDateTimeForTimeZone(parsed, 'Asia/Manila');
 }
 
 function getMinDateTimeInputValue(): string {
@@ -139,13 +139,10 @@ function toUtcIsoFromManilaInput(value: FormDataEntryValue | null): string | nul
 }
 
 function isPastDateTimeInput(value: FormDataEntryValue | null): boolean {
-  if (typeof value !== 'string') return false;
-  const trimmed = value.trim();
-  if (!trimmed) return false;
-
-  const selected = new Date(trimmed);
-  if (Number.isNaN(selected.getTime())) return false;
-
+  // Treat input as Manila time before comparing
+  const utcString = toUtcIsoFromManilaInput(value);
+  if (!utcString) return false;
+  const selected = new Date(utcString);
   const now = new Date();
   now.setSeconds(0, 0);
   return selected.getTime() < now.getTime();
@@ -665,8 +662,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           description: editingCourse.description || '',
           department: formData.get('department'),
           subdepartment_id: formData.get('subdepartment_id') || null,
-          start_date: toUtcIsoString(formData.get('start_date')),
-          deadline: toUtcIsoString(formData.get('deadline')),
+          start_date: toUtcIsoFromManilaInput(formData.get('start_date')),
+          deadline: toUtcIsoFromManilaInput(formData.get('deadline')),
           instructor_id: formData.get('instructor_id') || null,
           status: formData.get('status'),
         }),
@@ -1389,6 +1386,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             setShowCreateModal(true);
           }}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 transition-colors"
+          className="btn btn-primary"
         >
           <PlusIcon className="h-5 w-5" />
           Create Course
@@ -1445,6 +1443,9 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
           >
             {/* Course Icon */}
             <div className="h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-teal-500 rounded-t-lg flex items-center justify-center relative">
+              <span className={`absolute top-3 left-3 z-10 text-xs font-semibold px-2 py-0.5 rounded-full pointer-events-none ${badgeClass}`}>
+                {badgeLabel}
+              </span>
               <div className="absolute top-2 right-2 px-2.5 h-7 rounded-full bg-white/95 text-slate-800 text-xs font-semibold flex items-center justify-center border border-white/70 shadow z-10 pointer-events-none" title={`${modulesCount} modules`}>
                 <span className="mr-1 text-emerald-600">●</span>
                 {modulesCount} Modules
@@ -1464,11 +1465,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
             {/* Course Content */}
             <div className="p-5 flex flex-col flex-1">
-              {/* Status Badge */}
-              <div className="flex justify-between items-start mb-3">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${badgeClass}`}>
-                  {badgeLabel}
-                </span>
+              <div className="flex justify-end mb-1 -mt-1">
                 <div className="flex space-x-1">
                   <button
                     onClick={() => handleEditCourse(course)}
@@ -1535,7 +1532,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               <div className="mt-auto pt-3 border-t border-slate-100 space-y-2">
                 <button
                   onClick={() => onNavigate?.('course-detail', String(course.id))}
-                  className="course-manage-button w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 transition-colors font-medium"
+                  className="course-manage-button btn btn-primary btn-full"
                 >
                   Manage Content →
                 </button>
@@ -1745,7 +1742,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     <button
                       onClick={handleAddModule}
                       disabled={isSubmitting || !newModuleTitle.trim()}
-                      className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:opacity-50 flex items-center gap-1"
+                      className="btn btn-primary"
                     >
                       <PlusIcon className="h-4 w-4" /> Add Module
                     </button>
@@ -2025,7 +2022,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                         (uploadType !== 'Text' && !uploadFile) ||
                         (uploadType === 'Text' && !uploadText.trim())
                       }
-                      className="w-full bg-indigo-600 text-white py-2.5 rounded-md hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:opacity-50 transition-colors font-medium"
+                      className="btn btn-primary btn-full"
                     >
                       {isUploading ? `Uploading... ${uploadProgress}%` : 'Upload & Save'}
                     </button>
@@ -2042,7 +2039,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     <select
                       value={selectedModuleId || ''}
                       onChange={e => setSelectedModuleId(Number(e.target.value) || null)}
-                      className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      className="w-full border border-gray-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     >
                       <option value="">-- Choose a module --</option>
                       {safeArray(courseModules).map(m => (
@@ -2120,7 +2117,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     <button
                       onClick={handleSaveQuiz}
                       disabled={isSubmitting || !selectedModuleId || quizQuestions.length === 0}
-                      className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:opacity-50"
+                      className="btn btn-primary"
                     >
                       {isSubmitting ? 'Saving...' : 'Save Quiz'}
                     </button>
@@ -2153,7 +2150,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                       <button
                         onClick={handleSendQuiz}
                         disabled={sendingQuiz || !sendQuizModuleId}
-                        className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:opacity-50 text-sm whitespace-nowrap"
+                        className="btn btn-primary btn-sm"
                       >
                         {sendingQuiz ? 'Sending...' : 'Send Quiz'}
                       </button>
@@ -2286,7 +2283,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             </div>
 
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowBulkAssignModal(false)} className="px-4 py-2 border rounded-md">Cancel</button>
+              <button onClick={() => setShowBulkAssignModal(false)} className="btn btn-secondary">Cancel</button>
               <button
                 onClick={async () => {
                   setIsBulkAssigning(true);
@@ -2317,7 +2314,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     setIsBulkAssigning(false);
                   }
                 }}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:opacity-50"
+                className="btn btn-primary"
                 disabled={isBulkAssigning}
               >
                 {isBulkAssigning ? 'Assigning...' : 'Assign'}
@@ -2354,8 +2351,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   return;
                 }
 
-                const startDateValue = toUtcIsoString(fd.get('start_date'));
-                const deadlineValue = toUtcIsoString(fd.get('deadline'));
+                const startDateValue = toUtcIsoFromManilaInput(fd.get('start_date'));
+                const deadlineValue = toUtcIsoFromManilaInput(fd.get('deadline'));
                 if (startDateValue) fd.set('start_date', startDateValue); else fd.delete('start_date');
                 if (deadlineValue) fd.set('deadline', deadlineValue); else fd.delete('deadline');
                 try {
@@ -2456,47 +2453,47 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Date</label>
                   <input
                     name="start_date"
                     type="datetime-local"
                     min={minDateTimeInput}
-                    className="course-datetime-input w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900"
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Due Date</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Due Date</label>
                   <input
                     name="deadline"
                     type="datetime-local"
                     min={minDateTimeInput}
-                    className="course-datetime-input w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900"
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Assign To</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Assign To</label>
                 {createInstructorId !== null && (() => {
                   const sel = instructors.find(i => i.id === createInstructorId);
                   return sel ? (
-                    <div className="flex items-center gap-3 mb-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                    <div className="flex items-center gap-3 mb-2 p-2 bg-green-50 dark:bg-slate-700/60 border border-green-200 dark:border-slate-600 rounded-md">
                       {sel.profile_picture ? (
                         <img
                           src={sel.profile_picture}
                           alt={sel.fullname}
-                          className="w-12 h-12 rounded-full object-cover border-2 border-green-300 flex-shrink-0"
+                          className="w-12 h-12 rounded-full object-cover border-2 border-green-300 dark:border-emerald-600 flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-full bg-green-200 border-2 border-green-300 flex items-center justify-center flex-shrink-0">
-                          <span className="text-base font-bold text-green-800">
+                        <div className="w-12 h-12 rounded-full bg-green-200 dark:bg-emerald-800/50 border-2 border-green-300 dark:border-emerald-600 flex items-center justify-center flex-shrink-0">
+                          <span className="text-base font-bold text-green-800 dark:text-emerald-300">
                             {sel.fullname.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                           </span>
                         </div>
                       )}
                       <div>
-                        <p className="text-sm font-semibold text-slate-800">{sel.fullname}</p>
-                        <p className="text-xs text-green-600">Assigned Instructor</p>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{sel.fullname}</p>
+                        <p className="text-xs text-green-600 dark:text-emerald-400">Assigned Instructor</p>
                       </div>
                     </div>
                   ) : null;
@@ -2518,14 +2515,14 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 <button
                   type="button"
                   onClick={() => { setShowCreateModal(false); setCreateInstructorId(null); setCreateDepartment(''); setCreateSubdepartmentId(''); }}
-                  className="flex-1 py-2 px-4 border border-slate-300 rounded-md text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
+                  className="btn btn-secondary flex-1"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 py-2 px-4 border border-transparent rounded-md text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:opacity-50"
+                  className="btn btn-primary flex-1"
                 >
                   {isSubmitting ? 'Creating...' : 'Publish Course'}
                 </button>
@@ -2556,7 +2553,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   type="text"
                   defaultValue={editingCourse.title}
                   required
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
               {/* Description removed - now editable in Manage Content */}
@@ -2573,7 +2570,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                       setEditInstructorId(null);
                     }}
                     required
-                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-gray-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="" disabled>Select Department</option>
                     {departments.map(dept => (
@@ -2586,7 +2583,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <select
                     name="status"
                     defaultValue={editingCourse.status}
-                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-gray-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="Active">Active</option>
                     <option value="Draft">Draft</option>
@@ -2605,7 +2602,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     setEditInstructorId(null);
                   }}
                   disabled={!editDepartment}
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-gray-300 bg-white text-slate-900 disabled:bg-slate-100 disabled:text-slate-500 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">Select Sub Department</option>
                   {(departments.find(d => d.name === editDepartment)?.subdepartments || []).map((s) => (
@@ -2615,32 +2612,32 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Start Date & Time</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Date & Time</label>
                   <input
                     name="start_date"
                     type="datetime-local"
                     defaultValue={toLocalDateTimeInputValue(editingCourse.start_date)}
                     min={minDateTimeInput}
-                    className="course-datetime-input w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Due Date & Time</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Due Date & Time</label>
                   <input
                     name="deadline"
                     type="datetime-local"
                     defaultValue={toLocalDateTimeInputValue(editingCourse.deadline)}
                     min={minDateTimeInput}
-                    className="course-datetime-input w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Assigned to</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Assigned to</label>
                 {editInstructorId !== null && (() => {
                   const sel = instructors.find(i => i.id === editInstructorId);
                   return sel ? (
-                    <div className="flex items-center gap-3 mb-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                    <div className="flex items-center gap-3 mb-2 p-3 bg-green-50 dark:bg-slate-700/60 border border-green-200 dark:border-slate-600 rounded-md">
                       {/* Clickable avatar with camera overlay */}
                       <div
                         className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-green-300 cursor-pointer flex-shrink-0 group"
@@ -2654,8 +2651,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full bg-green-200 flex items-center justify-center">
-                            <span className="text-base font-bold text-green-800">
+                          <div className="w-full h-full bg-green-200 dark:bg-emerald-800/50 flex items-center justify-center">
+                            <span className="text-base font-bold text-green-800 dark:text-emerald-300">
                               {sel.fullname.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                             </span>
                           </div>
@@ -2682,8 +2679,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                         }}
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 truncate">{sel.fullname}</p>
-                        <p className="text-xs text-green-600">Assigned Instructor</p>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{sel.fullname}</p>
+                        <p className="text-xs text-green-600 dark:text-emerald-400">Assigned Instructor</p>
                         {editInstructorPhotoFile && (
                           <p className="text-xs text-blue-600 mt-0.5">📷 New photo ready to save</p>
                         )}
@@ -2714,14 +2711,14 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:opacity-50"
+                  className="btn btn-primary flex-1"
                 >
                   {isSubmitting ? 'Saving...' : 'Save Changes'}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setShowEditModal(false); setEditingCourse(null); setEditInstructorPhotoFile(null); setEditInstructorPhotoPreview(null); }}
-                  className="flex-1 border border-slate-300 text-slate-700 py-2 rounded-md hover:bg-slate-50"
+                  className="btn btn-secondary flex-1"
                 >
                   Cancel
                 </button>
@@ -2782,7 +2779,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             <div className="flex gap-3 justify-end mt-6">
               <button
                 onClick={() => { setCourseUnlockModalOpen(false); setCourseUnlockTarget(null); }}
-                className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                className="btn btn-secondary"
                 disabled={unlocking}
               >
                 Cancel
@@ -2790,7 +2787,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               <button
                 onClick={handleUnlockCourse}
                 disabled={unlocking}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white rounded-md text-sm disabled:opacity-50"
+                className="btn btn-primary"
               >
                 {unlocking ? 'Unlocking...' : 'Unlock Course'}
               </button>
@@ -2811,7 +2808,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             <div className="flex justify-end">
               <button
                 onClick={() => setUnlockSuccessModalOpen(false)}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white rounded-md text-sm"
+                className="btn btn-primary"
               >
                 OK
               </button>

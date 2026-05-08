@@ -86,10 +86,10 @@ const DEPT_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  Active:   'bg-green-100 text-green-800',
-  Draft:    'bg-yellow-100 text-yellow-800',
+  Active:   'bg-green-100 text-green-800 dark:bg-emerald-500/20 dark:text-emerald-300',
+  Draft:    'bg-yellow-100 text-yellow-800 dark:bg-amber-500/20 dark:text-amber-300',
   Archived: 'bg-slate-100 text-slate-600',
-  Inactive: 'bg-red-100 text-red-700',
+  Inactive: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 };
 
 const COURSE_HEADER_CLASS = 'bg-gradient-to-r from-emerald-400 to-green-500 dark:from-emerald-500 dark:to-green-600';
@@ -138,26 +138,20 @@ const toLocalDateTimeInputValue = (value?: string | null): string => {
   if (!value) return '';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '';
-
-  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
+  return formatDateTimeForTimeZone(parsed, 'Asia/Manila');
 };
 
 const getMinDateTimeInputValue = (): string => {
   const now = new Date();
   now.setSeconds(0, 0);
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
+  return formatDateTimeForTimeZone(now, 'Asia/Manila');
 };
 
 const isPastDateTimeInput = (value: FormDataEntryValue | null): boolean => {
   if (typeof value !== 'string') return false;
-  const trimmed = value.trim();
-  if (!trimmed) return false;
-
-  const selected = new Date(trimmed);
-  if (Number.isNaN(selected.getTime())) return false;
-
+  const utcString = toUtcIsoFromManilaInput(value);
+  if (!utcString) return false;
+  const selected = new Date(utcString);
   const now = new Date();
   now.setSeconds(0, 0);
   return selected.getTime() < now.getTime();
@@ -169,6 +163,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [customModules, setCustomModules] = useState<CustomModule[]>([]);
+  const [currentInstructor, setCurrentInstructor] = useState<{ fullname?: string; fullName?: string; name?: string; profile_picture?: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
@@ -200,6 +195,13 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
   const [pushError, setPushError] = useState<string | null>(null);
   const minDateTimeInput = formatDateTimeForTimeZone(new Date(), 'Asia/Manila');
   const hasOpenModal = isModalOpen || courseUnlockModalOpen || pushDeptModalOpen;
+
+  useEffect(() => {
+    fetch('/api/profile', { credentials: 'include', headers: { Accept: 'application/json' } })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setCurrentInstructor(data); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!hasOpenModal) return;
@@ -542,8 +544,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       return;
     }
 
-    const startDateUtc = toUtcIsoString(formData.get('start_date'));
-    const deadlineUtc = toUtcIsoString(formData.get('deadline'));
+    const startDateUtc = toUtcIsoFromManilaInput(formData.get('start_date') as string);
+    const deadlineUtc = toUtcIsoFromManilaInput(formData.get('deadline') as string);
     if (startDateUtc) formData.set('start_date', startDateUtc); else formData.delete('start_date');
     if (deadlineUtc) formData.set('deadline', deadlineUtc); else formData.delete('deadline');
 
@@ -661,7 +663,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Courses &amp; Content</h1>
         <button
           onClick={openCreate}
-          className={`inline-flex items-center px-5 py-2.5 ${actionButtonClasses.primary} text-sm font-semibold rounded-md shadow-sm transition-colors`}
+          className="btn btn-primary"
         >
           <Plus className="h-4 w-4 mr-2" />
           Create Course
@@ -709,7 +711,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       ) : (
         <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((course) => {
+          {filtered.map((course, index) => {
             const notStarted = course.start_date && new Date(course.start_date) > new Date();
             const hasManualUnlock = Boolean((course as any).has_manual_unlock ?? false) || Boolean(course.availableByInstructor);
             const ended = course.deadline && new Date(course.deadline) <= new Date() && !hasManualUnlock;
@@ -719,25 +721,20 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
             return (
             <div
               key={course.id}
-              className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col dark:bg-slate-800 dark:border-slate-600 ${
-                notStarted
-                  ? 'bg-white border-emerald-200'
-                  : ended
-                    ? 'bg-white border-red-200'
-                    : 'bg-white border-slate-200'
-              }`}
+              className="course-management-card group relative bg-white border border-slate-200 rounded-lg shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)] flex flex-col"
+              style={{ animationDelay: `${Math.min(index * 45, 360)}ms` }}
             >
-              <div className={`h-32 ${notStarted ? 'bg-gradient-to-r from-emerald-400 to-green-500' : COURSE_HEADER_CLASS} relative flex items-center justify-center`}>
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-md ring-4 ring-white/25">
-                  <BookOpen className="h-6 w-6 text-green-600" />
+              <div className="h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-teal-500 rounded-t-lg flex items-center justify-center relative">
+                <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md">
+                  <BookOpen className="h-8 w-8 text-green-700 dark:text-emerald-300" />
                 </div>
-                <span className={`absolute top-3 left-3 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                <span className={`absolute top-3 left-3 z-10 text-xs font-semibold px-2 py-0.5 rounded-full pointer-events-none ${
                   notStarted
-                    ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
+                    ? 'bg-slate-100 text-slate-600'
                     : ended
                       ? 'bg-red-100 text-red-800'
                       : showNotAvailable
-                        ? 'bg-gray-100 text-gray-700'
+                        ? 'bg-slate-100 text-slate-700'
                         : STATUS_COLORS[course.status] || 'bg-slate-100 text-slate-600'
                 }`}>
                   {notStarted ? 'Not Started' : ended ? 'Locked' : showNotAvailable ? 'Not available' : course.status}
@@ -748,7 +745,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 </div>
               </div>
 
-              <div className="p-6 flex-1 flex flex-col">
+              <div className="p-5 flex-1 flex flex-col">
                 <div className="flex justify-end mb-1 -mt-1">
                   <div className="flex space-x-1">
                     <button
@@ -767,19 +764,19 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                     </button>
                   </div>
                 </div>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 line-clamp-1 mb-2">{course.title}</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-200 line-clamp-2 mb-3">{course.description}</p>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 leading-tight mb-2">{course.title}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 mb-3">{course.description}</p>
 
-                <div className="flex items-center text-sm text-gray-600 dark:text-slate-300 mb-4 space-x-4">
+                <div className="flex items-center text-sm text-slate-600 dark:text-slate-300 mb-4 space-x-4">
                   <div className="flex items-center">
                     <Users className="h-4 w-4 mr-1" />
                     {(course as any).enrollments_count ?? 0} Enrolled
                   </div>
                 </div>
 
-                <div className="mb-4 text-sm text-gray-600 dark:text-slate-300">
-                  <div className="text-xs text-slate-400 dark:text-slate-300">Location</div>
-                  <div className="font-medium text-gray-700 dark:text-slate-200 text-xs">
+                <div className="mb-4">
+                  <div className="text-xs text-slate-400 dark:text-slate-400">Location</div>
+                  <div className="text-sm font-medium text-slate-700 dark:text-slate-200">
                     {course.department}{getCourseSubdepartmentName(course) ? ` / ${getCourseSubdepartmentName(course)}` : ''}
                   </div>
                 </div>
@@ -790,7 +787,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   </p>
                 )}
                 {notStarted && course.start_date && (
-                  <p className="text-xs text-emerald-600 dark:text-emerald-300 mb-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-300 mb-3">
                     Course has not started yet — Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 )}
@@ -801,7 +798,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 <div className="mt-auto pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2">
                   <button
                     onClick={() => onNavigate?.('course-detail', String(course.id))}
-                    className="course-manage-button w-full bg-indigo-600 text-white py-2.5 rounded-md hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 transition-colors font-semibold shadow-sm"
+                    className="course-manage-button btn btn-primary btn-full"
                   >
                     Manage Content &rarr;
                   </button>
@@ -858,13 +855,13 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-700 space-y-2">
                   <button
                     onClick={() => onNavigate?.('custom-module-detail', undefined, module.id)}
-                    className="w-full inline-flex items-center justify-center px-5 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-md shadow-sm transition-colors"
+                    className="btn btn-primary btn-full"
                   >
                     View Content &rarr;
                   </button>
                   <button
                     onClick={() => openPushToDeptModal(module.id)}
-                    className="w-full flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 transition-colors text-sm font-semibold shadow-sm"
+                    className="btn btn-primary btn-full btn-sm"
                   >
                     <Users className="h-4 w-4" />
                     Push to My Employee
@@ -911,7 +908,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   defaultValue={editingCourse?.title}
                   placeholder="Enter Title here"
                   required
-                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
 
@@ -928,7 +925,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                       setModalSubdepartmentId('');
                     }}
                     required
-                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-slate-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="">Select Department</option>
                     {departments.map((dept) => (
@@ -941,7 +938,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   <select
                     name="status"
                     defaultValue={editingCourse?.status || 'Active'}
-                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-slate-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="Active">Active</option>
                     <option value="Draft">Draft</option>
@@ -969,23 +966,23 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Date</label>
                   <input
                     type="datetime-local"
                     name="start_date"
                     defaultValue={toLocalDateTimeInputValue(editingCourse?.start_date)}
                     min={minDateTimeInput}
-                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Due Date</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Due Date</label>
                   <input
                     type="datetime-local"
                     name="deadline"
                     defaultValue={toLocalDateTimeInputValue(editingCourse?.deadline)}
                     min={minDateTimeInput}
-                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
+                    className="course-datetime-input w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
               </div>
@@ -1003,54 +1000,35 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 <p className="mt-1 text-xs text-slate-400">This logo will appear on certificates issued for this course.</p>
               </div>
 
-              {editingCourse && (
-                <div className="border-t border-slate-200 pt-4">
-                  <div className="flex justify-between items-center mb-3">
-                    <h4 className="text-sm font-medium text-slate-700">Add Modules / Content</h4>
-                    <button
-                      type="button"
-                      onClick={addModule}
-                      className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-md shadow-sm"
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add Module
-                    </button>
-                  </div>
-
-                  {modules.length === 0 ? (
-                    <p className="text-sm text-slate-500 italic">No modules added yet.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {safeArray(modules).map((mod, idx) => (
-                        <div key={mod.id} className="p-3 bg-slate-50 rounded-md border border-slate-200">
-                          <div className="flex gap-2 items-start">
-                            <div className="flex-1 space-y-2">
-                              <input
-                                type="text"
-                                placeholder={`Module ${idx + 1} Title`}
-                                value={mod.title}
-                                onChange={(e) => updateModuleTitle(mod.id, e.target.value)}
-                                className="w-full border border-slate-300 rounded-md py-1.5 px-2 text-sm focus:ring-green-500 focus:border-green-500"
-                              />
-                              <input
-                                type="file"
-                                accept="video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
-                                onChange={(e) => updateModuleFile(mod.id, e.target.files?.[0] || null)}
-                                className="w-full text-sm text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-medium file:bg-green-50 file:text-green-700"
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => removeModule(mod.id)}
-                              className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
-                            >
-                              <Trash className="h-4 w-4" />
-                            </button>
-                          </div>
+              {/* Assigned to — read-only display for instructor */}
+              {editingCourse && currentInstructor && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Assigned to</label>
+                  <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-slate-700/60 border border-green-200 dark:border-slate-600 rounded-md">
+                    <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-green-300 flex-shrink-0">
+                      {currentInstructor.profile_picture ? (
+                        <img
+                          src={currentInstructor.profile_picture}
+                          alt={currentInstructor.fullname ?? currentInstructor.fullName ?? currentInstructor.name ?? ''}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-green-200 dark:bg-emerald-800/50 flex items-center justify-center">
+                          <span className="text-sm font-bold text-green-800 dark:text-emerald-300">
+                            {(currentInstructor.fullname ?? currentInstructor.fullName ?? currentInstructor.name ?? '?')
+                              .split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </span>
                         </div>
-                      ))}
+                      )}
                     </div>
-                  )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                        {currentInstructor.fullname ?? currentInstructor.fullName ?? currentInstructor.name}{' '}
+                        <span className="text-green-500 dark:text-emerald-400 font-normal">(You)</span>
+                      </p>
+                      <p className="text-xs text-green-600 dark:text-emerald-400">Assigned Instructor</p>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1059,14 +1037,14 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   type="button"
                   onClick={handleCloseModal}
                   disabled={isSubmitting}
-                  className="flex-1 py-2 px-4 border border-slate-200 dark:border-slate-600 rounded-md text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+                  className="btn btn-secondary flex-1"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 py-2.5 px-5 border border-transparent rounded-md text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 shadow-sm disabled:opacity-50"
+                  className="btn btn-primary flex-1"
                 >
                   {isSubmitting ? 'Publishing...' : 'Publish Course'}
                 </button>
@@ -1140,7 +1118,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                 <button
                   onClick={() => { void handleUnlockCourse(); }}
                   disabled={unlocking}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white rounded-md text-sm font-semibold shadow-sm disabled:opacity-50"
+                  className="btn btn-primary btn-sm"
                 >
                   {unlocking ? 'Unlocking...' : 'Unlock Course'}
                 </button>
@@ -1235,7 +1213,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                         onClick={handlePushToDepartment}
                         disabled={pushing || deptEmployees.length === 0 || allPushed}
                         title={allPushed ? 'All employees have already received this module' : undefined}
-                        className="px-5 py-2.5 bg-indigo-600 text-white rounded-md text-sm font-semibold shadow-sm hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="btn btn-primary"
                       >
                         {pushing ? 'Pushing...' : 'Push to My Employee'}
                       </button>

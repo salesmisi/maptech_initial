@@ -7,6 +7,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @property int $id
@@ -116,6 +117,25 @@ class User extends Authenticatable
     public function setRoleAttribute($value): void
     {
         $this->attributes['role'] = strtolower($value ?? 'employee');
+    }
+
+    /**
+     * Suppress stale stored profile pictures so the UI does not request missing files.
+     */
+    public function getProfilePictureAttribute($value): ?string
+    {
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        $normalized = str_replace('\\', '/', trim($value));
+        if (preg_match('#^https?://#i', $normalized)) {
+            return $normalized;
+        }
+
+        $normalized = preg_replace('#^(public/)?storage/#i', '', $normalized);
+
+        return Storage::disk('public')->exists($normalized) ? $normalized : null;
     }
 
     /**

@@ -538,15 +538,50 @@ export function App() {
           />
           <div aria-hidden="true" className="absolute inset-0 bg-slate-950/65" />
 
-          <div className="relative z-10 flex flex-col items-center px-6 text-center transition-opacity duration-500 opacity-100">
-            <img
-              className="h-20 w-auto"
-              src="/assets/Maptech-Official-Logo.png"
-              alt="Maptech LearnHub"
-            />
-            <p className="mt-5 text-sm font-medium tracking-wide text-slate-200">Preparing LearnHub...</p>
-            <div className="mt-4 h-1 w-44 overflow-hidden rounded-full bg-white/20">
-              <span className="block h-full w-full rounded-full bg-green-400 animate-pulse" />
+          <div className="relative z-10 w-full max-w-5xl px-6 transition-opacity duration-500 opacity-100">
+            <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+              <div className="rounded-[2rem] border border-white/10 bg-white/6 p-6 shadow-2xl shadow-emerald-950/20 backdrop-blur-xl">
+                <div className="flex items-center gap-4">
+                  <img
+                    className="h-16 w-auto"
+                    src="/assets/Maptech-Official-Logo.png"
+                    alt="Maptech LearnHub"
+                  />
+                  <div className="space-y-3">
+                    <div className="h-3 w-40 rounded-full bg-white/20 animate-pulse" />
+                    <div className="h-2.5 w-28 rounded-full bg-emerald-300/30 animate-pulse" />
+                  </div>
+                </div>
+
+                <div className="mt-8 space-y-4">
+                  <div className="h-4 w-52 rounded-full bg-white/15 animate-pulse" />
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {[0, 1, 2].map((card) => (
+                      <div key={card} className="rounded-2xl border border-white/8 bg-slate-900/35 p-4">
+                        <div className="h-10 w-10 rounded-2xl bg-white/10 animate-pulse" />
+                        <div className="mt-4 h-3 w-20 rounded-full bg-white/15 animate-pulse" />
+                        <div className="mt-2 h-2.5 w-14 rounded-full bg-emerald-300/30 animate-pulse" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[2rem] border border-white/10 bg-slate-900/40 p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+                <div className="h-3 w-32 rounded-full bg-white/15 animate-pulse" />
+                <div className="mt-6 space-y-4">
+                  {[0, 1, 2, 3].map((row) => (
+                    <div key={row} className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                      <div className="h-2.5 w-24 rounded-full bg-white/15 animate-pulse" />
+                      <div className="mt-3 h-2.5 w-full rounded-full bg-white/10 animate-pulse" />
+                      <div className="mt-2 h-2.5 w-4/5 rounded-full bg-emerald-300/20 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-6 text-xs font-medium uppercase tracking-[0.28em] text-slate-300/80">
+                  Preparing LearnHub
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -654,7 +689,7 @@ export function App() {
           <div key={transitionKey} className="page-open-transition">
             {currentPage === 'dashboard' && <AdminDashboard onNavigate={handleNavigate} />}
             {currentPage === 'departments' && <DepartmentManagement />}
-            {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} />}
+            {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={async () => handleLogout()} />}
             {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
             {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
             {currentPage === 'quiz-management' && <QuizAssessmentManagement apiPrefix="admin" />}

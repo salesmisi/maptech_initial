@@ -412,7 +412,7 @@ export function AuditLogs() {
     }
   };
 
-  const handleExport = (format: 'csv' | 'excel' | 'pdf') => {
+  const handleExport = (format: 'excel' | 'pdf') => {
     const roleParam = roleFilter !== 'All' ? `?role=${encodeURIComponent(roleFilter)}` : '';
     const formatParam = roleParam ? `&format=${format}` : `?format=${format}`;
     window.open(`/api/admin/audit-logs/export${roleParam}${formatParam}`, '_blank');
@@ -458,16 +458,6 @@ export function AuditLogs() {
 
             {showExportMenu && (
               <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50">
-                <button
-                  onClick={() => handleExport('csv')}
-                  className="w-full px-4 py-2.5 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition-colors"
-                >
-                  <FileText className="w-4 h-4 text-green-600 dark:text-green-400" />
-                  <div>
-                    <div className="font-medium">CSV File</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">Comma-separated values</div>
-                  </div>
-                </button>
                 <button
                   onClick={() => handleExport('excel')}
                   className="w-full px-4 py-2.5 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition-colors"
@@ -939,9 +929,12 @@ export function AuditLogs() {
                           </td>
                           <td style={{width: '170px'}} className="px-6 py-2 whitespace-nowrap text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <span className="px-2 py-1 text-xs border rounded border-slate-300 bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
-                                Delete disabled
-                              </span>
+                              <button
+                                onClick={() => openManageModal(older.user)}
+                                className="px-2 py-1 text-xs border rounded border-cyan-300 bg-cyan-50 text-cyan-800 hover:bg-cyan-100 dark:border-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 dark:hover:bg-cyan-900/50"
+                              >
+                                Manage
+                              </button>
                             </div>
                           </td>
                         </tr>

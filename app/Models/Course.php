@@ -55,6 +55,33 @@ class Course extends Model
     ];
 
     /**
+     * Always interpret raw datetime strings from the database as UTC.
+     * Without this override, if APP_TIMEZONE=Asia/Manila, Carbon would treat
+     * the bare "Y-m-d H:i:s" strings stored in UTC as Manila time, causing an
+     * 8-hour offset when the API serialises them back to ISO format.
+     */
+    protected function asDateTime($value): \Carbon\Carbon
+    {
+        if (is_string($value) && $value !== '' &&
+            !str_contains($value, 'Z') &&
+            !str_contains($value, '+') &&
+            preg_match('/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/', $value)) {
+            return \Carbon\Carbon::createFromFormat('Y-m-d H:i:s', substr($value, 0, 19), 'UTC');
+        }
+
+        return parent::asDateTime($value);
+    }
+
+    /**
+     * Always serialise dates to UTC ISO-8601 so the API always emits "Z" timestamps
+     * that the frontend can parse unambiguously.
+     */
+    protected function serializeDate(\DateTimeInterface $date): string
+    {
+        return \Carbon\Carbon::instance($date)->utc()->toJSON();
+    }
+
+    /**
      * Get the instructor that owns the course.
      */
     public function instructor(): BelongsTo

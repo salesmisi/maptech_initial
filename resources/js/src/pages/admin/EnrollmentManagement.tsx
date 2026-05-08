@@ -4,7 +4,6 @@ import {
   Search,
   UserPlus,
   Filter,
-  MoreVertical,
   CheckCircle,
   Clock,
   AlertCircle,
@@ -99,7 +98,6 @@ export function EnrollmentManagement() {
     const { showConfirm } = confirm;
 
   // Action menu
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [unenrolling, setUnenrolling] = useState<number | null>(null);
 
   const loadEnrollments = async () => {
@@ -376,7 +374,6 @@ export function EnrollmentManagement() {
   const handleUnenroll = async (enrollment: Enrollment) => {
     showConfirm(`Unenroll ${enrollment.employee_name} from ${enrollment.course_title}?`, async () => {
       setUnenrolling(enrollment.id);
-      setOpenMenuId(null);
       try {
         const token = await getXsrfToken();
         const res = await fetch(`${API_BASE}/admin/courses/${enrollment.course_id}/enrollments/${enrollment.user_id}`, {
@@ -418,7 +415,7 @@ export function EnrollmentManagement() {
         </h1>
         <button
           onClick={openModal}
-          className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium ${actionButtonClasses.primary} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-indigo-400`}>
+          className="btn btn-primary">
           <UserPlus className="h-4 w-4 mr-2" />
           New Enrollment
         </button>
@@ -546,25 +543,13 @@ export function EnrollmentManagement() {
                     {unenrolling === enrollment.id ? (
                       <Loader2 className="h-4 w-4 animate-spin text-slate-400 inline" />
                     ) : (
-                      <div className="relative inline-block">
-                        <button
-                          className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-100"
-                          onClick={() => setOpenMenuId(openMenuId === enrollment.id ? null : enrollment.id)}
-                        >
-                          <MoreVertical className="h-5 w-5" />
-                        </button>
-                        {openMenuId === enrollment.id && (
-                          <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-slate-200 dark:border-slate-700 z-10">
-                            <button
-                              onClick={() => handleUnenroll(enrollment)}
-                              className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-md"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Unenroll
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      <button
+                        onClick={() => handleUnenroll(enrollment)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Unenroll
+                      </button>
                     )}
                   </td>
                 </tr>
@@ -749,7 +734,7 @@ export function EnrollmentManagement() {
                   <button
                     type="submit"
                       disabled={enrolling || !selectedCourseId || selectedUserIds.length === 0}
-                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:col-start-2 sm:text-sm disabled:opacity-50"
+                    className="btn btn-primary btn-full sm:col-start-2"
                   >
                     {enrolling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     Enroll Selected
@@ -757,7 +742,7 @@ export function EnrollmentManagement() {
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="mt-3 w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:mt-0 sm:col-start-1 sm:text-sm"
+                    className="btn btn-secondary btn-full sm:mt-0 sm:col-start-1"
                   >
                     Cancel
                   </button>
