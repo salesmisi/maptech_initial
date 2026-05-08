@@ -764,7 +764,6 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   </div>
                 </div>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 leading-tight mb-2">{course.title}</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 mb-3">{course.description}</p>
 
                 <div className="flex items-center text-sm text-slate-600 dark:text-slate-300 mb-4 space-x-4">
                   <div className="flex items-center">
