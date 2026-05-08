@@ -987,7 +987,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <ConfirmModalRenderer />
 
       {/* Header */}
@@ -1070,7 +1070,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       ) : modules.length === 0 ? (
-        <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+        <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
           <FolderIcon className="mx-auto h-12 w-12 text-slate-400" />
           <h3 className="mt-4 text-lg font-medium text-slate-900 dark:text-white">No modules yet</h3>
           <p className="mt-2 text-slate-500 dark:text-slate-400">Get started by creating your first custom module.</p>
@@ -1099,7 +1099,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
             <div
               key={module.id}
               id={`custom-module-${module.id}`}
-              className={`bg-white dark:bg-slate-800 rounded-lg border overflow-hidden transition-all ${
+              className={`bg-white dark:bg-slate-900 rounded-lg border overflow-hidden transition-all ${
                 initialExpandedModuleId === module.id
                   ? 'border-purple-500 dark:border-purple-400 ring-2 ring-purple-200 dark:ring-purple-800'
                   : 'border-slate-200 dark:border-slate-700'
