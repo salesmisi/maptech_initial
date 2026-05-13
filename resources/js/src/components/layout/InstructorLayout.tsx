@@ -161,7 +161,7 @@ export function InstructorLayout({
     <div className={`app-theme-scope min-h-screen flex ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 dark:bg-slate-900 text-slate-900'}`}>
       {!isDesktop && isMobileSidebarOpen && <button type="button" aria-label="Close sidebar" className="fixed inset-0 z-20 bg-slate-950/60" onClick={() => setIsMobileSidebarOpen(false)} />}
       <div
-        className={`fixed inset-y-0 left-0 z-30 flex ${sidebarWidthClass} flex-col border-r transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${sidebarTranslateClass} ${isDark ? 'border-slate-800/80 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-800'}`}
+        className={`fixed inset-y-0 left-0 z-30 flex ${sidebarWidthClass} flex-col border-r transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${sidebarTranslateClass} ${isDark ? 'border-slate-800/80 bg-slate-950/95 text-white' : 'border-slate-200 bg-white text-slate-800'}`}
         onMouseEnter={() => { if (isDesktop) setIsSidebarHovered(true); }}
         onMouseLeave={() => { if (isDesktop) setIsSidebarHovered(false); }}
       >
@@ -173,7 +173,7 @@ export function InstructorLayout({
               alt="Maptech"
             />
             <p
-              className={`overflow-hidden text-center text-sm font-medium leading-tight transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'text-slate-300' : 'text-slate-600'} ${isSidebarCompact ? 'mt-0 max-h-0 opacity-0 -translate-y-1' : 'mt-1 max-h-12 opacity-100 translate-y-0'}`}
+              className={`overflow-hidden text-center text-sm font-medium leading-tight transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'text-slate-400' : 'text-slate-600'} ${isSidebarCompact ? 'mt-0 max-h-0 opacity-0 -translate-y-1' : 'mt-1 max-h-12 opacity-100 translate-y-0'}`}
             >
               {businessDetails.company_name}
             </p>
