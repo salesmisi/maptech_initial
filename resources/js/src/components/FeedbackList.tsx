@@ -49,13 +49,6 @@ export function FeedbackList({ url }: Props) {
 
   return (
     <div>
-      {/* Info banner */}
-      <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 rounded-lg">
-        <p className="text-sm text-blue-800 dark:text-blue-200">
-          <strong>View-Only Mode:</strong> This page displays student feedback for your review. Feedbacks are one-way communications from students and cannot be responded to.
-        </p>
-      </div>
-
       <div className="flex items-center gap-2 mb-4">
         <button onClick={selectAll} className="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded hover:bg-slate-200 dark:hover:bg-slate-600">Select all</button>
         <button onClick={clearAll} className="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded hover:bg-slate-200 dark:hover:bg-slate-600">Clear</button>
