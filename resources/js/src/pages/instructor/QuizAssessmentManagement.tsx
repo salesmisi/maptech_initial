@@ -649,22 +649,6 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
         </button>
       </div>
 
-      {(scopeDept || scopeSubdept || scopeCourseId) && (
-        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-300">
-          <span className="font-medium text-slate-600 dark:text-slate-200">Viewing:</span>
-          <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800">{scopeDept || 'All Departments'}</span>
-          <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800">
-            {scopeSubdept
-              ? (buildSubdeptOptions(scopeDept).find((s) => s.id === scopeSubdept)?.name || 'Subdepartment')
-              : 'All Subdepartments'}
-          </span>
-          <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800">
-            {scopeCourseId
-              ? (buildCourseOptions(scopeDept, scopeSubdept).find((c) => c.id === scopeCourseId)?.name || 'Course')
-              : 'All Courses'}
-          </span>
-        </div>
-      )}
 
       {/* Search */}
       <div className="relative max-w-sm">
