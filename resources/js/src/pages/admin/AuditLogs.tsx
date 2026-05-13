@@ -602,22 +602,6 @@ export function AuditLogs() {
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <button
-                          onClick={() => {
-                            showPrompt('Enter new Time In (ISO or YYYY-MM-DD HH:MM):', tl.time_in || '', async (newIn) => {
-                              showPrompt('Enter new Time Out (ISO or YYYY-MM-DD HH:MM):', tl.time_out || '', async (newOut) => {
-                                if (newIn === null && newOut === null) return;
-                                try {
-                                  await updateTimeLog(tl.id, { time_in: newIn || null, time_out: newOut || null });
-                                  alert('Updated');
-                                } catch (e) { alert('Update failed'); }
-                              });
-                            });
-                          }}
-                          className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-50"
-                        >
-                          Edit
-                        </button>
-                        <button
                           onClick={async () => {
                             try {
                               await archiveTimeLog(tl.id, !tl.archived);
