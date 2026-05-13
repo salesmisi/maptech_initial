@@ -157,7 +157,10 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz, ap
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
           {saving ? 'Creating...' : 'Create & Add Questions'}
         </button>
-        <button onClick={onCancel} className="btn btn-secondary btn-sm">
+        <button
+          onClick={onCancel}
+          className="px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-md hover:bg-red-50 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-900/20"
+        >
           Cancel
         </button>
       </div>
@@ -1486,7 +1489,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                 </button>
                 <button
                   onClick={() => { setAddingModule(false); setModuleTitle(''); setModuleDescription(''); setModuleError(null); }}
-                  className="btn btn-secondary btn-sm"
+                  className="px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-md hover:bg-red-50 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-900/20"
                 >
                   Cancel
                 </button>
@@ -1554,7 +1557,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                             className="p-1 text-green-600 hover:text-green-800 hover:bg-green-50 rounded">
                             {savingModule ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                           </button>
-                          <button onClick={cancelEditModule} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded">
+                          <button onClick={cancelEditModule} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
                             <X className="h-4 w-4" />
                           </button>
                         </div>
@@ -1630,7 +1633,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                         ) : (
                           <button
                             onClick={() => setAddingQuizForModule(`pre-test-${mod.id}`)}
-                            className="btn btn-secondary btn-sm"
+                            className="btn btn-primary btn-sm"
                           >
                             <Plus className="h-4 w-4" /> Add Pre-Test
                           </button>
@@ -1692,7 +1695,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                           {savingLesson ? 'Saving...' : 'Save Changes'}
                                         </button>
                                         <button onClick={cancelEditLesson}
-                                          className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 text-xs font-medium rounded-md hover:bg-white dark:hover:bg-slate-700">
+                                          className="px-3 py-1.5 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-300 text-xs font-medium rounded-md hover:bg-red-50 dark:hover:bg-red-900/20">
                                           Cancel
                                         </button>
                                       </div>
@@ -1738,7 +1741,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                                 </button>
                                                 <button
                                                   onClick={cancelQuickEditLessonText}
-                                                  className="px-3 py-1.5 border border-slate-300 text-slate-600 text-xs font-medium rounded-md hover:bg-white"
+                                                  className="px-3 py-1.5 border border-red-200 text-red-600 text-xs font-medium rounded-md hover:bg-red-50"
                                                 >
                                                   Cancel
                                                 </button>
@@ -1880,7 +1883,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                               </button>
                               <button
                                 onClick={() => { setAddingLessonForModule(null); setLessonTitle(''); setLessonInfo(''); setLessonTextContent(''); setLessonLink(''); setLessonFile(null); setLessonError(null); }}
-                                className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-md bg-white/80 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900 transition-colors"
+                                className="px-3 py-1.5 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-300 text-xs font-medium rounded-md bg-white/80 dark:bg-slate-900/60 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                               >
                                 Cancel
                               </button>
@@ -1997,7 +2000,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                         ) : (
                           <button
                             onClick={() => setAddingQuizForModule(`post-test-${mod.id}`)}
-                            className="btn btn-secondary btn-sm"
+                            className="btn btn-primary btn-sm"
                           >
                             <Plus className="h-4 w-4" /> Add Post-Test
                           </button>

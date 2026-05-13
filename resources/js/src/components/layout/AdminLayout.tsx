@@ -256,6 +256,7 @@ const getAdminPageTitle = (page: string) => {
     departments: 'Department Management',
     users: 'User Management',
     courses: 'Courses and Content',
+    'quiz-management': 'Quiz Management',
     'course-detail': 'Course Details',
     enrollments: 'Enrollment Management',
     reports: 'Reports and Analytics',
@@ -278,6 +279,7 @@ const getAdminPageDescription = (page: string) => {
     departments: 'Organize teams, heads, and subdepartments in one place.',
     users: 'Manage user accounts, roles, and access status.',
     courses: 'Create, update, and maintain course content and structure.',
+    'quiz-management': '',
     'course-detail': 'Review course information, progress, and enrolled members.',
     enrollments: 'Handle course enrollments and participant assignments.',
     reports: 'Analyze completion, engagement, and learning outcomes.',
@@ -419,6 +421,11 @@ export function AdminLayout({
     icon: BookOpen
   },
   {
+    id: 'quiz-management',
+    label: 'Quiz Management',
+    icon: ClipboardList
+  },
+  {
     id: 'custom-field',
     label: 'Custom Field Builder',
     icon: Blocks
@@ -466,14 +473,14 @@ export function AdminLayout({
 
   // Merge custom UI component modules into navigation
   const allNavItems = [
-    ...navItems.slice(0, 5), // Dashboard to Custom Field Builder
+    ...navItems.slice(0, 6), // Dashboard to Custom Field Builder
     ...customNavItems.map((item: any) => ({
       id: item.route_path,
       label: item.title,
       icon: getIconByName(item.icon_name),
       isCustom: true,
     })),
-    ...navItems.slice(5), // Rest of the items (Q&A onwards)
+    ...navItems.slice(6), // Rest of the items (Q&A onwards)
   ];
 
   return (
