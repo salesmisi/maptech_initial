@@ -226,7 +226,6 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
   const [draftDept, setDraftDept] = useState('');
   const [draftSubdept, setDraftSubdept] = useState('');
   const [draftCourseId, setDraftCourseId] = useState('');
-  const [scopePrompted, setScopePrompted] = useState(false);
   const [activePicker, setActivePicker] = useState<'department' | 'subdepartment' | 'course' | null>(null);
   const confirm = useConfirm();
   const { showConfirm } = confirm;
@@ -253,16 +252,6 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
 
   useEffect(() => { loadQuizzes(); }, []);
 
-  useEffect(() => {
-    if (loading || scopePrompted || quizzes.length === 0) return;
-    if (!scopeDept && !scopeSubdept && !scopeCourseId) {
-      setDraftDept('');
-      setDraftSubdept('');
-      setDraftCourseId('');
-      setShowScopeModal(true);
-      setScopePrompted(true);
-    }
-  }, [loading, quizzes.length, scopeDept, scopeSubdept, scopeCourseId, scopePrompted]);
 
   const loadQuizQuestions = async (quizId: number) => {
     setLoadingQuestions(true);
@@ -653,10 +642,10 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
             setDraftCourseId(scopeCourseId);
             setShowScopeModal(true);
           }}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+          className="btn btn-primary"
         >
-          <Filter className="h-4 w-4" />
-          Choose Scope
+          <Filter className="h-4 w-4 mr-2" />
+          Filter Quiz
         </button>
       </div>
 
@@ -777,19 +766,19 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
                                   <div className="flex items-center gap-2">
                                     <button
                                       onClick={() => startEdit(quiz)}
-                                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-700 border border-blue-200 rounded-md hover:bg-blue-50 dark:text-slate-300 dark:border-slate-600 dark:bg-slate-800/60 dark:hover:bg-slate-700 dark:hover:text-slate-100 transition-colors"
+                                      className="btn btn-primary btn-sm"
                                     >
-                                      <Edit2 className="h-3.5 w-3.5" />
+                                      <Edit2 className="h-3.5 w-3.5 mr-1.5" />
                                       Edit
                                     </button>
                                     {onOpenQuiz && (
                                       <button
                                         onClick={() => onOpenQuiz(quiz.id)}
-                                        className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-700 dark:text-emerald-300 border border-green-200 dark:border-emerald-700 rounded-md hover:bg-green-50 dark:hover:bg-emerald-900/25 transition-colors"
+                                        className="btn btn-primary btn-sm"
                                       >
-                                        <Edit2 className="h-3.5 w-3.5" />
+                                        <Edit2 className="h-3.5 w-3.5 mr-1.5" />
                                         Manage
-                                        <ChevronRight className="h-3.5 w-3.5" />
+                                        <ChevronRight className="h-3.5 w-3.5 ml-1" />
                                       </button>
                                     )}
                                     <button
@@ -824,7 +813,7 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
         >
           <div className="w-full max-w-lg rounded-xl bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700">
             <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Choose Quiz Scope</h3>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Filter Quiz</h3>
               <button
                 type="button"
                 onClick={() => setShowScopeModal(false)}
