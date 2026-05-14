@@ -114,6 +114,7 @@ export function App() {
         { page: 'enrollments', keywords: ['enrollment', 'enroll', 'student', 'students'] },
         { page: 'reports', keywords: ['report', 'reports', 'analytics', 'trend', 'completion'] },
         { page: 'notifications', keywords: ['notification', 'notifications', 'alert'] },
+        { page: 'feedbacks', keywords: ['feedback', 'feedbacks', 'review', 'reviews', 'rating', 'ratings'] },
         { page: 'audit-logs', keywords: ['audit', 'log', 'logs'] },
         { page: 'business-details', keywords: ['business', 'company', 'details', 'vat'] },
         { page: 'product-logos', keywords: ['logo', 'logos', 'branding', 'brand'] },

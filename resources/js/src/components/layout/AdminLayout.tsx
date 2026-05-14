@@ -451,6 +451,11 @@ export function AdminLayout({
     icon: Bell
   },
   {
+    id: 'feedbacks',
+    label: 'Feedbacks',
+    icon: Star
+  },
+  {
     id: 'audit-logs',
     label: 'Audit Logs',
     icon: ClipboardList
