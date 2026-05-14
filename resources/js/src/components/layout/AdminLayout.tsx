@@ -392,6 +392,7 @@ export function AdminLayout({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+  const allowSidebarExpand = isDesktop;
   const isSidebarCompact = isDesktop && !isSidebarHovered;
   const sidebarWidthClass = isDesktop ? (isSidebarHovered ? 'w-64' : 'w-20') : 'w-[86vw] max-w-xs';
   const sidebarTranslateClass = isDesktop || isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full';
@@ -446,14 +447,14 @@ export function AdminLayout({
     icon: BarChart3
   },
   {
-    id: 'notifications',
-    label: 'Notifications',
-    icon: Bell
-  },
-  {
     id: 'feedbacks',
     label: 'Feedbacks',
     icon: Star
+  },
+  {
+    id: 'notifications',
+    label: 'Notifications',
+    icon: Bell
   },
   {
     id: 'audit-logs',
@@ -494,13 +495,13 @@ export function AdminLayout({
       {/* Sidebar (fixed on all viewports to avoid layout shift when zooming) */}
       <div
         className={`fixed inset-y-0 left-0 z-30 flex ${sidebarWidthClass} flex-col border-r transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${sidebarTranslateClass} ${isDark ? 'border-slate-800/80 bg-slate-950/95 text-white' : 'border-slate-200 bg-white text-slate-800'}`}
-        onMouseEnter={() => { if (isDesktop) setIsSidebarHovered(true); }}
-        onMouseLeave={() => { if (isDesktop) setIsSidebarHovered(false); }}
+        onMouseEnter={() => { if (allowSidebarExpand) setIsSidebarHovered(true); }}
+        onMouseLeave={() => { if (allowSidebarExpand) setIsSidebarHovered(false); }}
       >
         <div className="flex-1 flex flex-col min-h-0">
-          <div className={`flex flex-col items-center border-b transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'bg-slate-950 border-transparent' : 'bg-slate-50 border-slate-200'} ${isSidebarCompact ? 'px-2 pt-6 pb-4' : 'px-4 pt-8 pb-6'}`}>
+          <div className={`flex flex-col items-center border-b transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'bg-slate-950 border-transparent' : 'bg-slate-50 border-slate-200'} ${isSidebarCompact ? 'px-2 pt-4 pb-3' : 'px-4 pt-5 pb-4'}`}>
             <img
-              className={`w-auto transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'brightness-110 contrast-110' : ''} ${isSidebarCompact ? 'mb-0 h-10' : 'mb-3 h-16'}`}
+              className={`w-auto transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'brightness-110 contrast-110' : ''} ${isSidebarCompact ? 'mb-0 h-9' : 'mb-2 h-12'}`}
               src={businessDetails.logo_url}
               alt="Maptech"
             />
@@ -510,8 +511,8 @@ export function AdminLayout({
               {businessDetails.company_name}
             </p>
           </div>
-          <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
-            <nav className={`mt-5 flex-1 space-y-1 ${isSidebarCompact ? 'px-3' : 'px-2'}`}>
+          <div className="flex-1 flex flex-col overflow-y-auto md:overflow-y-hidden pt-3 pb-3">
+            <nav className={`mt-3 flex-1 space-y-0.5 ${isSidebarCompact ? 'px-3' : 'px-2'}`}>
               {safeArray(allNavItems).map((item) => {
                 const Icon = item.icon;
                 const isActive = currentPage === item.id || (item.id === 'courses' && currentPage === 'course-detail');
@@ -521,7 +522,7 @@ export function AdminLayout({
                     onClick={() => handleSidebarNavigate(item.id)}
                     title={isSidebarCompact ? item.label : undefined}
                     aria-label={item.label}
-                    className={`sidebar-nav-item group flex w-full items-center justify-start rounded-lg text-sm font-medium transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'px-2 py-3' : 'px-3 py-2.5'} ${isActive ? (isDark ? 'is-active bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/50' : 'is-active bg-emerald-600 text-white') : isDark ? 'text-slate-300 hover:bg-slate-800/80 hover:text-white' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'}`}>
+                    className={`sidebar-nav-item group flex w-full items-center justify-start rounded-lg text-[12px] font-semibold transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'px-2 py-2.5' : 'px-3 py-2'} ${isActive ? (isDark ? 'is-active bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/50' : 'is-active bg-emerald-600 text-white') : isDark ? 'text-slate-300 hover:bg-slate-800/80 hover:text-white' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'}`}>
 
                     <Icon
                       className={`h-5 w-5 flex-shrink-0 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'mx-auto' : 'mr-3'} ${isActive ? (isDark ? 'text-emerald-300' : 'text-white') : isDark ? 'text-slate-400 group-hover:text-slate-200' : 'text-slate-500 group-hover:text-slate-900'}`} />
