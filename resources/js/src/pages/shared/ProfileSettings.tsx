@@ -244,9 +244,9 @@ export function ProfileSettings() {
   };
 
   const uploadSignatureFile = async (file: File): Promise<boolean> => {
-    const allowed = ['image/png', 'image/jpeg', 'image/jpg'];
+    const allowed = ['image/png'];
     if (!allowed.includes(file.type)) {
-      setMessage({ type: 'error', text: 'Signature must be a PNG or JPG image.' });
+      setMessage({ type: 'error', text: 'Signature must be a PNG image.' });
       return false;
     }
 
@@ -280,7 +280,10 @@ export function ProfileSettings() {
         return false;
       } else {
         setMessage({ type: 'success', text: 'Signature uploaded. It will now be used automatically in certificates.' });
-        setProfile((prev) => prev ? { ...prev, signature_path: data.signature_path } : prev);
+        const signaturePath = data.signature_path
+          ? `${data.signature_path}${data.signature_path.includes('?') ? '&' : '?'}t=${Date.now()}`
+          : null;
+        setProfile((prev) => prev ? { ...prev, signature_path: signaturePath } : prev);
         return true;
       }
     } catch (err) {
@@ -572,7 +575,7 @@ export function ProfileSettings() {
                 Upload your signature once or draw it using a mouse, touch input, or pen tablet.
               </p>
               <p className="text-xs text-slate-500 mt-1 dark:text-slate-300">
-                PNG/JPG only, max 2MB. Saving a new one replaces the current {signatureOwnerLabel.toLowerCase()} signature.
+                PNG only, max 2MB. Saving a new one replaces the current {signatureOwnerLabel.toLowerCase()} signature.
               </p>
 
               <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/80">
@@ -624,7 +627,7 @@ export function ProfileSettings() {
                 <input
                   ref={signatureInputRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/jpg"
+                  accept="image/png"
                   onChange={handleSignatureUpload}
                   className="hidden"
                 />
