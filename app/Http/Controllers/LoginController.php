@@ -26,12 +26,18 @@ class LoginController extends Controller
             'password' => 'required',
         ]);
 
-        // Find user by email
-        $user = User::where('email', $credentials['email'])->first();
+        // Find user by email (include archived so we can show a clear message)
+        $user = User::withTrashed()->where('email', $credentials['email'])->first();
 
         // Check if user exists
         if (!$user) {
             return response()->json(['message' => 'Incorrect Email or Password'], 401);
+        }
+
+        if ($user->trashed()) {
+            return response()->json([
+                'message' => 'Your account is archived. Please contact administrator to restore access.'
+            ], 403);
         }
 
         // Check if account is active BEFORE authentication
@@ -131,12 +137,18 @@ class LoginController extends Controller
             'password' => 'required',
         ]);
 
-        // Find user by email
-        $user = User::where('email', $credentials['email'])->first();
+        // Find user by email (include archived so we can show a clear message)
+        $user = User::withTrashed()->where('email', $credentials['email'])->first();
 
         // Check if user exists
         if (!$user) {
             return response()->json(['message' => 'Incorrect Email or Password'], 401);
+        }
+
+        if ($user->trashed()) {
+            return response()->json([
+                'message' => 'Your account is archived. Please contact administrator to restore access.'
+            ], 403);
         }
 
         // Check password

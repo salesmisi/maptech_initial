@@ -30,6 +30,11 @@ class UserController extends Controller
     public function index(Request $request)
     {
         $query = User::query();
+        $archived = filter_var($request->query('archived'), FILTER_VALIDATE_BOOLEAN);
+
+        if ($archived) {
+            $query->onlyTrashed();
+        }
 
         // Search by name/email
         if ($request->filled('q')) {
@@ -67,8 +72,8 @@ class UserController extends Controller
         }
 
         $users = $query->select([
-            'id', 'fullname', 'email', 'role', 'department', 'subdepartment_id', 'status', 'profile_picture', 'created_at'
-        ])->orderBy('created_at', 'desc')->get();
+            'id', 'fullname', 'email', 'role', 'department', 'subdepartment_id', 'status', 'profile_picture', 'created_at', 'deleted_at'
+        ])->orderBy($archived ? 'deleted_at' : 'created_at', 'desc')->get();
 
         // Eager load subdepartment name, departments headed, and instructor subdepartments
         $users->load('subdepartment:id,name', 'headOfDepartments:id,name,head_id', 'subdepartments:id,name,department_id');
@@ -372,35 +377,74 @@ class UserController extends Controller
     }
 
     /**
-     * Delete a user.
+     * Archive a user (soft delete).
      */
     public function destroy(string $id)
     {
         try {
             $user = User::findOrFail($id);
+            $role = strtolower((string) $user->role);
 
-            // Delete related records first to avoid foreign key issues
-            $user->tokens()->delete(); // Sanctum tokens
+            if (!in_array($role, ['instructor', 'employee'], true)) {
+                return response()->json([
+                    'message' => 'Only instructor and employee accounts can be archived.'
+                ], 422);
+            }
+
+            // Revoke tokens so the archived account cannot access the app
+            $user->tokens()->delete();
 
             $user->delete();
 
             return response()->json([
-                'message' => 'User deleted successfully'
+                'message' => 'User archived successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to delete user', [
+            Log::error('Failed to archive user', [
                 'user_id' => $id,
                 'error' => $e->getMessage(),
             ]);
 
             return response()->json([
-                'message' => 'Failed to delete user: ' . $e->getMessage()
+                'message' => 'Failed to archive user: ' . $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * Bulk delete users by IDs passed as JSON { ids: [1,2,3] }
+     * Restore an archived user.
+     */
+    public function restore(string $id)
+    {
+        try {
+            $user = User::onlyTrashed()->findOrFail($id);
+            $role = strtolower((string) $user->role);
+
+            if (!in_array($role, ['instructor', 'employee'], true)) {
+                return response()->json([
+                    'message' => 'Only instructor and employee accounts can be restored.'
+                ], 422);
+            }
+
+            $user->restore();
+
+            return response()->json([
+                'message' => 'User restored successfully'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to restore user', [
+                'user_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to restore user: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Bulk archive users by IDs passed as JSON { ids: [1,2,3] }
      */
     public function bulkDelete(Request $request)
     {
@@ -412,21 +456,32 @@ class UserController extends Controller
         $ids = $data['ids'];
 
         try {
-            /** @var \Illuminate\Database\Eloquent\Collection<int, User> $usersToDelete */
-            $usersToDelete = User::whereIn('id', $ids)->get();
+            /** @var \Illuminate\Database\Eloquent\Collection<int, User> $usersToArchive */
+            $usersToArchive = User::whereIn('id', $ids)->get();
+            $archived = [];
+            $skipped = [];
+
             /** @var User $u */
-            foreach ($usersToDelete as $u) {
+            foreach ($usersToArchive as $u) {
+                $role = strtolower((string) $u->role);
+                if (!in_array($role, ['instructor', 'employee'], true)) {
+                    $skipped[] = $u->id;
+                    continue;
+                }
+
                 $u->tokens()->delete();
                 $u->delete();
+                $archived[] = $u->id;
             }
 
             return response()->json([
-                'message' => 'Users deleted successfully',
-                'deleted' => $ids
+                'message' => 'Users archived successfully',
+                'archived' => $archived,
+                'skipped' => $skipped,
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to bulk delete users', ['ids' => $ids, 'error' => $e->getMessage()]);
-            return response()->json(['message' => 'Failed to delete users: ' . $e->getMessage()], 500);
+            Log::error('Failed to bulk archive users', ['ids' => $ids, 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Failed to archive users: ' . $e->getMessage()], 500);
         }
     }
 

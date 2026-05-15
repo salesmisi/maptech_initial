@@ -381,10 +381,11 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     Route::get('/users/{id}', [UserController::class, 'show']);
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
+    Route::post('/users/{id}/restore', [UserController::class, 'restore']);
     Route::post('/users/{id}/photo', [UserController::class, 'uploadPhoto']);
     Route::get('/users/{id}/recovery-key', [UserController::class, 'getRecoveryKey']);
     Route::post('/users/{id}/regenerate-recovery-key', [UserController::class, 'regenerateRecoveryKey']);
-    // Bulk delete users (accepts JSON { ids: [1,2,3] })
+    // Bulk archive users (accepts JSON { ids: [1,2,3] })
     Route::post('/users/bulk-delete', [UserController::class, 'bulkDelete']);
 
     // Course Management (Admin can manage all courses)
