@@ -1529,17 +1529,134 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         $request->validate([
             // Optional dimension cap keeps signatures usable on certificate layout.
-            'signature' => 'required|image|mimes:jpeg,jpg,png|max:2048|dimensions:max_width=3000,max_height=1200',
+            'signature' => 'required|image|mimes:png|max:2048|dimensions:max_width=3000,max_height=1200',
         ]);
+
+        $file = $request->file('signature');
+        $realPath = $file?->getRealPath();
+        if (!is_string($realPath) || !is_file($realPath)) {
+            return response()->json(['message' => 'Invalid signature upload. Please try again.'], 422);
+        }
+
+        $signatureInfo = @getimagesize($realPath);
+        if (!$signatureInfo || (int) ($signatureInfo[2] ?? 0) !== IMAGETYPE_PNG) {
+            return response()->json(['message' => 'Signature must be a PNG image.'], 422);
+        }
+
+        $isSignatureLike = function (string $path): bool {
+            if (!extension_loaded('gd')) {
+                \Illuminate\Support\Facades\Log::warning('Signature validation skipped: GD extension not available.');
+                return true;
+            }
+
+            $info = @getimagesize($path);
+            if (!$info || empty($info[0]) || empty($info[1])) {
+                return false;
+            }
+
+            $width = (int) $info[0];
+            $height = (int) $info[1];
+            $ratio = $width > 0 ? ($width / max(1, $height)) : 0;
+            if ($ratio < 1.6) {
+                return false;
+            }
+
+            $type = (int) ($info[2] ?? 0);
+            $img = null;
+            if ($type === IMAGETYPE_PNG) {
+                $img = @imagecreatefrompng($path);
+            }
+
+            if (!$img) {
+                return false;
+            }
+
+            $step = (int) max(1, floor(max($width, $height) / 220));
+            $total = 0;
+            $ink = 0;
+            $nearWhite = 0;
+            $transparent = 0;
+            $minX = $width;
+            $minY = $height;
+            $maxX = 0;
+            $maxY = 0;
+
+            for ($y = 0; $y < $height; $y += $step) {
+                for ($x = 0; $x < $width; $x += $step) {
+                    $rgba = imagecolorat($img, $x, $y);
+                    $alpha = ($rgba & 0x7F000000) >> 24;
+                    $r = ($rgba >> 16) & 0xFF;
+                    $g = ($rgba >> 8) & 0xFF;
+                    $b = $rgba & 0xFF;
+                    $lum = (0.2126 * $r) + (0.7152 * $g) + (0.0722 * $b);
+
+                    $total++;
+
+                    if ($alpha >= 100) {
+                        $transparent++;
+                        continue;
+                    }
+
+                    if ($lum >= 230) {
+                        $nearWhite++;
+                        continue;
+                    }
+
+                    if ($lum <= 90) {
+                        $ink++;
+                        if ($x < $minX) $minX = $x;
+                        if ($y < $minY) $minY = $y;
+                        if ($x > $maxX) $maxX = $x;
+                        if ($y > $maxY) $maxY = $y;
+                    }
+                }
+            }
+
+            imagedestroy($img);
+
+            if ($total === 0) {
+                return false;
+            }
+
+            $inkRatio = $ink / $total;
+            $whiteRatio = $nearWhite / $total;
+            $transparentRatio = $transparent / $total;
+
+            if ($inkRatio < 0.002 || $inkRatio > 0.18) {
+                return false;
+            }
+
+            if ($transparentRatio < 0.2 && $whiteRatio < 0.7) {
+                return false;
+            }
+
+            if ($maxX <= $minX || $maxY <= $minY) {
+                return false;
+            }
+
+            $inkWidthRatio = (($maxX - $minX) + 1) / max(1, $width);
+            $inkHeightRatio = (($maxY - $minY) + 1) / max(1, $height);
+
+            if ($inkWidthRatio < 0.2 || $inkHeightRatio > 0.65) {
+                return false;
+            }
+
+            return true;
+        };
+
+        if (!$isSignatureLike($realPath)) {
+            return response()->json([
+                'message' => 'Signature image must look like a real signature (transparent or white background with minimal ink).'
+            ], 422);
+        }
 
         // Replace any previous signature file.
         if ($user->signature_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($user->signature_path)) {
             \Illuminate\Support\Facades\Storage::disk('public')->delete($user->signature_path);
         }
 
-        $ext = strtolower($request->file('signature')->getClientOriginalExtension());
-        $filename = (string) \Illuminate\Support\Str::uuid().'.'.$ext;
-        $path = $request->file('signature')->storeAs('signatures', $filename, 'public');
+        $filename = (string) \Illuminate\Support\Str::uuid().'.png';
+        $path = $file->storeAs('signatures', $filename, 'public');
 
         $user->update(['signature_path' => $path]);
 
