@@ -5,7 +5,8 @@ import {
   Search,
   Plus,
   Edit2,
-  Trash2,
+  Archive,
+  RotateCcw,
   Filter,
   X,
   AlertCircle,
@@ -32,6 +33,7 @@ interface User {
   head_of_departments?: { id: number; name: string }[];
   role: 'Admin' | 'Instructor' | 'Employee';
   status: 'Active' | 'Inactive';
+  deleted_at?: string | null;
   created_at?: string;
   profile_picture?: string | null;
 }
@@ -69,6 +71,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('All');
   const [roleFilter, setRoleFilter] = useState<'All' | 'Admin' | 'Instructor' | 'Employee'>('All');
+  const [listMode, setListMode] = useState<'active' | 'archived'>('active');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -149,9 +152,12 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
     return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
   };
 
-  // Load users on mount
+  // Load users on mount + when switching list mode
   useEffect(() => {
-    loadUsers();
+    loadUsers(listMode);
+  }, [listMode]);
+
+  useEffect(() => {
     loadDepartments();
   }, []);
 
@@ -183,12 +189,20 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
     } catch { /* ignore */ }
   };
 
-  const loadUsers = async () => {
+  const loadUsers = async (mode: 'active' | 'archived' = listMode) => {
     try {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`${API_BASE}/admin/users`, {
+      const params = new URLSearchParams();
+      if (mode === 'archived') {
+        params.set('archived', '1');
+      }
+      const url = params.toString()
+        ? `${API_BASE}/admin/users?${params.toString()}`
+        : `${API_BASE}/admin/users`;
+
+      const response = await fetch(url, {
         credentials: 'include',
         headers: getHeaders(),
       });
@@ -227,16 +241,15 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
     'h-4 w-4 rounded-md border border-slate-300 accent-emerald-500 cursor-pointer transition focus:ring-2 focus:ring-emerald-500/60 focus:ring-offset-0 dark:border-slate-600 dark:bg-slate-800';
   */
 
-  // Delete handler
-  const handleDelete = async (id: number) => {
-    // Check if the user being deleted is an admin
-    const userToDelete = users.find(u => u.id === id);
-    if (userToDelete?.role === 'Admin') {
-      alert('Admin accounts cannot be deleted for security reasons.');
+  // Archive handler
+  const handleArchive = async (id: number) => {
+    const userToArchive = users.find(u => u.id === id);
+    if (userToArchive?.role === 'Admin') {
+      alert('Admin accounts cannot be archived for security reasons.');
       return;
     }
 
-    showConfirm('Are you sure you want to delete this user?', async () => {
+    showConfirm('Are you sure you want to archive this user?', async () => {
       try {
         const xsrfToken = await getXsrfToken();
         const response = await fetch(`${API_BASE}/admin/users/${id}`, {
@@ -251,12 +264,44 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
 
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw new Error(data.message || 'Failed to delete user');
+          throw new Error(data.message || 'Failed to archive user');
         }
 
-        setUsers(users.filter((user) => user.id !== id));
+        await loadUsers(listMode);
       } catch (err: any) {
-        alert(err.message || 'Failed to delete user');
+        alert(err.message || 'Failed to archive user');
+      }
+    });
+  };
+
+  const handleRestore = async (id: number) => {
+    const userToRestore = users.find(u => u.id === id);
+    if (userToRestore?.role === 'Admin') {
+      alert('Admin accounts cannot be restored.');
+      return;
+    }
+
+    showConfirm('Restore this user account?', async () => {
+      try {
+        const xsrfToken = await getXsrfToken();
+        const response = await fetch(`${API_BASE}/admin/users/${id}/restore`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': xsrfToken,
+          },
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || 'Failed to restore user');
+        }
+
+        await loadUsers(listMode);
+      } catch (err: any) {
+        alert(err.message || 'Failed to restore user');
       }
     });
   };
@@ -744,7 +789,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
   if (loading) {
     return (
       <LoadingState
-        message="Loading users"
+        message={listMode === 'archived' ? 'Loading archived users' : 'Loading users'}
         size="lg"
         className="min-h-[40vh]"
       />
@@ -758,7 +803,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
           <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
           <span className="text-rose-700 dark:text-rose-200">{error}</span>
           <button
-            onClick={loadUsers}
+            onClick={() => loadUsers(listMode)}
             className="ml-auto text-rose-600 hover:text-rose-700 underline dark:text-rose-300 dark:hover:text-rose-200"
           >
             Retry
@@ -786,6 +831,30 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-4 dark:bg-slate-900/80 dark:border-slate-700/80 ui-pop-in ui-force-pop um-filter-panel">
+        <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800/60">
+          <button
+            type="button"
+            onClick={() => setListMode('active')}
+            className={`px-3 py-2 text-sm font-medium rounded-md transition ${
+              listMode === 'active'
+                ? 'bg-emerald-600 text-white shadow'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100'
+            }`}
+          >
+            Active
+          </button>
+          <button
+            type="button"
+            onClick={() => setListMode('archived')}
+            className={`px-3 py-2 text-sm font-medium rounded-md transition ${
+              listMode === 'archived'
+                ? 'bg-slate-700 text-white shadow dark:bg-slate-200 dark:text-slate-900'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100'
+            }`}
+          >
+            Archived
+          </button>
+        </div>
         <div className="relative flex-1">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
             <Search className="h-5 w-5 text-slate-400" />
@@ -862,7 +931,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
               {filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
-                    No users found
+                    {listMode === 'archived' ? 'No archived users found' : 'No users found'}
                   </td>
                 </tr>
               ) : (
@@ -929,43 +998,58 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          user.status === 'Active'
+                          listMode === 'archived'
+                            ? 'bg-slate-200 text-slate-700 dark:bg-slate-700/60 dark:text-slate-200'
+                            : user.status === 'Active'
                             ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300'
                             : 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300'
                         }`}
                       >
-                        {user.status}
+                        {listMode === 'archived' ? 'Archived' : user.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
-                        <button
-                          onClick={() => handleOpenModal(user)}
-                          className="btn-icon btn-icon-edit um-icon-btn"
-                          title="Edit user"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleViewRecoveryKey(user.id)}
-                          disabled={regeneratingKeyForId === user.id}
-                          className="btn-icon btn-icon-view um-icon-btn disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="View recovery key"
-                        >
-                          {regeneratingKeyForId === user.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <KeyRound className="h-4 w-4" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(user.id)}
-                          disabled={user.role === 'Admin'}
-                          className="btn-icon btn-icon-delete um-icon-btn disabled:opacity-40 disabled:cursor-not-allowed"
-                          title={user.role === 'Admin' ? 'Admin accounts cannot be deleted' : 'Delete user'}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {listMode === 'archived' ? (
+                          <button
+                            onClick={() => handleRestore(user.id)}
+                            disabled={user.role === 'Admin'}
+                            className="btn-icon btn-icon-view um-icon-btn disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={user.role === 'Admin' ? 'Admin accounts cannot be restored' : 'Restore user'}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleOpenModal(user)}
+                              className="btn-icon btn-icon-edit um-icon-btn"
+                              title="Edit user"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleViewRecoveryKey(user.id)}
+                              disabled={regeneratingKeyForId === user.id}
+                              className="btn-icon btn-icon-view um-icon-btn disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="View recovery key"
+                            >
+                              {regeneratingKeyForId === user.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <KeyRound className="h-4 w-4" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleArchive(user.id)}
+                              disabled={user.role === 'Admin'}
+                              className="btn-icon btn-icon-delete um-icon-btn disabled:opacity-40 disabled:cursor-not-allowed"
+                              title={user.role === 'Admin' ? 'Admin accounts cannot be archived' : 'Archive user'}
+                            >
+                              <Archive className="h-4 w-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
