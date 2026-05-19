@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { safeArray } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { AlertTriangle, Building2, BookOpen, Check, ChevronDown, Plus, Search, Trash2, Users, X } from 'lucide-react';
+import { AlertCircle, Building2, BookOpen, Check, ChevronDown, Plus, Search, Trash2, Users, X } from 'lucide-react';
 
 interface EmployeeRecord {
   id: number;
@@ -857,28 +857,11 @@ export default function DepartmentManagement() {
         <Modal onClose={() => setShowCreateModal(false)}>
           <h2 className="mb-4 text-lg font-semibold">Add Department</h2>
           {createFormAlert && (
-            <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-900/60 dark:text-rose-200">
-                  <AlertTriangle className="h-4 w-4" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold">{createFormAlert.title}</p>
-                  <p className="text-sm">{createFormAlert.message}</p>
-                  {createFormAlert.fields.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {createFormAlert.fields.map((field) => (
-                        <span
-                          key={field}
-                          className="rounded-full border border-rose-200 bg-white/70 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:border-rose-800/70 dark:bg-rose-950/20 dark:text-rose-200"
-                        >
-                          {field}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 flex items-center dark:border-red-800 dark:bg-red-950/40">
+              <AlertCircle className="h-4 w-4 text-red-500 mr-2 shrink-0" />
+              <span className="text-sm text-red-700 dark:text-red-300">
+                {createFormAlert.title ? `${createFormAlert.title}. ${createFormAlert.message}` : createFormAlert.message}
+              </span>
             </div>
           )}
           <TextInput
@@ -888,6 +871,7 @@ export default function DepartmentManagement() {
             value={createForm.name}
             onChange={(v) => updateCreateFormField('name', v)}
             error={createFormErrors.name}
+            showErrorMessage={false}
           />
           <TextInput
             label="Department Code"
@@ -896,6 +880,7 @@ export default function DepartmentManagement() {
             value={createForm.code}
             onChange={(v) => updateCreateFormField('code', v)}
             error={createFormErrors.code}
+            showErrorMessage={false}
           />
           <TextInput
             label="Description (optional)"
@@ -1320,6 +1305,7 @@ function TextInput({
   value,
   onChange,
   error,
+  showErrorMessage = true,
 }: {
   label: string;
   required?: boolean;
@@ -1327,8 +1313,10 @@ function TextInput({
   value: string;
   onChange: (v: string) => void;
   error?: string;
+  showErrorMessage?: boolean;
 }) {
-  const errorId = error ? `${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-error` : undefined;
+  const showMessage = Boolean(error) && showErrorMessage;
+  const errorId = showMessage ? `${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-error` : undefined;
   return (
     <div className="mb-3">
       <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
@@ -1348,7 +1336,7 @@ function TextInput({
             : 'border-slate-300 focus:border-emerald-500 dark:border-slate-700'
         }`}
       />
-      {error && (
+      {showMessage && (
         <p id={errorId} className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-300">
           {error}
         </p>
