@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { safeArray } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { Building2, BookOpen, Check, ChevronDown, Plus, Search, Trash2, Users, X } from 'lucide-react';
+import { AlertCircle, Building2, BookOpen, Check, ChevronDown, Plus, Search, Trash2, Users, X } from 'lucide-react';
 
 interface EmployeeRecord {
   id: number;
@@ -115,6 +115,13 @@ export default function DepartmentManagement() {
     code: '',
     description: '',
   });
+  const [createFormErrors, setCreateFormErrors] = useState({ name: '', code: '' });
+  const [createFormAlert, setCreateFormAlert] = useState<null | {
+    title: string;
+    message: string;
+    fields: string[];
+  }>(null);
+  const [createAttempted, setCreateAttempted] = useState(false);
 
   const [deptHeadId, setDeptHeadId] = useState('');
   const [headSearchQuery, setHeadSearchQuery] = useState('');
@@ -276,6 +283,13 @@ export default function DepartmentManagement() {
   }, []);
 
   useEffect(() => {
+    if (showCreateModal) return;
+    setCreateFormErrors({ name: '', code: '' });
+    setCreateFormAlert(null);
+    setCreateAttempted(false);
+  }, [showCreateModal]);
+
+  useEffect(() => {
     if (!activeDepartment) {
       setSubHeadDrafts({});
       return;
@@ -339,6 +353,80 @@ export default function DepartmentManagement() {
     setInfoDialog({ open: true, title, message });
   };
 
+  const getCreateDepartmentValidation = (form: { name: string; code: string; description: string }) => {
+    const missingName = !form.name.trim();
+    const missingCode = !form.code.trim();
+    const isEmpty = missingName && missingCode && !form.description.trim();
+
+    if (!missingName && !missingCode) {
+      return { ok: true, missingName: false, missingCode: false, title: '', message: '', fields: [] as string[] };
+    }
+
+    if (isEmpty) {
+      return {
+        ok: false,
+        missingName,
+        missingCode,
+        title: 'Nothing to submit',
+        message: 'Start by entering the Department Name and Department Code.',
+        fields: ['Department Name', 'Department Code'],
+      };
+    }
+
+    if (missingName && missingCode) {
+      return {
+        ok: false,
+        missingName,
+        missingCode,
+        title: 'Missing required fields',
+        message: 'Department Name and Department Code are required.',
+        fields: ['Department Name', 'Department Code'],
+      };
+    }
+
+    if (missingName) {
+      return {
+        ok: false,
+        missingName,
+        missingCode,
+        title: 'Department Name missing',
+        message: 'Please enter a Department Name to continue.',
+        fields: ['Department Name'],
+      };
+    }
+
+    return {
+      ok: false,
+      missingName,
+      missingCode,
+      title: 'Department Code missing',
+      message: 'Please enter a Department Code to continue.',
+      fields: ['Department Code'],
+    };
+  };
+
+  const updateCreateFormField = (field: 'name' | 'code' | 'description', value: string) => {
+    const nextForm = { ...createForm, [field]: value };
+    setCreateForm(nextForm);
+
+    if (createAttempted) {
+      const validation = getCreateDepartmentValidation(nextForm);
+      setCreateFormErrors({
+        name: validation.missingName ? 'Department Name is required.' : '',
+        code: validation.missingCode ? 'Department Code is required.' : '',
+      });
+      setCreateFormAlert(
+        validation.ok
+          ? null
+          : {
+              title: validation.title,
+              message: validation.message,
+              fields: validation.fields,
+            }
+      );
+    }
+  };
+
   const runConfirmAction = async () => {
     if (!confirmDialog.action) return;
 
@@ -354,13 +442,19 @@ export default function DepartmentManagement() {
   };
 
   const handleCreateDepartment = async () => {
-    if (!createForm.name.trim()) {
-      alert('Department Name is required.');
-      return;
-    }
+    setCreateAttempted(true);
+    const validation = getCreateDepartmentValidation(createForm);
 
-    if (!createForm.code.trim()) {
-      alert('Department Code is required.');
+    if (!validation.ok) {
+      setCreateFormErrors({
+        name: validation.missingName ? 'Department Name is required.' : '',
+        code: validation.missingCode ? 'Department Code is required.' : '',
+      });
+      setCreateFormAlert({
+        title: validation.title,
+        message: validation.message,
+        fields: validation.fields,
+      });
       return;
     }
 
@@ -390,6 +484,9 @@ export default function DepartmentManagement() {
       }
 
       setCreateForm({ name: '', code: '', description: '' });
+      setCreateFormErrors({ name: '', code: '' });
+      setCreateFormAlert(null);
+      setCreateAttempted(false);
       setShowCreateModal(false);
       await refreshAll();
     } catch (err: any) {
@@ -759,20 +856,37 @@ export default function DepartmentManagement() {
       {showCreateModal && (
         <Modal onClose={() => setShowCreateModal(false)}>
           <h2 className="mb-4 text-lg font-semibold">Add Department</h2>
+          {createFormAlert && (
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 flex items-center dark:border-red-800 dark:bg-red-950/40">
+              <AlertCircle className="h-4 w-4 text-red-500 mr-2 shrink-0" />
+              <span className="text-sm text-red-700 dark:text-red-300">
+                {createFormAlert.title ? `${createFormAlert.title}. ${createFormAlert.message}` : createFormAlert.message}
+              </span>
+            </div>
+          )}
           <TextInput
-            placeholder="Department Name"
+            label="Department Name"
+            required
+            placeholder="e.g. Information Technology"
             value={createForm.name}
-            onChange={(v) => setCreateForm((s) => ({ ...s, name: v }))}
+            onChange={(v) => updateCreateFormField('name', v)}
+            error={createFormErrors.name}
+            showErrorMessage={false}
           />
           <TextInput
-            placeholder="Department Code"
+            label="Department Code"
+            required
+            placeholder="e.g. IT"
             value={createForm.code}
-            onChange={(v) => setCreateForm((s) => ({ ...s, code: v }))}
+            onChange={(v) => updateCreateFormField('code', v)}
+            error={createFormErrors.code}
+            showErrorMessage={false}
           />
           <TextInput
-            placeholder="Description"
+            label="Description (optional)"
+            placeholder="Short description"
             value={createForm.description}
-            onChange={(v) => setCreateForm((s) => ({ ...s, description: v }))}
+            onChange={(v) => updateCreateFormField('description', v)}
           />
 
           <button
@@ -1185,21 +1299,48 @@ function Modal({
 }
 
 function TextInput({
+  label,
+  required = false,
   placeholder,
   value,
   onChange,
+  error,
+  showErrorMessage = true,
 }: {
+  label: string;
+  required?: boolean;
   placeholder: string;
   value: string;
   onChange: (v: string) => void;
+  error?: string;
+  showErrorMessage?: boolean;
 }) {
+  const showMessage = Boolean(error) && showErrorMessage;
+  const errorId = showMessage ? `${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-error` : undefined;
   return (
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="mb-3 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
-    />
+    <div className="mb-3">
+      <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+        {label}
+        {required && <span className="text-rose-500"> *</span>}
+      </label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-invalid={Boolean(error)}
+        aria-describedby={errorId}
+        className={`w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 ${
+          error
+            ? 'border-rose-300 focus:border-rose-500 dark:border-rose-700'
+            : 'border-slate-300 focus:border-emerald-500 dark:border-slate-700'
+        }`}
+      />
+      {showMessage && (
+        <p id={errorId} className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-300">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
