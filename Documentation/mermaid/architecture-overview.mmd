@@ -1,0 +1,12 @@
+flowchart LR
+    SPA["React 19 + TS SPA<br/>(resources/js/src)<br/>Echo + Pusher client"]
+    API["Laravel 12 API + Web<br/>(app/, routes/)<br/>Sanctum, Policies"]
+    DB[(MySQL)]
+    FS[(Filesystem)]
+    WS["Pusher / WS svc"]
+
+    SPA <-->|"HTTPS / WS<br/>Sanctum tokens / cookie"| API
+    SPA -->|"Pusher channels<br/>(private/presence)"| WS
+    API --> DB
+    API --> FS
+    API -->|broadcast| WS
