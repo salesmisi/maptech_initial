@@ -639,33 +639,214 @@ class UserController extends Controller
     }
 
     /**
-     * Export Reports as CSV.
+     * Export Reports as Excel.
      */
-    public function exportReport(): StreamedResponse
+    public function exportReport()
     {
         $enrollments = Enrollment::with(['user:id,fullname,department', 'course:id,title'])
             ->orderBy('enrolled_at', 'desc')
             ->get();
 
-        $filename = 'report_' . now()->format('Y-m-d') . '.csv';
+        if (!class_exists('ZipArchive')) {
+            return response()->json([
+                'message' => 'Server is missing the PHP zip extension. Please contact the administrator.',
+            ], 500);
+        }
 
-        return response()->streamDownload(function () use ($enrollments) {
-            $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['Employee', 'Department', 'Course', 'Status', 'Progress (%)', 'Enrolled At', 'Completed At']);
-            foreach ($enrollments as $e) {
-                fputcsv($handle, [
-                    $e->user?->fullname ?? 'Unknown',
-                    $e->user?->department ?? '-',
-                    $e->course?->title ?? 'Unknown',
-                    $e->status,
-                    $e->progress,
-                    $e->enrolled_at?->format('Y-m-d H:i') ?? '',
-                    $e->status === 'Completed' ? ($e->updated_at?->format('Y-m-d H:i') ?? '') : '',
-                ]);
+        $timestamp = date('Y-m-d_His');
+        $filename = 'report_' . date('Y-m-d') . '.xlsx';
+        $logoPath = public_path('assets/Maptech-Official-Logo.png');
+        $hasLogo = file_exists($logoPath);
+        $genInfo = 'Generated: ' . date('F j, Y g:i A') . '  |  Total Records: ' . count($enrollments);
+
+        $brandDark = 'FF0B5F2A';
+        $brandPrimary = 'FF1B8F3A';
+        $brandLight = 'FFE8F6ED';
+        $borderColor = 'FFCCE5D4';
+
+        $xe = fn($s) => htmlspecialchars((string) $s, ENT_XML1, 'UTF-8');
+        $logoCx = null;
+        $logoCy = null;
+        if ($hasLogo) {
+            $logoDims = @getimagesize($logoPath);
+            $logoWidthPx = (int) ($logoDims[0] ?? 0);
+            $logoHeightPx = (int) ($logoDims[1] ?? 0);
+            $maxWidthPx = 240;
+            $maxHeightPx = 52;
+            if ($logoWidthPx > 0 && $logoHeightPx > 0) {
+                $scale = min($maxWidthPx / $logoWidthPx, $maxHeightPx / $logoHeightPx, 1);
+                $scaledWidth = (int) round($logoWidthPx * $scale);
+                $scaledHeight = (int) round($logoHeightPx * $scale);
+                $logoCx = $scaledWidth * 9525;
+                $logoCy = $scaledHeight * 9525;
             }
-            fclose($handle);
+        }
+
+        $headers = ['Employee', 'Department', 'Course', 'Status', 'Progress (%)', 'Enrolled At', 'Completed At'];
+        $colLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+        $colWidths = [24, 20, 30, 14, 14, 20, 20];
+
+        $sw = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+        $sw .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"';
+        $sw .= ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
+        $sw .= '<sheetFormatPr defaultRowHeight="15"/>';
+        $sw .= '<cols>';
+        foreach ($colWidths as $i => $w) {
+            $sw .= '<col min="' . ($i + 1) . '" max="' . ($i + 1) . '" width="' . $w . '" customWidth="1"/>';
+        }
+        $sw .= '</cols>';
+        $sw .= '<sheetData>';
+        $sw .= '<row r="1" ht="50" customHeight="1"/>';
+        $sw .= '<row r="2" ht="22" customHeight="1">';
+        $sw .= '<c r="A2" s="1" t="inlineStr"><is><t>' . $xe('Reports & Analytics Report') . '</t></is></c>';
+        $sw .= '</row>';
+        $sw .= '<row r="3" ht="14" customHeight="1">';
+        $sw .= '<c r="A3" s="2" t="inlineStr"><is><t>' . $xe($genInfo) . '</t></is></c>';
+        $sw .= '</row>';
+        $sw .= '<row r="4" ht="18" customHeight="1">';
+        foreach ($colLetters as $i => $letter) {
+            $sw .= '<c r="' . $letter . '4" s="3" t="inlineStr"><is><t>' . $xe($headers[$i]) . '</t></is></c>';
+        }
+        $sw .= '</row>';
+
+        $rowNum = 5;
+        foreach ($enrollments as $e) {
+            $styleId = ($rowNum % 2 === 0) ? 5 : 4;
+            $sw .= '<row r="' . $rowNum . '">';
+            $vals = [
+                $e->user?->fullname ?? 'Unknown',
+                $e->user?->department ?? '-',
+                $e->course?->title ?? 'Unknown',
+                $e->status ?? '',
+                (string) ($e->progress ?? ''),
+                $e->enrolled_at?->format('Y-m-d H:i') ?? '',
+                $e->status === 'Completed' ? ($e->updated_at?->format('Y-m-d H:i') ?? '') : '',
+            ];
+            foreach ($colLetters as $i => $letter) {
+                $sw .= '<c r="' . $letter . $rowNum . '" s="' . $styleId . '" t="inlineStr"><is><t>' . $xe($vals[$i]) . '</t></is></c>';
+            }
+            $sw .= '</row>';
+            $rowNum++;
+        }
+
+        $sw .= '</sheetData>';
+        $sw .= '<mergeCells count="2"><mergeCell ref="A2:G2"/><mergeCell ref="A3:G3"/></mergeCells>';
+        if ($hasLogo) { $sw .= '<drawing r:id="rId1"/>'; }
+        $sw .= '</worksheet>';
+
+        $sx = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+        $sx .= '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
+        $sx .= '<fonts count="5">';
+        $sx .= '<font><sz val="11"/><name val="Calibri"/></font>';
+        $sx .= '<font><b/><sz val="14"/><color rgb="' . $brandDark . '"/><name val="Calibri"/></font>';
+        $sx .= '<font><sz val="10"/><color rgb="FF555555"/><name val="Calibri"/></font>';
+        $sx .= '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>';
+        $sx .= '<font><sz val="11"/><name val="Calibri"/></font>';
+        $sx .= '</fonts>';
+        $sx .= '<fills count="4">';
+        $sx .= '<fill><patternFill patternType="none"/></fill>';
+        $sx .= '<fill><patternFill patternType="gray125"/></fill>';
+        $sx .= '<fill><patternFill patternType="solid"><fgColor rgb="' . $brandPrimary . '"/></patternFill></fill>';
+        $sx .= '<fill><patternFill patternType="solid"><fgColor rgb="' . $brandLight . '"/></patternFill></fill>';
+        $sx .= '</fills>';
+        $sx .= '<borders count="2">';
+        $sx .= '<border><left/><right/><top/><bottom/><diagonal/></border>';
+        $sx .= '<border><left style="thin"><color rgb="' . $borderColor . '"/></left><right style="thin"><color rgb="' . $borderColor . '"/></right><top style="thin"><color rgb="' . $borderColor . '"/></top><bottom style="thin"><color rgb="' . $borderColor . '"/></bottom><diagonal/></border>';
+        $sx .= '</borders>';
+        $sx .= '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
+        $sx .= '<cellXfs count="6">';
+        $sx .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>';
+        $sx .= '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>';
+        $sx .= '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>';
+        $sx .= '<xf numFmtId="0" fontId="3" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>';
+        $sx .= '<xf numFmtId="0" fontId="4" fillId="0" borderId="1" xfId="0" applyBorder="1"/>';
+        $sx .= '<xf numFmtId="0" fontId="4" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1"/>';
+        $sx .= '</cellXfs>';
+        $sx .= '</styleSheet>';
+
+        $dx = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+        $dx .= '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"';
+        $dx .= ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+        $dx .= ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
+        $dx .= '<xdr:oneCellAnchor>';
+        $dx .= '<xdr:from><xdr:col>0</xdr:col><xdr:colOff>38100</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>38100</xdr:rowOff></xdr:from>';
+        $dx .= '<xdr:ext cx="' . ($logoCx ?? 1828800) . '" cy="' . ($logoCy ?? 495300) . '"/>';
+        $dx .= '<xdr:pic>';
+        $dx .= '<xdr:nvPicPr><xdr:cNvPr id="2" name="MaptechLogo"/>';
+        $dx .= '<xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>';
+        $dx .= '<xdr:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>';
+        $dx .= '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' . ($logoCx ?? 1828800) . '" cy="' . ($logoCy ?? 495300) . '"/></a:xfrm>';
+        $dx .= '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>';
+        $dx .= '</xdr:pic><xdr:clientData/>';
+        $dx .= '</xdr:oneCellAnchor>';
+        $dx .= '</xdr:wsDr>';
+
+        $tmpFile = tempnam(sys_get_temp_dir(), 'report_xlsx_');
+        $zip = new \ZipArchive();
+        $zip->open($tmpFile, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+
+        $ct = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+        $ct .= '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">';
+        $ct .= '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>';
+        $ct .= '<Default Extension="xml" ContentType="application/xml"/>';
+        if ($hasLogo) { $ct .= '<Default Extension="png" ContentType="image/png"/>'; }
+        $ct .= '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>';
+        $ct .= '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+        $ct .= '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>';
+        if ($hasLogo) { $ct .= '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>'; }
+        $ct .= '</Types>';
+        $zip->addFromString('[Content_Types].xml', $ct);
+
+        $zip->addFromString('_rels/.rels',
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' .
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' .
+            '</Relationships>'
+        );
+
+        $zip->addFromString('xl/workbook.xml',
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"' .
+            ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' .
+            '<sheets><sheet name="Reports" sheetId="1" r:id="rId1"/></sheets>' .
+            '</workbook>'
+        );
+
+        $zip->addFromString('xl/_rels/workbook.xml.rels',
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' .
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' .
+            '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' .
+            '</Relationships>'
+        );
+
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sw);
+        $zip->addFromString('xl/styles.xml', $sx);
+
+        if ($hasLogo) {
+            $zip->addFromString('xl/worksheets/_rels/sheet1.xml.rels',
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' .
+                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>' .
+                '</Relationships>'
+            );
+            $zip->addFromString('xl/drawings/drawing1.xml', $dx);
+            $zip->addFromString('xl/drawings/_rels/drawing1.xml.rels',
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' .
+                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/logo.png"/>' .
+                '</Relationships>'
+            );
+            $zip->addFromString('xl/media/logo.png', file_get_contents($logoPath));
+        }
+
+        $zip->close();
+
+        return response()->streamDownload(function () use ($tmpFile) {
+            readfile($tmpFile);
+            @unlink($tmpFile);
         }, $filename, [
-            'Content-Type' => 'text/csv',
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
 
