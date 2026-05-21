@@ -148,7 +148,7 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Lesson Q&A</h1>
+        {/* Heading removed: redundant in module context */}
       </div>
 
       {/* Lesson Selector */}

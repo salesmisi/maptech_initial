@@ -90,7 +90,7 @@ export function QuizEvaluation({ apiPrefix = 'instructor' }: Props) {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Quiz Evaluation</h1>
+          {/* Heading removed: redundant in module context */}
           <p className="text-sm text-slate-500 dark:text-slate-400">Live employee quiz results from your assigned courses.</p>
         </div>
         <button

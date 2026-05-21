@@ -223,17 +223,13 @@ export function EmployeeLayout({
         onMouseLeave={() => { if (isDesktop) setIsSidebarHovered(false); }}
       >
         <div className="flex-1 flex flex-col min-h-0">
-          <div className={`flex flex-col items-center border-b transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'bg-slate-950 border-transparent' : 'bg-slate-50 border-slate-200'} ${isSidebarCompact ? 'px-2 pt-6 pb-4' : 'px-4 pt-8 pb-6'}`}>
+          <div className={`flex flex-col items-center border-b transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'bg-slate-950 border-transparent' : 'bg-slate-50 border-slate-200'} ${isSidebarCompact ? 'px-2 pt-4 pb-3' : 'px-4 pt-5 pb-4'}`}>
             <img
-              className={`w-auto transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'brightness-110 contrast-110' : ''} ${isSidebarCompact ? 'mb-0 h-10' : 'mb-3 h-16'}`}
+              className={`w-auto transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'brightness-110 contrast-110' : ''} ${isSidebarCompact ? 'mb-0 h-9' : 'mb-2 h-12'}`}
               src={businessDetails.logo_url}
               alt="Maptech"
             />
-            <p
-              className={`overflow-hidden text-center text-sm font-medium leading-tight transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'text-slate-400' : 'text-slate-600'} ${isSidebarCompact ? 'mt-0 max-h-0 opacity-0 -translate-y-1' : 'mt-1 max-h-12 opacity-100 translate-y-0'}`}
-            >
-              {businessDetails.company_name}
-            </p>
+            {/* Company name intentionally hidden under the logo */}
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
             <nav className={`mt-5 flex-1 space-y-1 ${isSidebarCompact ? 'px-3' : 'px-2'}`}>
