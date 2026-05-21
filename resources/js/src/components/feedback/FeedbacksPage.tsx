@@ -18,6 +18,7 @@ export function FeedbacksPage({
   canDelete = false,
   canArchive = false,
 }: FeedbacksPageProps) {
+  const [listMode, setListMode] = useState<'active' | 'archived'>('active');
   const [type, setType] = useState<FeedbackType>('lesson');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -114,15 +115,36 @@ export function FeedbacksPage({
 
       <div className="bg-white dark:bg-slate-900/80 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">Search in Feedback</label>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search comments, users, or course titles"
-            className="w-full rounded-md border border-slate-300 dark:border-slate-700 py-2 pl-10 pr-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-green-500 focus:border-green-500"
-          />
+        <div className="relative flex items-center gap-3">
+          <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800/60">
+            <button
+              type="button"
+              onClick={() => setListMode('active')}
+              className={`px-3 py-2 text-sm font-medium rounded-md transition ${listMode === 'active' ? 'bg-emerald-600 text-white shadow' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100'}`}
+            >
+              Active
+            </button>
+            {canArchive && (
+              <button
+                type="button"
+                onClick={() => setListMode('archived')}
+                className={`px-3 py-2 text-sm font-medium rounded-md transition ${listMode === 'archived' ? 'bg-slate-700 text-white shadow dark:bg-slate-200 dark:text-slate-900' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100'}`}
+              >
+                Archived
+              </button>
+            )}
+          </div>
+
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search comments, users, or course titles"
+              className="w-full rounded-md border border-slate-300 dark:border-slate-700 py-2 pl-10 pr-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
         </div>
       </div>
 
@@ -146,33 +168,20 @@ export function FeedbacksPage({
         </div>
       )}
 
-      <FeedbackList
-        url={endpoint}
-        onSelectionChange={setSelectedIds}
-        showSelection={showSelection}
-        searchQuery={searchQuery}
-        onArchiveToggle={handleArchiveToggle}
-        showArchiveAction={canArchive}
-        refreshToken={refreshToken}
-      />
+      {/* toggle moved beside search input above */}
 
-      {canArchive && (
-        <div className="space-y-3 border-t border-slate-200 dark:border-slate-700 pt-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Archived Feedbacks</h2>
-            <span className="text-xs text-slate-500 dark:text-slate-400">Archived feedback stays hidden from the main list.</span>
-          </div>
-          <FeedbackList
-            url={archivedEndpoint}
-            showSelection={false}
-            searchQuery={searchQuery}
-            onArchiveToggle={handleArchiveToggle}
-            showArchiveAction={true}
-            isArchivedList={true}
-            refreshToken={refreshToken}
-          />
-        </div>
-      )}
+      <div className="mt-4">
+        <FeedbackList
+          url={listMode === 'archived' ? archivedEndpoint : endpoint}
+          onSelectionChange={setSelectedIds}
+          showSelection={showSelection && listMode === 'active'}
+          searchQuery={searchQuery}
+          onArchiveToggle={handleArchiveToggle}
+          showArchiveAction={canArchive}
+          isArchivedList={listMode === 'archived'}
+          refreshToken={refreshToken}
+        />
+      </div>
 
       {confirm.ConfirmModalRenderer()}
     </div>
