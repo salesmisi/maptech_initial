@@ -1,18 +1,14 @@
 <?php
-
-require __DIR__.'/../vendor/autoload.php';
-$app = require __DIR__.'/../bootstrap/app.php';
+require __DIR__ . '/../vendor/autoload.php';
+$app = require __DIR__ . '/../bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use App\Models\User;
 
-$inputCsv = __DIR__.'/../generated_users_readable.csv';
-$outputCsv = __DIR__.'/../generated_users_readable.csv';
-if (! file_exists($inputCsv)) {
-    echo "Input CSV not found: $inputCsv\n";
-    exit(1);
-}
+$inputCsv = __DIR__ . '/../generated_users_readable.csv';
+$outputCsv = __DIR__ . '/../generated_users_readable.csv';
+if (!file_exists($inputCsv)) { echo "Input CSV not found: $inputCsv\n"; exit(1); }
 
 $fp = fopen($inputCsv, 'r');
 $headers = fgetcsv($fp);
@@ -47,14 +43,9 @@ foreach ($rows as &$r) {
 
 // write back CSV
 $outfp = fopen($outputCsv, 'w');
-if (! $outfp) {
-    echo "Cannot open output CSV for writing: $outputCsv\n";
-    exit(1);
-}
+if (!$outfp) { echo "Cannot open output CSV for writing: $outputCsv\n"; exit(1); }
 fputcsv($outfp, $headers);
-foreach ($rows as $r) {
-    fputcsv($outfp, $r);
-}
+foreach ($rows as $r) fputcsv($outfp, $r);
 fclose($outfp);
 
-echo 'Updated passwords for '.count($rows)." users to role-based values and refreshed $outputCsv\n";
+echo "Updated passwords for " . count($rows) . " users to role-based values and refreshed $outputCsv\n";

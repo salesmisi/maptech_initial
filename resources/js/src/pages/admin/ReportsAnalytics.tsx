@@ -290,9 +290,7 @@ export function ReportsAnalytics() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-slate-900">
-          Reports &amp; Analytics
-        </h1>
+        {/* Heading removed: redundant in module context */}
         <div className="text-xs text-slate-500 mr-auto ml-4 hidden sm:block">
           Live refresh every 20s{lastUpdated ? ` • Updated ${lastUpdated.toLocaleTimeString()}` : ''}
         </div>

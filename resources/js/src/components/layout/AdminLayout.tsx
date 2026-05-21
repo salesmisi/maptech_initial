@@ -505,11 +505,7 @@ export function AdminLayout({
               src={businessDetails.logo_url}
               alt="Maptech"
             />
-            <p
-              className={`overflow-hidden text-center text-sm font-medium leading-tight transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'text-slate-400' : 'text-slate-600'} ${isSidebarCompact ? 'mt-0 max-h-0 opacity-0 -translate-y-1' : 'mt-1 max-h-12 opacity-100 translate-y-0'}`}
-            >
-              {businessDetails.company_name}
-            </p>
+            {/* Company name intentionally hidden under the logo */}
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto md:overflow-y-hidden pt-3 pb-3">
             <nav className={`mt-3 flex-1 space-y-0.5 ${isSidebarCompact ? 'px-3' : 'px-2'}`}>
