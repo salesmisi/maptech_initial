@@ -944,6 +944,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     // Admin: view lesson feedbacks by department/course/lesson
     Route::get('/feedbacks', [\App\Http\Controllers\Admin\FeedbackController::class, 'index']);
     Route::delete('/feedbacks/{id}', [\App\Http\Controllers\Admin\FeedbackController::class, 'destroy']);
+    Route::post('/feedbacks/{id}/archive', [\App\Http\Controllers\Admin\FeedbackController::class, 'archive']);
     Route::post('/feedbacks/bulk-delete', [\App\Http\Controllers\Admin\FeedbackController::class, 'bulkDelete']);
     // Replies to feedback (admin)
     Route::get('/feedbacks/{id}/replies', [\App\Http\Controllers\Admin\FeedbackReplyController::class, 'index']);
@@ -1185,6 +1186,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::get('/feedbacks', function (Request $request) {
         $instructorId = $request->user()->id;
         $type = $request->get('type', 'lesson');
+        $archived = filter_var($request->query('archived'), FILTER_VALIDATE_BOOLEAN);
 
         if ($type === 'quiz') {
             $query = \App\Models\QuizFeedback::with([
@@ -1196,11 +1198,18 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
             })
             ->orderByDesc('created_at');
 
+            if ($archived) {
+                $query->whereNotNull('archived_at');
+            } else {
+                $query->whereNull('archived_at');
+            }
+
             $perPage = max(10, min(200, (int) $request->get('per_page', 50)));
             $page = $query->paginate($perPage);
 
             return response()->json($page->through(function ($fb) {
                 return [
+                    'type' => 'quiz',
                     'id' => $fb->id,
                     'user' => [
                         'id' => $fb->user?->id,
@@ -1217,6 +1226,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
                     'rating' => $fb->rating,
                     'comment' => $fb->comment,
                     'created_at' => $fb->created_at?->toISOString(),
+                    'archived' => (bool) $fb->archived_at,
                 ];
             }));
         }
@@ -1229,6 +1239,12 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
             $q->where('instructor_id', $instructorId);
         })
         ->orderByDesc('created_at');
+
+        if ($archived) {
+            $query->whereNotNull('archived_at');
+        } else {
+            $query->whereNull('archived_at');
+        }
 
         if ($request->has('course_id')) {
             $query->whereHas('lesson.module', function ($q) use ($request) {
@@ -1245,6 +1261,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
 
         return response()->json($page->through(function ($fb) {
             return [
+                'type' => 'lesson',
                 'id' => $fb->id,
                 'user' => [
                     'id' => $fb->user?->id,
@@ -1261,6 +1278,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
                 'rating' => $fb->rating,
                 'comment' => $fb->comment,
                 'created_at' => $fb->created_at?->toISOString(),
+                'archived' => (bool) $fb->archived_at,
             ];
         }));
     });
