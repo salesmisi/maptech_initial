@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Search } from 'lucide-react';
 import FeedbackList from '../FeedbackList';
 import useConfirm from '../../hooks/useConfirm';
 
@@ -9,16 +10,18 @@ interface FeedbacksPageProps {
   title?: string;
   description?: string;
   canDelete?: boolean;
+  canArchive?: boolean;
 }
 
 export function FeedbacksPage({
   apiBase,
-  title = 'Feedbacks',
-  description = 'Review feedback on lessons and quizzes.',
   canDelete = false,
+  canArchive = false,
 }: FeedbacksPageProps) {
   const [type, setType] = useState<FeedbackType>('lesson');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [refreshToken, setRefreshToken] = useState(0);
   const confirm = useConfirm();
 
   useEffect(() => {
@@ -26,7 +29,9 @@ export function FeedbacksPage({
   }, [type]);
 
   const endpoint = useMemo(() => `${apiBase}?type=${type}`, [apiBase, type]);
+  const archivedEndpoint = useMemo(() => `${apiBase}?type=${type}&archived=1`, [apiBase, type]);
   const hasSelection = selectedIds.length > 0;
+  const showSelection = canDelete;
 
   const bulkDelete = () => {
     if (!canDelete || !hasSelection) return;
@@ -67,65 +72,107 @@ export function FeedbacksPage({
     );
   };
 
+  const handleArchiveToggle = async (item: { id: number; type?: FeedbackType }, archived: boolean) => {
+    if (!canArchive) return;
+    try {
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      const xsrf = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)?.[2];
+      const res = await fetch(`${apiBase}/${item.id}/archive`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': xsrf ? decodeURIComponent(xsrf) : '',
+        },
+        body: JSON.stringify({ archived, type: item.type || type }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.message || 'Failed to update feedback');
+      }
+
+      setRefreshToken((prev) => prev + 1);
+    } catch (e: any) {
+      alert(e?.message || 'Failed to update feedback');
+    }
+  };
+
   return (
-    <div className="p-6">
-      <div className="rounded-2xl border border-slate-200/70 bg-white/70 p-5 shadow-sm backdrop-blur dark:border-slate-800/80 dark:bg-slate-900/60">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-500/90">
-              Feedback Center
-            </p>
-            <h1 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">{title}</h1>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{description}</p>
-          </div>
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-slate-900/80 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">Feedback Type</label>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value as FeedbackType)}
+          className="w-full rounded-md border border-slate-300 dark:border-slate-700 py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+        >
+          <option value="lesson">Lesson</option>
+          <option value="quiz">Quiz</option>
+        </select>
+      </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/80 dark:text-slate-300">
-              <span>Type</span>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as FeedbackType)}
-                className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm outline-none transition focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-              >
-                <option value="lesson">Lesson</option>
-                <option value="quiz">Quiz</option>
-              </select>
-            </div>
-
-            <div className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-500">
-              {type === 'lesson' ? 'Lesson feedback' : 'Quiz feedback'}
-            </div>
-
-            {canDelete && (
-              <button
-                type="button"
-                onClick={bulkDelete}
-                disabled={!hasSelection}
-                className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
-                  hasSelection
-                    ? 'bg-red-600 text-white hover:bg-red-700'
-                    : 'cursor-not-allowed bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-500'
-                }`}
-              >
-                Delete selected
-              </button>
-            )}
-          </div>
+      <div className="bg-white dark:bg-slate-900/80 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">Search in Feedback</label>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search comments, users, or course titles"
+            className="w-full rounded-md border border-slate-300 dark:border-slate-700 py-2 pl-10 pr-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-green-500 focus:border-green-500"
+          />
         </div>
+      </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-          <span className="rounded-full border border-slate-200/70 bg-white/60 px-3 py-1 font-semibold dark:border-slate-700/70 dark:bg-slate-900/60">
+      {canDelete && (
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
             {hasSelection ? `${selectedIds.length} selected` : 'No feedback selected'}
           </span>
-          <span className="rounded-full border border-slate-200/70 bg-white/60 px-3 py-1 font-semibold dark:border-slate-700/70 dark:bg-slate-900/60">
-            Auto refresh enabled
-          </span>
+          <button
+            type="button"
+            onClick={bulkDelete}
+            disabled={!hasSelection}
+            className={`rounded-md px-3 py-2 text-xs font-semibold transition ${
+              hasSelection
+                ? 'bg-red-600 text-white hover:bg-red-700'
+                : 'cursor-not-allowed bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-500'
+            }`}
+          >
+            Delete selected
+          </button>
         </div>
-      </div>
+      )}
 
-      <div className="mt-6">
-        <FeedbackList url={endpoint} onSelectionChange={setSelectedIds} />
-      </div>
+      <FeedbackList
+        url={endpoint}
+        onSelectionChange={setSelectedIds}
+        showSelection={showSelection}
+        searchQuery={searchQuery}
+        onArchiveToggle={handleArchiveToggle}
+        showArchiveAction={canArchive}
+        refreshToken={refreshToken}
+      />
+
+      {canArchive && (
+        <div className="space-y-3 border-t border-slate-200 dark:border-slate-700 pt-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Archived Feedbacks</h2>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Archived feedback stays hidden from the main list.</span>
+          </div>
+          <FeedbackList
+            url={archivedEndpoint}
+            showSelection={false}
+            searchQuery={searchQuery}
+            onArchiveToggle={handleArchiveToggle}
+            showArchiveAction={true}
+            isArchivedList={true}
+            refreshToken={refreshToken}
+          />
+        </div>
+      )}
 
       {confirm.ConfirmModalRenderer()}
     </div>

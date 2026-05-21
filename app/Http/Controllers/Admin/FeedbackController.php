@@ -16,10 +16,17 @@ class FeedbackController extends Controller
     public function index(Request $request)
     {
         $type = $request->get('type', 'lesson');
+        $archived = filter_var($request->query('archived'), FILTER_VALIDATE_BOOLEAN);
 
         if ($type === 'quiz') {
             $query = QuizFeedback::with(['user:id,fullname,department,role', 'quiz.module.course:id,title,department'])
                 ->orderByDesc('created_at');
+
+            if ($archived) {
+                $query->whereNotNull('archived_at');
+            } else {
+                $query->whereNull('archived_at');
+            }
 
             if ($request->has('department_id')) {
                 $dept = Department::find($request->department_id);
@@ -53,6 +60,7 @@ class FeedbackController extends Controller
 
             $result = $page->through(function ($fb) {
                 return [
+                    'type' => 'quiz',
                     'id' => $fb->id,
                     'user' => [
                         'id' => $fb->user?->id,
@@ -69,6 +77,7 @@ class FeedbackController extends Controller
                     'rating' => $fb->rating,
                     'comment' => $fb->comment,
                     'created_at' => $fb->created_at?->toISOString(),
+                    'archived' => (bool) $fb->archived_at,
                 ];
             });
 
@@ -85,6 +94,12 @@ class FeedbackController extends Controller
 
         $query = LessonFeedback::with(['user:id,fullname,department,role', 'lesson.module.course:id,title,department'])
             ->orderByDesc('created_at');
+
+        if ($archived) {
+            $query->whereNotNull('archived_at');
+        } else {
+            $query->whereNull('archived_at');
+        }
 
         if ($departmentName) {
             $query->whereHas('lesson.module.course', function ($q) use ($departmentName) {
@@ -110,6 +125,7 @@ class FeedbackController extends Controller
         // Map to a simple structure
         $result = $page->through(function ($fb) {
             return [
+                'type' => 'lesson',
                 'id' => $fb->id,
                 'user' => [
                     'id' => $fb->user?->id,
@@ -126,6 +142,7 @@ class FeedbackController extends Controller
                 'rating' => $fb->rating,
                 'comment' => $fb->comment,
                 'created_at' => $fb->created_at?->toISOString(),
+                'archived' => (bool) $fb->archived_at,
             ];
         });
 
@@ -159,5 +176,39 @@ class FeedbackController extends Controller
             LessonFeedback::whereIn('id', $ids)->delete();
         }
         return response()->json(['message' => 'Deleted', 'count' => count($ids)]);
+    }
+
+    /**
+     * Archive or restore a feedback entry.
+     */
+    public function archive(Request $request, $id)
+    {
+        $request->validate([
+            'archived' => 'nullable|boolean',
+            'type' => 'nullable|in:lesson,quiz',
+        ]);
+
+        $archived = filter_var($request->input('archived', true), FILTER_VALIDATE_BOOLEAN);
+        $type = $request->input('type');
+
+        if ($type === 'quiz') {
+            $fb = QuizFeedback::findOrFail($id);
+        } elseif ($type === 'lesson') {
+            $fb = LessonFeedback::findOrFail($id);
+        } else {
+            $fb = LessonFeedback::find($id);
+            if (!$fb) {
+                $fb = QuizFeedback::findOrFail($id);
+            }
+        }
+
+        $fb->archived_at = $archived ? now() : null;
+        $fb->save();
+
+        return response()->json([
+            'id' => $fb->id,
+            'archived' => (bool) $fb->archived_at,
+            'archived_at' => $fb->archived_at?->toISOString(),
+        ]);
     }
 }

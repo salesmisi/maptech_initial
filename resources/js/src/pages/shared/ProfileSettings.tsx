@@ -442,7 +442,6 @@ export function ProfileSettings() {
     <div
       className={`settings-page-enter max-w-3xl mx-auto space-y-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
     >
-      <h1 className="text-2xl font-bold text-slate-900">Profile Settings</h1>
 
       {/* Message Banner */}
       {message && (
