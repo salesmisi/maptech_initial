@@ -442,7 +442,6 @@ export function ProfileSettings() {
     <div
       className={`settings-page-enter max-w-3xl mx-auto space-y-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
     >
-      {/* Heading removed: redundant in module context */}
 
       {/* Message Banner */}
       {message && (

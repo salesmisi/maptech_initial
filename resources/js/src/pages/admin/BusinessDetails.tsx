@@ -192,7 +192,6 @@ export function BusinessDetails() {
     <div
       className={`business-page-enter max-w-4xl mx-auto space-y-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
     >
-      {/* Heading removed: redundant in module context */}
 
       {message && (
         <div className={`flex items-center gap-2 p-4 rounded-lg text-sm font-medium transition-all duration-300 animate-pulse ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800/50' : 'bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800/50'}`}>
