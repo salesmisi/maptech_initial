@@ -1301,7 +1301,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
         {/* Continue with regular interface */}
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Course Management</h1>
+            {/* Heading removed: redundant in module context */}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1376,7 +1376,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Course Management</h1>
+        {/* Heading removed: redundant in module context */}
         <button
           type="button"
           onClick={() => {

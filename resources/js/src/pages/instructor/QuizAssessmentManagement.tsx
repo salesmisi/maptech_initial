@@ -632,7 +632,7 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Manage Quizzes</h1>
+          {/* Heading removed: redundant in module context */}
         </div>
         <button
           type="button"
