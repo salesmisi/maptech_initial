@@ -1300,10 +1300,6 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
         </div>
         {/* Continue with regular interface */}
         <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Course Management</h1>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-md transition-shadow border border-gray-200 dark:border-slate-700">
               <div className="h-32 bg-gradient-to-br from-green-400 to-green-600 rounded-t-lg flex items-center justify-center">
@@ -1375,8 +1371,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       )}
 
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Course Management</h1>
+      <div className="flex justify-end items-center mb-6">
         <button
           type="button"
           onClick={() => {

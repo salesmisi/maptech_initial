@@ -147,10 +147,6 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Lesson Q&A</h1>
-      </div>
-
       {/* Lesson Selector */}
       <div className="bg-white dark:bg-slate-900/80 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">Select a Lesson</label>

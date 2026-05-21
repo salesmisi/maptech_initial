@@ -142,7 +142,10 @@ export function ReportsAnalytics() {
     setExporting(true);
     try {
       const res = await fetch('/api/admin/reports/export', {
-        headers: { 'Accept': 'text/csv', 'X-XSRF-TOKEN': getCookie('XSRF-TOKEN') },
+        headers: {
+          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+        },
         credentials: 'include',
       });
       const blob = await res.blob();
@@ -151,7 +154,7 @@ export function ReportsAnalytics() {
       a.href = url;
       const disposition = res.headers.get('Content-Disposition') ?? '';
       const match = disposition.match(/filename="?([^";\n]+)"?/);
-      a.download = match?.[1] ?? 'report.csv';
+      a.download = match?.[1] ?? 'report.xlsx';
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -289,13 +292,7 @@ export function ReportsAnalytics() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-slate-900">
-          Reports &amp; Analytics
-        </h1>
-        <div className="text-xs text-slate-500 mr-auto ml-4 hidden sm:block">
-          Live refresh every 20s{lastUpdated ? ` • Updated ${lastUpdated.toLocaleTimeString()}` : ''}
-        </div>
+      <div className="flex justify-end items-center">
         <div className="flex space-x-3">
           {/* Range picker */}
           <div className="relative">

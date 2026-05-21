@@ -630,10 +630,7 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Manage Quizzes</h1>
-        </div>
+      <div className="flex justify-end">
         <button
           type="button"
           onClick={() => {

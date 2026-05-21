@@ -634,6 +634,22 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 $logoPath  = public_path('assets/Maptech-Official-Logo.png');
                 $hasLogo   = file_exists($logoPath);
                 $genInfo   = 'Generated: ' . date('F j, Y g:i A') . '  |  Total Records: ' . count($logs);
+                $logoCx = null;
+                $logoCy = null;
+                if ($hasLogo) {
+                    $logoDims = @getimagesize($logoPath);
+                    $logoWidthPx = (int) ($logoDims[0] ?? 0);
+                    $logoHeightPx = (int) ($logoDims[1] ?? 0);
+                    $maxWidthPx = 240;
+                    $maxHeightPx = 52;
+                    if ($logoWidthPx > 0 && $logoHeightPx > 0) {
+                        $scale = min($maxWidthPx / $logoWidthPx, $maxHeightPx / $logoHeightPx, 1);
+                        $scaledWidth = (int) round($logoWidthPx * $scale);
+                        $scaledHeight = (int) round($logoHeightPx * $scale);
+                        $logoCx = $scaledWidth * 9525;
+                        $logoCy = $scaledHeight * 9525;
+                    }
+                }
 
                 // XML-escape helper
                 $xe = fn($s) => htmlspecialchars((string) $s, ENT_XML1, 'UTF-8');
@@ -703,25 +719,25 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 // ── Styles XML ────────────────────────────────────────────────────────
                 $sx  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
                 $sx .= '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
-                // Fonts: 0=default, 1=title bold navy, 2=meta grey, 3=header white bold, 4=data
+                // Fonts: 0=default, 1=title bold green, 2=meta grey, 3=header white bold, 4=data
                 $sx .= '<fonts count="5">';
                 $sx .= '<font><sz val="11"/><name val="Calibri"/></font>';
-                $sx .= '<font><b/><sz val="14"/><color rgb="FF1A237E"/><name val="Calibri"/></font>';
+                $sx .= '<font><b/><sz val="14"/><color rgb="FF0B5F2A"/><name val="Calibri"/></font>';
                 $sx .= '<font><sz val="10"/><color rgb="FF555555"/><name val="Calibri"/></font>';
                 $sx .= '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>';
                 $sx .= '<font><sz val="11"/><name val="Calibri"/></font>';
                 $sx .= '</fonts>';
-                // Fills: 0=none(req), 1=gray125(req), 2=navy header, 3=light blue striped row
+                // Fills: 0=none(req), 1=gray125(req), 2=brand header, 3=light green striped row
                 $sx .= '<fills count="4">';
                 $sx .= '<fill><patternFill patternType="none"/></fill>';
                 $sx .= '<fill><patternFill patternType="gray125"/></fill>';
-                $sx .= '<fill><patternFill patternType="solid"><fgColor rgb="FF1A237E"/></patternFill></fill>';
-                $sx .= '<fill><patternFill patternType="solid"><fgColor rgb="FFEEF2FF"/></patternFill></fill>';
+                $sx .= '<fill><patternFill patternType="solid"><fgColor rgb="FF1B8F3A"/></patternFill></fill>';
+                $sx .= '<fill><patternFill patternType="solid"><fgColor rgb="FFE8F6ED"/></patternFill></fill>';
                 $sx .= '</fills>';
                 // Borders: 0=none, 1=thin light grey all sides
                 $sx .= '<borders count="2">';
                 $sx .= '<border><left/><right/><top/><bottom/><diagonal/></border>';
-                $sx .= '<border><left style="thin"><color rgb="FFCCCCCC"/></left><right style="thin"><color rgb="FFCCCCCC"/></right><top style="thin"><color rgb="FFCCCCCC"/></top><bottom style="thin"><color rgb="FFCCCCCC"/></bottom><diagonal/></border>';
+                $sx .= '<border><left style="thin"><color rgb="FFCCE5D4"/></left><right style="thin"><color rgb="FFCCE5D4"/></right><top style="thin"><color rgb="FFCCE5D4"/></top><bottom style="thin"><color rgb="FFCCE5D4"/></bottom><diagonal/></border>';
                 $sx .= '</borders>';
                 $sx .= '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
                 // cellXfs: 0=default,1=title,2=meta,3=col header,4=data odd,5=data even
@@ -742,12 +758,12 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 $dx .= ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
                 $dx .= '<xdr:oneCellAnchor>';
                 $dx .= '<xdr:from><xdr:col>0</xdr:col><xdr:colOff>38100</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>38100</xdr:rowOff></xdr:from>';
-                $dx .= '<xdr:ext cx="1828800" cy="495300"/>'; // ~2 in wide × 0.54 in tall
+                $dx .= '<xdr:ext cx="' . ($logoCx ?? 1828800) . '" cy="' . ($logoCy ?? 495300) . '"/>';
                 $dx .= '<xdr:pic>';
                 $dx .= '<xdr:nvPicPr><xdr:cNvPr id="2" name="MaptechLogo"/>';
                 $dx .= '<xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>';
                 $dx .= '<xdr:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>';
-                $dx .= '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1828800" cy="495300"/></a:xfrm>';
+                $dx .= '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' . ($logoCx ?? 1828800) . '" cy="' . ($logoCy ?? 495300) . '"/></a:xfrm>';
                 $dx .= '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>';
                 $dx .= '</xdr:pic><xdr:clientData/>';
                 $dx .= '</xdr:oneCellAnchor>';
@@ -842,14 +858,14 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 $html .= '<title>Audit Logs Export</title>';
                 $html .= '<style>';
                 $html .= 'body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }';
-                $html .= '.header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #1a237e; padding-bottom: 12px; margin-bottom: 8px; }';
+                $html .= '.header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #1b8f3a; padding-bottom: 12px; margin-bottom: 8px; }';
                 $html .= '.header img { height: 56px; width: auto; }';
-                $html .= '.header-text h1 { margin: 0 0 4px; font-size: 18px; color: #1a237e; }';
+                $html .= '.header-text h1 { margin: 0 0 4px; font-size: 18px; color: #0b5f2a; }';
                 $html .= '.header-text .meta { margin: 0; color: #555; font-size: 11px; }';
                 $html .= 'table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 11px; }';
-                $html .= 'th { background-color: #1a237e; color: white; padding: 8px 6px; text-align: left; font-weight: bold; }';
+                $html .= 'th { background-color: #1b8f3a; color: white; padding: 8px 6px; text-align: left; font-weight: bold; }';
                 $html .= 'td { padding: 6px; border-bottom: 1px solid #ddd; }';
-                $html .= 'tr:nth-child(even) td { background-color: #f5f5f5; }';
+                $html .= 'tr:nth-child(even) td { background-color: #e8f6ed; }';
                 $html .= '@media print { body { margin: 0; } @page { margin: 1cm; } }';
                 $html .= '</style></head><body>';
 
