@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { useToast } from '../../components/ToastProvider';
 import {
@@ -446,7 +446,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
       'Map': ['map', 'direction', 'route', 'navigation'],
 
       // Food & Breaks
-      'Coffee': ['break', 'coffee', '休憩', 'lunch', 'snack'],
+      'Coffee': ['break', 'coffee', '??', 'lunch', 'snack'],
       'Utensils': ['food', 'meal', 'lunch', 'canteen', 'cafeteria', 'dining'],
 
       // Security & Access
@@ -515,7 +515,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
     const safeDescription = description || 'This is your custom module page.';
 
     return `<div class="space-y-6">
-  <div class="bg-gradient-to-r from-purple-500 to-indigo-600 p-6 rounded-lg text-white">
+  <div class="bg-gradient-to-r from-purple-500 to-blue-600 p-6 rounded-lg text-white">
     <h2 class="text-2xl font-bold mb-2">${safeTitle}</h2>
     <p class="text-purple-100">${safeDescription}</p>
   </div>
@@ -1140,7 +1140,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               Sidebar Navigation
                             </span>
                             {module.route_path && (
-                              <span className="text-sm text-slate-500 dark:text-slate-400">• /{module.route_path}</span>
+                              <span className="text-sm text-slate-500 dark:text-slate-400">� /{module.route_path}</span>
                             )}
                           </>
                         ) : (
@@ -1149,11 +1149,11 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               {module.lessons_count} lesson{module.lessons_count !== 1 ? 's' : ''}
                             </span>
                             {module.category && (
-                              <span className="text-sm text-slate-500 dark:text-slate-400">• {module.category}</span>
+                              <span className="text-sm text-slate-500 dark:text-slate-400">� {module.category}</span>
                             )}
                           </>
                         )}
-                        <span className="text-sm text-slate-500 dark:text-slate-400">• v{module.version}</span>
+                        <span className="text-sm text-slate-500 dark:text-slate-400">� v{module.version}</span>
                       </div>
                       {module.tags && module.tags.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">
@@ -1260,8 +1260,8 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               <p className="font-medium text-slate-900 dark:text-white truncate">{lesson.title}</p>
                               <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                                 <span className="capitalize">{lesson.content_type}</span>
-                                {lesson.formatted_duration && <span>• {lesson.formatted_duration}</span>}
-                                {lesson.formatted_file_size && <span>• {lesson.formatted_file_size}</span>}
+                                {lesson.formatted_duration && <span>� {lesson.formatted_duration}</span>}
+                                {lesson.formatted_file_size && <span>� {lesson.formatted_file_size}</span>}
                               </div>
                             </div>
                             <StatusBadge status={lesson.status} />
@@ -1321,7 +1321,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                       </div>
                     </div>
                     <p className="mt-4 text-xs text-purple-600 dark:text-purple-400">
-                      ✓ When published, this module will appear in the sidebar navigation for all admins.
+                      ? When published, this module will appear in the sidebar navigation for all admins.
                     </p>
                   </div>
                 </div>
@@ -1591,22 +1591,22 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
     <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Total Users</p>
       <p class="text-3xl font-bold text-slate-900 dark:text-white">1,234</p>
-      <p class="text-sm text-green-600 mt-2">↑ 12% from last month</p>
+      <p class="text-sm text-green-600 mt-2">? 12% from last month</p>
     </div>
     <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Active Courses</p>
       <p class="text-3xl font-bold text-slate-900 dark:text-white">48</p>
-      <p class="text-sm text-green-600 mt-2">↑ 8% from last month</p>
+      <p class="text-sm text-green-600 mt-2">? 8% from last month</p>
     </div>
     <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Completion Rate</p>
       <p class="text-3xl font-bold text-slate-900 dark:text-white">87%</p>
-      <p class="text-sm text-green-600 mt-2">↑ 5% from last month</p>
+      <p class="text-sm text-green-600 mt-2">? 5% from last month</p>
     </div>
     <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Avg. Score</p>
       <p class="text-3xl font-bold text-slate-900 dark:text-white">92%</p>
-      <p class="text-sm text-green-600 mt-2">↑ 3% from last month</p>
+      <p class="text-sm text-green-600 mt-2">? 3% from last month</p>
     </div>
   </div>
 
@@ -1676,7 +1676,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
     <div class="space-y-4">
       <div class="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <div class="flex items-start gap-3">
-          <span class="bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 p-2 rounded-lg">⚠️</span>
+          <span class="bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 p-2 rounded-lg">??</span>
           <div class="flex-1">
             <p class="font-semibold text-slate-900 dark:text-white">System Maintenance</p>
             <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Scheduled maintenance on April 15, 2026 from 2:00 AM - 4:00 AM</p>
@@ -1686,7 +1686,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
       </div>
       <div class="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
         <div class="flex items-start gap-3">
-          <span class="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 p-2 rounded-lg">ℹ️</span>
+          <span class="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 p-2 rounded-lg">??</span>
           <div class="flex-1">
             <p class="font-semibold text-slate-900 dark:text-white">New Course Available</p>
             <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Advanced Safety Training is now available for enrollment</p>
@@ -1789,7 +1789,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                         {/* Auto-generated page content preview */}
                         <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
                           <p className="text-sm text-purple-800 dark:text-purple-200">
-                            <span className="font-medium">✓ Page content will be auto-generated</span>
+                            <span className="font-medium">? Page content will be auto-generated</span>
                             <br />
                             <span className="text-xs text-purple-600 dark:text-purple-400">
                               A professional page layout will be created based on your title and description.
@@ -1977,7 +1977,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
 
               {!editingLesson && (
                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                  💡 You can add multiple lessons to this module. Click "Save & Add Another" to add more lessons quickly.
+                  ?? You can add multiple lessons to this module. Click "Save & Add Another" to add more lessons quickly.
                 </p>
               )}
 

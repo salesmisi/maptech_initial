@@ -115,9 +115,9 @@ export function QuizEvaluation({ apiPrefix = 'instructor' }: Props) {
           <div className="text-xs text-red-700 dark:text-red-300">Failed</div>
           <div className="text-xl font-bold text-red-800 dark:text-red-200">{stats.failed}</div>
         </div>
-        <div className="rounded-lg border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 p-3 sm:p-4">
-          <div className="text-xs text-indigo-700 dark:text-indigo-300">Average</div>
-          <div className="text-xl font-bold text-indigo-800 dark:text-indigo-200">{stats.avg.toFixed(1)}%</div>
+        <div className="rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 p-3 sm:p-4">
+          <div className="text-xs text-blue-700 dark:text-blue-300">Average</div>
+          <div className="text-xl font-bold text-blue-800 dark:text-blue-200">{stats.avg.toFixed(1)}%</div>
         </div>
       </div>
 

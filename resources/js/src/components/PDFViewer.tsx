@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// Use locally served pdf.worker to avoid bundling and to pin the asset
+const pdfWorkerUrl = '/vendor/pdf.worker.min.js';
 import {
   FileText,
   Download,
@@ -122,6 +123,7 @@ export function PDFViewer({
           canvas.width = viewport.width;
 
           await page.render({
+            canvas,
             canvasContext: context,
             viewport: viewport,
           }).promise;

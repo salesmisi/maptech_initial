@@ -673,8 +673,8 @@ export function EmployeeNotifications() {
                   ref={el => { notifRowRefs.current[notification.id] = el; }}
                   onClick={() => openNotificationDetail(notification)}
                   className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer ${
-                    !notification.read_at ? 'bg-emerald-50 dark:bg-emerald-950/40' : 'bg-white dark:bg-slate-900'
-                  }${notification.id === highlightedNotificationId ? ' ring-2 ring-inset ring-emerald-400 dark:ring-emerald-500' : ''}`}
+                    !notification.read_at ? 'bg-green-50 dark:bg-green-950/40' : 'bg-white dark:bg-slate-900'
+                  }${notification.id === highlightedNotificationId ? ' ring-2 ring-inset ring-green-400 dark:ring-green-500' : ''}`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3">
@@ -693,7 +693,7 @@ export function EmployeeNotifications() {
                         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">
                           {notification.title}
                           {!notification.read_at && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/60 text-green-800 dark:text-green-200">
                               New
                             </span>
                           )}
@@ -726,7 +726,7 @@ export function EmployeeNotifications() {
                       {!notification.read_at && (
                         <button
                           onClick={(e) => { e.stopPropagation(); markAsRead(notification.id); }}
-                          className="text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-300"
+                          className="text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-300"
                           title="Mark as read"
                         >
                           <Eye className="h-5 w-5" />

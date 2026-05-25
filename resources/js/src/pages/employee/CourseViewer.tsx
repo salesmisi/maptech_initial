@@ -24,7 +24,9 @@ import {
 import { sanitizeHtml } from '../../components/RichTextEditor';
 import YouTubePlayer from '../../components/YouTubePlayer';
 import { safeArray } from '../../utils/safe';
-import PDFViewer from '../../components/PDFViewer';
+import { CustomModuleViewer } from './CustomModuleViewer';
+import { lazy, Suspense } from 'react';
+const PDFViewer = lazy(() => import('../../components/PDFViewer'));
 import PresentationViewer from '../../components/PresentationViewer';
 
 const API_BASE = '/api';
@@ -607,16 +609,16 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             />
             {selectedSentence && (
               <div
-                className="mt-4 rounded-md border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 p-3 space-y-2 cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-800/40 transition-colors group"
+                className="mt-4 rounded-md border border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/30 p-3 space-y-2 cursor-pointer hover:bg-green-100 dark:hover:bg-green-800/40 transition-colors group"
                 onClick={() => setShowSentenceModal(true)}
                 title="Click to view larger"
               >
                 <div className="flex items-center justify-between">
-                  <p className="text-xs text-emerald-800 dark:text-emerald-200"><strong>Sentence:</strong> {selectedSentence}</p>
-                  <Eye className="h-4 w-4 text-emerald-500 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <p className="text-xs text-green-800 dark:text-green-200"><strong>Sentence:</strong> {selectedSentence}</p>
+                  <Eye className="h-4 w-4 text-green-500 dark:text-green-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
-                <p className="text-sm text-emerald-900 dark:text-emerald-100">{selectedSentenceDefinition}</p>
-                <p className="text-xs text-emerald-500 dark:text-emerald-400 text-center mt-2 opacity-70">Click to read more clearly</p>
+                <p className="text-sm text-green-900 dark:text-green-100">{selectedSentenceDefinition}</p>
+                <p className="text-xs text-green-500 dark:text-green-400 text-center mt-2 opacity-70">Click to read more clearly</p>
               </div>
             )}
           </div>
@@ -644,16 +646,16 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
           />
           {selectedSentence && (
             <div
-              className="mt-4 rounded-md border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 p-3 space-y-2 cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-800/40 transition-colors group"
+              className="mt-4 rounded-md border border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/30 p-3 space-y-2 cursor-pointer hover:bg-green-100 dark:hover:bg-green-800/40 transition-colors group"
               onClick={() => setShowSentenceModal(true)}
               title="Click to view larger"
             >
               <div className="flex items-center justify-between">
-                <p className="text-xs text-emerald-800 dark:text-emerald-200"><strong>Sentence:</strong> {selectedSentence}</p>
-                <Eye className="h-4 w-4 text-emerald-500 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <p className="text-xs text-green-800 dark:text-green-200"><strong>Sentence:</strong> {selectedSentence}</p>
+                <Eye className="h-4 w-4 text-green-500 dark:text-green-400 opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
-              <p className="text-sm text-emerald-900 dark:text-emerald-100">{selectedSentenceDefinition}</p>
-              <p className="text-xs text-emerald-500 dark:text-emerald-400 text-center mt-2 opacity-70">Click to read more clearly</p>
+              <p className="text-sm text-green-900 dark:text-green-100">{selectedSentenceDefinition}</p>
+              <p className="text-xs text-green-500 dark:text-green-400 text-center mt-2 opacity-70">Click to read more clearly</p>
             </div>
           )}
         </div>
@@ -700,14 +702,16 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       return (
         <div className="space-y-4">
           {textBlock}
-          <PDFViewer
-            url={content_url || ''}
-            title={title}
-            fileName={getFileName(content_url)}
-            lessonId={currentLesson.id}
-            moduleId={currentModule?.id}
-            showConvertButton={false}
-          />
+          <Suspense fallback={<div className="p-4">Loading document...</div>}>
+            <PDFViewer
+              url={content_url || ''}
+              title={title}
+              fileName={getFileName(content_url)}
+              lessonId={currentLesson.id}
+              moduleId={currentModule?.id}
+              showConvertButton={false}
+            />
+          </Suspense>
         </div>
       );
     }
@@ -719,13 +723,15 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
       if (isPptx) {
         return (
-          <div className="space-y-4">
+            <div className="space-y-4">
             {textBlock}
-            <PresentationViewer
-              url={content_url || ''}
-              title={title}
-              fileName={getFileName(content_url)}
-            />
+            <Suspense fallback={<div className="p-4">Loading presentation...</div>}>
+              <PresentationViewer
+                url={content_url || ''}
+                title={title}
+                fileName={getFileName(content_url)}
+              />
+            </Suspense>
           </div>
         );
       }
@@ -911,9 +917,9 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
     if (quizState === 'loading') {
       return (
-        <div className="rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 p-6 flex items-center justify-center gap-2">
-          <Loader className="h-5 w-5 animate-spin text-indigo-600" />
-          <span className="text-indigo-700 dark:text-indigo-200">Loading quiz...</span>
+        <div className="rounded-xl border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 p-6 flex items-center justify-center gap-2">
+          <Loader className="h-5 w-5 animate-spin text-blue-600" />
+          <span className="text-blue-700 dark:text-blue-200">Loading quiz...</span>
         </div>
       );
     }
@@ -921,10 +927,10 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     if (quizState === 'taking') {
       const allAnswered = quizQuestions.length > 0 && quizQuestions.every(q => quizAnswers[q.id] !== undefined);
       return (
-        <div className="rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 p-6 space-y-6">
+        <div className="rounded-xl border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 p-6 space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <h3 className="text-lg font-bold text-indigo-900 dark:text-indigo-100">{quiz.title}</h3>
-            <span className="text-xs text-indigo-600 dark:text-indigo-200 px-2.5 py-1 bg-indigo-100 dark:bg-indigo-800/60 rounded-full">
+            <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100">{quiz.title}</h3>
+            <span className="text-xs text-blue-600 dark:text-blue-200 px-2.5 py-1 bg-blue-100 dark:bg-blue-800/60 rounded-full">
               Pass: {quiz.pass_percentage}%
             </span>
           </div>
@@ -935,7 +941,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                 {safeArray(q.options).map(opt => (
                   <label key={opt.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                     quizAnswers[q.id] === opt.id
-                      ? 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-400 dark:border-indigo-500 text-indigo-900 dark:text-indigo-100'
+                      ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-400 dark:border-blue-500 text-blue-900 dark:text-blue-100'
                       : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
                   }`}>
                     <input
@@ -944,7 +950,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                       value={opt.id}
                       checked={quizAnswers[q.id] === opt.id}
                       onChange={() => setQuizAnswers(prev => ({ ...prev, [q.id]: opt.id }))}
-                      className="text-indigo-600"
+                      className="text-blue-600"
                     />
                     <span className="text-sm">{opt.option_text}</span>
                   </label>
@@ -967,15 +973,15 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       // Step 1: Ask if user wants to see result
       if (!showResultRevealed) {
         return (
-          <div className="rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 p-8 text-center space-y-5">
+          <div className="rounded-xl border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 p-8 text-center space-y-5">
             <div className="flex justify-center">
-              <div className="h-16 w-16 rounded-full bg-indigo-100 dark:bg-indigo-800/70 flex items-center justify-center">
-                <HelpCircle className="h-8 w-8 text-indigo-600" />
+              <div className="h-16 w-16 rounded-full bg-blue-100 dark:bg-blue-800/70 flex items-center justify-center">
+                <HelpCircle className="h-8 w-8 text-blue-600" />
               </div>
             </div>
             <div>
-              <h3 className="text-xl font-bold text-indigo-900 dark:text-indigo-100">Quiz Submitted!</h3>
-              <p className="text-sm text-indigo-700 dark:text-indigo-200 mt-2">Your answers have been recorded. Would you like to see your result?</p>
+              <h3 className="text-xl font-bold text-blue-900 dark:text-blue-100">Quiz Submitted!</h3>
+              <p className="text-sm text-blue-700 dark:text-blue-200 mt-2">Your answers have been recorded. Would you like to see your result?</p>
             </div>
             <button
               onClick={() => setShowResultRevealed(true)}
@@ -1054,14 +1060,14 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
     // Idle — show quiz info + start button
     return (
-      <div className="rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 p-6">
+      <div className="rounded-xl border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 p-6">
         <div className="flex items-start gap-4">
-          <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-800/70 flex items-center justify-center flex-shrink-0">
-            <HelpCircle className="h-5 w-5 text-indigo-600" />
+          <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-800/70 flex items-center justify-center flex-shrink-0">
+            <HelpCircle className="h-5 w-5 text-blue-600" />
           </div>
           <div className="flex-1">
-            <h3 className="text-base font-bold text-indigo-900 dark:text-indigo-100">{quiz.title}</h3>
-            <p className="text-sm text-indigo-700 dark:text-indigo-200 mt-1">
+            <h3 className="text-base font-bold text-blue-900 dark:text-blue-100">{quiz.title}</h3>
+            <p className="text-sm text-blue-700 dark:text-blue-200 mt-1">
               {quiz.question_count} question{quiz.question_count !== 1 ? 's' : ''} · Pass {quiz.pass_percentage}% to unlock next module
             </p>
             {quiz.has_passed ? (
@@ -1088,8 +1094,8 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
         </div>
 
         {quizAttempts.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-indigo-200 dark:border-indigo-700">
-            <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-200 mb-2">Your Recent Attempts</p>
+          <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-700">
+            <p className="text-xs font-semibold text-blue-700 dark:text-blue-200 mb-2">Your Recent Attempts</p>
             <div className="space-y-1.5">
               {quizAttempts.slice(0, 5).map((attempt) => (
                 <div key={attempt.id} className="flex items-center justify-between text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2.5 py-2">
@@ -1232,7 +1238,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             onClick={() => setShowCompletionPopup(false)}
             aria-hidden="true"
           />
-          <div className="relative w-full max-w-md rounded-2xl border border-emerald-300/30 bg-slate-900/95 p-6 text-slate-100 shadow-2xl">
+          <div className="relative w-full max-w-md rounded-2xl border border-green-300/30 bg-slate-900/95 p-6 text-slate-100 shadow-2xl">
             <button
               type="button"
               onClick={() => setShowCompletionPopup(false)}
@@ -1242,13 +1248,13 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
               <X className="h-5 w-5" />
             </button>
 
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/20 ring-1 ring-emerald-300/40">
-              <Trophy className="h-7 w-7 text-emerald-300" />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-500/20 ring-1 ring-green-300/40">
+              <Trophy className="h-7 w-7 text-green-300" />
             </div>
 
             <h3 className="text-center text-2xl font-bold text-white">Congratulations!</h3>
             <p className="mt-3 text-center text-sm text-slate-200">
-              You successfully completed <span className="font-semibold text-emerald-300">{course.title}</span>.
+              You successfully completed <span className="font-semibold text-green-300">{course.title}</span>.
             </p>
             <p className="mt-2 text-center text-xs text-slate-400">
               You can now view and download your certificate from the certificates page.
@@ -1301,10 +1307,10 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
               {/* Sentence */}
               <div className="mb-6">
-                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-2">
+                <p className="text-sm font-semibold text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">
                   Sentence
                 </p>
-                <div className="bg-emerald-50 dark:bg-emerald-900/30 rounded-xl p-5 border border-emerald-200 dark:border-emerald-700">
+                <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-5 border border-green-200 dark:border-green-700">
                   <p className="text-lg text-slate-800 dark:text-slate-100 leading-relaxed font-medium">
                     {selectedSentence}
                   </p>
@@ -1313,10 +1319,10 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
               {/* Definition / Information */}
               <div>
-                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-2">
+                <p className="text-sm font-semibold text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">
                   Information
                 </p>
-                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-5 border-l-4 border-emerald-500 dark:border-emerald-400">
+                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-5 border-l-4 border-green-500 dark:border-green-400">
                   <p className="text-base text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
                     {selectedSentenceDefinition}
                   </p>
@@ -1397,7 +1403,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                         disabled={isLocked}
                         className={`w-full px-3 py-2.5 flex items-center text-left rounded-lg transition-colors ${
                           isActiveModule
-                            ? 'bg-green-50 dark:bg-emerald-900/30 text-green-900 dark:text-emerald-200'
+                            ? 'bg-green-50 dark:bg-green-900/30 text-green-900 dark:text-green-200'
                             : isLocked
                             ? 'text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-60'
                             : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
@@ -1438,7 +1444,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                                 onClick={() => selectLesson(module, lesson)}
                                 className={`w-full px-3 py-1.5 flex items-center gap-2 text-left rounded-md transition-colors text-sm ${
                                   isActiveLesson
-                                    ? 'bg-green-100 dark:bg-emerald-900/40 text-green-800 dark:text-emerald-200 font-medium'
+                                    ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200 font-medium'
                                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                                 }`}
                               >
@@ -1452,11 +1458,11 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                               onClick={() => selectQuiz(module)}
                               className={`w-full px-3 py-1.5 flex items-center gap-2 text-left rounded-md transition-colors text-sm ${
                                 showQuiz && isActiveModule
-                                  ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-200 font-medium'
+                                  ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 font-medium'
                                   : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                               }`}
                             >
-                              <HelpCircle className={`h-3.5 w-3.5 ${module.quiz.has_passed ? 'text-green-500' : 'text-indigo-400'}`} />
+                              <HelpCircle className={`h-3.5 w-3.5 ${module.quiz.has_passed ? 'text-green-500' : 'text-blue-400'}`} />
                               <span className="truncate">Quiz</span>
                               {module.quiz.has_passed && <CheckCircle className="h-3 w-3 text-green-500 ml-auto flex-shrink-0" />}
                             </button>
@@ -1494,12 +1500,12 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
             {/* Quiz prompt at bottom of lesson content */}
             {!showQuiz && currentLesson && currentModule?.quiz && currentLessonIndex === moduleLessons.length - 1 && (
-              <div className="mt-4 p-4 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-xl flex items-center justify-between">
+              <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-xl flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <HelpCircle className="h-5 w-5 text-indigo-600" />
+                  <HelpCircle className="h-5 w-5 text-blue-600" />
                   <div>
-                    <p className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Ready for the quiz?</p>
-                    <p className="text-xs text-indigo-600 dark:text-indigo-200">
+                    <p className="text-sm font-medium text-blue-900 dark:text-blue-100">Ready for the quiz?</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-200">
                       Pass with {currentModule.quiz.pass_percentage}% to unlock the next module
                     </p>
                   </div>

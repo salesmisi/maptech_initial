@@ -170,7 +170,7 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
     const isLocked = (course.locked ?? false) || isLockedByExpiry || !!notStartedYet;
     const headerClass = isLocked
       ? 'bg-gray-400'
-      : 'bg-gradient-to-r from-emerald-400 to-green-500';
+      : 'bg-gradient-to-r from-green-400 to-green-500';
 
     return (
       <div className={`rounded-lg shadow-sm border overflow-hidden transition-shadow flex flex-col ${

@@ -115,9 +115,9 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz, ap
   };
 
   const quizTypeLabel = quizType === 'pre-test' ? 'Pre-Test' : quizType === 'post-test' ? 'Post-Test' : 'Quiz';
-  const bgColor = quizType === 'pre-test' ? 'bg-blue-50 dark:bg-blue-900/20' : quizType === 'post-test' ? 'bg-purple-50 dark:bg-purple-900/20' : 'bg-indigo-50 dark:bg-indigo-900/20';
-  const borderColor = quizType === 'pre-test' ? 'border-blue-200 dark:border-blue-700/50' : quizType === 'post-test' ? 'border-purple-200 dark:border-purple-700/50' : 'border-indigo-200 dark:border-indigo-700/50';
-  const textColor = quizType === 'pre-test' ? 'text-blue-700 dark:text-blue-300' : quizType === 'post-test' ? 'text-purple-700 dark:text-purple-300' : 'text-indigo-700 dark:text-indigo-300';
+  const bgColor = quizType === 'pre-test' ? 'bg-blue-50 dark:bg-blue-900/20' : quizType === 'post-test' ? 'bg-purple-50 dark:bg-purple-900/20' : 'bg-blue-50 dark:bg-blue-900/20';
+  const borderColor = quizType === 'pre-test' ? 'border-blue-200 dark:border-blue-700/50' : quizType === 'post-test' ? 'border-purple-200 dark:border-purple-700/50' : 'border-blue-200 dark:border-blue-700/50';
+  const textColor = quizType === 'pre-test' ? 'text-blue-700 dark:text-blue-300' : quizType === 'post-test' ? 'text-purple-700 dark:text-purple-300' : 'text-blue-700 dark:text-blue-300';
 
   return (
     <div className={`mt-3 p-4 ${bgColor} border ${borderColor} rounded-lg space-y-3`}>
@@ -128,14 +128,14 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz, ap
         placeholder="Quiz title (e.g. Module 1 Assessment)"
         value={title}
         onChange={e => setTitle(e.target.value)}
-        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500"
+        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500"
       />
       <textarea
         rows={2}
         placeholder="Description (optional)"
         value={desc}
         onChange={e => setDesc(e.target.value)}
-        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 resize-none"
+        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 resize-none"
       />
       <div className="flex items-center gap-3">
         <label className="text-xs font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">Pass Percentage</label>
@@ -144,7 +144,7 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz, ap
           min={1} max={100}
           value={passPercent}
           onChange={e => setPassPercent(Number(e.target.value))}
-          className="w-20 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
+          className="w-20 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
         />
         <span className="text-xs text-slate-500 dark:text-slate-400">% to unlock next module</span>
       </div>
@@ -361,7 +361,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   // Quiz state — keyed by module_id (now supports multiple quizzes per module)
   const [quizByModule, setQuizByModule] = useState<Record<number, QuizSummary[]>>({});
   const [quizzesLoading, setQuizzesLoading] = useState(false);
-  const [addingQuizForModule, setAddingQuizForModule] = useState<number | null>(null);
+  const [addingQuizForModule, setAddingQuizForModule] = useState<string | number | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
   const [deletingQuizId, setDeletingQuizId] = useState<number | null>(null);
   const confirm = useConfirm();
@@ -1575,7 +1575,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                     {quizzesLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin text-slate-400 flex-shrink-0" />
                     ) : quiz ? (
-                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium flex-shrink-0">
+                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-medium flex-shrink-0">
                         <HelpCircle className="h-3.5 w-3.5" />
                         Quiz
                       </span>
@@ -1586,7 +1586,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                     {!isEditingMod && (
                       <button
                         onClick={(e) => { e.stopPropagation(); startEditModule(mod); }}
-                        className="p-1.5 text-slate-400 dark:text-slate-300 hover:text-green-600 dark:hover:text-emerald-300 hover:bg-green-50 dark:hover:bg-emerald-900/30 rounded flex-shrink-0"
+                        className="p-1.5 text-slate-400 dark:text-slate-300 hover:text-green-600 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 rounded flex-shrink-0"
                         title="Edit module"
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -1712,7 +1712,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                             className="inline-flex items-center px-3 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded border border-blue-200 dark:border-blue-700 flex-shrink-0">View file</a>
                                         )}
                                         <button onClick={() => startEditLesson(lesson)}
-                                          className="p-1 text-slate-400 dark:text-slate-300 hover:text-green-600 dark:hover:text-emerald-300 hover:bg-green-50 dark:hover:bg-emerald-900/30 rounded flex-shrink-0" title="Edit lesson">
+                                          className="p-1 text-slate-400 dark:text-slate-300 hover:text-green-600 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 rounded flex-shrink-0" title="Edit lesson">
                                           <Pencil className="h-3.5 w-3.5" />
                                         </button>
                                         <button onClick={() => handleDeleteLesson(mod.id, lesson.id)}
@@ -1907,11 +1907,11 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                         {quizzes.length > 0 && (
                           <div className="space-y-2 mb-3">
                             {quizzes.map((quiz) => (
-                              <div key={quiz.id} className="bg-indigo-50 dark:bg-slate-700/50 border border-indigo-100 dark:border-slate-600 rounded-lg p-3">
+                              <div key={quiz.id} className="bg-blue-50 dark:bg-slate-700/50 border border-blue-100 dark:border-slate-600 rounded-lg p-3">
                                 <div className="flex items-start justify-between gap-4">
                                   <div className="flex items-start gap-3">
-                                    <div className="h-8 w-8 rounded-full bg-indigo-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
-                                      <HelpCircle className="h-4 w-4 text-indigo-600 dark:text-indigo-300" />
+                                    <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
+                                      <HelpCircle className="h-4 w-4 text-blue-600 dark:text-blue-300" />
                                     </div>
                                     <div>
                                       <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{quiz.title}</p>
@@ -2029,7 +2029,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
           {/* Enroll User Form */}
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm p-5">
             <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
-              <Users className="h-4 w-4 text-green-600 dark:text-emerald-400" />
+              <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
               Enroll an Employee
             </h3>
             {enrollError && (
@@ -2124,7 +2124,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                       key={user.id}
                       className={`transition-colors ${
                         isFromActivity
-                          ? 'bg-emerald-50/70 dark:bg-emerald-900/20 ring-1 ring-inset ring-emerald-300/70 dark:ring-emerald-600/40'
+                          ? 'bg-green-50/70 dark:bg-green-900/20 ring-1 ring-inset ring-green-300/70 dark:ring-green-600/40'
                           : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
                       }`}
                     >
@@ -2137,7 +2137,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                             <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                               {user.fullname}
                               {isFromActivity && (
-                                <span className="ml-2 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
+                                <span className="ml-2 inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-700 dark:bg-green-900/60 dark:text-green-300">
                                   Recent Activity
                                 </span>
                               )}

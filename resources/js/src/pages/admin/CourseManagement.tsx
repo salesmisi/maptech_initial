@@ -16,7 +16,7 @@ import {
   Trash } from
 'lucide-react';
 
-const COURSE_HEADER_CLASS = 'bg-gradient-to-r from-emerald-400 to-green-500 dark:from-emerald-500 dark:to-green-600';
+const COURSE_HEADER_CLASS = 'bg-gradient-to-r from-green-400 to-green-500 dark:from-green-500 dark:to-green-600';
 
 // Module interface for form handling
 interface ModuleInput {
@@ -490,10 +490,10 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
           return (
         <div
           key={course.id}
-          className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow dark:bg-slate-800 dark:border-slate-600 ${notStarted ? 'bg-white border-emerald-200' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
+          className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow dark:bg-slate-800 dark:border-slate-600 ${notStarted ? 'bg-white border-green-200' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
 
             <div
-            className={`h-32 ${notStarted ? 'bg-gradient-to-r from-emerald-400 to-green-500' : COURSE_HEADER_CLASS} flex items-center justify-center`}>
+            className={`h-32 ${notStarted ? 'bg-gradient-to-r from-green-400 to-green-500' : COURSE_HEADER_CLASS} flex items-center justify-center`}>
 
               {course.instructor_profile_picture ? (
                 <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-white/80 shadow-md">
@@ -514,7 +514,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
             <div className="p-6">
               <div className="flex justify-between items-start">
                 <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${notStarted ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200' : ended ? 'bg-red-100 text-red-800' : course.status === 'Active' ? 'bg-green-100 text-green-800' : course.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-800'}`}>
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${notStarted ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-200' : ended ? 'bg-red-100 text-red-800' : course.status === 'Active' ? 'bg-green-100 text-green-800' : course.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-800'}`}>
 
                   {notStarted ? 'Not Started' : ended ? 'Locked' : course.status}
                 </span>
@@ -552,7 +552,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
               </div>
 
               {notStarted && course.start_date && (
-                <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-300">
+                <p className="mt-2 text-xs text-green-600 dark:text-green-300">
                   Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               )}

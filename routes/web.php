@@ -79,3 +79,5 @@ Route::get('/youtube/callback', [YouTubeController::class, 'callback'])->name('y
 Route::post('/youtube/logout', [YouTubeController::class, 'logout'])->name('youtube.logout');
 // Upload route for instructors/admins (uses session auth)
 Route::post('/youtube/upload', [YouTubeController::class, 'uploadVideo'])->middleware('auth');
+
+// (debug route removed)

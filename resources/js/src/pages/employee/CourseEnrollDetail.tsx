@@ -101,7 +101,7 @@ export function CourseEnrollDetail({ courseId, onNavigate, onBack }: CourseEnrol
   if (loading) {
     return (
       <div className="flex justify-center items-center py-24">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         <span className="ml-3 text-slate-600">Loading course details...</span>
       </div>
     );
@@ -112,7 +112,7 @@ export function CourseEnrollDetail({ courseId, onNavigate, onBack }: CourseEnrol
       <div className="text-center py-16">
         <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
         <p className="mt-3 text-slate-600">{error || 'Course not found.'}</p>
-        <button onClick={onBack} className="mt-4 text-sm text-indigo-600 hover:underline">
+        <button onClick={onBack} className="mt-4 text-sm text-blue-600 hover:underline">
           &larr; Back to My Courses
         </button>
       </div>
@@ -162,12 +162,12 @@ export function CourseEnrollDetail({ courseId, onNavigate, onBack }: CourseEnrol
         {/* Self-paced + modules row */}
         <div className="grid grid-cols-2 divide-x divide-slate-100">
           <div className="flex flex-col items-center justify-center py-5 gap-1">
-            <Clock className="h-5 w-5 text-indigo-500" />
+            <Clock className="h-5 w-5 text-blue-500" />
             <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">Pace</span>
             <span className="text-sm font-semibold text-slate-800">Self Pace</span>
           </div>
           <div className="flex flex-col items-center justify-center py-5 gap-1">
-            <Layers className="h-5 w-5 text-indigo-500" />
+            <Layers className="h-5 w-5 text-blue-500" />
             <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">Modules</span>
             <span className="text-sm font-semibold text-slate-800">{safeArray(course?.modules).length}</span>
           </div>
@@ -204,7 +204,7 @@ export function CourseEnrollDetail({ courseId, onNavigate, onBack }: CourseEnrol
             <ul className="space-y-2">
               {safeArray(course?.modules).map((mod, idx) => (
                 <li key={mod.id} className="flex items-center gap-2 text-sm text-slate-700">
-                  <span className="flex-shrink-0 h-5 w-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-bold">
+                  <span className="flex-shrink-0 h-5 w-5 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold">
                     {idx + 1}
                   </span>
                   {mod.title}

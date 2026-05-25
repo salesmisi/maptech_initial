@@ -16,8 +16,9 @@ import {
 } from 'lucide-react';
 import { sanitizeHtml } from '../../components/RichTextEditor';
 import YouTubePlayer from '../../components/YouTubePlayer';
-import PresentationViewer from '../../components/PresentationViewer';
-import PDFViewer from '../../components/PDFViewer';
+import { lazy, Suspense } from 'react';
+const PDFViewer = lazy(() => import('../../components/PDFViewer'));
+const PresentationViewer = lazy(() => import('../../components/PresentationViewer'));
 
 const API_BASE = '/api';
 
@@ -256,12 +257,14 @@ export function CustomModuleViewer({
 
       if (presUrl) {
         return (
-          <PresentationViewer
-            url={presUrl}
-            title={currentLesson.title}
-            fileName={currentLesson.file_name || undefined}
-            fileSize={currentLesson.formatted_file_size || undefined}
-          />
+          <Suspense fallback={<div className="p-4">Loading presentation...</div>}>
+            <PresentationViewer
+              url={presUrl}
+              title={currentLesson.title}
+              fileName={currentLesson.file_name || undefined}
+              fileSize={currentLesson.formatted_file_size || undefined}
+            />
+          </Suspense>
         );
       }
 
@@ -292,12 +295,14 @@ export function CustomModuleViewer({
         // Use PDFViewer for PDF files (presentation mode)
         if (isPdf) {
           return (
-            <PDFViewer
-              url={docUrl}
-              title={currentLesson.title}
-              fileName={currentLesson.file_name || undefined}
-              fileSize={currentLesson.formatted_file_size || undefined}
-            />
+            <Suspense fallback={<div className="p-4">Loading document...</div>}>
+              <PDFViewer
+                url={docUrl}
+                title={currentLesson.title}
+                fileName={currentLesson.file_name || undefined}
+                fileSize={currentLesson.formatted_file_size || undefined}
+              />
+            </Suspense>
           );
         }
 
@@ -382,12 +387,14 @@ export function CustomModuleViewer({
         // PowerPoint presentation
         if (isPpt) {
           return (
-            <PresentationViewer
-              url={fileUrl}
-              title={currentLesson.title}
-              fileName={currentLesson.file_name || undefined}
-              fileSize={currentLesson.formatted_file_size || undefined}
-            />
+            <Suspense fallback={<div className="p-4">Loading presentation...</div>}>
+              <PresentationViewer
+                url={fileUrl}
+                title={currentLesson.title}
+                fileName={currentLesson.file_name || undefined}
+                fileSize={currentLesson.formatted_file_size || undefined}
+              />
+            </Suspense>
           );
         }
 
@@ -406,12 +413,14 @@ export function CustomModuleViewer({
 
             {/* PDF preview - presentation mode */}
             {isPdf && (
-              <PDFViewer
-                url={fileUrl}
-                title={currentLesson.title}
-                fileName={currentLesson.file_name || undefined}
-                fileSize={currentLesson.formatted_file_size || undefined}
-              />
+              <Suspense fallback={<div className="p-4">Loading document...</div>}>
+                <PDFViewer
+                  url={fileUrl}
+                  title={currentLesson.title}
+                  fileName={currentLesson.file_name || undefined}
+                  fileSize={currentLesson.formatted_file_size || undefined}
+                />
+              </Suspense>
             )}
 
             {/* Audio preview */}

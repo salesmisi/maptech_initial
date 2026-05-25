@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\AuditDate;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PasswordResetController;
+use App\Http\Controllers\Admin\AuditLogRetentionPolicyController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -550,6 +551,10 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         }
     });
 
+    // Audit log retention policy
+    Route::get('/audit-log-retention-policy', [AuditLogRetentionPolicyController::class, 'show']);
+    Route::put('/audit-log-retention-policy', [AuditLogRetentionPolicyController::class, 'update']);
+
     // Export Audit Logs to CSV
     Route::get('/audit-logs/export', function (Request $request) {
         $roleFilter = null;
@@ -563,6 +568,12 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         $format = $request->input('format', 'csv'); // csv, excel, or pdf
         if (!in_array($format, ['csv', 'excel', 'pdf'])) {
             $format = 'csv';
+        }
+
+        // Period filter: weekly, monthly, yearly (optional)
+        $period = $request->input('period');
+        if ($period !== null && !in_array($period, ['weekly', 'monthly', 'yearly'])) {
+            return response()->json(['message' => 'Invalid period filter'], 422);
         }
 
         try {
@@ -585,7 +596,23 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 $query->where(\Illuminate\Support\Facades\DB::raw('LOWER(u.role)'), $roleFilter);
             }
 
+            // Apply period filter if provided
+            if ($period) {
+                $now = \Carbon\Carbon::now();
+                if ($period === 'weekly') {
+                    $start = $now->copy()->startOfWeek();
+                } elseif ($period === 'monthly') {
+                    $start = $now->copy()->startOfMonth();
+                } else { // yearly
+                    $start = $now->copy()->startOfYear();
+                }
+                $query->where('a.created_at', '>=', $start->toDateTimeString());
+            }
+
             $logs = $query->orderByDesc('a.created_at')->limit(10000)->get();
+            $logs = $logs->reject(function ($log) {
+                return preg_match('/_exported$/i', (string) ($log->action ?? ''));
+            })->values();
             $timestamp = date('Y-m-d_His');
 
             // CSV Export
@@ -640,8 +667,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                     $logoDims = @getimagesize($logoPath);
                     $logoWidthPx = (int) ($logoDims[0] ?? 0);
                     $logoHeightPx = (int) ($logoDims[1] ?? 0);
-                    $maxWidthPx = 240;
-                    $maxHeightPx = 52;
+                    $maxWidthPx = 200;
+                    $maxHeightPx = 40;
                     if ($logoWidthPx > 0 && $logoHeightPx > 0) {
                         $scale = min($maxWidthPx / $logoWidthPx, $maxHeightPx / $logoHeightPx, 1);
                         $scaledWidth = (int) round($logoWidthPx * $scale);
@@ -844,62 +871,265 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 ]);
             }
 
-            // PDF Export (HTML page ready for printing)
+            // PDF Export (render the report layout directly so it matches the reference PDF)
             if ($format === 'pdf') {
-                $filename = 'audit_logs_' . $timestamp . '.html';
-                $roleText = $roleFilter ? ucfirst($roleFilter) . ' ' : '';
-
+                $filename = 'audit_logs_' . $timestamp . '.pdf';
                 $logoPath = public_path('assets/Maptech-Official-Logo.png');
                 $logoBase64 = file_exists($logoPath)
                     ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
                     : null;
 
-                $html = '<!DOCTYPE html><html><head><meta charset="UTF-8">';
-                $html .= '<title>Audit Logs Export</title>';
-                $html .= '<style>';
-                $html .= 'body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }';
-                $html .= '.header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #1b8f3a; padding-bottom: 12px; margin-bottom: 8px; }';
-                $html .= '.header img { height: 56px; width: auto; }';
-                $html .= '.header-text h1 { margin: 0 0 4px; font-size: 18px; color: #0b5f2a; }';
-                $html .= '.header-text .meta { margin: 0; color: #555; font-size: 11px; }';
-                $html .= 'table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 11px; }';
-                $html .= 'th { background-color: #1b8f3a; color: white; padding: 8px 6px; text-align: left; font-weight: bold; }';
-                $html .= 'td { padding: 6px; border-bottom: 1px solid #ddd; }';
-                $html .= 'tr:nth-child(even) td { background-color: #e8f6ed; }';
-                $html .= '@media print { body { margin: 0; } @page { margin: 1cm; } }';
-                $html .= '</style></head><body>';
+                $appTimezone = (string) config('app.timezone', 'UTC');
+                $appTimezone = $appTimezone !== '' ? $appTimezone : 'UTC';
 
-                $html .= '<div class="header">';
-                if ($logoBase64) {
-                    $html .= '<img src="' . $logoBase64 . '" alt="Maptech Logo" />';
+                $formatDate = function ($value) use ($appTimezone) {
+                    if (empty($value)) {
+                        return '';
+                    }
+
+                    try {
+                        return \Carbon\Carbon::parse($value, $appTimezone)->setTimezone($appTimezone)->format('M j, Y h:i A');
+                    } catch (\Throwable $e) {
+                        return (string) $value;
+                    }
+                };
+
+                $actionToEntity = function ($action) {
+                    $action = strtolower((string) $action);
+                    if ($action === '') {
+                        return 'audit';
+                    }
+
+                    $parts = preg_split('/[._]/', $action, 2);
+                    return $parts[0] ?: 'audit';
+                };
+
+                $displayActor = function ($log) {
+                    $action = strtolower((string) ($log->action ?? ''));
+                    if (empty($log->user_id) || str_starts_with($action, 'auth.login_failed')) {
+                        return 'System';
+                    }
+
+                    return 'User #' . $log->user_id;
+                };
+
+                $displayActivity = function ($log) use ($actionToEntity) {
+                    $entity = $actionToEntity($log->action ?? '');
+                    $suffix = !empty($log->user_id) && !str_starts_with(strtolower((string) ($log->action ?? '')), 'budget_report')
+                        ? $log->user_id
+                        : 0;
+
+                    return $entity . ' #' . $suffix;
+                };
+
+                $displayDetails = function ($log) {
+                    $context = [];
+
+                    if (!empty($log->user_email)) {
+                        $context['email'] = $log->user_email;
+                    }
+
+                    if (!empty($log->user_department)) {
+                        $context['department'] = $log->user_department;
+                    }
+
+                    if (!empty($log->ip_address)) {
+                        $context['ip'] = $log->ip_address;
+                    }
+
+                    if (!empty($log->session_key)) {
+                        $context['session_key'] = $log->session_key;
+                    }
+
+                    if (empty($context)) {
+                        return 'context={}';
+                    }
+
+                    return 'context=' . json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                };
+
+                $totalLogs = count($logs);
+                $sensitiveLogs = 0;
+                $actions = [];
+                $userIds = [];
+
+                foreach ($logs as $log) {
+                    $actions[] = (string) ($log->action ?? '');
+                    if (!empty($log->user_id)) {
+                        $userIds[] = (string) $log->user_id;
+                    }
+                    if (preg_match('/failed|export|delete|password|reset|permission/i', (string) ($log->action ?? ''))) {
+                        $sensitiveLogs++;
+                    }
                 }
-                $html .= '<div class="header-text">';
-                $html .= '<h1>' . $roleText . 'Audit Logs Report</h1>';
-                $html .= '<p class="meta">Generated: ' . date('F j, Y g:i A') . ' &nbsp;|&nbsp; Total Records: ' . count($logs) . '</p>';
-                $html .= '</div></div>';
 
-                $html .= '<table><thead><tr>';
-                $html .= '<th>ID</th><th>User ID</th><th>Full Name</th><th>Email</th>';
-                $html .= '<th>Role</th><th>Department</th><th>Action</th><th>IP Address</th><th>Date &amp; Time</th>';
-                $html .= '</tr></thead><tbody>';
+                $uniqueActions = count(array_unique(array_filter($actions, fn ($action) => $action !== '')));
+                $usersInvolved = count(array_unique(array_filter($userIds, fn ($userId) => $userId !== '')));
+                $reportTitle = $period === 'weekly'
+                    ? 'Weekly Audit Logs Report'
+                    : ($period === 'monthly'
+                        ? 'Monthly Audit Logs Report'
+                        : ($period === 'yearly' ? 'Yearly Audit Logs Report' : 'Audit Logs Report'));
+                $headerRange = $totalLogs > 0
+                    ? $formatDate($logs->last()->created_at) . ' - ' . $formatDate($logs->first()->created_at)
+                    : 'No records available';
+                $generatedAt = \Carbon\Carbon::now($appTimezone)->format('M j, Y h:i A');
+                $searchValue = 'None';
+                $actionValue = 'All';
+                $entityValue = 'All';
+                $projectValue = 'All';
+
+                $escape = fn ($value) => htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+
+                $html = '<!DOCTYPE html><html><head><meta charset="UTF-8">';
+                $html .= '<title>Audit Logs Report</title>';
+                $html .= '<style>';
+                $html .= '@page { size: A4 portrait; margin: 12mm 10mm 16mm 10mm; }';
+                $html .= 'body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: #24302a; background: #ffffff; }';
+                $html .= '.header { position: fixed; top: 0; left: 0; right: 0; height: 34mm; background: #fff; z-index: 10; padding: 6mm 10mm 0 10mm; box-sizing: border-box; }';
+                $html .= '.header-table { width: 100%; border-collapse: collapse; table-layout: fixed; }';
+                $html .= '.header-table td { vertical-align: middle; }';
+                $html .= '.header-left { width: 22%; text-align: left; }';
+                $html .= '.header-center { width: 56%; text-align: center; }';
+                $html .= '.header-right { width: 22%; text-align: right; font-size: 10px; color: #66756d; line-height: 1.35; }';
+                $html .= '.brand img { max-width: 105px; max-height: 38px; display: block; }';
+                $html .= '.title { margin: 0; font-size: 22px; line-height: 1.05; color: #1f5540; font-weight: 700; }';
+                $html .= '.subtitle { margin: 3px 0 0 0; font-size: 12px; color: #1f5540; font-weight: 700; }';
+                $html .= '.range { margin-top: 2px; font-size: 10px; color: #7a8b81; }';
+                $html .= '.header-rule { border-bottom: 2px solid #215a3e; margin-top: 4mm; }';
+                $html .= '.footer { position: fixed; bottom: 0; left: 0; right: 0; height: 10mm; background: #fff; z-index: 10; padding: 2mm 10mm 0 10mm; box-sizing: border-box; border-top: 1px solid #d9e1dc; font-size: 10px; color: #66756d; }';
+                $html .= '.footer-table { width: 100%; border-collapse: collapse; table-layout: fixed; }';
+                $html .= '.footer-table td { width: 33.333%; vertical-align: middle; }';
+                $html .= '.footer-left { text-align: left; }';
+                $html .= '.footer-center { text-align: center; }';
+                $html .= '.footer-right { text-align: right; }';
+                $html .= '.content { margin: 40mm 0 14mm 0; padding: 0 10mm; }';
+                $html .= '.stats, .filters { width: 100%; border-collapse: collapse; table-layout: fixed; }';
+                $html .= '.stats th { background: #1f5a43; color: #fff; font-size: 11px; letter-spacing: .2px; text-transform: uppercase; padding: 9px 10px; text-align: left; }';
+                $html .= '.stats td { background: #fff; padding: 10px 10px 12px 10px; }';
+                $html .= '.pill { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; border-radius: 999px; padding: 0 6px; font-size: 11px; font-weight: 700; }';
+                $html .= '.pill-green { background: #e8f8eb; color: #25a06a; }';
+                $html .= '.pill-red { background: #fdeaea; color: #d95a5a; }';
+                $html .= '.pill-yellow { background: #fff5d6; color: #ca9d1d; }';
+                $html .= '.pill-blue { background: #e8f0fe; color: #4680d4; }';
+                $html .= '.filters th { background: #1f5a43; color: #fff; font-size: 11px; text-transform: uppercase; padding: 8px 10px; text-align: left; }';
+                $html .= '.filters td { padding: 11px 10px 12px 10px; font-size: 11px; color: #36443d; border-bottom: 1px solid #e6ece8; }';
+                $html .= '.filters .value { display: block; margin-top: 7px; color: #557164; font-size: 12px; }';
+                $html .= '.section-title { margin: 14px 0 6px 0; padding: 0 0 6px 0; font-size: 17px; color: #263630; font-weight: 700; border-bottom: 1px solid #d6ddd9; }';
+                $html .= '.entries { width: 100%; border-collapse: collapse; table-layout: fixed; }';
+                $html .= '.entries th { background: #1f5a43; color: #fff; font-size: 10px; text-transform: uppercase; padding: 7px 6px; text-align: left; }';
+                $html .= '.entries td { padding: 8px 6px; font-size: 9px; line-height: 1.25; color: #34433c; border-bottom: 1px solid #e6ece8; vertical-align: top; word-break: break-word; overflow-wrap: anywhere; white-space: normal; }';
+                $html .= '.entries tr:nth-child(even) td { background: #f7fbf8; }';
+                $html .= '.muted { color: #6d7d75; }';
+                $html .= '.nowrap { white-space: nowrap; }';
+                $html .= '.col-date { width: 11%; }';
+                $html .= '.col-entity { width: 10%; }';
+                $html .= '.col-activity { width: 13%; }';
+                $html .= '.col-action { width: 13%; }';
+                $html .= '.col-actor { width: 11%; }';
+                $html .= '.col-project { width: 8%; }';
+                $html .= '.col-details { width: 34%; }';
+                $html .= '.page-break { page-break-after: always; }';
+                $html .= '</style></head><body>';
+                $html .= '<div class="header">';
+                $html .= '<table class="header-table"><tr>';
+                $html .= '<td class="header-left">';
+                if ($logoBase64) {
+                    $html .= '<div class="brand"><img src="' . $logoBase64 . '" alt="Maptech Logo"></div>';
+                }
+                $html .= '</td>';
+                $html .= '<td class="header-center">';
+                $html .= '<h1 class="title">Audit Logs Report</h1>';
+                $html .= '<div class="subtitle">' . $escape($reportTitle) . '</div>';
+                $html .= '<div class="range">' . $escape($headerRange) . ' &mdash; Generated on ' . $escape($generatedAt) . '</div>';
+                $html .= '</td>';
+                $html .= '<td class="header-right">';
+                $html .= '<div>Generated: ' . $escape($generatedAt) . '</div>';
+                $html .= '<div>Total Records: ' . $escape($totalLogs) . '</div>';
+                $html .= '</td>';
+                $html .= '</tr></table>';
+                $html .= '<div class="header-rule"></div>';
+                $html .= '</div>';
+
+                $html .= '<div class="footer">';
+                $html .= '<table class="footer-table"><tr>';
+                $html .= '<td class="footer-left">Audit Logs</td>';
+                $html .= '<td class="footer-center">Generated by Maptech</td>';
+                $html .= '<td class="footer-right">Page <span class="page-number"></span></td>';
+                $html .= '</tr></table>';
+                $html .= '</div>';
+
+                $html .= '<div class="content">';
+
+                $html .= '<table class="stats"><tr>';
+                $html .= '<th>Total Logs</th><th>Sensitive Logs</th><th>Unique Actions</th><th>Users Involved</th>';
+                $html .= '</tr><tr>';
+                $html .= '<td><span class="pill pill-green">' . $escape($totalLogs) . '</span></td>';
+                $html .= '<td><span class="pill pill-red">' . $escape($sensitiveLogs) . '</span></td>';
+                $html .= '<td><span class="pill pill-yellow">' . $escape($uniqueActions) . '</span></td>';
+                $html .= '<td><span class="pill pill-blue">' . $escape($usersInvolved) . '</span></td>';
+                $html .= '</tr></table>';
+
+                $html .= '<table class="filters"><tr>';
+                $html .= '<th>Search</th><th>Action</th><th>Entity</th><th>Project</th>';
+                $html .= '</tr><tr>';
+                $html .= '<td><span class="value">' . $escape($searchValue) . '</span></td>';
+                $html .= '<td><span class="value">' . $escape($actionValue) . '</span></td>';
+                $html .= '<td><span class="value">' . $escape($entityValue) . '</span></td>';
+                $html .= '<td><span class="value">' . $escape($projectValue) . '</span></td>';
+                $html .= '</tr></table>';
+
+                $html .= '<div class="section-title">Audit Entries</div>';
+                $html .= '<table class="entries">';
+                $html .= '<tr>';
+                $html .= '<th class="col-date">Date</th>';
+                $html .= '<th class="col-entity">Entity</th>';
+                $html .= '<th class="col-activity">Activity</th>';
+                $html .= '<th class="col-action">Action</th>';
+                $html .= '<th class="col-actor">Actor</th>';
+                $html .= '<th class="col-project">Project</th>';
+                $html .= '<th class="col-details">Details</th>';
+                $html .= '</tr>';
 
                 foreach ($logs as $log) {
                     $html .= '<tr>';
-                    $html .= '<td>' . htmlspecialchars($log->id) . '</td>';
-                    $html .= '<td>' . htmlspecialchars($log->user_id) . '</td>';
-                    $html .= '<td>' . htmlspecialchars($log->user_fullname ?? '') . '</td>';
-                    $html .= '<td>' . htmlspecialchars($log->user_email ?? '') . '</td>';
-                    $html .= '<td>' . htmlspecialchars($log->user_role ?? '') . '</td>';
-                    $html .= '<td>' . htmlspecialchars($log->user_department ?? '') . '</td>';
-                    $html .= '<td style="text-transform: capitalize;">' . htmlspecialchars($log->action) . '</td>';
-                    $html .= '<td>' . htmlspecialchars($log->ip_address ?? '') . '</td>';
-                    $html .= '<td>' . htmlspecialchars($log->created_at ?? '') . '</td>';
+                    $html .= '<td class="nowrap">' . $escape($formatDate($log->created_at)) . '</td>';
+                    $html .= '<td>' . $escape($actionToEntity($log->action ?? '')) . '</td>';
+                    $html .= '<td>' . $escape($displayActivity($log)) . '</td>';
+                    $html .= '<td>' . $escape($log->action ?? '') . '</td>';
+                    $html .= '<td>' . $escape($displayActor($log)) . '</td>';
+                    $html .= '<td>Global</td>';
+                    $html .= '<td>' . $escape($displayDetails($log)) . '</td>';
                     $html .= '</tr>';
                 }
 
-                $html .= '</tbody></table>';
-                $html .= '<script>window.onload = function() { window.print(); }</script>';
+                $html .= '</table>';
+                $html .= '</div>';
+                $html .= '<script type="text/php">';
+                $html .= 'if (isset($pdf)) {';
+                $html .= '    $font = $fontMetrics->get_font("Helvetica", "normal");';
+                $html .= '    $pdf->page_text(520, 810, "Page {PAGE_NUM} of {PAGE_COUNT}", $font, 8, array(102, 117, 109));';
+                $html .= '}';
+                $html .= '</script>';
                 $html .= '</body></html>';
+
+                if (class_exists('\\Dompdf\\Dompdf')) {
+                    try {
+                        $dompdf = new \Dompdf\Dompdf();
+                        $dompdf->setPaper('A4', 'portrait');
+                        $dompdf->loadHtml($html);
+                        $dompdf->render();
+                        $pdfOutput = $dompdf->output();
+
+                        return response($pdfOutput, 200, [
+                            'Content-Type' => 'application/pdf',
+                            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                            'Content-Length' => strlen($pdfOutput),
+                        ]);
+                    } catch (\Throwable $e) {
+                        // Fall back to HTML if the PDF renderer is unavailable.
+                    }
+                }
 
                 return response($html, 200, [
                     'Content-Type' => 'text/html',

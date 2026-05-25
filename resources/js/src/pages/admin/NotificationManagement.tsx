@@ -1090,9 +1090,9 @@ export function NotificationManagement() {
                   onClick={() => openReceivedDetail(notification)}
                   className={`p-4 cursor-pointer transition-colors ${
                     !notification.read_at
-                      ? 'bg-emerald-50 dark:bg-emerald-950 border-l-4 border-emerald-500'
+                      ? 'bg-green-50 dark:bg-green-950 border-l-4 border-green-500'
                       : 'bg-white dark:bg-slate-900 border-l-4 border-transparent'
-                  } hover:bg-slate-100 dark:hover:bg-slate-800${notification.id === highlightedNotificationId ? ' ring-2 ring-inset ring-emerald-400 dark:ring-emerald-500' : ''}`}
+                  } hover:bg-slate-100 dark:hover:bg-slate-800${notification.id === highlightedNotificationId ? ' ring-2 ring-inset ring-green-400 dark:ring-green-500' : ''}`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3 flex-1">
@@ -1130,7 +1130,7 @@ export function NotificationManagement() {
                             </span>
                           )}
                           {!notification.read_at && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
                               New
                             </span>
                           )}
@@ -1150,7 +1150,7 @@ export function NotificationManagement() {
                       {!notification.read_at && (
                         <button
                           onClick={() => markAsRead(notification.id)}
-                          className="text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400"
+                          className="text-slate-400 dark:text-slate-500 hover:text-green-600 dark:hover:text-green-400"
                           title="Mark as read"
                         >
                           <Eye className="h-5 w-5" />
@@ -1420,7 +1420,7 @@ export function NotificationManagement() {
                       <span className="flex items-center gap-2">
                         {adminRecipientMode === 'everyone' && <><Users className="h-4 w-4 text-green-500 flex-shrink-0" /><span>Everyone</span></>}
                         {adminRecipientMode === 'instructors' && <><User className="h-4 w-4 text-blue-500 flex-shrink-0" /><span>Instructors</span></>}
-                        {adminRecipientMode === 'employees' && <><Users className="h-4 w-4 text-emerald-500 flex-shrink-0" /><span>Employees</span></>}
+                        {adminRecipientMode === 'employees' && <><Users className="h-4 w-4 text-green-500 flex-shrink-0" /><span>Employees</span></>}
                         {adminRecipientMode === 'specific_instructor' && (
                           <>
                             <User className="h-4 w-4 text-blue-400 flex-shrink-0" />
@@ -1575,7 +1575,7 @@ export function NotificationManagement() {
                   {([
                     { value: 'everyone',           label: 'Everyone',            icon: <Users className="h-4 w-4 text-green-500" /> },
                     { value: 'instructors',         label: 'Instructors',         icon: <User className="h-4 w-4 text-blue-500" /> },
-                    { value: 'employees',           label: 'Employees',           icon: <Users className="h-4 w-4 text-emerald-500" /> },
+                    { value: 'employees',           label: 'Employees',           icon: <Users className="h-4 w-4 text-green-500" /> },
                     { value: 'specific_instructor', label: 'Specific Instructor', icon: <User className="h-4 w-4 text-blue-400" /> },
                     { value: 'specific_employee',   label: 'Specific Employee',   icon: <User className="h-4 w-4 text-orange-500" /> },
                   ] as const).map(({ value, label, icon }) => (
@@ -1667,7 +1667,7 @@ export function NotificationManagement() {
                       {selectedAnnouncementDetail.title}
                     </h2>
                     {selectedAnnouncementDetail.source === 'received' && !selectedAnnouncementDetail.read_at && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 mt-2">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 mt-2">
                         New
                       </span>
                     )}
@@ -1788,7 +1788,7 @@ export function NotificationManagement() {
                           markAsRead(selectedAnnouncementDetail.id);
                           setSelectedAnnouncementDetail(null);
                         }}
-                        className="inline-flex items-center px-4 py-2 border border-emerald-300 dark:border-emerald-700 rounded-md shadow-sm text-sm font-medium text-emerald-700 dark:text-emerald-200 bg-white dark:bg-slate-700 hover:bg-emerald-50 dark:hover:bg-slate-600">
+                        className="inline-flex items-center px-4 py-2 border border-green-300 dark:border-green-700 rounded-md shadow-sm text-sm font-medium text-green-700 dark:text-green-200 bg-white dark:bg-slate-700 hover:bg-green-50 dark:hover:bg-slate-600">
                         <CheckCircle className="h-4 w-4 mr-2" />
                         Mark as Read
                       </button>
@@ -1824,7 +1824,7 @@ export function NotificationManagement() {
                               : restoreReceivedNotification(selectedAnnouncementDetail.id);
                             setSelectedAnnouncementDetail(null);
                           }}
-                          className="inline-flex items-center px-4 py-2 border border-emerald-300 dark:border-emerald-700 rounded-md shadow-sm text-sm font-medium text-emerald-700 dark:text-emerald-200 bg-white dark:bg-slate-700 hover:bg-emerald-50 dark:hover:bg-slate-600">
+                          className="inline-flex items-center px-4 py-2 border border-green-300 dark:border-green-700 rounded-md shadow-sm text-sm font-medium text-green-700 dark:text-green-200 bg-white dark:bg-slate-700 hover:bg-green-50 dark:hover:bg-slate-600">
                           <RotateCcw className="h-4 w-4 mr-2" />
                           Restore
                         </button>
@@ -1871,8 +1871,8 @@ export function NotificationManagement() {
               </div>
               <div className="bg-white dark:bg-slate-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="p-2 rounded-full bg-emerald-100 dark:bg-emerald-900">
-                    <User className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
+                  <div className="p-2 rounded-full bg-green-100 dark:bg-green-900">
+                    <User className="h-5 w-5 text-green-600 dark:text-green-300" />
                   </div>
                   <h3 className="text-lg leading-6 font-medium text-slate-900 dark:text-white">Send to One Person</h3>
                 </div>

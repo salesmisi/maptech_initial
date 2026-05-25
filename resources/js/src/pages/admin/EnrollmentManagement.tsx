@@ -716,7 +716,7 @@ export function EnrollmentManagement() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        status === 'Completed' ? 'bg-green-100 text-green-800 dark:bg-emerald-500/20 dark:text-emerald-300' :
+                        status === 'Completed' ? 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300' :
                         status === 'In Progress' ? 'bg-yellow-100 text-yellow-800 dark:bg-amber-500/20 dark:text-amber-300' :
                         'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200'
                       }`}>
@@ -732,9 +732,8 @@ export function EnrollmentManagement() {
                     ) : (
                       <button
                         onClick={() => handleUnenroll(enrollment)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
                         Unenroll
                       </button>
                     )}

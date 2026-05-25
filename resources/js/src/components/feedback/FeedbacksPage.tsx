@@ -122,7 +122,7 @@ export function FeedbacksPage({
               onClick={() => setListMode('active')}
               className={`px-3 py-2 text-sm font-medium rounded-md transition ${listMode === 'active' ? 'bg-emerald-600 text-white shadow' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100'}`}
             >
-              Active
+              Feedbacks
             </button>
             {canArchive && (
               <button

@@ -692,7 +692,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/25 dark:text-emerald-300">
+                  <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-900/40 dark:bg-green-950/25 dark:text-green-300">
                     You are not enrolled in a course yet. Here are available offerings for your subdepartment.
                   </div>
                   {courseOfferings.map((course) => (
@@ -793,7 +793,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                 {customModules.map((module) => (
                   <div
                     key={module.id}
-                    className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg border border-purple-200 p-4 hover:shadow-md transition-all cursor-pointer dark:from-purple-950/30 dark:to-indigo-950/30 dark:border-purple-800"
+                    className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg border border-purple-200 p-4 hover:shadow-md transition-all cursor-pointer dark:from-purple-950/30 dark:to-blue-950/30 dark:border-purple-800"
                     onClick={() => {
                       pushToast('Module Viewer', 'Custom module viewer coming soon!', 'info');
                     }}
@@ -829,7 +829,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                       </div>
                       <div className="w-full bg-white rounded-full h-1.5 dark:bg-slate-700">
                         <div
-                          className="bg-gradient-to-r from-purple-500 to-indigo-500 h-1.5 rounded-full transition-all duration-500"
+                          className="bg-gradient-to-r from-purple-500 to-blue-500 h-1.5 rounded-full transition-all duration-500"
                           style={{ width: `${module.progress}%` }}
                         />
                       </div>
@@ -856,7 +856,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             </h3>
             <div className="space-y-4">
               {upcomingCourseDeadlines.length === 0 ? (
-                <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/25 dark:text-emerald-300">
+                <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-900/40 dark:bg-green-950/25 dark:text-green-300">
                   There is no pending task at the moment, take a rest!
                 </div>
               ) : (
@@ -893,7 +893,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
           </div>
 
           {/* Latest Achievement */}
-          <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg shadow-md p-6 text-white">
+          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-md p-6 text-white">
             <div className="flex items-center justify-between mb-4 gap-3">
               <div className="flex items-center min-w-0">
                 <Award className="h-8 w-8 text-yellow-300 flex-shrink-0" />

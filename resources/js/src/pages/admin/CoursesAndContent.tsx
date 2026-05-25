@@ -18,8 +18,9 @@ import {
 } from 'lucide-react';
 import { safeArray } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
-import PDFViewer from '../../components/PDFViewer';
-import PresentationViewer from '../../components/PresentationViewer';
+import { lazy, Suspense } from 'react';
+const PDFViewer = lazy(() => import('../../components/PDFViewer'));
+const PresentationViewer = lazy(() => import('../../components/PresentationViewer'));
 
 interface Course {
   id: string;
@@ -542,7 +543,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     }
   };
 
-  const loadEnrolledStudents = async (courseId: number) => {
+  const loadEnrolledStudents = async (courseId: number | string) => {
     try {
       const response = await fetch(`/api/admin/courses/${courseId}/students`, {
         credentials: 'include',
@@ -1262,7 +1263,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
   const getStatusBadge = (status: string) => {
     const badges = {
-      Active: 'bg-green-100 text-green-800 dark:bg-emerald-500/20 dark:text-emerald-300',
+      Active: 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300',
       Draft: 'bg-yellow-100 text-yellow-800 dark:bg-amber-500/20 dark:text-amber-300',
       Inactive: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
     };
@@ -1440,23 +1441,23 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             style={{ animationDelay: `${Math.min(index * 45, 360)}ms` }}
           >
             {/* Course Icon */}
-            <div className="h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-teal-500 rounded-t-lg flex items-center justify-center relative">
+            <div className="h-28 bg-gradient-to-br from-green-400 to-green-600 dark:from-green-500 dark:to-teal-500 rounded-t-lg flex items-center justify-center relative">
               <span className={`absolute top-3 left-3 z-10 text-xs font-semibold px-2 py-0.5 rounded-full pointer-events-none ${badgeClass}`}>
                 {badgeLabel}
               </span>
               <div className="absolute top-2 right-2 px-2.5 h-7 rounded-full bg-white/95 text-slate-800 text-xs font-semibold flex items-center justify-center border border-white/70 shadow z-10 pointer-events-none" title={`${modulesCount} modules`}>
-                <span className="mr-1 text-emerald-600">●</span>
+                <span className="mr-1 text-green-600">●</span>
                 {modulesCount} Modules
               </div>
               <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md relative">
                 {course.instructor_profile_picture ? (
                   <img src={course.instructor_profile_picture} alt={course.instructor} className="w-full h-full object-cover" />
                 ) : course.instructor !== 'Unassigned' ? (
-                  <span className="text-2xl font-bold text-green-700 dark:text-emerald-300">
+                  <span className="text-2xl font-bold text-green-700 dark:text-green-300">
                     {course.instructor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                   </span>
                 ) : (
-                  <AcademicCapIcon className="h-8 w-8 text-green-700 dark:text-emerald-300" />
+                  <AcademicCapIcon className="h-8 w-8 text-green-700 dark:text-green-300" />
                 )}
               </div>
             </div>
@@ -1502,8 +1503,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-600 flex-shrink-0"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-emerald-500/20 border border-slate-200 dark:border-slate-600 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs font-semibold text-green-700 dark:text-emerald-300">
+                  <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-500/20 border border-slate-200 dark:border-slate-600 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-semibold text-green-700 dark:text-green-300">
                       {course.instructor !== 'Unassigned'
                         ? course.instructor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
                         : '?'}
@@ -1552,7 +1553,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
         {filteredCustomModules.map((module) => (
           <div key={`custom-${module.id}`} className="relative bg-white border border-slate-200 rounded-lg shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)] flex flex-col">
             {/* Custom Module Icon */}
-            <div className="h-28 bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-500 dark:to-indigo-500 rounded-t-lg flex items-center justify-center relative">
+            <div className="h-28 bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-500 dark:to-blue-500 rounded-t-lg flex items-center justify-center relative">
               {/* Custom Module Badge */}
               <div className="absolute top-2 left-2 px-2 py-0.5 bg-white/90 dark:bg-slate-800/90 rounded-full text-xs font-medium text-purple-700 dark:text-purple-300">
                 Custom Module
@@ -1589,7 +1590,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               <div className="flex justify-between items-start mb-3">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
                   module.status === 'published'
-                    ? 'bg-green-100 text-green-800 dark:bg-emerald-500/20 dark:text-emerald-300'
+                    ? 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300'
                     : module.status === 'draft'
                     ? 'bg-yellow-100 text-yellow-800 dark:bg-amber-500/20 dark:text-amber-300'
                     : 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200'
@@ -1826,7 +1827,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                                       <span className="text-sm text-slate-800 dark:text-slate-100">{lesson.title}</span>
                                       <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                                         lesson.status === 'Published' || lesson.status === 'published'
-                                          ? 'bg-green-100 text-green-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
                                           : 'bg-yellow-100 text-yellow-700 dark:bg-amber-900/30 dark:text-amber-300'
                                       }`}>{lesson.status || 'Draft'}</span>
                                       {lesson.duration && <span className="text-xs text-slate-400 dark:text-slate-300">• {lesson.duration}</span>}
@@ -2480,18 +2481,18 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                         <img
                           src={sel.profile_picture}
                           alt={sel.fullname}
-                          className="w-12 h-12 rounded-full object-cover border-2 border-green-300 dark:border-emerald-600 flex-shrink-0"
+                          className="w-12 h-12 rounded-full object-cover border-2 border-green-300 dark:border-green-600 flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-full bg-green-200 dark:bg-emerald-800/50 border-2 border-green-300 dark:border-emerald-600 flex items-center justify-center flex-shrink-0">
-                          <span className="text-base font-bold text-green-800 dark:text-emerald-300">
+                        <div className="w-12 h-12 rounded-full bg-green-200 dark:bg-green-800/50 border-2 border-green-300 dark:border-green-600 flex items-center justify-center flex-shrink-0">
+                          <span className="text-base font-bold text-green-800 dark:text-green-300">
                             {sel.fullname.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                           </span>
                         </div>
                       )}
                       <div>
                         <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{sel.fullname}</p>
-                        <p className="text-xs text-green-600 dark:text-emerald-400">Assigned Instructor</p>
+                        <p className="text-xs text-green-600 dark:text-green-400">Assigned Instructor</p>
                       </div>
                     </div>
                   ) : null;
@@ -2649,8 +2650,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full bg-green-200 dark:bg-emerald-800/50 flex items-center justify-center">
-                            <span className="text-base font-bold text-green-800 dark:text-emerald-300">
+                          <div className="w-full h-full bg-green-200 dark:bg-green-800/50 flex items-center justify-center">
+                            <span className="text-base font-bold text-green-800 dark:text-green-300">
                               {sel.fullname.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                             </span>
                           </div>
@@ -2678,7 +2679,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{sel.fullname}</p>
-                        <p className="text-xs text-green-600 dark:text-emerald-400">Assigned Instructor</p>
+                        <p className="text-xs text-green-600 dark:text-green-400">Assigned Instructor</p>
                         {editInstructorPhotoFile && (
                           <p className="text-xs text-blue-600 mt-0.5">📷 New photo ready to save</p>
                         )}
@@ -2868,17 +2869,21 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 {previewLesson.type === 'Document' && previewLesson.content_url && (
                   <div className="space-y-4">
                     {previewLesson.content_url.match(/\.pdf$/i) ? (
-                      <PDFViewer
-                        url={previewLesson.content_url}
-                        title={previewLesson.title}
-                        lessonId={previewLesson.id}
-                        showConvertButton={true}
-                      />
+                      <Suspense fallback={<div className="p-4">Loading document...</div>}>
+                        <PDFViewer
+                          url={previewLesson.content_url}
+                          title={previewLesson.title}
+                          lessonId={previewLesson.id}
+                          showConvertButton={true}
+                        />
+                      </Suspense>
                     ) : previewLesson.content_url.match(/\.pptx?$/i) ? (
-                      <PresentationViewer
-                        url={previewLesson.content_url}
-                        title={previewLesson.title}
-                      />
+                      <Suspense fallback={<div className="p-4">Loading presentation...</div>}>
+                        <PresentationViewer
+                          url={previewLesson.content_url}
+                          title={previewLesson.title}
+                        />
+                      </Suspense>
                     ) : (
                       <div className="text-center py-8">
                         <DocumentPlusIcon className="mx-auto h-16 w-16 text-slate-300 mb-4" />

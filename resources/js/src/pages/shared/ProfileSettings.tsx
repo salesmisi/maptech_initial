@@ -31,6 +31,12 @@ interface ProfileData {
   signature_path: string | null;
 }
 
+interface AuditLogRetentionPolicy {
+  enabled: boolean;
+  retention_value: number;
+  retention_unit: 'days' | 'weeks' | 'months' | 'years';
+}
+
 function getXsrfToken(): string {
   const v = `; ${document.cookie}`;
   const parts = v.split('; XSRF-TOKEN=');
@@ -60,6 +66,14 @@ export function ProfileSettings() {
   const [showPicPreview, setShowPicPreview] = useState(false);
   const [showSignaturePreview, setShowSignaturePreview] = useState(false);
   const [showRemovePicConfirm, setShowRemovePicConfirm] = useState(false);
+  const [retentionPolicy, setRetentionPolicy] = useState<AuditLogRetentionPolicy>({
+    enabled: false,
+    retention_value: 365,
+    retention_unit: 'days',
+  });
+  const [retentionLoading, setRetentionLoading] = useState(false);
+  const [retentionSaving, setRetentionSaving] = useState(false);
+  const [retentionNotice, setRetentionNotice] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const signatureInputRef = useRef<HTMLInputElement>(null);
@@ -70,6 +84,35 @@ export function ProfileSettings() {
   useEffect(() => {
     loadProfile();
   }, []);
+
+  useEffect(() => {
+    if (profile?.role?.toLowerCase() !== 'admin') {
+      return;
+    }
+
+    const loadRetentionPolicy = async () => {
+      try {
+        setRetentionLoading(true);
+        const res = await fetch(`${API_BASE}/admin/audit-log-retention-policy`, {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' },
+        });
+
+        if (!res.ok) {
+          return;
+        }
+
+        const data: AuditLogRetentionPolicy = await res.json();
+        setRetentionPolicy(data);
+      } catch (err) {
+        console.error('Failed to load audit log retention policy:', err);
+      } finally {
+        setRetentionLoading(false);
+      }
+    };
+
+    loadRetentionPolicy();
+  }, [profile?.role]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -410,8 +453,46 @@ export function ProfileSettings() {
   };
 
   const normalizedRole = profile?.role?.toLowerCase() ?? '';
+  const isAdmin = normalizedRole === 'admin';
   const canManageSignature = ['admin', 'instructor'].includes(normalizedRole);
   const signatureOwnerLabel = normalizedRole === 'admin' ? 'Admin' : 'Instructor';
+
+  const saveRetentionPolicy = async () => {
+    setRetentionNotice(null);
+    setRetentionSaving(true);
+
+    try {
+      await getCsrf();
+      const res = await fetch(`${API_BASE}/admin/audit-log-retention-policy`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': getXsrfToken(),
+        },
+        body: JSON.stringify(retentionPolicy),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const errors = data.errors ? Object.values(data.errors).flat().join(' ') : data.message;
+        setRetentionNotice(errors || 'Failed to update audit log retention policy.');
+        return;
+      }
+
+      setRetentionPolicy({
+        enabled: !!data.enabled,
+        retention_value: Number(data.retention_value),
+        retention_unit: data.retention_unit,
+      });
+      setRetentionNotice(data.message || 'Retention policy updated successfully.');
+    } catch (err) {
+      setRetentionNotice('Failed to update audit log retention policy.');
+    } finally {
+      setRetentionSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!canManageSignature) return;
@@ -448,6 +529,18 @@ export function ProfileSettings() {
         <div className={`flex items-center gap-2 p-4 rounded-lg text-sm font-medium transition-all duration-300 ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
           {message.type === 'success' ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
           {message.text}
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-100">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <div className="font-semibold">Audit log retention is managed here.</div>
+              <div>Any change you save will control when audit logs are soft-deleted automatically.</div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -638,6 +731,88 @@ export function ProfileSettings() {
                   Uploading signature...
                 </p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isAdmin && (
+        <div
+          className={`settings-card-enter settings-card-delay-3 bg-white rounded-lg shadow-sm border border-slate-200 p-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
+          style={{ transitionDelay: isPageVisible ? '210ms' : '0ms' }}
+        >
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Audit Log Retention</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Configure when audit logs are automatically soft-deleted.
+              </p>
+            </div>
+            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${retentionPolicy.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+              {retentionPolicy.enabled ? 'Enabled' : 'Disabled'}
+            </span>
+          </div>
+
+          {retentionNotice && (
+            <div className={`mb-4 flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${retentionNotice.toLowerCase().includes('failed') ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+              <AlertCircle className="h-4 w-4" />
+              <span>{retentionNotice}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={retentionPolicy.enabled}
+                onChange={(e) => setRetentionPolicy((prev) => ({ ...prev, enabled: e.target.checked }))}
+                className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-500"
+              />
+              <div>
+                <div className="text-sm font-medium text-slate-900">Auto soft delete</div>
+                <div className="text-xs text-slate-500">Turn this on to enforce the retention policy.</div>
+              </div>
+            </label>
+
+            <label className="block">
+              <div className="text-sm font-medium text-slate-700 mb-2">Retention period</div>
+              <input
+                type="number"
+                min={1}
+                max={3650}
+                value={retentionPolicy.retention_value}
+                onChange={(e) => setRetentionPolicy((prev) => ({ ...prev, retention_value: Number(e.target.value) || 1 }))}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-green-500 focus:ring-green-500"
+              />
+            </label>
+
+            <label className="block">
+              <div className="text-sm font-medium text-slate-700 mb-2">Retention unit</div>
+              <select
+                value={retentionPolicy.retention_unit}
+                onChange={(e) => setRetentionPolicy((prev) => ({ ...prev, retention_unit: e.target.value as AuditLogRetentionPolicy['retention_unit'] }))}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-green-500 focus:ring-green-500"
+              >
+                <option value="days">Days</option>
+                <option value="weeks">Weeks</option>
+                <option value="months">Months</option>
+                <option value="years">Years</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={saveRetentionPolicy}
+              disabled={retentionLoading || retentionSaving}
+              className="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {retentionSaving ? 'Saving...' : 'Save Retention Policy'}
+            </button>
+            <div className="text-xs text-slate-500">
+              Current schedule: nightly soft delete based on the saved policy.
             </div>
           </div>
         </div>

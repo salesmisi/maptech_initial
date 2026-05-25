@@ -64,7 +64,7 @@ interface QuizQuestionItem {
 const DEPT_HEADER_COLORS: Record<string, string> = {
   IT: 'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/30 dark:border-blue-700/60 dark:text-blue-200',
   HR: 'bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-900/30 dark:border-purple-700/60 dark:text-purple-200',
-  Operations: 'bg-green-50 border-green-200 text-green-800 dark:bg-emerald-900/30 dark:border-emerald-700/60 dark:text-emerald-200',
+  Operations: 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-700/60 dark:text-green-200',
   Finance: 'bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-amber-900/30 dark:border-amber-700/60 dark:text-amber-200',
   Marketing: 'bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-900/30 dark:border-orange-700/60 dark:text-orange-200',
 };
@@ -732,7 +732,7 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
                                   key={quiz.id}
                                   className="flex items-center gap-4 px-6 py-3 pl-16 hover:bg-slate-100/60 dark:hover:bg-slate-700/55 transition-colors"
                                 >
-                                  <div className="flex-shrink-0 h-9 w-9 rounded-full bg-indigo-100 dark:bg-indigo-900/45 text-indigo-700 dark:text-indigo-300 flex items-center justify-center">
+                                  <div className="flex-shrink-0 h-9 w-9 rounded-full bg-blue-100 dark:bg-blue-900/45 text-blue-700 dark:text-blue-300 flex items-center justify-center">
                                     <HelpCircle className="h-4 w-4" />
                                   </div>
                                   <div className="flex-1 min-w-0">
@@ -1007,7 +1007,7 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
                       <div key={q.id} className="border-2 border-slate-200 dark:border-slate-600 rounded-lg p-4 bg-white dark:bg-slate-700 shadow-sm">
                         <div className="flex items-start justify-between gap-2 mb-3">
                           <div className="flex items-start gap-2">
-                            <span className="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-indigo-600 dark:bg-indigo-500 text-white text-xs font-bold rounded-full">
+                            <span className="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-xs font-bold rounded-full">
                               {idx + 1}
                             </span>
                             <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 pt-1">{q.question_text}</p>
@@ -1030,7 +1030,7 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
                         </div>
                         <div className="ml-9 space-y-1.5 border-l-2 border-slate-200 dark:border-slate-500 pl-3">
                           {q.options.map((opt, optIdx) => (
-                            <div key={opt.id} className={`flex items-center gap-2 text-xs ${opt.is_correct ? 'text-green-700 dark:text-emerald-300 font-semibold bg-green-50 dark:bg-emerald-900/30 rounded px-2 py-1' : 'text-slate-600 dark:text-slate-300'}`}>
+                            <div key={opt.id} className={`flex items-center gap-2 text-xs ${opt.is_correct ? 'text-green-700 dark:text-green-300 font-semibold bg-green-50 dark:bg-green-900/30 rounded px-2 py-1' : 'text-slate-600 dark:text-slate-300'}`}>
                               <span className="w-5 h-5 flex items-center justify-center rounded-full border text-[10px] font-medium ${opt.is_correct ? 'border-green-500 bg-green-100' : 'border-slate-300 bg-slate-100'}">
                                 {String.fromCharCode(97 + optIdx)}
                               </span>

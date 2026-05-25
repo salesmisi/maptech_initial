@@ -549,7 +549,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
         ) : (
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0">
+              <div className="h-10 w-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0">
                 <ClipboardList className="h-5 w-5" />
               </div>
               <div>
@@ -613,7 +613,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
               {/* Question header */}
               <div className="bg-slate-50 px-5 py-3 flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3 min-w-0">
-                  <span className="flex-shrink-0 h-6 w-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold mt-0.5">
+                  <span className="flex-shrink-0 h-6 w-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold mt-0.5">
                     {idx + 1}
                   </span>
                   <p className="text-sm font-medium text-slate-900 leading-relaxed">{q.question_text}</p>

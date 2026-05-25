@@ -28,8 +28,9 @@ import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../compone
 import UnlockModuleModal from '../../components/UnlockModuleModal';
 import ConfirmModal from '../../components/ConfirmModal';
 import { safeArray } from '../../utils/safe';
-import PDFViewer from '../../components/PDFViewer';
-import PresentationViewer from '../../components/PresentationViewer';
+import { lazy, Suspense } from 'react';
+const PDFViewer = lazy(() => import('../../components/PDFViewer'));
+const PresentationViewer = lazy(() => import('../../components/PresentationViewer'));
 
 const API_BASE = '/api';
 
@@ -150,22 +151,22 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz }: 
   };
 
   return (
-    <div className="mt-3 p-4 bg-indigo-50 border border-indigo-200 rounded-lg space-y-3">
-      <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">Attach Quiz to this Module</p>
+    <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+      <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Attach Quiz to this Module</p>
       {err && <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{err}</p>}
       <input
         type="text"
         placeholder="Quiz title (e.g. Module 1 Assessment)"
         value={title}
         onChange={e => setTitle(e.target.value)}
-        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
       />
       <textarea
         rows={2}
         placeholder="Description (optional)"
         value={desc}
         onChange={e => setDesc(e.target.value)}
-        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
       />
       <div className="flex items-center gap-3">
         <label className="text-xs font-medium text-slate-600 whitespace-nowrap">Pass Percentage</label>
@@ -174,7 +175,7 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz }: 
           min={1} max={100}
           value={passPercent}
           onChange={e => setPassPercent(Number(e.target.value))}
-          className="w-20 border border-slate-300 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-indigo-500"
+          className="w-20 border border-slate-300 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-blue-500"
         />
         <span className="text-xs text-slate-500">% to unlock next module</span>
       </div>
@@ -990,7 +991,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                       {quizzesLoading ? (
                         <Loader2 className="h-4 w-4 animate-spin text-slate-400 flex-shrink-0" />
                       ) : quiz ? (
-                        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium flex-shrink-0">
+                        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-medium flex-shrink-0">
                           <HelpCircle className="h-3.5 w-3.5" />
                           Quiz
                         </span>
@@ -1109,21 +1110,25 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                                         )}
                                         {lesson.content_url && lesson.file_type === 'pdf' && (
                                           <div className="px-4 pb-3 pt-1 border-t border-slate-200">
-                                            <PDFViewer
-                                              url={lesson.content_url}
-                                              title={lesson.title}
-                                              lessonId={lesson.id}
-                                              moduleId={mod.id}
-                                              showConvertButton={false}
-                                            />
+                                            <Suspense fallback={<div className="p-3">Loading document...</div>}>
+                                              <PDFViewer
+                                                url={lesson.content_url}
+                                                title={lesson.title}
+                                                lessonId={lesson.id}
+                                                moduleId={mod.id}
+                                                showConvertButton={false}
+                                              />
+                                            </Suspense>
                                           </div>
                                         )}
                                         {lesson.content_url && lesson.file_type === 'presentation' && (
                                           <div className="px-4 pb-3 pt-1 border-t border-slate-200">
-                                            <PresentationViewer
-                                              url={lesson.content_url}
-                                              title={lesson.title}
-                                            />
+                                            <Suspense fallback={<div className="p-3">Loading presentation...</div>}>
+                                              <PresentationViewer
+                                                url={lesson.content_url}
+                                                title={lesson.title}
+                                              />
+                                            </Suspense>
                                           </div>
                                         )}
                                       </>
@@ -1216,11 +1221,11 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                         <div className="border-t border-slate-100 px-5 py-3">
                           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Quiz</p>
                           {quiz ? (
-                            <div className="bg-indigo-50 rounded-lg p-3">
+                            <div className="bg-blue-50 rounded-lg p-3">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-start gap-3">
-                                  <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                                    <HelpCircle className="h-4 w-4 text-indigo-600" />
+                                  <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                    <HelpCircle className="h-4 w-4 text-blue-600" />
                                   </div>
                                   <div>
                                     <p className="text-sm font-semibold text-slate-900">{quiz.title}</p>
