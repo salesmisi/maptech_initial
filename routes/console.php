@@ -2,6 +2,7 @@
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 use App\Models\Certificate;
 use App\Models\Enrollment;
 
@@ -77,3 +78,5 @@ Artisan::command('certificates:backfill-logo-path {--dry-run : Preview changes w
     $this->line("Skipped (no resolved logo): {$skippedNoLogo}");
     $this->line("Errors: {$errors}");
 })->purpose('Backfill certificate logo_path from completion-aware module/lesson logo mappings');
+
+Schedule::command('audit-logs:apply-retention')->dailyAt('01:00');

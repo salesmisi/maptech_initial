@@ -291,7 +291,9 @@ export default function PresentationViewer({ url, title, fileName, className = '
             <Download className="w-4 h-4" />
           </button>
         </div>
-        <PDFViewer url={pdfUrl} title={displayName} fileName={displayName.replace(/\.pptx?$/i, '.pdf')} showConvertButton={false} />
+        <Suspense fallback={<div className="p-6">Loading presentation...</div>}>
+          <PDFViewer url={pdfUrl} title={displayName} fileName={displayName.replace(/\.pptx?$/i, '.pdf')} showConvertButton={false} />
+        </Suspense>
       </div>
     );
   }

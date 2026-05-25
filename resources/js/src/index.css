@@ -258,6 +258,40 @@
 
 .ui-fade-drop-grid > .ui-fade-drop-item:nth-child(1) { animation-delay: 40ms; }
 .ui-fade-drop-grid > .ui-fade-drop-item:nth-child(2) { animation-delay: 130ms; }
+
+@layer components {
+	.ui-accent-view {
+		@apply bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-700;
+	}
+
+	.ui-accent-create {
+		@apply bg-green-600 hover:bg-green-700 text-white dark:bg-green-600 dark:hover:bg-green-700;
+	}
+
+	.ui-accent-delete {
+		@apply bg-red-600 hover:bg-red-700 text-white dark:bg-red-600 dark:hover:bg-red-700;
+	}
+
+	.ui-accent-special {
+		@apply bg-purple-600 hover:bg-purple-700 text-white dark:bg-purple-600 dark:hover:bg-purple-700;
+	}
+
+	.ui-focus-view {
+		@apply focus:ring-blue-500 dark:focus:ring-blue-400;
+	}
+
+	.ui-focus-create {
+		@apply focus:ring-green-500 dark:focus:ring-green-400;
+	}
+
+	.ui-focus-delete {
+		@apply focus:ring-red-500 dark:focus:ring-red-400;
+	}
+
+	.ui-focus-special {
+		@apply focus:ring-purple-500 dark:focus:ring-purple-400;
+	}
+}
 .ui-fade-drop-grid > .ui-fade-drop-item:nth-child(3) { animation-delay: 220ms; }
 .ui-fade-drop-grid > .ui-fade-drop-item:nth-child(4) { animation-delay: 310ms; }
 .ui-fade-drop-grid > .ui-fade-drop-item:nth-child(5) { animation-delay: 400ms; }

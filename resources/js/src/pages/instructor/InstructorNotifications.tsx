@@ -896,8 +896,8 @@ export function InstructorNotifications() {
                   ref={el => { notifRowRefs.current[notification.id] = el; }}
                   onClick={() => setSelectedNotification(notification)}
                   className={`p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
-                    !notification.read_at ? 'bg-emerald-50 dark:bg-emerald-950/35' : 'bg-white dark:bg-slate-900'
-                  }${notification.id === highlightedNotificationId ? ' ring-2 ring-inset ring-emerald-400 dark:ring-emerald-500' : ''}`}
+                    !notification.read_at ? 'bg-green-50 dark:bg-green-950/35' : 'bg-white dark:bg-slate-900'
+                  }${notification.id === highlightedNotificationId ? ' ring-2 ring-inset ring-green-400 dark:ring-green-500' : ''}`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3">
@@ -922,7 +922,7 @@ export function InstructorNotifications() {
                             </span>
                           )}
                           {!notification.read_at && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/60 text-green-800 dark:text-green-200">
                               New
                             </span>
                           )}
@@ -954,7 +954,7 @@ export function InstructorNotifications() {
                       {!notification.read_at && (
                         <button
                           onClick={() => markAsRead(notification.id)}
-                          className="text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-300"
+                          className="text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-300"
                           title="Mark as read"
                         >
                           <Eye className="h-5 w-5" />
@@ -1012,7 +1012,7 @@ export function InstructorNotifications() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
                         <div className="flex items-center gap-2">
                           <span>{item.title}</span>
-                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${item.announcement_mode === 'one_person' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'}`}>
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${item.announcement_mode === 'one_person' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'}`}>
                             {item.announcement_mode === 'one_person' ? 'One Person' : 'Group'}
                           </span>
                         </div>
@@ -1238,7 +1238,7 @@ export function InstructorNotifications() {
                       className="w-full flex items-center justify-between px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/10 transition-colors text-sm"
                     >
                       <span className="flex items-center gap-2">
-                        {announcementTarget === 'employees' && (<><Users className="h-4 w-4 text-emerald-500" /><span>Employees</span></>)}
+                        {announcementTarget === 'employees' && (<><Users className="h-4 w-4 text-green-500" /><span>Employees</span></>)}
                         {announcementTarget === 'specific_employee' && (<><User className="h-4 w-4 text-orange-500" /><span>Specific Employee</span></>)}
                         {announcementTarget === 'admin' && (<><Shield className="h-4 w-4 text-purple-500" /><span>Admin</span></>)}
                       </span>
@@ -1384,7 +1384,7 @@ export function InstructorNotifications() {
                 <div className="space-y-2">
                   {[
                     { value: 'admin', label: 'Admin', icon: <Shield className="h-4 w-4 text-purple-500" /> },
-                    { value: 'employees', label: 'Employees', icon: <Users className="h-4 w-4 text-emerald-500" /> },
+                    { value: 'employees', label: 'Employees', icon: <Users className="h-4 w-4 text-green-500" /> },
                     { value: 'specific_employee', label: 'Specific Employee', icon: <User className="h-4 w-4 text-orange-500" /> },
                   ].map(({ value, label, icon }) => (
                     <button
@@ -1486,7 +1486,7 @@ export function InstructorNotifications() {
                       {selectedNotification.title}
                     </h2>
                     {!selectedNotification.read_at && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 mt-2">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 mt-2">
                         New
                       </span>
                     )}
@@ -1579,7 +1579,7 @@ export function InstructorNotifications() {
                           markAsRead(selectedNotification.id);
                           setSelectedNotification({ ...selectedNotification, read_at: new Date().toISOString() });
                         }}
-                        className="inline-flex items-center px-4 py-2 border border-emerald-300 dark:border-emerald-700 rounded-md shadow-sm text-sm font-medium text-emerald-700 dark:text-emerald-200 bg-white dark:bg-slate-700 hover:bg-emerald-50 dark:hover:bg-slate-600"
+                        className="inline-flex items-center px-4 py-2 border border-green-300 dark:border-green-700 rounded-md shadow-sm text-sm font-medium text-green-700 dark:text-green-200 bg-white dark:bg-slate-700 hover:bg-green-50 dark:hover:bg-slate-600"
                       >
                         <CheckCircle className="h-4 w-4 mr-2" />
                         Mark as Read

@@ -905,7 +905,7 @@ export function AdminDashboard({ onNavigate }: Props) {
           <div className="p-4 border-t border-slate-100 dark:border-slate-700 text-center">
             <button
               onClick={openAllActivity}
-              className="text-sm text-green-600 dark:text-emerald-300 font-medium hover:text-green-700 dark:hover:text-emerald-200">
+              className="text-sm text-green-600 dark:text-green-300 font-medium hover:text-green-700 dark:hover:text-green-200">
               View All Activity
             </button>
           </div>
@@ -919,9 +919,9 @@ export function AdminDashboard({ onNavigate }: Props) {
           <div className="space-y-3">
             <button
               onClick={() => onNavigate?.('courses')}
-              className="w-full flex items-center p-3 text-left rounded-lg border border-slate-200 hover:border-green-500 hover:bg-green-50 dark:border-slate-700/70 dark:bg-slate-900/45 dark:hover:border-emerald-500/55 dark:hover:bg-emerald-500/10 transition-all group">
-              <div className="p-2 bg-green-100 rounded-md group-hover:bg-green-200 dark:bg-emerald-500/20 dark:group-hover:bg-emerald-500/30">
-                <BookOpen className="h-5 w-5 text-green-700 dark:text-emerald-300" />
+              className="w-full flex items-center p-3 text-left rounded-lg border border-slate-200 hover:border-green-500 hover:bg-green-50 dark:border-slate-700/70 dark:bg-slate-900/45 dark:hover:border-green-500/55 dark:hover:bg-green-500/10 transition-all group">
+              <div className="p-2 bg-green-100 rounded-md group-hover:bg-green-200 dark:bg-green-500/20 dark:group-hover:bg-green-500/30">
+                <BookOpen className="h-5 w-5 text-green-700 dark:text-green-300" />
               </div>
               <div className="ml-3">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
@@ -1142,8 +1142,8 @@ export function AdminDashboard({ onNavigate }: Props) {
                             : isDarkMode
                               ? 'hover:bg-slate-800/65'
                               : index % 2 === 0
-                                ? 'bg-white hover:bg-emerald-50/35'
-                                : 'bg-slate-50/45 hover:bg-emerald-50/45'
+                                ? 'bg-white hover:bg-green-50/35'
+                                : 'bg-slate-50/45 hover:bg-green-50/45'
                         }`}
                       >
                         <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>{item.user}</td>
