@@ -568,11 +568,6 @@ Q&A (Instructor)
 Purpose: respond to student questions on lessons, manage replies and reactions.
 Controller: App\Http\Controllers\QAController (instructor methods).
 Endpoints: GET /api/instructor/lessons, GET /api/instructor/questions, POST /api/instructor/questions/{id}/replies, DELETE /api/instructor/questions/{questionId}/replies/{replyId}, POST /api/instructor/questions/{questionId}/replies/{replyId}/reactions.
-YouTube Management (scaffolded)
-Purpose: manage uploading and metadata for YouTube-hosted lesson videos.
-Controller: App\Http\Controllers\YouTubeController under /api/instructor/youtube.
-Endpoints: auth-check, list, get, update, updateVideoTags, upload, delete.
-Notes: This integration requires valid Google API credentials and is partially scaffolded — test thoroughly before production use.
 Notifications (Instructor)
 Purpose: send notifications to employees (students) or admins and manage instructor-sent notifications.
 Controller: App\Http\Controllers\NotificationController (instructor routes).

@@ -199,14 +199,6 @@ The platform also includes real-time notifications, content synchronization, aud
 - The Gantt chart is a proposed delivery plan for documentation and stabilization work, not a historical project log.
 - The data dictionary summarizes the major fields used by the application and intentionally groups smaller pivot tables with their parent domain.
 
-## 13. Related Files
-
-- [System documentation](SYSTEM_DOCUMENTATION.md)
-- [Content sync design](../CONTENT_SYNC_SYSTEM.md)
-- [Custom UI components guide](../CUSTOM_UI_COMPONENTS.md)
-- [Codebase exploration report](../CODEBASE_EXPLORATION_REPORT.md)
-
-
 ---
 
 # Part 2 - System Documentation
@@ -216,7 +208,6 @@ Source file: Documentation\SYSTEM_DOCUMENTATION.md
 # Maptech LMS — System Documentation
 
 > Version: 1.0  ·  Last updated: 2026-05-04
-> Companion docs: [README.md](../README.md) · [BROADCAST_SETUP.md](../BROADCAST_SETUP.md) · [CONTENT_SYNC_SYSTEM.md](../CONTENT_SYNC_SYSTEM.md) · [CUSTOM_UI_COMPONENTS.md](../CUSTOM_UI_COMPONENTS.md) · [CODEBASE_EXPLORATION_REPORT.md](../CODEBASE_EXPLORATION_REPORT.md) · [USER_MANUAL.md](../user%20manual/USER_MANUAL.md)
 
 ---
 
@@ -299,7 +290,6 @@ Source file: Documentation\SYSTEM_DOCUMENTATION.md
 **Optional / integration services**
 - **Pusher** account or self-hosted **Laravel WebSockets** server
 - **SMTP** server (for password-reset OTP and notifications)
-- **Google Cloud project** with YouTube Data API v3 enabled (for video uploads)
 - **Redis** (recommended for cache / queue / broadcasting in production)
 
 **Client browsers**
@@ -312,7 +302,7 @@ Source file: Documentation\SYSTEM_DOCUMENTATION.md
 ![Architecture Overview](../images/architecture-overview.png)
 
 **Tech stack**
-- Backend: Laravel **^12.0**, Sanctum **^4.0**, Pusher PHP server **^7.2**, Google API client **^2.19**
+- Backend: Laravel **^12.0**, Sanctum **^4.0**, Pusher PHP server **^7.2**
 - Frontend: React **^19.2**, React Router **^7.13**, TypeScript **^5.9**, Vite **^7.0**, Tailwind **^3.4**, Laravel Echo **^1.11**, pusher-js **^8**, Recharts **^3.7**, pdfjs-dist **^5.6**, pptxgenjs **^4**
 - Dev tooling: Pint (formatting), Pail (log viewer), PHPUnit **^11.5**, Faker
 
@@ -421,7 +411,7 @@ For broadcasting setup details, see [BROADCAST_SETUP.md](../BROADCAST_SETUP.md).
 | [config/mail.php](../config/mail.php) | Mailers, from address |
 | [config/queue.php](../config/queue.php) | Queue connections (sync, database, redis) |
 | [config/sanctum.php](../config/sanctum.php) | Stateful domains, token expiration |
-| [config/services.php](../config/services.php) | Pusher, Google/YouTube credentials |
+| [config/services.php](../config/services.php) | Third-party service credentials |
 | [config/session.php](../config/session.php) | Session driver, lifetime, domain |
 
 **Key environment variables**
@@ -433,7 +423,6 @@ For broadcasting setup details, see [BROADCAST_SETUP.md](../BROADCAST_SETUP.md).
 | `SANCTUM_STATEFUL_DOMAINS` | – | Required for SPA cookie auth |
 | `QUEUE_CONNECTION` | `database` | Use `redis` in production |
 | `FILESYSTEM_DISK` | `local` | Use `public` for user-visible uploads |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | – | YouTube OAuth |
 
 ---
 
@@ -566,7 +555,7 @@ Located in [app/Models](../app/Models). Each model uses Eloquent with timestamps
 ## 9. Database
 
 - **86 migrations** in [database/migrations](../database/migrations) — see directory listing for full chronology.
-- **Seeders** in [database/seeders](../database/seeders): `DatabaseSeeder`, `CourseEnrollmentSeeder`, `TimeLogSeeder`, `YouTubeLessonSeeder`.
+- **Seeders** in [database/seeders](../database/seeders): `DatabaseSeeder`, `CourseEnrollmentSeeder`, `TimeLogSeeder`.
 - **Factories**: `UserFactory`.
 
 ### 9.1 Notable migration milestones
@@ -671,10 +660,6 @@ All API endpoints live in [routes/api.php](../routes/api.php). Authenticated end
 | GET | `/api/time-logs/me` | My time logs (session) |
 | POST | `/api/time-logs/punch-in` | Punch in (session) |
 | POST | `/api/time-logs/punch-out` | Punch out (session) |
-| GET | `/youtube` | YouTube OAuth start |
-| GET | `/youtube/callback` | OAuth callback |
-| POST | `/youtube/logout` | Disconnect YouTube |
-| POST | `/youtube/upload` | Upload video (auth) |
 
 **Console routes**: `routes/console.php` (custom artisan commands).
 
@@ -695,11 +680,11 @@ src/
     instructor/
     employee/
     auth/       Login, ForgotPassword, VerifyOTP, ResetPassword
-  components/
-    layouts/    AdminLayout, InstructorLayout, EmployeeLayout
-    common/     Modals, ToastProvider, ErrorBoundary, NotificationBell
-    content/    PDFViewer, YouTubePlayer, PresentationViewer, RichTextEditor
-    qna/        LessonQnA, FeedbackList
+    components/
+        layouts/    AdminLayout, InstructorLayout, EmployeeLayout
+        common/     Modals, ToastProvider, ErrorBoundary, NotificationBell
+        content/    PDFViewer, PresentationViewer, RichTextEditor
+        qna/        LessonQnA, FeedbackList
     timelog/    UserTimeLog
     business/   BusinessDetailsForm
   hooks/        useBusinessDetails, useConfirm, usePrompt
@@ -880,12 +865,6 @@ Endpoints (session-authenticated, `routes/web.php`):
 
 - [`FileConversionService`](../app/Services/FileConversionService.php) wraps PDF ↔ PPTX conversions used by lesson uploads
 - Frontend uses `pdfjs-dist` and `pptxgenjs` for previews and client-side conversion (see `PdfToPptxConverter` component)
-
-### 22.3 YouTube integration
-
-- `YouTubeController` handles OAuth, callback, logout, video upload
-- Requires Google OAuth client + YouTube Data API v3
-- Lessons can embed YouTube URLs in `Lesson.video_url`
 
 ---
 
@@ -1647,11 +1626,6 @@ Q&A (Instructor)
 Purpose: respond to student questions on lessons, manage replies and reactions.
 Controller: App\Http\Controllers\QAController (instructor methods).
 Endpoints: GET /api/instructor/lessons, GET /api/instructor/questions, POST /api/instructor/questions/{id}/replies, DELETE /api/instructor/questions/{questionId}/replies/{replyId}, POST /api/instructor/questions/{questionId}/replies/{replyId}/reactions.
-YouTube Management (scaffolded)
-Purpose: manage uploading and metadata for YouTube-hosted lesson videos.
-Controller: App\Http\Controllers\YouTubeController under /api/instructor/youtube.
-Endpoints: auth-check, list, get, update, updateVideoTags, upload, delete.
-Notes: This integration requires valid Google API credentials and is partially scaffolded — test thoroughly before production use.
 Notifications (Instructor)
 Purpose: send notifications to employees (students) or admins and manage instructor-sent notifications.
 Controller: App\Http\Controllers\NotificationController (instructor routes).
