@@ -13,17 +13,17 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             // Rename 'name' to 'fullname' if it exists
-            if (Schema::hasColumn('users', 'name') && !Schema::hasColumn('users', 'fullname')) {
+            if (Schema::hasColumn('users', 'name') && ! Schema::hasColumn('users', 'fullname')) {
                 $table->renameColumn('name', 'fullname');
             }
 
             // Add department (nullable, required for Employee)
-            if (!Schema::hasColumn('users', 'department')) {
+            if (! Schema::hasColumn('users', 'department')) {
                 $table->string('department')->nullable()->after('role');
             }
 
             // Add status (Active | Inactive)
-            if (!Schema::hasColumn('users', 'status')) {
+            if (! Schema::hasColumn('users', 'status')) {
                 $table->enum('status', ['Active', 'Inactive'])->default('Active')->after('department');
             }
         });

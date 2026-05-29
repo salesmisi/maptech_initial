@@ -1,14 +1,12 @@
 <?php
 
+use App\Http\Controllers\LoginController;
+use App\Http\Controllers\YouTubeController;
 use App\Models\CustomLesson;
 use App\Models\Lesson;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Route;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Http\Controllers\LoginController;
-use App\Http\Controllers\ReadOnlyLoginController;
-use App\Http\Controllers\YouTubeController;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
 /*
 |--------------------------------------------------------------------------
@@ -29,8 +27,8 @@ Route::get('/lesson-files/{kind}/{id}', function (string $kind, int $id) {
 
     $contentPath = $lesson->content_path ?? null;
 
-    if (!$contentPath) {
-        if (!empty($lesson->content_full_url) && preg_match('#^https?://#i', $lesson->content_full_url)) {
+    if (! $contentPath) {
+        if (! empty($lesson->content_full_url) && preg_match('#^https?://#i', $lesson->content_full_url)) {
             return redirect()->away($lesson->content_full_url);
         }
 
@@ -41,7 +39,7 @@ Route::get('/lesson-files/{kind}/{id}', function (string $kind, int $id) {
         return redirect()->away($contentPath);
     }
 
-    if (!Storage::disk('public')->exists($contentPath)) {
+    if (! Storage::disk('public')->exists($contentPath)) {
         abort(404);
     }
 
@@ -50,7 +48,7 @@ Route::get('/lesson-files/{kind}/{id}', function (string $kind, int $id) {
 
     return response()->file($absolutePath, [
         'Content-Type' => $mimeType,
-        'Content-Disposition' => 'inline; filename="' . ($lesson->file_name ?? basename($contentPath)) . '"',
+        'Content-Disposition' => 'inline; filename="'.($lesson->file_name ?? basename($contentPath)).'"',
     ]);
 })->where('kind', 'course|custom')->middleware('auth');
 
@@ -61,8 +59,8 @@ Route::get('/media/profile-picture/{path}', function (string $path) {
         abort(404);
     }
 
-    if (!str_starts_with($normalized, 'profile-pictures/')) {
-        $normalized = 'profile-pictures/' . ltrim($normalized, '/');
+    if (! str_starts_with($normalized, 'profile-pictures/')) {
+        $normalized = 'profile-pictures/'.ltrim($normalized, '/');
     }
 
     if (Storage::disk('public')->exists($normalized)) {

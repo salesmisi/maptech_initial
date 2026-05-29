@@ -2,8 +2,8 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -13,6 +13,7 @@ class NotificationCountUpdated implements ShouldBroadcastNow
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public int $userId;
+
     public int $count;
 
     public function __construct(int $userId, int $count)
@@ -23,7 +24,7 @@ class NotificationCountUpdated implements ShouldBroadcastNow
 
     public function broadcastOn()
     {
-        return new PrivateChannel('notifications.' . $this->userId);
+        return new PrivateChannel('notifications.'.$this->userId);
     }
 
     public function broadcastWith()

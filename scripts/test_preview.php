@@ -1,9 +1,10 @@
 <?php
+
 if ($argc < 1) {
     // token will be read from last_token.txt
 }
-$tokenFile = __DIR__ . '/last_token.txt';
-if (!file_exists($tokenFile)) {
+$tokenFile = __DIR__.'/last_token.txt';
+if (! file_exists($tokenFile)) {
     echo "Token file not found. Run scripts/create_token.php first.\n";
     exit(1);
 }
@@ -22,7 +23,7 @@ $opts = [
         'header' => [
             'Accept: application/json',
             'Content-Type: application/x-www-form-urlencoded',
-            'Authorization: Bearer ' . $token,
+            'Authorization: Bearer '.$token,
         ],
         'content' => $data,
         'ignore_errors' => true,
@@ -30,5 +31,7 @@ $opts = [
 ];
 $ctx = stream_context_create($opts);
 $r = @file_get_contents('http://127.0.0.1:8000/api/admin/notifications/announce', false, $ctx);
-if (isset($http_response_header)) echo implode("\n", $http_response_header) . "\n\n";
+if (isset($http_response_header)) {
+    echo implode("\n", $http_response_header)."\n\n";
+}
 echo $r;

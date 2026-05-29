@@ -1,12 +1,13 @@
 <?php
-require __DIR__ . '/../vendor/autoload.php';
-$app = require_once __DIR__ . '/../bootstrap/app.php';
+
+require __DIR__.'/../vendor/autoload.php';
+$app = require_once __DIR__.'/../bootstrap/app.php';
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
 use App\Models\Course;
-use App\Models\User;
 use App\Models\Enrollment;
+use App\Models\User;
 
 $course = Course::first();
 $user = User::first();
@@ -24,4 +25,4 @@ $en = Enrollment::create([
     'enrolled_at' => now(),
 ]);
 
-echo "created: " . $en->id . "\n";
+echo 'created: '.$en->id."\n";

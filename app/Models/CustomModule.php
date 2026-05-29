@@ -67,7 +67,7 @@ class CustomModule extends Model
      */
     public function getThumbnailUrlAttribute(): ?string
     {
-        if (!$this->thumbnail_path) {
+        if (! $this->thumbnail_path) {
             return null;
         }
 
@@ -75,7 +75,7 @@ class CustomModule extends Model
             return $this->thumbnail_path;
         }
 
-        return url('/storage/' . $this->thumbnail_path);
+        return url('/storage/'.$this->thumbnail_path);
     }
 
     /**

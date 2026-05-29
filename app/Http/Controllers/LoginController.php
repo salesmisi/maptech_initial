@@ -30,13 +30,13 @@ class LoginController extends Controller
         $user = User::withTrashed()->where('email', $credentials['email'])->first();
 
         // Check if user exists
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Incorrect Email or Password'], 401);
         }
 
         if ($user->trashed()) {
             return response()->json([
-                'message' => 'Your account is archived. Please contact administrator to restore access.'
+                'message' => 'Your account is archived. Please contact administrator to restore access.',
             ], 403);
         }
 
@@ -48,13 +48,13 @@ class LoginController extends Controller
         }
 
         // Attempt authentication
-        if (!Auth::attempt($credentials)) {
+        if (! Auth::attempt($credentials)) {
             return response()->json(['message' => 'Incorrect Email or Password'], 401);
         }
 
         $request->session()->regenerate();
 
-        $sessionKey = 'web:' . $request->session()->getId();
+        $sessionKey = 'web:'.$request->session()->getId();
 
         // Record a single explicit UTC timestamp for audit + time log.
         // Using UTC avoids DB/session timezone ambiguity across environments.
@@ -120,8 +120,8 @@ class LoginController extends Controller
             'role' => $user->role,
             'department' => $user->department,
             'status' => $user->status,
-            'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
-            'signature_path' => $user->signature_path ? asset('storage/' . $user->signature_path) : null,
+            'profile_picture' => $user->profile_picture ? asset('storage/'.$user->profile_picture) : null,
+            'signature_path' => $user->signature_path ? asset('storage/'.$user->signature_path) : null,
             'time_log' => $timeLog,
         ]);
     }
@@ -141,18 +141,18 @@ class LoginController extends Controller
         $user = User::withTrashed()->where('email', $credentials['email'])->first();
 
         // Check if user exists
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Incorrect Email or Password'], 401);
         }
 
         if ($user->trashed()) {
             return response()->json([
-                'message' => 'Your account is archived. Please contact administrator to restore access.'
+                'message' => 'Your account is archived. Please contact administrator to restore access.',
             ], 403);
         }
 
         // Check password
-        if (!Hash::check($credentials['password'], $user->password)) {
+        if (! Hash::check($credentials['password'], $user->password)) {
             return response()->json(['message' => 'Incorrect Email or Password'], 401);
         }
 
@@ -170,7 +170,7 @@ class LoginController extends Controller
         $abilities = $this->getTokenAbilities($user);
         $newToken = $user->createToken('auth-token', $abilities);
         $token = $newToken->plainTextToken;
-        $sessionKey = 'token:' . $newToken->accessToken->id;
+        $sessionKey = 'token:'.$newToken->accessToken->id;
 
         // Record single explicit UTC timestamp for API login audit + time log.
         $ts = Carbon::now('UTC')->toIso8601String();
@@ -234,8 +234,8 @@ class LoginController extends Controller
                 'role' => $user->role,
                 'department' => $user->department,
                 'status' => $user->status,
-                'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
-                'signature_path' => $user->signature_path ? asset('storage/' . $user->signature_path) : null,
+                'profile_picture' => $user->profile_picture ? asset('storage/'.$user->profile_picture) : null,
+                'signature_path' => $user->signature_path ? asset('storage/'.$user->signature_path) : null,
             ],
             'time_log' => $timeLog,
         ]);
@@ -251,8 +251,8 @@ class LoginController extends Controller
         if ($user) {
             $ts = Carbon::now('UTC')->toIso8601String();
             $sessionKey = $user->currentAccessToken()
-                ? 'token:' . $user->currentAccessToken()->id
-                : 'web:' . $request->session()->getId();
+                ? 'token:'.$user->currentAccessToken()->id
+                : 'web:'.$request->session()->getId();
             $savedLoginAuditId = (int) $request->session()->get('current_login_audit_id', 0);
             // Debug: Log user role
             Log::info('LOGOUT: User role check', ['id' => $user->id, 'role' => $user->role, 'isEmployee' => $user->isEmployee(), 'isInstructor' => $user->isInstructor(), 'isAdmin' => $user->isAdmin()]);
@@ -379,8 +379,8 @@ class LoginController extends Controller
             'role' => $user->role,
             'department' => $user->department,
             'status' => $user->status,
-            'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
-            'signature_path' => $user->signature_path ? asset('storage/' . $user->signature_path) : null,
+            'profile_picture' => $user->profile_picture ? asset('storage/'.$user->profile_picture) : null,
+            'signature_path' => $user->signature_path ? asset('storage/'.$user->signature_path) : null,
         ]);
     }
 
@@ -398,5 +398,4 @@ class LoginController extends Controller
             default => ['read'],
         };
     }
-
 }

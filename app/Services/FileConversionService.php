@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class FileConversionService
@@ -26,7 +26,7 @@ class FileConversionService
         $this->tempDir = storage_path('app/conversions');
 
         // Ensure temp directory exists
-        if (!is_dir($this->tempDir)) {
+        if (! is_dir($this->tempDir)) {
             mkdir($this->tempDir, 0755, true);
         }
     }
@@ -109,20 +109,20 @@ class FileConversionService
     /**
      * Convert PDF to PPTX.
      *
-     * @param string $inputPath Full path to the input PDF file
-     * @param string|null $outputPath Optional output path (defaults to same directory with .pptx extension)
+     * @param  string  $inputPath  Full path to the input PDF file
+     * @param  string|null  $outputPath  Optional output path (defaults to same directory with .pptx extension)
      * @return array{success: bool, output_path?: string, error?: string}
      */
     public function pdfToPptx(string $inputPath, ?string $outputPath = null): array
     {
-        if (!file_exists($inputPath)) {
+        if (! file_exists($inputPath)) {
             return [
                 'success' => false,
                 'error' => 'Input file does not exist.',
             ];
         }
 
-        if (!$this->isLibreOfficeAvailable()) {
+        if (! $this->isLibreOfficeAvailable()) {
             return [
                 'success' => false,
                 'error' => 'LibreOffice is not installed or not accessible. Please install LibreOffice to enable PDF to PPTX conversion.',
@@ -131,9 +131,9 @@ class FileConversionService
 
         // Generate unique temp directory for this conversion
         $tempId = Str::uuid();
-        $workDir = $this->tempDir . DIRECTORY_SEPARATOR . $tempId;
+        $workDir = $this->tempDir.DIRECTORY_SEPARATOR.$tempId;
 
-        if (!mkdir($workDir, 0755, true)) {
+        if (! mkdir($workDir, 0755, true)) {
             return [
                 'success' => false,
                 'error' => 'Failed to create temporary directory.',
@@ -143,7 +143,7 @@ class FileConversionService
         try {
             // Copy input file to temp directory
             $inputBasename = basename($inputPath);
-            $tempInputPath = $workDir . DIRECTORY_SEPARATOR . $inputBasename;
+            $tempInputPath = $workDir.DIRECTORY_SEPARATOR.$inputBasename;
             copy($inputPath, $tempInputPath);
 
             // Build LibreOffice command
@@ -171,27 +171,27 @@ class FileConversionService
             ]);
 
             // Find the output file
-            $expectedOutputName = pathinfo($inputBasename, PATHINFO_FILENAME) . '.pptx';
-            $tempOutputPath = $workDir . DIRECTORY_SEPARATOR . $expectedOutputName;
+            $expectedOutputName = pathinfo($inputBasename, PATHINFO_FILENAME).'.pptx';
+            $tempOutputPath = $workDir.DIRECTORY_SEPARATOR.$expectedOutputName;
 
-            if (!file_exists($tempOutputPath)) {
+            if (! file_exists($tempOutputPath)) {
                 // Clean up
                 $this->cleanupDirectory($workDir);
 
                 return [
                     'success' => false,
-                    'error' => 'Conversion failed. LibreOffice did not produce output file. Output: ' . implode("\n", $output),
+                    'error' => 'Conversion failed. LibreOffice did not produce output file. Output: '.implode("\n", $output),
                 ];
             }
 
             // Determine final output path
-            if (!$outputPath) {
-                $outputPath = pathinfo($inputPath, PATHINFO_DIRNAME) . DIRECTORY_SEPARATOR .
-                              pathinfo($inputPath, PATHINFO_FILENAME) . '.pptx';
+            if (! $outputPath) {
+                $outputPath = pathinfo($inputPath, PATHINFO_DIRNAME).DIRECTORY_SEPARATOR.
+                              pathinfo($inputPath, PATHINFO_FILENAME).'.pptx';
             }
 
             // Move output file to final destination
-            if (!copy($tempOutputPath, $outputPath)) {
+            if (! copy($tempOutputPath, $outputPath)) {
                 $this->cleanupDirectory($workDir);
 
                 return [
@@ -220,7 +220,7 @@ class FileConversionService
 
             return [
                 'success' => false,
-                'error' => 'Conversion failed: ' . $e->getMessage(),
+                'error' => 'Conversion failed: '.$e->getMessage(),
             ];
         }
     }
@@ -228,22 +228,22 @@ class FileConversionService
     /**
      * Convert a stored file (in storage/app).
      *
-     * @param string $storagePath Path relative to storage/app
+     * @param  string  $storagePath  Path relative to storage/app
      * @return array{success: bool, output_path?: string, storage_path?: string, error?: string}
      */
     public function convertStoredPdfToPptx(string $storagePath): array
     {
-        $fullPath = storage_path('app/' . $storagePath);
+        $fullPath = storage_path('app/'.$storagePath);
 
-        if (!file_exists($fullPath)) {
+        if (! file_exists($fullPath)) {
             return [
                 'success' => false,
                 'error' => 'Stored file not found.',
             ];
         }
 
-        $outputPath = pathinfo($fullPath, PATHINFO_DIRNAME) . DIRECTORY_SEPARATOR .
-                      pathinfo($fullPath, PATHINFO_FILENAME) . '.pptx';
+        $outputPath = pathinfo($fullPath, PATHINFO_DIRNAME).DIRECTORY_SEPARATOR.
+                      pathinfo($fullPath, PATHINFO_FILENAME).'.pptx';
 
         $result = $this->pdfToPptx($fullPath, $outputPath);
 
@@ -264,14 +264,14 @@ class FileConversionService
      */
     protected function cleanupDirectory(string $dir): void
     {
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             return;
         }
 
         $files = array_diff(scandir($dir), ['.', '..']);
 
         foreach ($files as $file) {
-            $path = $dir . DIRECTORY_SEPARATOR . $file;
+            $path = $dir.DIRECTORY_SEPARATOR.$file;
             if (is_dir($path)) {
                 $this->cleanupDirectory($path);
             } else {
@@ -285,20 +285,20 @@ class FileConversionService
     /**
      * Convert PPTX to PDF.
      *
-     * @param string $inputPath Full path to the input PPTX file
-     * @param string|null $outputPath Optional output path (defaults to same directory with .pdf extension)
+     * @param  string  $inputPath  Full path to the input PPTX file
+     * @param  string|null  $outputPath  Optional output path (defaults to same directory with .pdf extension)
      * @return array{success: bool, output_path?: string, error?: string}
      */
     public function pptxToPdf(string $inputPath, ?string $outputPath = null): array
     {
-        if (!file_exists($inputPath)) {
+        if (! file_exists($inputPath)) {
             return [
                 'success' => false,
                 'error' => 'Input file does not exist.',
             ];
         }
 
-        if (!$this->isLibreOfficeAvailable()) {
+        if (! $this->isLibreOfficeAvailable()) {
             return [
                 'success' => false,
                 'error' => 'LibreOffice is not installed or not accessible.',
@@ -307,9 +307,9 @@ class FileConversionService
 
         // Generate unique temp directory for this conversion
         $tempId = Str::uuid();
-        $workDir = $this->tempDir . DIRECTORY_SEPARATOR . $tempId;
+        $workDir = $this->tempDir.DIRECTORY_SEPARATOR.$tempId;
 
-        if (!mkdir($workDir, 0755, true)) {
+        if (! mkdir($workDir, 0755, true)) {
             return [
                 'success' => false,
                 'error' => 'Failed to create temporary directory.',
@@ -319,7 +319,7 @@ class FileConversionService
         try {
             // Copy input file to temp directory
             $inputBasename = basename($inputPath);
-            $tempInputPath = $workDir . DIRECTORY_SEPARATOR . $inputBasename;
+            $tempInputPath = $workDir.DIRECTORY_SEPARATOR.$inputBasename;
             copy($inputPath, $tempInputPath);
 
             // Build LibreOffice command for PDF conversion
@@ -345,15 +345,15 @@ class FileConversionService
             ]);
 
             // Find the output file
-            $expectedOutputName = pathinfo($inputBasename, PATHINFO_FILENAME) . '.pdf';
-            $tempOutputPath = $workDir . DIRECTORY_SEPARATOR . $expectedOutputName;
+            $expectedOutputName = pathinfo($inputBasename, PATHINFO_FILENAME).'.pdf';
+            $tempOutputPath = $workDir.DIRECTORY_SEPARATOR.$expectedOutputName;
 
             // Wait a bit for file system to catch up (Windows can be slow)
-            if (PHP_OS_FAMILY === 'Windows' && !file_exists($tempOutputPath)) {
+            if (PHP_OS_FAMILY === 'Windows' && ! file_exists($tempOutputPath)) {
                 usleep(500000); // 0.5 seconds
             }
 
-            if (!file_exists($tempOutputPath)) {
+            if (! file_exists($tempOutputPath)) {
                 $this->cleanupDirectory($workDir);
 
                 Log::error('Conversion failed - no output file', [
@@ -364,18 +364,18 @@ class FileConversionService
 
                 return [
                     'success' => false,
-                    'error' => 'Conversion failed. LibreOffice did not produce output file. Output: ' . $stdout . ' ' . $stderr,
+                    'error' => 'Conversion failed. LibreOffice did not produce output file. Output: '.$stdout.' '.$stderr,
                 ];
             }
 
             // Determine final output path
-            if (!$outputPath) {
-                $outputPath = pathinfo($inputPath, PATHINFO_DIRNAME) . DIRECTORY_SEPARATOR .
-                              pathinfo($inputPath, PATHINFO_FILENAME) . '.pdf';
+            if (! $outputPath) {
+                $outputPath = pathinfo($inputPath, PATHINFO_DIRNAME).DIRECTORY_SEPARATOR.
+                              pathinfo($inputPath, PATHINFO_FILENAME).'.pdf';
             }
 
             // Move output file to final destination
-            if (!copy($tempOutputPath, $outputPath)) {
+            if (! copy($tempOutputPath, $outputPath)) {
                 $this->cleanupDirectory($workDir);
 
                 return [
@@ -402,7 +402,7 @@ class FileConversionService
 
             return [
                 'success' => false,
-                'error' => 'Conversion failed: ' . $e->getMessage(),
+                'error' => 'Conversion failed: '.$e->getMessage(),
             ];
         }
     }

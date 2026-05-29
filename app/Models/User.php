@@ -3,12 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use Laravel\Sanctum\HasApiTokens;
 
 /**
  * @property int $id
@@ -23,7 +23,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasApiTokens, SoftDeletes;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -69,6 +69,7 @@ class User extends Authenticatable
         for ($i = 0; $i < 16; $i++) {
             $key .= $chars[random_int(0, strlen($chars) - 1)];
         }
+
         // Format as XXXX-XXXX-XXXX-XXXX for readability
         return implode('-', str_split($key, 4));
     }
@@ -87,9 +88,10 @@ class User extends Authenticatable
      */
     public function verifyRecoveryKey(string $plainKey): bool
     {
-        if (!$this->recovery_key_hash) {
+        if (! $this->recovery_key_hash) {
             return false;
         }
+
         return hash_equals($this->recovery_key_hash, hash('sha256', $plainKey));
     }
 
@@ -126,7 +128,7 @@ class User extends Authenticatable
      */
     public function getProfilePictureAttribute($value): ?string
     {
-        if (!is_string($value) || trim($value) === '') {
+        if (! is_string($value) || trim($value) === '') {
             return null;
         }
 
@@ -219,7 +221,7 @@ class User extends Authenticatable
      */
     public function availableCourses()
     {
-        if (!$this->department) {
+        if (! $this->department) {
             return Course::query()->whereRaw('1 = 0'); // Return empty
         }
 
