@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import JSZip from 'jszip';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { init as initPptxPreview } from 'pptx-preview';
 import PDFViewer from './PDFViewer';
 import {
   Presentation,
@@ -52,6 +52,7 @@ export default function PresentationViewer({ url, title, fileName, className = '
   // PDF conversion (server-side via LibreOffice)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [conversionStatus, setConversionStatus] = useState<'idle' | 'converting' | 'done' | 'failed'>('idle');
+  const [isLibreOfficeAvailable, setIsLibreOfficeAvailable] = useState<boolean | null>(null);
 
   // Fallback client-side slide images
   const [slides, setSlides] = useState<SlideData[]>([]);
@@ -70,8 +71,14 @@ export default function PresentationViewer({ url, title, fileName, className = '
   const [showControls, setShowControls] = useState(true);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [slideDirection, setSlideDirection] = useState<'next' | 'prev' | null>(null);
+  const [previewDimensions, setPreviewDimensions] = useState({ width: 1280, height: 720 });
+  const [presentationRatio, setPresentationRatio] = useState(16 / 9);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const previewShellRef = useRef<HTMLDivElement>(null);
+  const pptxPreviewRef = useRef<HTMLDivElement>(null);
+  const pptxPreviewerRef = useRef<any>(null);
+  const pptxBufferRef = useRef<ArrayBuffer | null>(null);
   const slideRef = useRef<HTMLDivElement>(null);
   const autoPlayRef = useRef<NodeJS.Timeout | null>(null);
   const controlsTimeoutRef = useRef<number | null>(null);
@@ -89,6 +96,40 @@ export default function PresentationViewer({ url, title, fileName, className = '
     window.addEventListener('mousemove', handler);
     return () => { window.removeEventListener('mousemove', handler); if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current); };
   }, [isPresentationMode, showThumbnails, showKeyboardHelp]);
+
+  useEffect(() => {
+    const shell = previewShellRef.current;
+    if (!shell) return;
+
+    const updateSize = () => {
+      const rect = shell.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const ratio = presentationRatio || (16 / 9);
+      let width = rect.width;
+      let height = width / ratio;
+
+      if (height > rect.height) {
+        height = rect.height;
+        width = height * ratio;
+      }
+
+      setPreviewDimensions({
+        width: Math.max(640, Math.floor(width)),
+        height: Math.max(480, Math.floor(height)),
+      });
+    };
+
+    updateSize();
+
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(shell);
+
+    window.addEventListener('resize', updateSize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateSize);
+    };
+  }, [isPresentationMode, presentationRatio]);
 
   // SERVER: Convert PPTX → PDF via LibreOffice
   const convertToPdf = useCallback(async (): Promise<boolean> => {
@@ -115,108 +156,109 @@ export default function PresentationViewer({ url, title, fileName, className = '
     return false;
   }, [url]);
 
-  // CLIENT fallback: extract best full-slide image per slide from PPTX zip
+  const renderPptxIntoHost = useCallback(async (host: HTMLDivElement, arrayBuffer: ArrayBuffer, width: number, height: number) => {
+    if (pptxPreviewerRef.current?.destroy) {
+      pptxPreviewerRef.current.destroy();
+    }
+
+    host.innerHTML = '';
+
+    const previewer = initPptxPreview(host, {
+      width,
+      height,
+      mode: 'slide',
+    });
+
+    pptxPreviewerRef.current = previewer;
+    await previewer.preview(arrayBuffer);
+
+    const pptWidth = previewer.pptx?.width;
+    const pptHeight = previewer.pptx?.height;
+    if (pptWidth && pptHeight) {
+      setPresentationRatio(pptWidth / pptHeight);
+    }
+
+    setSlides(Array.from({ length: previewer.slideCount }, (_, index) => ({
+      slideNumber: index + 1,
+      imageUrl: null,
+    })));
+    setCurrentSlide(0);
+  }, []);
+
+  // CLIENT fallback: render PPTX directly in the browser
   const parsePptxClientSide = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
+
+      let previewHost = pptxPreviewRef.current;
+      if (!previewHost) {
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        previewHost = pptxPreviewRef.current;
+      }
+      if (!previewHost) throw new Error('Preview container not ready');
+
       const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch file');
-      const zip = await JSZip.loadAsync(await res.arrayBuffer());
 
-      // Load media — collect dimensions by loading images
-      const media = new Map<string, { blob: Blob; size: number; w: number; h: number }>();
-      await Promise.all(
-        Object.entries(zip.files)
-          .filter(([p, f]) => p.startsWith('ppt/media/') && !f.dir && isValidImageFile(p.split('/').pop() || ''))
-          .map(([path, file]) => file.async('blob').then(blob => new Promise<void>(resolve => {
-            const img = new Image();
-            const objUrl = URL.createObjectURL(blob);
-            img.onload = () => {
-              const entry = { blob, size: blob.size, w: img.naturalWidth, h: img.naturalHeight };
-              URL.revokeObjectURL(objUrl);
-              media.set(path, entry);
-              media.set(path.split('/').pop()!, entry);
-              media.set('../media/' + path.split('/').pop()!, entry);
-              resolve();
-            };
-            img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(); };
-            img.src = objUrl;
-          })))
-      );
-
-      // Find slides
-      const slideFiles = Object.keys(zip.files)
-        .map(p => { const m = p.match(/ppt\/slides\/slide(\d+)\.xml$/); return m ? { num: +m[1], path: p } : null; })
-        .filter(Boolean) as { num: number; path: string }[];
-      slideFiles.sort((a, b) => a.num - b.num);
-      if (!slideFiles.length) throw new Error('No slides found');
-
-      const parsed: SlideData[] = [];
-      for (const { num, path } of slideFiles) {
-        const xml = await zip.files[path].async('string');
-
-        // Build rel map
-        const rIdMap = new Map<string, string>();
-        const relFile = zip.files[`ppt/slides/_rels/slide${num}.xml.rels`];
-        if (relFile) {
-          const relXml = await relFile.async('string');
-          for (const m of relXml.matchAll(/Id="(rId\d+)"[^>]*Target="([^"]+)"/g)) {
-            rIdMap.set(m[1], m[2].startsWith('../') ? 'ppt/' + m[2].slice(3) : m[2]);
-          }
-        }
-
-        // Collect all images for this slide; score by area, skip tiny/non-slide-ratio images
-        const candidates: { entry: { blob: Blob; size: number; w: number; h: number }; score: number }[] = [];
-        for (const m of xml.matchAll(/r:embed="(rId\d+)"/g)) {
-          const tp = rIdMap.get(m[1]);
-          if (tp?.includes('media/')) {
-            const e = media.get(tp) ?? media.get(tp.split('/').pop()!);
-            if (!e) continue;
-            const area = e.w * e.h;
-            // Skip tiny images (decorative/icon blobs < 50px)
-            if (e.w < 100 || e.h < 100) continue;
-            // Prefer images that are wider-than-tall (slide-like aspect ratio)
-            const aspect = e.w / e.h;
-            const aspectScore = (aspect >= 1.2 && aspect <= 2.0) ? 2 : 1;
-            candidates.push({ entry: e, score: area * aspectScore });
-          }
-        }
-        candidates.sort((a, b) => b.score - a.score);
-        const best = candidates[0]?.entry ?? null;
-
-        parsed.push({ slideNumber: num, imageUrl: best ? URL.createObjectURL(best.blob) : null });
-      }
-
-      setSlides(parsed);
-      setCurrentSlide(0);
+      const arrayBuffer = await res.arrayBuffer();
+      pptxBufferRef.current = arrayBuffer;
+      await renderPptxIntoHost(previewHost, arrayBuffer, previewDimensions.width, previewDimensions.height);
       setLoading(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to parse presentation');
+      setError(e instanceof Error ? e.message : 'Failed to render presentation');
       setLoading(false);
     }
-  }, [url]);
+  }, [previewDimensions.height, previewDimensions.width, renderPptxIntoHost, url]);
+
+  useEffect(() => {
+    const host = pptxPreviewRef.current;
+    const arrayBuffer = pptxBufferRef.current;
+    if (!host || !arrayBuffer || loading || error) return;
+
+    void renderPptxIntoHost(host, arrayBuffer, previewDimensions.width, previewDimensions.height);
+  }, [error, loading, previewDimensions.height, previewDimensions.width, renderPptxIntoHost]);
 
   // On mount: try server conversion first, then fall back
   useEffect(() => {
     if (!url) return;
+    let cancelled = false;
+
     (async () => {
-      const ok = await convertToPdf();
-      if (!ok) await parsePptxClientSide();
+      try {
+        const availabilityRes = await fetch('/api/convert/availability', { credentials: 'include' });
+        const availabilityData = await availabilityRes.json();
+        const available = !!availabilityData?.libreoffice_available;
+
+        if (cancelled) return;
+        setIsLibreOfficeAvailable(available);
+
+        if (available) {
+          const ok = await convertToPdf();
+          if (!ok && !cancelled) await parsePptxClientSide();
+        } else {
+          await parsePptxClientSide();
+        }
+      } catch {
+        if (!cancelled) {
+          setIsLibreOfficeAvailable(false);
+          await parsePptxClientSide();
+        }
+      }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [url]); // eslint-disable-line
 
   const nextSlide = useCallback(() => {
-    if (!slides.length) return;
-    setSlideDirection('next');
-    setTimeout(() => { setCurrentSlide(p => (p < slides.length - 1 ? p + 1 : 0)); setSlideDirection(null); }, 150);
-  }, [slides.length]);
+    pptxPreviewerRef.current?.renderNextSlide?.();
+  }, []);
 
   const prevSlide = useCallback(() => {
-    if (!slides.length) return;
-    setSlideDirection('prev');
-    setTimeout(() => { setCurrentSlide(p => (p > 0 ? p - 1 : slides.length - 1)); setSlideDirection(null); }, 150);
-  }, [slides.length]);
+    pptxPreviewerRef.current?.renderPreSlide?.();
+  }, []);
 
   useEffect(() => {
     if (isAutoPlaying && slides.length) { autoPlayRef.current = setInterval(nextSlide, 5000); }
@@ -226,18 +268,15 @@ export default function PresentationViewer({ url, title, fileName, className = '
 
   const startPresentation = () => {
     setIsPresentationMode(true);
-    setCurrentSlide(0);
-    containerRef.current?.requestFullscreen?.().catch(() => {});
   };
   const exitPresentation = () => {
     setIsPresentationMode(false);
     setPointerTool('none');
     setShowThumbnails(false);
-    if (document.fullscreenElement) document.exitFullscreen?.();
   };
 
   useEffect(() => {
-    const h = () => { const fs = !!document.fullscreenElement; setIsFullscreen(fs); if (!fs) { setIsPresentationMode(false); setPointerTool('none'); } };
+    const h = () => { const fs = !!document.fullscreenElement; setIsFullscreen(fs); };
     document.addEventListener('fullscreenchange', h);
     return () => document.removeEventListener('fullscreenchange', h);
   }, []);
@@ -298,106 +337,58 @@ export default function PresentationViewer({ url, title, fileName, className = '
     );
   }
 
-  // ─── PRESENTATION MODE (fullscreen slideshow using client-side images) ───
+  // ─── PRESENTATION MODE ───
   if (isPresentationMode) {
-    const slide = slides[currentSlide];
     return (
-      <div ref={containerRef} className="fixed inset-0 z-50 bg-black flex flex-col" onMouseMove={handleMouseMove} onMouseLeave={() => setShowPointer(false)}>
-
-        {/* Top bar */}
-        <div className={`absolute top-0 inset-x-0 z-20 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/80 to-transparent">
-            <div className="flex items-center gap-3">
-              <Presentation className="w-5 h-5 text-orange-400" />
-              <span className="text-white font-medium">{displayName}</span>
-              <span className="text-white/60 text-sm">Slide {currentSlide + 1} of {slides.length}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setPointerTool(t => t === 'laser' ? 'none' : 'laser')} className={`p-2 rounded-lg transition-all ${pointerTool === 'laser' ? 'bg-red-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`} title="Laser (L)"><MousePointer2 className="w-4 h-4" /></button>
-              <button onClick={() => setPointerTool(t => t === 'spotlight' ? 'none' : 'spotlight')} className={`p-2 rounded-lg transition-all ${pointerTool === 'spotlight' ? 'bg-yellow-400 text-black' : 'bg-white/10 hover:bg-white/20 text-white'}`} title="Spotlight (S)"><Circle className="w-4 h-4" /></button>
-              <button onClick={() => setShowThumbnails(t => !t)} className={`p-2 rounded-lg transition-all ${showThumbnails ? 'bg-blue-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`} title="Grid (G)"><Grid3X3 className="w-4 h-4" /></button>
-              <button onClick={() => setIsAutoPlaying(t => !t)} className={`p-2 rounded-lg transition-all ${isAutoPlaying ? 'bg-orange-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`} title="Auto-play (P)">{isAutoPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}</button>
-              <button onClick={() => setShowKeyboardHelp(t => !t)} className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white" title="Help (?)"><Keyboard className="w-4 h-4" /></button>
-              <button onClick={exitPresentation} className="p-2 rounded-lg bg-red-600 hover:bg-red-700 text-white" title="Exit (Esc)"><X className="w-4 h-4" /></button>
-            </div>
-          </div>
-        </div>
-
-        {/* Slide — fills entire screen like PowerPoint */}
-        <div className="flex-1 relative bg-black" ref={slideRef} onMouseMove={handleMouseMove} onMouseLeave={() => setShowPointer(false)}>
-          {slide?.imageUrl ? (
-            <img
-              src={slide.imageUrl}
-              alt={`Slide ${currentSlide + 1}`}
-              className={`w-full h-full object-contain select-none transition-all duration-150 ${
-                slideDirection === 'next' ? 'opacity-0 scale-[1.02]' : slideDirection === 'prev' ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'
-              }`}
-              draggable={false}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="text-center text-slate-400">
-                <Presentation className="w-24 h-24 mx-auto mb-4 opacity-20" />
-                <p className="text-2xl">Slide {currentSlide + 1}</p>
+      <div ref={containerRef} className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onMouseMove={handleMouseMove} onMouseLeave={() => setShowPointer(false)}>
+        <div className="relative w-full max-w-[1400px] h-[90vh] bg-slate-950 rounded-2xl border border-white/10 shadow-2xl overflow-hidden flex flex-col">
+          <div className={`absolute top-0 inset-x-0 z-20 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/80 to-transparent">
+              <div className="flex items-center gap-3">
+                <Presentation className="w-5 h-5 text-orange-400" />
+                <span className="text-white font-medium">{displayName}</span>
+                <span className="text-white/60 text-sm">Presentation mode</span>
               </div>
-            </div>
-          )}
-
-          {pointerTool === 'laser' && showPointer && (
-            <div className="absolute w-4 h-4 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-30" style={{ left: pointerPosition.x, top: pointerPosition.y }}>
-              <div className="w-full h-full bg-red-500 rounded-full animate-pulse shadow-lg shadow-red-500/50" />
-            </div>
-          )}
-          {pointerTool === 'spotlight' && showPointer && (
-            <div className="absolute inset-0 pointer-events-none z-30" style={{ background: `radial-gradient(circle 120px at ${pointerPosition.x}px ${pointerPosition.y}px, transparent 0%, rgba(0,0,0,0.85) 100%)` }} />
-          )}
-
-          <button onClick={prevSlide} className={`absolute left-4 top-1/2 -translate-y-1/2 p-4 rounded-full bg-black/40 text-white hover:bg-black/70 transition-all ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}><ChevronLeft className="w-8 h-8" /></button>
-          <button onClick={nextSlide} className={`absolute right-4 top-1/2 -translate-y-1/2 p-4 rounded-full bg-black/40 text-white hover:bg-black/70 transition-all ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}><ChevronRight className="w-8 h-8" /></button>
-        </div>
-
-        {/* Bottom progress */}
-        <div className={`absolute bottom-0 inset-x-0 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
-          <div className="h-1 bg-white/20"><div className="h-full bg-orange-500 transition-all duration-300" style={{ width: `${progressPercent}%` }} /></div>
-          <div className="py-2 text-center text-white/50 text-sm bg-gradient-to-t from-black/80 to-transparent">
-            <kbd className="px-1.5 py-0.5 bg-white/20 rounded">←</kbd> <kbd className="px-1.5 py-0.5 bg-white/20 rounded">→</kbd> Navigate &nbsp;•&nbsp; <kbd className="px-1.5 py-0.5 bg-white/20 rounded">Space</kbd> Next &nbsp;•&nbsp; <kbd className="px-1.5 py-0.5 bg-white/20 rounded">Esc</kbd> Exit
-          </div>
-        </div>
-
-        {/* Thumbnail grid */}
-        {showThumbnails && (
-          <div className="absolute inset-0 z-40 bg-black/95 overflow-auto p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-white text-xl font-semibold">All Slides</h3>
-              <button onClick={() => setShowThumbnails(false)} className="p-2 rounded-lg bg-white/10 text-white hover:bg-white/20"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="grid grid-cols-4 gap-4">
-              {slides.map((s, i) => (
-                <button key={i} onClick={() => { setCurrentSlide(i); setShowThumbnails(false); }} className={`relative aspect-video rounded-lg overflow-hidden border-4 transition-all hover:scale-105 ${i === currentSlide ? 'border-orange-500 ring-4 ring-orange-500/30' : 'border-transparent hover:border-white/50'}`}>
-                  {s.imageUrl ? <img src={s.imageUrl} alt={`Slide ${i+1}`} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-slate-800 flex items-center justify-center text-slate-400">{i+1}</div>}
-                  <div className="absolute bottom-1 right-1 px-2 py-0.5 bg-black/70 rounded text-white text-xs">{i+1}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Keyboard help */}
-        {showKeyboardHelp && (
-          <div className="absolute inset-0 z-40 bg-black/95 flex items-center justify-center">
-            <div className="bg-slate-800 rounded-2xl p-8 max-w-lg w-full">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-white text-xl font-semibold">Keyboard Shortcuts</h3>
-                <button onClick={() => setShowKeyboardHelp(false)} className="p-2 rounded-lg bg-white/10 text-white hover:bg-white/20"><X className="w-5 h-5" /></button>
-              </div>
-              <div className="grid grid-cols-2 gap-4 text-sm text-white">
-                {[['Next slide','→'],['Prev slide','←'],['First slide','Home'],['Last slide','End'],['Laser pointer','L'],['Spotlight','S'],['Slide grid','G'],['Auto-play','P'],['Exit','Esc']].map(([label, key]) => (
-                  <div key={key} className="flex justify-between"><span className="text-white/70">{label}</span><kbd className="px-2 py-1 bg-slate-700 rounded">{key}</kbd></div>
-                ))}
+              <div className="flex items-center gap-2">
+                <button onClick={() => setPointerTool(t => t === 'laser' ? 'none' : 'laser')} className={`p-2 rounded-lg transition-all ${pointerTool === 'laser' ? 'bg-red-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`} title="Laser (L)"><MousePointer2 className="w-4 h-4" /></button>
+                <button onClick={() => setPointerTool(t => t === 'spotlight' ? 'none' : 'spotlight')} className={`p-2 rounded-lg transition-all ${pointerTool === 'spotlight' ? 'bg-yellow-400 text-black' : 'bg-white/10 hover:bg-white/20 text-white'}`} title="Spotlight (S)"><Circle className="w-4 h-4" /></button>
+                <button onClick={() => setShowKeyboardHelp(t => !t)} className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white" title="Help (?)"><Keyboard className="w-4 h-4" /></button>
+                <button onClick={exitPresentation} className="p-2 rounded-lg bg-red-600 hover:bg-red-700 text-white" title="Exit"><X className="w-4 h-4" /></button>
               </div>
             </div>
           </div>
-        )}
+
+          <div className="flex-1 p-4 pt-16">
+            <div className="h-full flex items-center justify-center">
+                <div ref={previewShellRef} className="w-full h-full flex items-center justify-center">
+                <div
+                  ref={pptxPreviewRef}
+                    className="overflow-hidden rounded-xl bg-white dark:bg-slate-950 shadow-xl mx-auto"
+                    style={{
+                      width: `${previewDimensions.width}px`,
+                      height: `${previewDimensions.height}px`,
+                    }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {showKeyboardHelp && (
+            <div className="absolute inset-0 z-40 bg-black/90 flex items-center justify-center p-6">
+              <div className="bg-slate-800 rounded-2xl p-8 max-w-lg w-full">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-white text-xl font-semibold">Keyboard Shortcuts</h3>
+                  <button onClick={() => setShowKeyboardHelp(false)} className="p-2 rounded-lg bg-white/10 text-white hover:bg-white/20"><X className="w-5 h-5" /></button>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm text-white">
+                  {[['Laser pointer','L'],['Spotlight','S'],['Help','?'],['Exit','Esc']].map(([label, key]) => (
+                    <div key={key} className="flex justify-between"><span className="text-white/70">{label}</span><kbd className="px-2 py-1 bg-slate-700 rounded">{key}</kbd></div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -445,8 +436,26 @@ export default function PresentationViewer({ url, title, fileName, className = '
 
       {/* Preview */}
       <div className="relative bg-slate-100 dark:bg-slate-900" style={{ minHeight: '400px' }}>
+        {conversionStatus === 'failed' && !pdfUrl && (
+          <div className="px-4 pt-4">
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+              Preview is approximate in this environment. The downloaded PPTX opens in PowerPoint with the original formatting, but the browser preview can shift fonts and layout when server-side conversion is unavailable.
+            </div>
+          </div>
+        )}
+        <div ref={previewShellRef} className="p-4">
+          <div
+            ref={pptxPreviewRef}
+            className="overflow-hidden rounded-lg bg-white dark:bg-slate-950 shadow-xl mx-auto"
+            style={{
+              width: `${previewDimensions.width}px`,
+              height: `${previewDimensions.height}px`,
+            }}
+          />
+        </div>
+
         {loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-slate-100/90 dark:bg-slate-900/90 backdrop-blur-sm">
             <Loader2 className="w-12 h-12 animate-spin text-orange-500" />
             <span className="text-slate-500 dark:text-slate-400">
               {conversionStatus === 'converting' ? 'Converting to PDF for full preview…' : 'Loading slides…'}
@@ -455,43 +464,12 @@ export default function PresentationViewer({ url, title, fileName, className = '
         )}
 
         {error && !loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-8 gap-4">
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-8 gap-4 bg-slate-100/90 dark:bg-slate-900/90 backdrop-blur-sm">
             <AlertCircle className="w-16 h-16 text-red-400" />
             <p className="text-slate-700 dark:text-slate-300 text-center">{error}</p>
             <button onClick={handleDownload} className="px-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg text-white flex items-center gap-2">
               <Download className="w-5 h-5" />Download & Open in PowerPoint
             </button>
-          </div>
-        )}
-
-        {!loading && slides.length > 0 && (
-          <div className="p-4">
-            {/* Current slide */}
-            <div className="relative bg-black rounded-lg overflow-hidden shadow-xl mx-auto" style={{ maxWidth: '800px', aspectRatio: '16/9' }}>
-              {slides[currentSlide]?.imageUrl ? (
-                <img src={slides[currentSlide].imageUrl!} alt={`Slide ${currentSlide + 1}`} className="w-full h-full object-contain" />
-              ) : (
-                <div className="w-full h-full bg-slate-800 flex items-center justify-center text-slate-400">
-                  <div className="text-center"><Presentation className="w-16 h-16 mx-auto mb-3 opacity-30" /><p>Slide {currentSlide + 1}</p></div>
-                </div>
-              )}
-              <div className="absolute inset-0 flex items-center justify-between px-2">
-                <button onClick={prevSlide} className="p-2 rounded-full bg-black/50 text-white hover:bg-black/70"><ChevronLeft className="w-6 h-6" /></button>
-                <button onClick={nextSlide} className="p-2 rounded-full bg-black/50 text-white hover:bg-black/70"><ChevronRight className="w-6 h-6" /></button>
-              </div>
-              <div className="absolute bottom-2 right-2 px-3 py-1 bg-black/70 rounded-full text-white text-sm">{currentSlide + 1} / {slides.length}</div>
-            </div>
-
-            {/* Thumbnails */}
-            {slides.length > 1 && (
-              <div className="mt-4 flex gap-2 overflow-x-auto py-2">
-                {slides.map((s, i) => (
-                  <button key={i} onClick={() => setCurrentSlide(i)} className={`flex-shrink-0 w-24 h-14 rounded border-2 overflow-hidden transition-all ${i === currentSlide ? 'border-orange-500 ring-2 ring-orange-400/30' : 'border-slate-300 dark:border-slate-600 hover:border-slate-400'}`}>
-                    {s.imageUrl ? <img src={s.imageUrl} alt={`Slide ${i+1}`} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs text-slate-500">{i+1}</div>}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>

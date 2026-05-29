@@ -506,6 +506,7 @@ class DashboardController extends Controller
                     'title'        => $l->title,
                     'text_content' => $l->text_content,
                     'content_path' => $l->content_path,
+                    'content_full_url' => $l->content_full_url,
                     'content_url'  => $l->content_url,
                     'file_type'    => $l->file_type,
                     'order'        => $l->order,
