@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
+import { LoadingState } from './components/ui/LoadingState';
+import { FullscreenLoader } from './components/ui/FullscreenLoader';
 import { LoginPage } from './pages/LoginPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { VerifyOTPPage } from './pages/VerifyOTPPage';
@@ -674,7 +676,7 @@ export function App() {
 
     return (
       <>
-        <Suspense fallback={<div className="p-6">Loading admin...</div>}>
+        <Suspense fallback={<FullscreenLoader message="Loading admin..." />}>
         <AdminLayout
           currentPage={currentPage}
           onNavigate={handleNavigate}
@@ -728,7 +730,7 @@ export function App() {
 
     return (
       <>
-        <Suspense fallback={<div className="p-6">Loading instructor...</div>}>
+        <Suspense fallback={<FullscreenLoader message="Loading instructor..." />}>
         <InstructorLayout
           currentPage={currentPage}
           onNavigate={handleNavigate}
@@ -770,7 +772,7 @@ export function App() {
 
     return (
       <>
-        <Suspense fallback={<div className="p-6">Loading learner...</div>}>
+        <Suspense fallback={<FullscreenLoader message="Loading learner..." />}>
         <EmployeeLayout
           currentPage={currentPage}
           onNavigate={handleNavigate}

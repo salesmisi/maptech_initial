@@ -64,7 +64,7 @@ class CustomLesson extends Model
             return $this->content_path;
         }
 
-        return url('/storage/' . $this->content_path);
+        return url('/lesson-files/custom/' . $this->id);
     }
 
     /**
