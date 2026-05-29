@@ -74,7 +74,7 @@ interface DepartmentOption {
 }
 
 interface Props {
-  onNavigate?: (page: string, courseId?: string) => void;
+  onNavigate?: (page: string, courseId?: string, customModuleId?: number) => void;
 }
 
 const DEPT_COLORS: Record<string, string> = {
@@ -86,14 +86,14 @@ const DEPT_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  Active:   'bg-green-100 text-green-800 dark:bg-emerald-500/20 dark:text-emerald-300',
+  Active:   'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300',
   Draft:    'bg-yellow-100 text-yellow-800 dark:bg-amber-500/20 dark:text-amber-300',
   Archived: 'bg-slate-100 text-slate-600',
   Inactive: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 };
 
-const COURSE_HEADER_CLASS = 'bg-gradient-to-r from-emerald-400 to-green-500 dark:from-emerald-500 dark:to-green-600';
-const CUSTOM_MODULE_HEADER_CLASS = 'bg-gradient-to-r from-emerald-400 to-green-500 dark:from-emerald-500 dark:to-green-600';
+const COURSE_HEADER_CLASS = 'bg-gradient-to-r from-green-400 to-green-500 dark:from-green-500 dark:to-green-600';
+const CUSTOM_MODULE_HEADER_CLASS = 'bg-gradient-to-r from-green-400 to-green-500 dark:from-green-500 dark:to-green-600';
 
 const toUtcIsoString = (value: FormDataEntryValue | null): string | null => {
   if (typeof value !== 'string') return null;
@@ -660,7 +660,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Courses &amp; Content</h1>
+        {/* Heading removed: redundant in module context */}
         <button
           onClick={openCreate}
           className="btn btn-primary"
@@ -671,7 +671,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row gap-4">
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border border-slate-100 dark:border-slate-600 flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-slate-400 dark:text-slate-500" />
@@ -681,14 +681,14 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
             placeholder="Search courses..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+            className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
           />
         </div>
         <div className="sm:w-48">
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="block w-full pl-3 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+            className="block w-full pl-3 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
           >
             <option value="All">All Status</option>
             <option value="Active">Active</option>
@@ -724,9 +724,9 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
               className="course-management-card group relative bg-white border border-slate-200 rounded-lg shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)] flex flex-col"
               style={{ animationDelay: `${Math.min(index * 45, 360)}ms` }}
             >
-              <div className="h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-teal-500 rounded-t-lg flex items-center justify-center relative">
+              <div className="h-28 bg-gradient-to-br from-green-400 to-green-600 dark:from-green-500 dark:to-teal-500 rounded-t-lg flex items-center justify-center relative">
                 <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md">
-                  <BookOpen className="h-8 w-8 text-green-700 dark:text-emerald-300" />
+                  <BookOpen className="h-8 w-8 text-green-700 dark:text-green-300" />
                 </div>
                 <span className={`absolute top-3 left-3 z-10 text-xs font-semibold px-2 py-0.5 rounded-full pointer-events-none ${
                   notStarted
@@ -740,7 +740,7 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   {notStarted ? 'Not Started' : ended ? 'Locked' : showNotAvailable ? 'Not available' : course.status}
                 </span>
                 <div className="absolute top-2 right-2 px-2.5 h-7 rounded-full bg-white/95 text-slate-800 text-xs font-semibold flex items-center justify-center border border-white/70 shadow z-10 pointer-events-none" title={`${modulesCount} modules`}>
-                  <span className="mr-1 text-emerald-600">●</span>
+                  <span className="mr-1 text-green-600">●</span>
                   {modulesCount} Modules
                 </div>
               </div>
@@ -773,10 +773,26 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                   </div>
                 </div>
 
-                <div className="mb-4">
-                  <div className="text-xs text-slate-400 dark:text-slate-400">Location</div>
-                  <div className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                    {course.department}{getCourseSubdepartmentName(course) ? ` / ${getCourseSubdepartmentName(course)}` : ''}
+                <div className="flex items-center gap-2 mb-4">
+                  {currentInstructor?.profile_picture ? (
+                    <img
+                      src={currentInstructor.profile_picture}
+                      alt={currentInstructor.fullname || currentInstructor.fullName || currentInstructor.name || ''}
+                      className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-600 flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-500/20 border border-slate-200 dark:border-slate-600 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                        {(currentInstructor?.fullname || currentInstructor?.fullName || currentInstructor?.name || '?')
+                          .split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <div className="text-sm text-slate-600 dark:text-slate-300">
+                    <div className="font-medium text-slate-700 dark:text-slate-200">
+                      {course.department}{getCourseSubdepartmentName(course) ? ` / ${getCourseSubdepartmentName(course)}` : ''}
+                    </div>
+                    <div>{currentInstructor?.fullname || currentInstructor?.fullName || currentInstructor?.name || ''}</div>
                   </div>
                 </div>
 
@@ -1012,8 +1028,8 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full bg-green-200 dark:bg-emerald-800/50 flex items-center justify-center">
-                          <span className="text-sm font-bold text-green-800 dark:text-emerald-300">
+                        <div className="w-full h-full bg-green-200 dark:bg-green-800/50 flex items-center justify-center">
+                          <span className="text-sm font-bold text-green-800 dark:text-green-300">
                             {(currentInstructor.fullname ?? currentInstructor.fullName ?? currentInstructor.name ?? '?')
                               .split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                           </span>
@@ -1023,9 +1039,9 @@ export function InstructorCourseManagement({ onNavigate }: Props) {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
                         {currentInstructor.fullname ?? currentInstructor.fullName ?? currentInstructor.name}{' '}
-                        <span className="text-green-500 dark:text-emerald-400 font-normal">(You)</span>
+                        <span className="text-green-500 dark:text-green-400 font-normal">(You)</span>
                       </p>
-                      <p className="text-xs text-green-600 dark:text-emerald-400">Assigned Instructor</p>
+                      <p className="text-xs text-green-600 dark:text-green-400">Assigned Instructor</p>
                     </div>
                   </div>
                 </div>

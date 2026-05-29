@@ -2,6 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+html,
+body {
+	width: 100%;
+	overflow-x: hidden;
+}
+
+#app {
+	width: 100%;
+	overflow-x: clip;
+}
+
+/* Keep mobile viewport height stable across browser chrome changes. */
+@supports (height: 100dvh) {
+	.min-h-screen {
+		min-height: 100dvh;
+	}
+}
+
+/* Shared dashboard shell guards against accidental horizontal bleed from children. */
+.app-theme-scope {
+	width: 100%;
+	max-width: 100%;
+	overflow-x: clip;
+}
+
+.app-theme-scope main {
+	-webkit-overflow-scrolling: touch;
+	overscroll-behavior: contain;
+}
+
 /* Design tokens (global) — XLSX design system */
 :root {
 	--GREEN_DARK: #154734;

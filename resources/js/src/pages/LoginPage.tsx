@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { BusinessFooter } from '../components/business/BusinessFooter';
+import { useToast } from '../components/ToastProvider';
 
 interface LoginPageProps {
   onLogin: (
@@ -27,6 +28,8 @@ export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) 
   const [videoFailed, setVideoFailed] = useState(false);
   const loginVideoSources = ['/assets/loginvid.mp4', '/loginvid.mp4'];
   const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  const { pushToast } = useToast();
 
   // ✅ Function to get cookie value
   const getCookie = (name: string) => {
@@ -139,6 +142,12 @@ export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) 
         data.department,
         data.profile_picture
       );
+
+      try {
+        pushToast('Signed in', `Welcome back${data.fullName || data.fullname ? `, ${data.fullName ?? data.fullname}` : ''}! You have successfully signed in.`, 'success', 4000);
+      } catch (e) {
+        // ignore if toast cannot be shown
+      }
 
       // If server returned the created time_log, emit a window event so dashboard can update immediately
       try {
@@ -259,7 +268,7 @@ export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) 
         }`}
       >
         <div className={`backdrop-blur-sm py-6 px-4 shadow sm:rounded-lg sm:px-8 border-t-4 border-green-500 ${isDark ? 'bg-slate-950/75' : 'bg-white/90'}`}>
-          <form className="space-y-4" onSubmit={handleSubmit}>
+          <form className="space-y-4" onSubmit={handleSubmit} autoComplete="off">
 
             <div>
               <label htmlFor="login-email" className={`block text-sm font-medium ${isDark ? 'text-slate-100' : 'text-slate-700'}`}>
@@ -332,7 +341,6 @@ export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) 
                 className="w-full flex justify-center py-2 px-4 rounded-md text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
               >
                 {loading ? 'Signing in...' : 'Sign in'}
-                {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
               </button>
             </div>
 

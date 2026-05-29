@@ -20,10 +20,14 @@ class ReadOnlyLoginController extends Controller
             'password' => 'required',
         ]);
 
-        $user = User::where('email', $credentials['email'])->first();
+        $user = User::withTrashed()->where('email', $credentials['email'])->first();
 
         if (! $user) {
             return response()->json(['message' => 'Incorrect Email or Password'], 401);
+        }
+
+        if ($user->trashed()) {
+            return response()->json(['message' => 'Your account is archived. Please contact administrator to restore access.'], 403);
         }
 
         // If there's an isActive method keep the check (read-only)

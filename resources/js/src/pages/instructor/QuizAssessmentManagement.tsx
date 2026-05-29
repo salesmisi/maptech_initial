@@ -1,5 +1,5 @@
 // Quiz Management — grouped by Department → Subdepartment → Quizzes
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import useConfirm from '../../hooks/useConfirm';
 import {
@@ -11,10 +11,12 @@ import {
   Trash2,
   Loader2,
   AlertCircle,
+  Filter,
   ChevronRight,
   ChevronDown,
   Building2,
   FolderOpen,
+  X,
 } from 'lucide-react';
 
 interface Props {
@@ -62,7 +64,7 @@ interface QuizQuestionItem {
 const DEPT_HEADER_COLORS: Record<string, string> = {
   IT: 'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/30 dark:border-blue-700/60 dark:text-blue-200',
   HR: 'bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-900/30 dark:border-purple-700/60 dark:text-purple-200',
-  Operations: 'bg-green-50 border-green-200 text-green-800 dark:bg-emerald-900/30 dark:border-emerald-700/60 dark:text-emerald-200',
+  Operations: 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-700/60 dark:text-green-200',
   Finance: 'bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-amber-900/30 dark:border-amber-700/60 dark:text-amber-200',
   Marketing: 'bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-900/30 dark:border-orange-700/60 dark:text-orange-200',
 };
@@ -77,6 +79,117 @@ interface DeptGroup {
   name: string;
   subdepartments: SubdeptGroup[];
   totalQuizzes: number;
+}
+
+interface PickerItem {
+  id: string;
+  label: string;
+  sub?: string;
+}
+
+interface PickerModalProps {
+  title: string;
+  items: PickerItem[];
+  emptyMessage: string;
+  onSelect: (item: PickerItem) => void;
+  onClose: () => void;
+}
+
+function PickerModal({ title, items, emptyMessage, onSelect, onClose }: PickerModalProps) {
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pageSize = 8;
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((item) =>
+      item.label.toLowerCase().includes(q) || (item.sub || '').toLowerCase().includes(q)
+    );
+  }, [items, query]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, items]);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-200 dark:border-slate-700">
+          <h4 className="text-base font-semibold text-slate-800 dark:text-slate-100">{title}</h4>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="px-4 py-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search..."
+              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 pb-2 space-y-1">
+          {paginated.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6">{emptyMessage}</p>
+          ) : paginated.map((item) => (
+            <button
+              key={item.id || item.label}
+              type="button"
+              onClick={() => { onSelect(item); onClose(); }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-green-50 dark:hover:bg-green-900/30 hover:text-green-700 dark:hover:text-green-300 transition-colors group"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100 group-hover:text-green-700 dark:group-hover:text-green-300 truncate">{item.label}</p>
+                {item.sub && <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{item.sub}</p>}
+              </div>
+            </button>
+          ))}
+        </div>
+        <div className="px-4 pb-4 pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={page === 1}
+              className="btn btn-secondary text-xs px-3 py-1 disabled:opacity-40"
+            >
+              Previous
+            </button>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Page {page} of {totalPages}</span>
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={page === totalPages}
+              className="btn btn-secondary text-xs px-3 py-1 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+          <button type="button" onClick={onClose} className="btn btn-primary text-xs px-4 py-1.5">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
 }
 
 export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' }: Props) {
@@ -106,6 +219,14 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
   const [deletingQuestionId, setDeletingQuestionId] = useState<number | null>(null);
   const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
   const [expandedSubdepts, setExpandedSubdepts] = useState<Set<string>>(new Set());
+  const [showScopeModal, setShowScopeModal] = useState(false);
+  const [scopeDept, setScopeDept] = useState('');
+  const [scopeSubdept, setScopeSubdept] = useState('');
+  const [scopeCourseId, setScopeCourseId] = useState('');
+  const [draftDept, setDraftDept] = useState('');
+  const [draftSubdept, setDraftSubdept] = useState('');
+  const [draftCourseId, setDraftCourseId] = useState('');
+  const [activePicker, setActivePicker] = useState<'department' | 'subdepartment' | 'course' | null>(null);
   const confirm = useConfirm();
   const { showConfirm } = confirm;
 
@@ -130,6 +251,7 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
   };
 
   useEffect(() => { loadQuizzes(); }, []);
+
 
   const loadQuizQuestions = async (quizId: number) => {
     setLoadingQuestions(true);
@@ -382,8 +504,92 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
     });
   };
 
+  const departmentOptions = Array.from(
+    new Set(quizzes.map((q) => (q.course_dept || 'Unassigned').trim()).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b));
+
+  const buildSubdeptOptions = (dept: string) => {
+    const subdeptMap = new Map<string, string>();
+    quizzes
+      .filter((q) => {
+        const quizDept = q.course_dept || 'Unassigned';
+        return !dept || quizDept === dept;
+      })
+      .forEach((q) => {
+        const key = q.subdepartment_id != null ? String(q.subdepartment_id) : '__none__';
+        const label = q.subdepartment_name || 'General (No Subdepartment)';
+        if (!subdeptMap.has(key)) subdeptMap.set(key, label);
+      });
+    return Array.from(subdeptMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  };
+
+  const buildCourseOptions = (dept: string, subdept: string) => {
+    const courseMap = new Map<string, string>();
+    quizzes
+      .filter((q) => {
+        const quizDept = q.course_dept || 'Unassigned';
+        const quizSubdept = q.subdepartment_id != null ? String(q.subdepartment_id) : '__none__';
+        if (dept && quizDept !== dept) return false;
+        if (subdept && quizSubdept !== subdept) return false;
+        return true;
+      })
+      .forEach((q) => {
+        if (!courseMap.has(q.course_id)) {
+          courseMap.set(q.course_id, q.course_title || 'Untitled Course');
+        }
+      });
+    return Array.from(courseMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  };
+
+  const getDeptLabel = (value: string) => value || 'All Departments';
+
+  const getSubdeptLabel = (value: string, dept: string) => {
+    if (!value) return 'All Subdepartments';
+    return buildSubdeptOptions(dept).find((s) => s.id === value)?.name || 'Subdepartment';
+  };
+
+  const getCourseLabel = (value: string, dept: string, subdept: string) => {
+    if (!value) return 'All Courses';
+    return buildCourseOptions(dept, subdept).find((c) => c.id === value)?.name || 'Course';
+  };
+
+  const getPickerItems = (): PickerItem[] => {
+    if (activePicker === 'department') {
+      return [
+        { id: '', label: 'All Departments' },
+        ...departmentOptions.map((dept) => ({ id: dept, label: dept })),
+      ];
+    }
+    if (activePicker === 'subdepartment') {
+      return [
+        { id: '', label: 'All Subdepartments' },
+        ...buildSubdeptOptions(draftDept).map((sub) => ({ id: sub.id, label: sub.name })),
+      ];
+    }
+    if (activePicker === 'course') {
+      return [
+        { id: '', label: 'All Courses' },
+        ...buildCourseOptions(draftDept, draftSubdept).map((course) => ({ id: course.id, label: course.name })),
+      ];
+    }
+    return [];
+  };
+
+  const scoped = quizzes.filter((q) => {
+    const quizDept = q.course_dept || 'Unassigned';
+    const quizSubdept = q.subdepartment_id != null ? String(q.subdepartment_id) : '__none__';
+    if (scopeDept && quizDept !== scopeDept) return false;
+    if (scopeSubdept && quizSubdept !== scopeSubdept) return false;
+    if (scopeCourseId && q.course_id !== scopeCourseId) return false;
+    return true;
+  });
+
   // Filter quizzes by search
-  const filtered = quizzes.filter((q) =>
+  const filtered = scoped.filter((q) =>
     q.title.toLowerCase().includes(search.toLowerCase()) ||
     q.course_title.toLowerCase().includes(search.toLowerCase()) ||
     (q.subdepartment_name || '').toLowerCase().includes(search.toLowerCase())
@@ -424,15 +630,22 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Quiz Management</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">
-            Quizzes organized by department and subdepartment.
-            To create a new quiz, open a course via <strong>Courses &amp; Content</strong>.
-          </p>
-        </div>
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => {
+            setDraftDept(scopeDept);
+            setDraftSubdept(scopeSubdept);
+            setDraftCourseId(scopeCourseId);
+            setShowScopeModal(true);
+          }}
+          className="btn btn-primary"
+        >
+          <Filter className="h-4 w-4 mr-2" />
+          Filter Quiz
+        </button>
       </div>
+
 
       {/* Search */}
       <div className="relative max-w-sm">
@@ -519,7 +732,7 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
                                   key={quiz.id}
                                   className="flex items-center gap-4 px-6 py-3 pl-16 hover:bg-slate-100/60 dark:hover:bg-slate-700/55 transition-colors"
                                 >
-                                  <div className="flex-shrink-0 h-9 w-9 rounded-full bg-indigo-100 dark:bg-indigo-900/45 text-indigo-700 dark:text-indigo-300 flex items-center justify-center">
+                                  <div className="flex-shrink-0 h-9 w-9 rounded-full bg-blue-100 dark:bg-blue-900/45 text-blue-700 dark:text-blue-300 flex items-center justify-center">
                                     <HelpCircle className="h-4 w-4" />
                                   </div>
                                   <div className="flex-1 min-w-0">
@@ -534,19 +747,19 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
                                   <div className="flex items-center gap-2">
                                     <button
                                       onClick={() => startEdit(quiz)}
-                                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-700 border border-blue-200 rounded-md hover:bg-blue-50 dark:text-slate-300 dark:border-slate-600 dark:bg-slate-800/60 dark:hover:bg-slate-700 dark:hover:text-slate-100 transition-colors"
+                                      className="btn btn-primary btn-sm"
                                     >
-                                      <Edit2 className="h-3.5 w-3.5" />
+                                      <Edit2 className="h-3.5 w-3.5 mr-1.5" />
                                       Edit
                                     </button>
                                     {onOpenQuiz && (
                                       <button
                                         onClick={() => onOpenQuiz(quiz.id)}
-                                        className="inline-flex items-center gap-1 px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-md shadow-sm transition-colors"
+                                        className="btn btn-primary btn-sm"
                                       >
-                                        <Edit2 className="h-3.5 w-3.5" />
+                                        <Edit2 className="h-3.5 w-3.5 mr-1.5" />
                                         Manage
-                                        <ChevronRight className="h-3.5 w-3.5" />
+                                        <ChevronRight className="h-3.5 w-3.5 ml-1" />
                                       </button>
                                     )}
                                     <button
@@ -572,6 +785,115 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
             );
           })}
         </div>
+      )}
+
+      {showScopeModal && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowScopeModal(false); }}
+        >
+          <div className="w-full max-w-lg rounded-xl bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Filter Quiz</h3>
+              <button
+                type="button"
+                onClick={() => setShowScopeModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Department</label>
+                <button
+                  type="button"
+                  onClick={() => setActivePicker('department')}
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 flex items-center justify-between"
+                >
+                  <span>{getDeptLabel(draftDept)}</span>
+                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Subdepartment</label>
+                <button
+                  type="button"
+                  onClick={() => setActivePicker('subdepartment')}
+                  disabled={buildSubdeptOptions(draftDept).length === 0}
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 flex items-center justify-between disabled:opacity-60"
+                >
+                  <span>{getSubdeptLabel(draftSubdept, draftDept)}</span>
+                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Course</label>
+                <button
+                  type="button"
+                  onClick={() => setActivePicker('course')}
+                  disabled={buildCourseOptions(draftDept, draftSubdept).length === 0}
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 flex items-center justify-between disabled:opacity-60"
+                >
+                  <span>{getCourseLabel(draftCourseId, draftDept, draftSubdept)}</span>
+                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowScopeModal(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-200 border border-slate-300 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setScopeDept(draftDept);
+                  setScopeSubdept(draftSubdept);
+                  setScopeCourseId(draftCourseId);
+                  setShowScopeModal(false);
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {activePicker && (
+        <PickerModal
+          title={activePicker === 'department'
+            ? 'Select Department'
+            : activePicker === 'subdepartment'
+            ? 'Select Subdepartment'
+            : 'Select Course'}
+          items={getPickerItems()}
+          emptyMessage={activePicker === 'course' ? 'No courses available.' : 'No options available.'}
+          onSelect={(item) => {
+            if (activePicker === 'department') {
+              setDraftDept(item.id);
+              setDraftSubdept('');
+              setDraftCourseId('');
+            } else if (activePicker === 'subdepartment') {
+              setDraftSubdept(item.id);
+              setDraftCourseId('');
+            } else if (activePicker === 'course') {
+              setDraftCourseId(item.id);
+            }
+            setActivePicker(null);
+          }}
+          onClose={() => setActivePicker(null)}
+        />
       )}
 
       {editingQuiz && createPortal(
@@ -685,7 +1007,7 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
                       <div key={q.id} className="border-2 border-slate-200 dark:border-slate-600 rounded-lg p-4 bg-white dark:bg-slate-700 shadow-sm">
                         <div className="flex items-start justify-between gap-2 mb-3">
                           <div className="flex items-start gap-2">
-                            <span className="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-indigo-600 dark:bg-indigo-500 text-white text-xs font-bold rounded-full">
+                            <span className="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-xs font-bold rounded-full">
                               {idx + 1}
                             </span>
                             <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 pt-1">{q.question_text}</p>
@@ -708,7 +1030,7 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' 
                         </div>
                         <div className="ml-9 space-y-1.5 border-l-2 border-slate-200 dark:border-slate-500 pl-3">
                           {q.options.map((opt, optIdx) => (
-                            <div key={opt.id} className={`flex items-center gap-2 text-xs ${opt.is_correct ? 'text-green-700 dark:text-emerald-300 font-semibold bg-green-50 dark:bg-emerald-900/30 rounded px-2 py-1' : 'text-slate-600 dark:text-slate-300'}`}>
+                            <div key={opt.id} className={`flex items-center gap-2 text-xs ${opt.is_correct ? 'text-green-700 dark:text-green-300 font-semibold bg-green-50 dark:bg-green-900/30 rounded px-2 py-1' : 'text-slate-600 dark:text-slate-300'}`}>
                               <span className="w-5 h-5 flex items-center justify-center rounded-full border text-[10px] font-medium ${opt.is_correct ? 'border-green-500 bg-green-100' : 'border-slate-300 bg-slate-100'}">
                                 {String.fromCharCode(97 + optIdx)}
                               </span>

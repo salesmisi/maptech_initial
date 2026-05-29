@@ -342,7 +342,7 @@ export function MyCertificates() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">My Certificates</h1>
+      {/* Heading removed: redundant in module context */}
       <p className="text-slate-500">
         View and download your earned certificates. Product logos are mapped automatically based on the completed course.
       </p>

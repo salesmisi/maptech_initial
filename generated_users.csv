@@ -1,0 +1,10 @@
+module_id,module_name,role,email,password
+10,"Introduction to Cyber Security",admin,admin_module10@maptech.com,01faa354151e
+10,"Introduction to Cyber Security",instructor,instructor_module10@maptech.com,12be5e59bc71
+10,"Introduction to Cyber Security",employee,employee_module10@maptech.com,386974ce42bc
+13,"Malware and System Threats",admin,admin_module13@maptech.com,03e7b7ef58fb
+13,"Malware and System Threats",instructor,instructor_module13@maptech.com,e3dd6da56b5c
+13,"Malware and System Threats",employee,employee_module13@maptech.com,a0eb2702db37
+21,test,admin,admin_module21@maptech.com,df68cc57b95f
+21,test,instructor,instructor_module21@maptech.com,b0179152c099
+21,test,employee,employee_module21@maptech.com,10f8c04efd48

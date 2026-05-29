@@ -1,0 +1,323 @@
+openapi: 3.0.3
+info:
+  title: Maptech Initial API (starter)
+  version: "1.0.0"
+  description: "Starter OpenAPI specification covering core endpoints (auth, users, courses, conversions, time-logs). Extend as needed."
+servers:
+  - url: "https://your-app.example.com/api"
+    description: "Production server (replace with your APP_URL)"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Bearer
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+    TokenResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        fullname:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        department:
+          type: string
+        profile_picture:
+          type: string
+    Department:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+    TimeLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        time_in:
+          type: string
+          format: date-time
+        time_out:
+          type: string
+          format: date-time
+
+security:
+  - bearerAuth: []
+
+paths:
+  /login:
+    post:
+      summary: "API token login"
+      description: "Issues a Sanctum token for client integrations. Public endpoint."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+              required: [email, password]
+      responses:
+        '200':
+          description: "Token issued"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /logout:
+    post:
+      summary: "Logout (invalidate token/session)"
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out
+
+  /user:
+    get:
+      summary: "Get current user"
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /password/forgot:
+    post:
+      summary: "Send password reset OTP"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+              required: [email]
+      responses:
+        '200':
+          description: OTP sent
+
+  /password/verify-otp:
+    post:
+      summary: "Verify reset OTP"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                otp:
+                  type: string
+              required: [email, otp]
+      responses:
+        '200':
+          description: Verified (returns temporary token)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+
+  /departments:
+    get:
+      summary: "List departments"
+      responses:
+        '200':
+          description: department list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Department'
+    post:
+      summary: "Create department (admin)"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                code:
+                  type: string
+                head_id:
+                  type: integer
+      responses:
+        '201':
+          description: created
+
+  /admin/users:
+    get:
+      summary: "List users (admin)"
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: list
+    post:
+      summary: "Create user (admin)"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullname:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+      responses:
+        '201':
+          description: created
+
+  /convert/availability:
+    get:
+      summary: "Check LibreOffice availability for conversions"
+      responses:
+        '200':
+          description: availability
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available:
+                    type: boolean
+                  message:
+                    type: string
+
+  /convert/pdf-to-pptx:
+    post:
+      summary: "Convert PDF to PPTX (multipart file upload)"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: conversion result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  download_url:
+                    type: string
+
+  /time-logs/punch-in:
+    post:
+      summary: "Punch in (create time log)"
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeLog'
+
+  /time-logs/punch-out:
+    post:
+      summary: "Punch out (close time log)"
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: closed
+
+  /lesson-events:
+    post:
+      summary: "Record lesson playback events"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                lesson_id:
+                  type: integer
+                event_type:
+                  type: string
+                current_time:
+                  type: number
+      responses:
+        '200':
+          description: recorded
+
+tags:
+  - name: auth
+  - name: users
+  - name: courses
+  - name: convert

@@ -94,22 +94,22 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz }: 
   };
 
   return (
-    <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl space-y-3">
-      <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">Add Quiz to Module</p>
+    <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl space-y-3">
+      <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Add Quiz to Module</p>
       {err && <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{err}</p>}
       <input
         type="text"
         placeholder="Quiz title (e.g. Module Assessment)"
         value={title}
         onChange={e => setTitle(e.target.value)}
-        className="w-full border border-slate-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        className="w-full border border-slate-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
       />
       <textarea
         rows={2}
         placeholder="Description (optional)"
         value={desc}
         onChange={e => setDesc(e.target.value)}
-        className="w-full border border-slate-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+        className="w-full border border-slate-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
       />
       <div className="flex items-center gap-3">
         <label className="text-xs font-medium text-slate-600 whitespace-nowrap">Pass Percentage</label>
@@ -118,7 +118,7 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz }: 
           min={1} max={100}
           value={passPercent}
           onChange={e => setPassPercent(Number(e.target.value))}
-          className="w-20 border border-slate-300 rounded-lg py-2 px-2 text-sm text-center focus:ring-2 focus:ring-indigo-500"
+          className="w-20 border border-slate-300 rounded-lg py-2 px-2 text-sm text-center focus:ring-2 focus:ring-blue-500"
         />
         <span className="text-xs text-slate-500">% to unlock next module</span>
       </div>
@@ -151,11 +151,11 @@ interface QuizCardProps {
 
 function QuizCard({ quiz, courseId, onManageQuiz, onDelete, deleting }: QuizCardProps) {
   return (
-    <div className="bg-indigo-50 rounded-xl p-4">
+    <div className="bg-blue-50 rounded-xl p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className="h-9 w-9 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-            <HelpCircle className="h-5 w-5 text-indigo-600" />
+          <div className="h-9 w-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+            <HelpCircle className="h-5 w-5 text-blue-600" />
           </div>
           <div>
             <p className="text-sm font-semibold text-slate-900">{quiz.title}</p>
@@ -349,9 +349,9 @@ export function CourseContentEditor({ courseId, onBack, onManageQuiz }: CourseCo
       </div>
 
       {/* Course Info Banner */}
-      <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 p-5">
+      <div className="bg-gradient-to-r from-green-50 to-green-50 rounded-xl border border-green-200 p-5">
         <div className="flex items-start gap-4">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-green-500/20">
+          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-green-500/20">
             <BookOpen className="h-6 w-6 text-white" />
           </div>
           <div className="flex-1">
@@ -394,7 +394,7 @@ export function CourseContentEditor({ courseId, onBack, onManageQuiz }: CourseCo
       {course.modules.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
               <HelpCircle className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -417,7 +417,7 @@ export function CourseContentEditor({ courseId, onBack, onManageQuiz }: CourseCo
                       </span>
                       <span className="text-sm font-medium text-slate-900">{mod.title}</span>
                       {quiz && (
-                        <span className="ml-auto flex items-center gap-1 text-xs text-indigo-600">
+                        <span className="ml-auto flex items-center gap-1 text-xs text-blue-600">
                           <HelpCircle className="h-3 w-3" /> Quiz attached
                         </span>
                       )}
@@ -450,7 +450,7 @@ export function CourseContentEditor({ courseId, onBack, onManageQuiz }: CourseCo
                     ) : (
                       <button
                         onClick={() => setAddingQuizForModule(mod.id)}
-                        className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-sm text-slate-500 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-colors flex items-center justify-center gap-2"
+                        className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-sm text-slate-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50/50 transition-colors flex items-center justify-center gap-2"
                       >
                         <Plus className="h-4 w-4" />
                         Add Quiz to this Module

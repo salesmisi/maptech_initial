@@ -5,7 +5,8 @@ import {
   Search,
   Plus,
   Edit2,
-  Trash2,
+  Archive,
+  RotateCcw,
   Filter,
   X,
   AlertCircle,
@@ -32,6 +33,7 @@ interface User {
   head_of_departments?: { id: number; name: string }[];
   role: 'Admin' | 'Instructor' | 'Employee';
   status: 'Active' | 'Inactive';
+  deleted_at?: string | null;
   created_at?: string;
   profile_picture?: string | null;
 }
@@ -69,6 +71,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('All');
   const [roleFilter, setRoleFilter] = useState<'All' | 'Admin' | 'Instructor' | 'Employee'>('All');
+  const [listMode, setListMode] = useState<'active' | 'archived'>('active');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -125,7 +128,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
   const createPhotoInputRef = useRef<HTMLInputElement>(null);
 
   const modalFieldClass =
-    'mt-1 block w-full rounded-md border border-slate-300 bg-white py-2 px-3 text-slate-900 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:bg-emerald-50/30 focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400 sm:text-sm dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:hover:border-emerald-400/70 dark:hover:bg-slate-700 dark:focus:ring-emerald-400/35 dark:focus:border-emerald-400';
+    'mt-1 block w-full rounded-md border border-slate-300 bg-white py-2 px-3 text-slate-900 shadow-sm transition-all duration-200 hover:border-green-300 hover:bg-green-50/30 focus:outline-none focus:ring-2 focus:ring-green-400/40 focus:border-green-400 sm:text-sm dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:hover:border-green-400/70 dark:hover:bg-slate-700 dark:focus:ring-green-400/35 dark:focus:border-green-400';
   const modalSelectClass = `${modalFieldClass} appearance-none pr-10`;
 
   // Helper to read a cookie value
@@ -149,9 +152,12 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
     return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
   };
 
-  // Load users on mount
+  // Load users on mount + when switching list mode
   useEffect(() => {
-    loadUsers();
+    loadUsers(listMode);
+  }, [listMode]);
+
+  useEffect(() => {
     loadDepartments();
   }, []);
 
@@ -183,12 +189,20 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
     } catch { /* ignore */ }
   };
 
-  const loadUsers = async () => {
+  const loadUsers = async (mode: 'active' | 'archived' = listMode) => {
     try {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`${API_BASE}/admin/users`, {
+      const params = new URLSearchParams();
+      if (mode === 'archived') {
+        params.set('archived', '1');
+      }
+      const url = params.toString()
+        ? `${API_BASE}/admin/users?${params.toString()}`
+        : `${API_BASE}/admin/users`;
+
+      const response = await fetch(url, {
         credentials: 'include',
         headers: getHeaders(),
       });
@@ -224,19 +238,18 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
 
   /*
   const selectionCheckboxClass =
-    'h-4 w-4 rounded-md border border-slate-300 accent-emerald-500 cursor-pointer transition focus:ring-2 focus:ring-emerald-500/60 focus:ring-offset-0 dark:border-slate-600 dark:bg-slate-800';
+    'h-4 w-4 rounded-md border border-slate-300 accent-green-500 cursor-pointer transition focus:ring-2 focus:ring-green-500/60 focus:ring-offset-0 dark:border-slate-600 dark:bg-slate-800';
   */
 
-  // Delete handler
-  const handleDelete = async (id: number) => {
-    // Check if the user being deleted is an admin
-    const userToDelete = users.find(u => u.id === id);
-    if (userToDelete?.role === 'Admin') {
-      alert('Admin accounts cannot be deleted for security reasons.');
+  // Archive handler
+  const handleArchive = async (id: number) => {
+    const userToArchive = users.find(u => u.id === id);
+    if (userToArchive?.role === 'Admin') {
+      alert('Admin accounts cannot be archived for security reasons.');
       return;
     }
 
-    showConfirm('Are you sure you want to delete this user?', async () => {
+    showConfirm('Are you sure you want to archive this user?', async () => {
       try {
         const xsrfToken = await getXsrfToken();
         const response = await fetch(`${API_BASE}/admin/users/${id}`, {
@@ -251,12 +264,44 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
 
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw new Error(data.message || 'Failed to delete user');
+          throw new Error(data.message || 'Failed to archive user');
         }
 
-        setUsers(users.filter((user) => user.id !== id));
+        await loadUsers(listMode);
       } catch (err: any) {
-        alert(err.message || 'Failed to delete user');
+        alert(err.message || 'Failed to archive user');
+      }
+    });
+  };
+
+  const handleRestore = async (id: number) => {
+    const userToRestore = users.find(u => u.id === id);
+    if (userToRestore?.role === 'Admin') {
+      alert('Admin accounts cannot be restored.');
+      return;
+    }
+
+    showConfirm('Restore this user account?', async () => {
+      try {
+        const xsrfToken = await getXsrfToken();
+        const response = await fetch(`${API_BASE}/admin/users/${id}/restore`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': xsrfToken,
+          },
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || 'Failed to restore user');
+        }
+
+        await loadUsers(listMode);
+      } catch (err: any) {
+        alert(err.message || 'Failed to restore user');
       }
     });
   };
@@ -744,7 +789,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
   if (loading) {
     return (
       <LoadingState
-        message="Loading users"
+        message={listMode === 'archived' ? 'Loading archived users' : 'Loading users'}
         size="lg"
         className="min-h-[40vh]"
       />
@@ -758,7 +803,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
           <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
           <span className="text-rose-700 dark:text-rose-200">{error}</span>
           <button
-            onClick={loadUsers}
+            onClick={() => loadUsers(listMode)}
             className="ml-auto text-rose-600 hover:text-rose-700 underline dark:text-rose-300 dark:hover:text-rose-200"
           >
             Retry
@@ -815,14 +860,38 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
       </div>
 
       {/* Filters */}
-      <div className="relative z-10 bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-4 dark:bg-slate-900/80 dark:border-slate-700/80 ui-pop-in ui-force-pop um-filter-panel">
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-4 dark:bg-slate-900/80 dark:border-slate-700/80 ui-pop-in ui-force-pop um-filter-panel">
+        <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800/60">
+          <button
+            type="button"
+            onClick={() => setListMode('active')}
+            className={`px-3 py-2 text-sm font-medium rounded-md transition ${
+              listMode === 'active'
+                ? 'bg-green-600 text-white shadow'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100'
+            }`}
+          >
+            Active
+          </button>
+          <button
+            type="button"
+            onClick={() => setListMode('archived')}
+            className={`px-3 py-2 text-sm font-medium rounded-md transition ${
+              listMode === 'archived'
+                ? 'bg-slate-700 text-white shadow dark:bg-slate-200 dark:text-slate-900'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100'
+            }`}
+          >
+            Archived
+          </button>
+        </div>
         <div className="relative flex-1">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
             <Search className="h-5 w-5 text-slate-400" />
           </div>
           <input
             type="text"
-            className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400 um-search-input"
+            className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400 um-search-input"
             placeholder="Search by name or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -834,7 +903,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
               <Filter className="h-4 w-4 text-slate-400" />
             </div>
             <select
-              className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value as 'All' | 'Admin' | 'Instructor' | 'Employee')}
             >
@@ -851,7 +920,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
               <Filter className="h-4 w-4 text-slate-400" />
             </div>
             <select
-              className="block h-10 w-full pl-10 pr-10 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 um-filter-select ui-select-custom-arrow"
+              className="block h-10 w-full pl-10 pr-10 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 um-filter-select ui-select-custom-arrow"
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
             >
@@ -892,7 +961,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
               {filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
-                    No users found
+                    {listMode === 'archived' ? 'No archived users found' : 'No users found'}
                   </td>
                 </tr>
               ) : (
@@ -912,7 +981,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
                               className="h-10 w-10 rounded-full object-cover um-avatar"
                             />
                           ) : (
-                            <div className="h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-bold um-avatar">
+                            <div className="h-10 w-10 rounded-full bg-green-500/20 flex items-center justify-center text-green-700 dark:text-green-300 font-bold um-avatar">
                               {(user.fullname || '?').charAt(0).toUpperCase()}
                             </div>
                           )}
@@ -959,43 +1028,58 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          user.status === 'Active'
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300'
+                          listMode === 'archived'
+                            ? 'bg-slate-200 text-slate-700 dark:bg-slate-700/60 dark:text-slate-200'
+                            : user.status === 'Active'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300'
                             : 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300'
                         }`}
                       >
-                        {user.status}
+                        {listMode === 'archived' ? 'Archived' : user.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
-                        <button
-                          onClick={() => handleOpenModal(user)}
-                          className="btn-icon btn-icon-edit um-icon-btn"
-                          title="Edit user"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleViewRecoveryKey(user.id)}
-                          disabled={regeneratingKeyForId === user.id}
-                          className="btn-icon btn-icon-view um-icon-btn disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="View recovery key"
-                        >
-                          {regeneratingKeyForId === user.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <KeyRound className="h-4 w-4" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(user.id)}
-                          disabled={user.role === 'Admin'}
-                          className="btn-icon btn-icon-delete um-icon-btn disabled:opacity-40 disabled:cursor-not-allowed"
-                          title={user.role === 'Admin' ? 'Admin accounts cannot be deleted' : 'Delete user'}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {listMode === 'archived' ? (
+                          <button
+                            onClick={() => handleRestore(user.id)}
+                            disabled={user.role === 'Admin'}
+                            className="btn-icon btn-icon-view um-icon-btn disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={user.role === 'Admin' ? 'Admin accounts cannot be restored' : 'Restore user'}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleOpenModal(user)}
+                              className="btn-icon btn-icon-edit um-icon-btn"
+                              title="Edit user"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleViewRecoveryKey(user.id)}
+                              disabled={regeneratingKeyForId === user.id}
+                              className="btn-icon btn-icon-view um-icon-btn disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="View recovery key"
+                            >
+                              {regeneratingKeyForId === user.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <KeyRound className="h-4 w-4" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleArchive(user.id)}
+                              disabled={user.role === 'Admin'}
+                              className="btn-icon btn-icon-delete um-icon-btn disabled:opacity-40 disabled:cursor-not-allowed"
+                              title={user.role === 'Admin' ? 'Admin accounts cannot be archived' : 'Archive user'}
+                            >
+                              <Archive className="h-4 w-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1043,14 +1127,14 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
                   {/* Profile Picture Upload */}
                   <div className="flex flex-col items-center pb-2">
                     <div
-                      className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-dashed border-emerald-300 cursor-pointer transition-colors duration-200 hover:border-emerald-400 dark:border-emerald-500/60 dark:hover:border-emerald-400 group"
+                      className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-dashed border-green-300 cursor-pointer transition-colors duration-200 hover:border-green-400 dark:border-green-500/60 dark:hover:border-green-400 group"
                       onClick={() => photoInputRef.current?.click()}
                     >
                       {profilePicturePreview ? (
                         <img src={profilePicturePreview} alt="Profile" className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full bg-emerald-50 flex flex-col items-center justify-center dark:bg-emerald-950/40">
-                          <Camera className="h-8 w-8 text-emerald-400 transition-colors duration-200 group-hover:text-emerald-500" />
+                        <div className="w-full h-full bg-green-50 flex flex-col items-center justify-center dark:bg-green-950/40">
+                          <Camera className="h-8 w-8 text-green-400 transition-colors duration-200 group-hover:text-green-500" />
                         </div>
                       )}
                       <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-full">
@@ -1234,10 +1318,10 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
                             ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
                             : formRole === 'Instructor'
                             ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                            : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+                            : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
                         }`}>
                           <span className={`w-2 h-2 rounded-full mr-2 ${
-                            formRole === 'Admin' ? 'bg-purple-500' : formRole === 'Instructor' ? 'bg-blue-500' : 'bg-emerald-500'
+                            formRole === 'Admin' ? 'bg-purple-500' : formRole === 'Instructor' ? 'bg-blue-500' : 'bg-green-500'
                           }`}></span>
                           {formRole}
                         </span>
@@ -1384,14 +1468,14 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
                 {/* Profile Photo */}
                 <div className="flex flex-col items-center py-2">
                   <div
-                    className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-dashed border-emerald-300 dark:border-emerald-500/60 cursor-pointer hover:border-emerald-400 group transition-colors"
+                    className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-dashed border-green-300 dark:border-green-500/60 cursor-pointer hover:border-green-400 group transition-colors"
                     onClick={() => createPhotoInputRef.current?.click()}
                   >
                     {createProfilePicturePreview ? (
                       <img src={createProfilePicturePreview} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
-                      <div className="w-full h-full bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center">
-                        <Camera className="h-8 w-8 text-emerald-400 group-hover:text-emerald-500 transition-colors" />
+                      <div className="w-full h-full bg-green-50 dark:bg-green-950/40 flex items-center justify-center">
+                        <Camera className="h-8 w-8 text-green-400 group-hover:text-green-500 transition-colors" />
                       </div>
                     )}
                     <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-full">
@@ -1565,8 +1649,8 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
                         }}
                         className={`flex items-center justify-between rounded-md border px-4 py-3 text-left transition ${
                           createRole === role
-                            ? 'border-emerald-500 bg-emerald-50 dark:border-emerald-500/60 dark:bg-emerald-950/40'
-                            : 'border-slate-200 bg-white hover:border-emerald-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-emerald-500/40 dark:hover:bg-slate-700'
+                            ? 'border-green-500 bg-green-50 dark:border-green-500/60 dark:bg-green-950/40'
+                            : 'border-slate-200 bg-white hover:border-green-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-green-500/40 dark:hover:bg-slate-700'
                         }`}
                       >
                         <div>
@@ -1575,7 +1659,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
                             {role === 'Employee' ? 'Standard access' : 'Course management'}
                           </div>
                         </div>
-                        {createRole === role && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />}
+                        {createRole === role && <Check className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />}
                       </button>
                     ))}
                   </div>
@@ -1703,8 +1787,8 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
             />
             <div className="inline-block align-bottom bg-white dark:bg-slate-800 rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
               <div>
-                <div className={`mx-auto flex items-center justify-center h-12 w-12 rounded-full ${recoveryKey ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
-                  <svg className={`h-6 w-6 ${recoveryKey ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <div className={`mx-auto flex items-center justify-center h-12 w-12 rounded-full ${recoveryKey ? 'bg-green-100 dark:bg-green-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
+                  <svg className={`h-6 w-6 ${recoveryKey ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
                   </svg>
                 </div>
@@ -1742,7 +1826,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
                           title="Copy to clipboard"
                         >
                           {copiedRecoveryKey ? (
-                            <svg className="h-5 w-5 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                            <svg className="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                             </svg>
                           ) : (
@@ -1753,7 +1837,7 @@ export function UserManagement({ currentUserEmail, onLogout }: UserManagementPro
                         </button>
                       </div>
                       {copiedRecoveryKey && (
-                        <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">✓ Copied to clipboard</p>
+                        <p className="mt-2 text-sm text-green-600 dark:text-green-400">✓ Copied to clipboard</p>
                       )}
                     </div>
                   )}

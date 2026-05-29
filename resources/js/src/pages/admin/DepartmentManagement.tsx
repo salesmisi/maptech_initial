@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { safeArray } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { Building2, BookOpen, Check, ChevronDown, Plus, Search, Trash2, Users, X } from 'lucide-react';
+import { AlertCircle, Building2, BookOpen, Check, ChevronDown, Plus, Search, Trash2, Users, X } from 'lucide-react';
 
 interface EmployeeRecord {
   id: number;
@@ -115,6 +115,13 @@ export default function DepartmentManagement() {
     code: '',
     description: '',
   });
+  const [createFormErrors, setCreateFormErrors] = useState({ name: '', code: '' });
+  const [createFormAlert, setCreateFormAlert] = useState<null | {
+    title: string;
+    message: string;
+    fields: string[];
+  }>(null);
+  const [createAttempted, setCreateAttempted] = useState(false);
 
   const [deptHeadId, setDeptHeadId] = useState('');
   const [headSearchQuery, setHeadSearchQuery] = useState('');
@@ -276,6 +283,13 @@ export default function DepartmentManagement() {
   }, []);
 
   useEffect(() => {
+    if (showCreateModal) return;
+    setCreateFormErrors({ name: '', code: '' });
+    setCreateFormAlert(null);
+    setCreateAttempted(false);
+  }, [showCreateModal]);
+
+  useEffect(() => {
     if (!activeDepartment) {
       setSubHeadDrafts({});
       return;
@@ -339,6 +353,80 @@ export default function DepartmentManagement() {
     setInfoDialog({ open: true, title, message });
   };
 
+  const getCreateDepartmentValidation = (form: { name: string; code: string; description: string }) => {
+    const missingName = !form.name.trim();
+    const missingCode = !form.code.trim();
+    const isEmpty = missingName && missingCode && !form.description.trim();
+
+    if (!missingName && !missingCode) {
+      return { ok: true, missingName: false, missingCode: false, title: '', message: '', fields: [] as string[] };
+    }
+
+    if (isEmpty) {
+      return {
+        ok: false,
+        missingName,
+        missingCode,
+        title: 'Nothing to submit',
+        message: 'Start by entering the Department Name and Department Code.',
+        fields: ['Department Name', 'Department Code'],
+      };
+    }
+
+    if (missingName && missingCode) {
+      return {
+        ok: false,
+        missingName,
+        missingCode,
+        title: 'Missing required fields',
+        message: 'Department Name and Department Code are required.',
+        fields: ['Department Name', 'Department Code'],
+      };
+    }
+
+    if (missingName) {
+      return {
+        ok: false,
+        missingName,
+        missingCode,
+        title: 'Department Name missing',
+        message: 'Please enter a Department Name to continue.',
+        fields: ['Department Name'],
+      };
+    }
+
+    return {
+      ok: false,
+      missingName,
+      missingCode,
+      title: 'Department Code missing',
+      message: 'Please enter a Department Code to continue.',
+      fields: ['Department Code'],
+    };
+  };
+
+  const updateCreateFormField = (field: 'name' | 'code' | 'description', value: string) => {
+    const nextForm = { ...createForm, [field]: value };
+    setCreateForm(nextForm);
+
+    if (createAttempted) {
+      const validation = getCreateDepartmentValidation(nextForm);
+      setCreateFormErrors({
+        name: validation.missingName ? 'Department Name is required.' : '',
+        code: validation.missingCode ? 'Department Code is required.' : '',
+      });
+      setCreateFormAlert(
+        validation.ok
+          ? null
+          : {
+              title: validation.title,
+              message: validation.message,
+              fields: validation.fields,
+            }
+      );
+    }
+  };
+
   const runConfirmAction = async () => {
     if (!confirmDialog.action) return;
 
@@ -354,13 +442,19 @@ export default function DepartmentManagement() {
   };
 
   const handleCreateDepartment = async () => {
-    if (!createForm.name.trim()) {
-      alert('Department Name is required.');
-      return;
-    }
+    setCreateAttempted(true);
+    const validation = getCreateDepartmentValidation(createForm);
 
-    if (!createForm.code.trim()) {
-      alert('Department Code is required.');
+    if (!validation.ok) {
+      setCreateFormErrors({
+        name: validation.missingName ? 'Department Name is required.' : '',
+        code: validation.missingCode ? 'Department Code is required.' : '',
+      });
+      setCreateFormAlert({
+        title: validation.title,
+        message: validation.message,
+        fields: validation.fields,
+      });
       return;
     }
 
@@ -390,6 +484,9 @@ export default function DepartmentManagement() {
       }
 
       setCreateForm({ name: '', code: '', description: '' });
+      setCreateFormErrors({ name: '', code: '' });
+      setCreateFormAlert(null);
+      setCreateAttempted(false);
       setShowCreateModal(false);
       await refreshAll();
     } catch (err: any) {
@@ -665,7 +762,7 @@ export default function DepartmentManagement() {
       <div className="department-toolbar-animate mb-2 flex items-center justify-end">
         <button
           onClick={() => setShowCreateModal(true)}
-          className="department-cta-button flex items-center rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-950 transition-colors hover:bg-emerald-400"
+          className="department-cta-button flex items-center rounded-lg bg-green-500 px-4 py-2 font-semibold text-slate-950 transition-colors hover:bg-green-400"
         >
           <Plus className="mr-2 h-4 w-4" />
           Add Department
@@ -680,7 +777,7 @@ export default function DepartmentManagement() {
             value={departmentSearchQuery}
             onChange={(e) => setDepartmentSearchQuery(e.target.value)}
             placeholder="Search departments, codes, heads, or subdepartments"
-            className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400"
+            className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-500 focus:border-green-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400"
           />
         </div>
       </div>
@@ -694,8 +791,8 @@ export default function DepartmentManagement() {
           >
             <div className="mb-4 flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/20 p-3">
-                  <Building2 className="h-5 w-5 text-emerald-700 dark:text-emerald-300" />
+                <div className="rounded-lg border border-green-500/30 bg-green-500/20 p-3">
+                  <Building2 className="h-5 w-5 text-green-700 dark:text-green-300" />
                 </div>
                 <div>
                   <p className="text-lg font-semibold">{dept.name}</p>
@@ -729,13 +826,13 @@ export default function DepartmentManagement() {
             </div>
 
             <div className="mb-4 text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Subdepartments: <span className="text-emerald-600 dark:text-emerald-400">{safeArray(dept.subdepartments).length}</span>
+              Subdepartments: <span className="text-green-600 dark:text-green-400">{safeArray(dept.subdepartments).length}</span>
             </div>
 
             <div className="flex items-center justify-between gap-2">
               <button
                 onClick={() => openManageModal(dept)}
-                className="inline-flex items-center rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
+                className="inline-flex items-center rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-100 dark:border-green-500/40 dark:bg-green-950/40 dark:text-green-300 dark:hover:bg-green-900/40"
               >
                 Manage
               </button>
@@ -759,26 +856,43 @@ export default function DepartmentManagement() {
       {showCreateModal && (
         <Modal onClose={() => setShowCreateModal(false)}>
           <h2 className="mb-4 text-lg font-semibold">Add Department</h2>
+          {createFormAlert && (
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 flex items-center dark:border-red-800 dark:bg-red-950/40">
+              <AlertCircle className="h-4 w-4 text-red-500 mr-2 shrink-0" />
+              <span className="text-sm text-red-700 dark:text-red-300">
+                {createFormAlert.title ? `${createFormAlert.title}. ${createFormAlert.message}` : createFormAlert.message}
+              </span>
+            </div>
+          )}
           <TextInput
-            placeholder="Department Name"
+            label="Department Name"
+            required
+            placeholder="e.g. Information Technology"
             value={createForm.name}
-            onChange={(v) => setCreateForm((s) => ({ ...s, name: v }))}
+            onChange={(v) => updateCreateFormField('name', v)}
+            error={createFormErrors.name}
+            showErrorMessage={false}
           />
           <TextInput
-            placeholder="Department Code"
+            label="Department Code"
+            required
+            placeholder="e.g. IT"
             value={createForm.code}
-            onChange={(v) => setCreateForm((s) => ({ ...s, code: v }))}
+            onChange={(v) => updateCreateFormField('code', v)}
+            error={createFormErrors.code}
+            showErrorMessage={false}
           />
           <TextInput
-            placeholder="Description"
+            label="Description (optional)"
+            placeholder="Short description"
             value={createForm.description}
-            onChange={(v) => setCreateForm((s) => ({ ...s, description: v }))}
+            onChange={(v) => updateCreateFormField('description', v)}
           />
 
           <button
             onClick={handleCreateDepartment}
             disabled={saving}
-            className="mt-3 w-full rounded-md bg-emerald-500 py-2 font-semibold text-slate-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-3 w-full rounded-md bg-green-500 py-2 font-semibold text-slate-950 transition-colors hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? 'Saving...' : 'Create Department'}
           </button>
@@ -796,7 +910,7 @@ export default function DepartmentManagement() {
               type="button"
               onClick={handleSaveDepartmentHead}
               disabled={saving}
-              className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-md bg-green-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
@@ -808,7 +922,7 @@ export default function DepartmentManagement() {
               <button
                 type="button"
                 onClick={() => openHeadPicker({ type: 'department' })}
-                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 transition hover:border-emerald-500 focus:border-emerald-500 focus:outline-none sm:w-80 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 transition hover:border-green-500 focus:border-green-500 focus:outline-none sm:w-80 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
                 <span className={selectedDepartmentHead ? 'truncate' : 'text-slate-500 dark:text-slate-400'}>
                   {selectedDepartmentHead ? `${selectedDepartmentHead.fullname} (${selectedDepartmentHead.role})` : 'Select Department Head'}
@@ -825,12 +939,12 @@ export default function DepartmentManagement() {
                 value={newSubForm.name}
                 onChange={(e) => setNewSubForm((s) => ({ ...s, name: e.target.value }))}
                 placeholder="Subdepartment name"
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-green-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               />
               <button
                 type="button"
                 onClick={() => openHeadPicker({ type: 'newSubdepartment' })}
-                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 transition hover:border-emerald-500 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 transition hover:border-green-500 focus:border-green-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
                 <span className={newSubForm.head_id ? 'truncate' : 'text-slate-500 dark:text-slate-400'}>
                   {newSubForm.head_id ? getSelectedHeadLabel(newSubForm.head_id) : 'Select Head'}
@@ -840,7 +954,7 @@ export default function DepartmentManagement() {
               <button
                 onClick={handleCreateSubdepartment}
                 disabled={saving}
-                className="inline-flex w-12 justify-self-end items-center justify-center rounded-md bg-emerald-500 px-0 py-2 text-lg font-bold leading-none text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex w-12 justify-self-end items-center justify-center rounded-md bg-green-500 px-0 py-2 text-lg font-bold leading-none text-slate-950 transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label="Add subdepartment"
                 title="Add subdepartment"
               >
@@ -867,7 +981,7 @@ export default function DepartmentManagement() {
                       <button
                         type="button"
                         onClick={() => openHeadPicker({ type: 'subdepartment', subdepartmentId: sub.id, subdepartmentName: sub.name })}
-                        className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 transition hover:border-emerald-500 focus:border-emerald-500 focus:outline-none sm:w-72 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                        className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 transition hover:border-green-500 focus:border-green-500 focus:outline-none sm:w-72 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                       >
                         <span className={subHeadDrafts[sub.id] ? 'truncate' : 'text-slate-500 dark:text-slate-400'}>
                           {subHeadDrafts[sub.id] ? getSelectedHeadLabel(subHeadDrafts[sub.id]) : 'Select sub head'}
@@ -941,7 +1055,7 @@ export default function DepartmentManagement() {
               value={headSearchQuery}
               onChange={(e) => setHeadSearchQuery(e.target.value)}
               placeholder="Search instructors or admins"
-              className="w-full rounded-md border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
+              className="w-full rounded-md border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-500 focus:border-green-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
             />
           </div>
 
@@ -979,15 +1093,15 @@ export default function DepartmentManagement() {
                     }}
                     className={`flex w-full items-center justify-between rounded-md border px-4 py-3 text-left transition ${
                       isSelected
-                        ? 'border-emerald-500 bg-emerald-50 text-slate-900 dark:border-emerald-500/60 dark:bg-emerald-950/40 dark:text-slate-100'
-                        : 'border-slate-200 bg-white text-slate-900 hover:border-emerald-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-emerald-500/40 dark:hover:bg-slate-800/70'
+                        ? 'border-green-500 bg-green-50 text-slate-900 dark:border-green-500/60 dark:bg-green-950/40 dark:text-slate-100'
+                        : 'border-slate-200 bg-white text-slate-900 hover:border-green-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-green-500/40 dark:hover:bg-slate-800/70'
                     }`}
                   >
                     <div>
                       <div className="text-sm font-semibold">{candidate.fullname}</div>
                       <div className="text-xs text-slate-500 dark:text-slate-400">{candidate.role}</div>
                     </div>
-                    {isSelected && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                    {isSelected && <Check className="h-4 w-4 text-green-600 dark:text-green-400" />}
                   </button>
                 );
               })
@@ -1022,7 +1136,7 @@ export default function DepartmentManagement() {
             <button
               type="button"
               onClick={closeHeadPicker}
-              className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+              className="rounded-md bg-green-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-green-400"
             >
               Done
             </button>
@@ -1052,7 +1166,7 @@ export default function DepartmentManagement() {
                   setMoveDepartment(e.target.value);
                   setMoveSubdepartmentId('');
                 }}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-green-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
                 <option value="">Select department</option>
                 {departments.map((d) => (
@@ -1068,7 +1182,7 @@ export default function DepartmentManagement() {
               <select
                 value={moveSubdepartmentId}
                 onChange={(e) => setMoveSubdepartmentId(e.target.value)}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-green-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
                 <option value="">Select subdepartment</option>
                 {moveDepartmentSubdepartments.map((s) => (
@@ -1092,7 +1206,7 @@ export default function DepartmentManagement() {
               <button
                 onClick={handleMoveEmployee}
                 disabled={saving}
-                className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-md bg-green-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? 'Moving...' : 'Move Employee'}
               </button>
@@ -1142,7 +1256,7 @@ export default function DepartmentManagement() {
           <div className="flex justify-end">
             <button
               onClick={() => setInfoDialog({ open: false, title: '', message: '' })}
-              className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+              className="rounded-md bg-green-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-green-400"
             >
               OK
             </button>
@@ -1185,21 +1299,48 @@ function Modal({
 }
 
 function TextInput({
+  label,
+  required = false,
   placeholder,
   value,
   onChange,
+  error,
+  showErrorMessage = true,
 }: {
+  label: string;
+  required?: boolean;
   placeholder: string;
   value: string;
   onChange: (v: string) => void;
+  error?: string;
+  showErrorMessage?: boolean;
 }) {
+  const showMessage = Boolean(error) && showErrorMessage;
+  const errorId = showMessage ? `${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-error` : undefined;
   return (
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="mb-3 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
-    />
+    <div className="mb-3">
+      <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+        {label}
+        {required && <span className="text-rose-500"> *</span>}
+      </label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-invalid={Boolean(error)}
+        aria-describedby={errorId}
+        className={`w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 ${
+          error
+            ? 'border-rose-300 focus:border-rose-500 dark:border-rose-700'
+            : 'border-slate-300 focus:border-green-500 dark:border-slate-700'
+        }`}
+      />
+      {showMessage && (
+        <p id={errorId} className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-300">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }

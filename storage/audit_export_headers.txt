@@ -1,0 +1,10 @@
+HTTP/1.1 500 Internal Server Error
+Host: 127.0.0.1:8000
+Connection: close
+X-Powered-By: PHP/8.2.12
+Cache-Control: no-cache, private
+date: Fri, 22 May 2026 05:59:51 GMT
+Content-Type: text/html; charset=utf-8
+Set-Cookie: XSRF-TOKEN=eyJpdiI6InlMMnh4V3lhdDlTbG1nZ1dzbTNmeGc9PSIsInZhbHVlIjoiVEdWSkFqWTJaSmxMZ0ZRZGFudG9QMTdIYzJibUZOOUt6eVViOExabzNiT09OMXRYa2pCWjVCcWNQNUxxOGpNSkJCRStBNlNUUXNFbFEwVG1vT0RtV1BxVnE1MGtJZlZxZGhSdnpPNmpOelpRSG5kai9nb2ZPU05ta1JGbmhVSm8iLCJtYWMiOiI5Yjk2OGFkY2ZhYjM5N2E1YjBkOGI2MjBlYTY1MGMxZjMyZDFlZWEzZTUwZDIyYjEyZmU3OGE1MjkwYTVjYzIxIiwidGFnIjoiIn0%3D; expires=Fri, 22 May 2026 07:59:51 GMT; Max-Age=7200; path=/; domain=127.0.0.1; samesite=lax
+Set-Cookie: laravel-session=eyJpdiI6IkNSVTNmbWpIajJPVU1wemE0TEV3NUE9PSIsInZhbHVlIjoicEk3elNqblJZSzlqakwzWUROVXZTb0tadzVvakM2Ujc0MjFLS2R1VnVtL1Rtb3lUamt2M2lTOXVmNHZSUi9YTm81c1FmM1ZvVVhuUGZWcExNRlpnV3ZleFE0OEZENE9iUTVhT2o4LzF5cUQwYnVIUGkrQUxsNWQ3dUFDRHVtZGQiLCJtYWMiOiI3MDQzNDg0NDA3ODIwNGE0Mzg3OGZhZTVkMmRiMzRmNzUwZmE5YzYyN2QwMTM2YTY5YzU3ZDljNDIxYjViNDdiIiwidGFnIjoiIn0%3D; expires=Fri, 22 May 2026 07:59:51 GMT; Max-Age=7200; path=/; domain=127.0.0.1; httponly; samesite=lax
+

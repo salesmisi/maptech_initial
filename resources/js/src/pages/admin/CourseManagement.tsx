@@ -16,7 +16,7 @@ import {
   Trash } from
 'lucide-react';
 
-const COURSE_HEADER_CLASS = 'bg-gradient-to-r from-emerald-400 to-green-500 dark:from-emerald-500 dark:to-green-600';
+const COURSE_HEADER_CLASS = 'bg-gradient-to-r from-green-400 to-green-500 dark:from-green-500 dark:to-green-600';
 
 // Module interface for form handling
 interface ModuleInput {
@@ -444,19 +444,19 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Course Management</h1>
+        {/* Heading removed: redundant in module context */}
         {/* Create Course removed on admin UI */}
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row gap-4">
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border border-slate-100 dark:border-slate-600 flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-slate-400 dark:text-slate-500" />
           </div>
           <input
             type="text"
-            className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+            className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
             placeholder="Search courses..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)} />
@@ -468,7 +468,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
               <Filter className="h-4 w-4 text-slate-400 dark:text-slate-500" />
             </div>
             <select
-              className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+              className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}>
 
@@ -490,10 +490,10 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
           return (
         <div
           key={course.id}
-          className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow dark:bg-slate-800 dark:border-slate-600 ${notStarted ? 'bg-white border-emerald-200' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
+          className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow dark:bg-slate-800 dark:border-slate-600 ${notStarted ? 'bg-white border-green-200' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
 
             <div
-            className={`h-32 ${notStarted ? 'bg-gradient-to-r from-emerald-400 to-green-500' : COURSE_HEADER_CLASS} flex items-center justify-center`}>
+            className={`h-32 ${notStarted ? 'bg-gradient-to-r from-green-400 to-green-500' : COURSE_HEADER_CLASS} flex items-center justify-center`}>
 
               {course.instructor_profile_picture ? (
                 <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-white/80 shadow-md">
@@ -514,7 +514,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
             <div className="p-6">
               <div className="flex justify-between items-start">
                 <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${notStarted ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200' : ended ? 'bg-red-100 text-red-800' : course.status === 'Active' ? 'bg-green-100 text-green-800' : course.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-800'}`}>
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${notStarted ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-200' : ended ? 'bg-red-100 text-red-800' : course.status === 'Active' ? 'bg-green-100 text-green-800' : course.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-800'}`}>
 
                   {notStarted ? 'Not Started' : ended ? 'Locked' : course.status}
                 </span>
@@ -552,7 +552,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
               </div>
 
               {notStarted && course.start_date && (
-                <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-300">
+                <p className="mt-2 text-xs text-green-600 dark:text-green-300">
                   Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               )}
