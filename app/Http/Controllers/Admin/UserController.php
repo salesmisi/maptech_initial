@@ -2,25 +2,22 @@
 
 namespace App\Http\Controllers\Admin;
 
-use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
-
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use App\Models\Course;
-use App\Models\CourseEnrollment;
+use App\Models\Department;
 use App\Models\Enrollment;
 use App\Models\QuizAttempt;
-use App\Models\Department;
 use App\Models\Subdepartment;
+use App\Models\User;
+use App\Rules\MaptechEmail;
+use App\Rules\StrongPassword;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
-use Symfony\Component\HttpFoundation\StreamedResponse;
-use App\Rules\MaptechEmail;
-use App\Rules\StrongPassword;
 
 class UserController extends Controller
 {
@@ -39,10 +36,10 @@ class UserController extends Controller
         // Search by name/email
         if ($request->filled('q')) {
             $term = strtolower(trim((string) $request->input('q')));
-            $like = '%' . $term . '%';
+            $like = '%'.$term.'%';
             $query->where(function ($q) use ($like) {
                 $q->whereRaw('LOWER(fullname) LIKE ?', [$like])
-                  ->orWhereRaw('LOWER(email) LIKE ?', [$like]);
+                    ->orWhereRaw('LOWER(email) LIKE ?', [$like]);
             });
         }
 
@@ -66,13 +63,13 @@ class UserController extends Controller
             $subdeptId = (int) $request->input('subdepartment_id');
             $query->where(function ($q) use ($subdeptId) {
                 $q->where('subdepartment_id', $subdeptId)
-                  ->orWhereHas('subdepartments', fn ($sq) => $sq->where('subdepartments.id', $subdeptId))
-                  ->orWhereIn('id', \App\Models\Subdepartment::where('id', $subdeptId)->pluck('head_id')->filter());
+                    ->orWhereHas('subdepartments', fn ($sq) => $sq->where('subdepartments.id', $subdeptId))
+                    ->orWhereIn('id', \App\Models\Subdepartment::where('id', $subdeptId)->pluck('head_id')->filter());
             });
         }
 
         $users = $query->select([
-            'id', 'fullname', 'email', 'role', 'department', 'subdepartment_id', 'status', 'profile_picture', 'created_at', 'deleted_at'
+            'id', 'fullname', 'email', 'role', 'department', 'subdepartment_id', 'status', 'profile_picture', 'created_at', 'deleted_at',
         ])->orderBy($archived ? 'deleted_at' : 'created_at', 'desc')->get();
 
         // Eager load subdepartment name, departments headed, and instructor subdepartments
@@ -102,25 +99,25 @@ class UserController extends Controller
         if ($role === 'employee' && empty($validated['department'])) {
             return response()->json([
                 'message' => 'Department is required for Employee role.',
-                'errors' => ['department' => ['Department is required for Employee role.']]
+                'errors' => ['department' => ['Department is required for Employee role.']],
             ], 422);
         }
 
         if ($role === 'employee' && empty($validated['subdepartment_id'])) {
             return response()->json([
                 'message' => 'Subdepartment is required for Employee role.',
-                'errors' => ['subdepartment_id' => ['Subdepartment is required for Employee role.']]
+                'errors' => ['subdepartment_id' => ['Subdepartment is required for Employee role.']],
             ], 422);
         }
 
-        if ($role === 'employee' && !empty($validated['subdepartment_id']) && !empty($validated['department'])) {
+        if ($role === 'employee' && ! empty($validated['subdepartment_id']) && ! empty($validated['department'])) {
             $sub = Subdepartment::with('department')->find((int) $validated['subdepartment_id']);
             $deptName = $sub?->department?->name;
 
-            if (!$deptName || strcasecmp((string) $deptName, (string) $validated['department']) !== 0) {
+            if (! $deptName || strcasecmp((string) $deptName, (string) $validated['department']) !== 0) {
                 return response()->json([
                     'message' => 'Selected subdepartment does not belong to the chosen department.',
-                    'errors' => ['subdepartment_id' => ['Selected subdepartment does not belong to the chosen department.']]
+                    'errors' => ['subdepartment_id' => ['Selected subdepartment does not belong to the chosen department.']],
                 ], 422);
             }
         }
@@ -206,25 +203,25 @@ class UserController extends Controller
         if ($effectiveRole === 'employee' && empty($effectiveDepartment)) {
             return response()->json([
                 'message' => 'Department is required for Employee role.',
-                'errors' => ['department' => ['Department is required for Employee role.']]
+                'errors' => ['department' => ['Department is required for Employee role.']],
             ], 422);
         }
 
         if ($effectiveRole === 'employee' && empty($effectiveSubdepartmentId)) {
             return response()->json([
                 'message' => 'Subdepartment is required for Employee role.',
-                'errors' => ['subdepartment_id' => ['Subdepartment is required for Employee role.']]
+                'errors' => ['subdepartment_id' => ['Subdepartment is required for Employee role.']],
             ], 422);
         }
 
-        if ($effectiveRole === 'employee' && !empty($effectiveSubdepartmentId) && !empty($effectiveDepartment)) {
+        if ($effectiveRole === 'employee' && ! empty($effectiveSubdepartmentId) && ! empty($effectiveDepartment)) {
             $sub = Subdepartment::with('department')->find((int) $effectiveSubdepartmentId);
             $deptName = $sub?->department?->name;
 
-            if (!$deptName || strcasecmp((string) $deptName, (string) $effectiveDepartment) !== 0) {
+            if (! $deptName || strcasecmp((string) $deptName, (string) $effectiveDepartment) !== 0) {
                 return response()->json([
                     'message' => 'Selected subdepartment does not belong to the chosen department.',
-                    'errors' => ['subdepartment_id' => ['Selected subdepartment does not belong to the chosen department.']]
+                    'errors' => ['subdepartment_id' => ['Selected subdepartment does not belong to the chosen department.']],
                 ], 422);
             }
         }
@@ -279,7 +276,7 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'User updated successfully',
-            'user' => $user->load('headOfDepartments:id,name,head_id', 'subdepartments:id,name,department_id')
+            'user' => $user->load('headOfDepartments:id,name,head_id', 'subdepartments:id,name,department_id'),
         ]);
     }
 
@@ -320,11 +317,11 @@ class UserController extends Controller
     {
         $employeeDepartment = $this->normalizeDepartmentValue($employee->department);
         $acceptedDepartments = $this->acceptedCourseDepartments($course->department);
-        if ($employeeDepartment === '' || empty($acceptedDepartments) || !in_array($employeeDepartment, $acceptedDepartments, true)) {
+        if ($employeeDepartment === '' || empty($acceptedDepartments) || ! in_array($employeeDepartment, $acceptedDepartments, true)) {
             return false;
         }
 
-        if (!empty($course->subdepartment_id) && (int) ($employee->subdepartment_id ?? 0) !== (int) $course->subdepartment_id) {
+        if (! empty($course->subdepartment_id) && (int) ($employee->subdepartment_id ?? 0) !== (int) $course->subdepartment_id) {
             return false;
         }
 
@@ -339,11 +336,11 @@ class UserController extends Controller
 
         $invalidCourseIds = $enrollments
             ->filter(function (Enrollment $enrollment) use ($employee) {
-                if (!$enrollment->course) {
+                if (! $enrollment->course) {
                     return true;
                 }
 
-                return !$this->employeeCanStayEnrolled($employee, $enrollment->course);
+                return ! $this->employeeCanStayEnrolled($employee, $enrollment->course);
             })
             ->pluck('course_id')
             ->map(fn ($id) => (int) $id)
@@ -385,9 +382,9 @@ class UserController extends Controller
             $user = User::findOrFail($id);
             $role = strtolower((string) $user->role);
 
-            if (!in_array($role, ['instructor', 'employee'], true)) {
+            if (! in_array($role, ['instructor', 'employee'], true)) {
                 return response()->json([
-                    'message' => 'Only instructor and employee accounts can be archived.'
+                    'message' => 'Only instructor and employee accounts can be archived.',
                 ], 422);
             }
 
@@ -397,7 +394,7 @@ class UserController extends Controller
             $user->delete();
 
             return response()->json([
-                'message' => 'User archived successfully'
+                'message' => 'User archived successfully',
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to archive user', [
@@ -406,7 +403,7 @@ class UserController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'Failed to archive user: ' . $e->getMessage()
+                'message' => 'Failed to archive user: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -420,16 +417,16 @@ class UserController extends Controller
             $user = User::onlyTrashed()->findOrFail($id);
             $role = strtolower((string) $user->role);
 
-            if (!in_array($role, ['instructor', 'employee'], true)) {
+            if (! in_array($role, ['instructor', 'employee'], true)) {
                 return response()->json([
-                    'message' => 'Only instructor and employee accounts can be restored.'
+                    'message' => 'Only instructor and employee accounts can be restored.',
                 ], 422);
             }
 
             $user->restore();
 
             return response()->json([
-                'message' => 'User restored successfully'
+                'message' => 'User restored successfully',
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to restore user', [
@@ -438,7 +435,7 @@ class UserController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'Failed to restore user: ' . $e->getMessage()
+                'message' => 'Failed to restore user: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -450,7 +447,7 @@ class UserController extends Controller
     {
         $data = $request->validate([
             'ids' => 'required|array|min:1',
-            'ids.*' => 'integer|exists:users,id'
+            'ids.*' => 'integer|exists:users,id',
         ]);
 
         $ids = $data['ids'];
@@ -464,8 +461,9 @@ class UserController extends Controller
             /** @var User $u */
             foreach ($usersToArchive as $u) {
                 $role = strtolower((string) $u->role);
-                if (!in_array($role, ['instructor', 'employee'], true)) {
+                if (! in_array($role, ['instructor', 'employee'], true)) {
                     $skipped[] = $u->id;
+
                     continue;
                 }
 
@@ -481,7 +479,8 @@ class UserController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to bulk archive users', ['ids' => $ids, 'error' => $e->getMessage()]);
-            return response()->json(['message' => 'Failed to archive users: ' . $e->getMessage()], 500);
+
+            return response()->json(['message' => 'Failed to archive users: '.$e->getMessage()], 500);
         }
     }
 
@@ -506,7 +505,7 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'Photo uploaded successfully',
-            'profile_picture' => asset('storage/' . $path),
+            'profile_picture' => asset('storage/'.$path),
         ]);
     }
 
@@ -522,16 +521,17 @@ class UserController extends Controller
             ->map(function ($enrollment) {
                 $action = match ($enrollment->status) {
                     'Completed' => 'Completed Course',
-                    'Dropped'   => 'Dropped Course',
+                    'Dropped' => 'Dropped Course',
                     'In Progress' => 'Started Course',
-                    default     => 'Enrolled',
+                    default => 'Enrolled',
                 };
+
                 return [
-                    'id'     => $enrollment->id,
-                    'user'   => $enrollment->user?->fullname ?? 'Unknown',
+                    'id' => $enrollment->id,
+                    'user' => $enrollment->user?->fullname ?? 'Unknown',
                     'action' => $action,
                     'target' => $enrollment->course?->title ?? 'Unknown',
-                    'time'   => $enrollment->updated_at->diffForHumans(),
+                    'time' => $enrollment->updated_at->diffForHumans(),
                 ];
             });
 
@@ -553,7 +553,7 @@ class UserController extends Controller
 
         // --- Overall Completion Status ---
         $total = Enrollment::count();
-        $completed  = Enrollment::where('status', 'Completed')->count();
+        $completed = Enrollment::where('status', 'Completed')->count();
         $inProgress = Enrollment::where(function ($query) {
             $query->where('status', 'In Progress')
                 ->orWhere(function ($q) {
@@ -633,8 +633,8 @@ class UserController extends Controller
 
         return response()->json([
             'completion_status' => $completionStatus,
-            'monthly_trends'    => $monthlyTrends,
-            'popular_courses'   => $popularCourses,
+            'monthly_trends' => $monthlyTrends,
+            'popular_courses' => $popularCourses,
         ]);
     }
 
@@ -647,24 +647,24 @@ class UserController extends Controller
             ->orderBy('enrolled_at', 'desc')
             ->get();
 
-        if (!class_exists('ZipArchive')) {
+        if (! class_exists('ZipArchive')) {
             return response()->json([
                 'message' => 'Server is missing the PHP zip extension. Please contact the administrator.',
             ], 500);
         }
 
         $timestamp = date('Y-m-d_His');
-        $filename = 'report_' . date('Y-m-d') . '.xlsx';
+        $filename = 'report_'.date('Y-m-d').'.xlsx';
         $logoPath = public_path('assets/Maptech-Official-Logo.png');
         $hasLogo = file_exists($logoPath);
-        $genInfo = 'Generated: ' . date('F j, Y g:i A') . '  |  Total Records: ' . count($enrollments);
+        $genInfo = 'Generated: '.date('F j, Y g:i A').'  |  Total Records: '.count($enrollments);
 
         $brandDark = 'FF0B5F2A';
         $brandPrimary = 'FF1B8F3A';
         $brandLight = 'FFE8F6ED';
         $borderColor = 'FFCCE5D4';
 
-        $xe = fn($s) => htmlspecialchars((string) $s, ENT_XML1, 'UTF-8');
+        $xe = fn ($s) => htmlspecialchars((string) $s, ENT_XML1, 'UTF-8');
         $logoCx = null;
         $logoCy = null;
         if ($hasLogo) {
@@ -692,27 +692,27 @@ class UserController extends Controller
         $sw .= '<sheetFormatPr defaultRowHeight="15"/>';
         $sw .= '<cols>';
         foreach ($colWidths as $i => $w) {
-            $sw .= '<col min="' . ($i + 1) . '" max="' . ($i + 1) . '" width="' . $w . '" customWidth="1"/>';
+            $sw .= '<col min="'.($i + 1).'" max="'.($i + 1).'" width="'.$w.'" customWidth="1"/>';
         }
         $sw .= '</cols>';
         $sw .= '<sheetData>';
         $sw .= '<row r="1" ht="50" customHeight="1"/>';
         $sw .= '<row r="2" ht="22" customHeight="1">';
-        $sw .= '<c r="A2" s="1" t="inlineStr"><is><t>' . $xe('Reports & Analytics Report') . '</t></is></c>';
+        $sw .= '<c r="A2" s="1" t="inlineStr"><is><t>'.$xe('Reports & Analytics Report').'</t></is></c>';
         $sw .= '</row>';
         $sw .= '<row r="3" ht="14" customHeight="1">';
-        $sw .= '<c r="A3" s="2" t="inlineStr"><is><t>' . $xe($genInfo) . '</t></is></c>';
+        $sw .= '<c r="A3" s="2" t="inlineStr"><is><t>'.$xe($genInfo).'</t></is></c>';
         $sw .= '</row>';
         $sw .= '<row r="4" ht="18" customHeight="1">';
         foreach ($colLetters as $i => $letter) {
-            $sw .= '<c r="' . $letter . '4" s="3" t="inlineStr"><is><t>' . $xe($headers[$i]) . '</t></is></c>';
+            $sw .= '<c r="'.$letter.'4" s="3" t="inlineStr"><is><t>'.$xe($headers[$i]).'</t></is></c>';
         }
         $sw .= '</row>';
 
         $rowNum = 5;
         foreach ($enrollments as $e) {
             $styleId = ($rowNum % 2 === 0) ? 5 : 4;
-            $sw .= '<row r="' . $rowNum . '">';
+            $sw .= '<row r="'.$rowNum.'">';
             $vals = [
                 $e->user?->fullname ?? 'Unknown',
                 $e->user?->department ?? '-',
@@ -723,7 +723,7 @@ class UserController extends Controller
                 $e->status === 'Completed' ? ($e->updated_at?->format('Y-m-d H:i') ?? '') : '',
             ];
             foreach ($colLetters as $i => $letter) {
-                $sw .= '<c r="' . $letter . $rowNum . '" s="' . $styleId . '" t="inlineStr"><is><t>' . $xe($vals[$i]) . '</t></is></c>';
+                $sw .= '<c r="'.$letter.$rowNum.'" s="'.$styleId.'" t="inlineStr"><is><t>'.$xe($vals[$i]).'</t></is></c>';
             }
             $sw .= '</row>';
             $rowNum++;
@@ -731,14 +731,16 @@ class UserController extends Controller
 
         $sw .= '</sheetData>';
         $sw .= '<mergeCells count="2"><mergeCell ref="A2:G2"/><mergeCell ref="A3:G3"/></mergeCells>';
-        if ($hasLogo) { $sw .= '<drawing r:id="rId1"/>'; }
+        if ($hasLogo) {
+            $sw .= '<drawing r:id="rId1"/>';
+        }
         $sw .= '</worksheet>';
 
         $sx = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $sx .= '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
         $sx .= '<fonts count="5">';
         $sx .= '<font><sz val="11"/><name val="Calibri"/></font>';
-        $sx .= '<font><b/><sz val="14"/><color rgb="' . $brandDark . '"/><name val="Calibri"/></font>';
+        $sx .= '<font><b/><sz val="14"/><color rgb="'.$brandDark.'"/><name val="Calibri"/></font>';
         $sx .= '<font><sz val="10"/><color rgb="FF555555"/><name val="Calibri"/></font>';
         $sx .= '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>';
         $sx .= '<font><sz val="11"/><name val="Calibri"/></font>';
@@ -746,12 +748,12 @@ class UserController extends Controller
         $sx .= '<fills count="4">';
         $sx .= '<fill><patternFill patternType="none"/></fill>';
         $sx .= '<fill><patternFill patternType="gray125"/></fill>';
-        $sx .= '<fill><patternFill patternType="solid"><fgColor rgb="' . $brandPrimary . '"/></patternFill></fill>';
-        $sx .= '<fill><patternFill patternType="solid"><fgColor rgb="' . $brandLight . '"/></patternFill></fill>';
+        $sx .= '<fill><patternFill patternType="solid"><fgColor rgb="'.$brandPrimary.'"/></patternFill></fill>';
+        $sx .= '<fill><patternFill patternType="solid"><fgColor rgb="'.$brandLight.'"/></patternFill></fill>';
         $sx .= '</fills>';
         $sx .= '<borders count="2">';
         $sx .= '<border><left/><right/><top/><bottom/><diagonal/></border>';
-        $sx .= '<border><left style="thin"><color rgb="' . $borderColor . '"/></left><right style="thin"><color rgb="' . $borderColor . '"/></right><top style="thin"><color rgb="' . $borderColor . '"/></top><bottom style="thin"><color rgb="' . $borderColor . '"/></bottom><diagonal/></border>';
+        $sx .= '<border><left style="thin"><color rgb="'.$borderColor.'"/></left><right style="thin"><color rgb="'.$borderColor.'"/></right><top style="thin"><color rgb="'.$borderColor.'"/></top><bottom style="thin"><color rgb="'.$borderColor.'"/></bottom><diagonal/></border>';
         $sx .= '</borders>';
         $sx .= '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
         $sx .= '<cellXfs count="6">';
@@ -770,53 +772,57 @@ class UserController extends Controller
         $dx .= ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
         $dx .= '<xdr:oneCellAnchor>';
         $dx .= '<xdr:from><xdr:col>0</xdr:col><xdr:colOff>38100</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>38100</xdr:rowOff></xdr:from>';
-        $dx .= '<xdr:ext cx="' . ($logoCx ?? 1828800) . '" cy="' . ($logoCy ?? 495300) . '"/>';
+        $dx .= '<xdr:ext cx="'.($logoCx ?? 1828800).'" cy="'.($logoCy ?? 495300).'"/>';
         $dx .= '<xdr:pic>';
         $dx .= '<xdr:nvPicPr><xdr:cNvPr id="2" name="MaptechLogo"/>';
         $dx .= '<xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>';
         $dx .= '<xdr:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>';
-        $dx .= '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' . ($logoCx ?? 1828800) . '" cy="' . ($logoCy ?? 495300) . '"/></a:xfrm>';
+        $dx .= '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'.($logoCx ?? 1828800).'" cy="'.($logoCy ?? 495300).'"/></a:xfrm>';
         $dx .= '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>';
         $dx .= '</xdr:pic><xdr:clientData/>';
         $dx .= '</xdr:oneCellAnchor>';
         $dx .= '</xdr:wsDr>';
 
         $tmpFile = tempnam(sys_get_temp_dir(), 'report_xlsx_');
-        $zip = new \ZipArchive();
+        $zip = new \ZipArchive;
         $zip->open($tmpFile, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
 
         $ct = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $ct .= '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">';
         $ct .= '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>';
         $ct .= '<Default Extension="xml" ContentType="application/xml"/>';
-        if ($hasLogo) { $ct .= '<Default Extension="png" ContentType="image/png"/>'; }
+        if ($hasLogo) {
+            $ct .= '<Default Extension="png" ContentType="image/png"/>';
+        }
         $ct .= '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>';
         $ct .= '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
         $ct .= '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>';
-        if ($hasLogo) { $ct .= '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>'; }
+        if ($hasLogo) {
+            $ct .= '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>';
+        }
         $ct .= '</Types>';
         $zip->addFromString('[Content_Types].xml', $ct);
 
         $zip->addFromString('_rels/.rels',
-            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
-            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' .
-            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' .
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'.
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'.
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'.
             '</Relationships>'
         );
 
         $zip->addFromString('xl/workbook.xml',
-            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
-            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"' .
-            ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' .
-            '<sheets><sheet name="Reports" sheetId="1" r:id="rId1"/></sheets>' .
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'.
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'.
+            ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'.
+            '<sheets><sheet name="Reports" sheetId="1" r:id="rId1"/></sheets>'.
             '</workbook>'
         );
 
         $zip->addFromString('xl/_rels/workbook.xml.rels',
-            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
-            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' .
-            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' .
-            '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' .
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'.
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'.
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'.
+            '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'.
             '</Relationships>'
         );
 
@@ -825,16 +831,16 @@ class UserController extends Controller
 
         if ($hasLogo) {
             $zip->addFromString('xl/worksheets/_rels/sheet1.xml.rels',
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
-                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' .
-                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>' .
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'.
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'.
+                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>'.
                 '</Relationships>'
             );
             $zip->addFromString('xl/drawings/drawing1.xml', $dx);
             $zip->addFromString('xl/drawings/_rels/drawing1.xml.rels',
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
-                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' .
-                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/logo.png"/>' .
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'.
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'.
+                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/logo.png"/>'.
                 '</Relationships>'
             );
             $zip->addFromString('xl/media/logo.png', file_get_contents($logoPath));
@@ -860,9 +866,9 @@ class UserController extends Controller
         $activeEmployees = User::where('role', 'employee')
             ->where('status', 'Active')
             ->count();
-        $activeCourses  = Course::where('status', 'Active')->count();
+        $activeCourses = Course::where('status', 'Active')->count();
 
-        $totalEnrollments     = Enrollment::count();
+        $totalEnrollments = Enrollment::count();
         $completedEnrollments = Enrollment::where('status', 'Completed')->count();
         $completionRate = $totalEnrollments > 0
             ? round(($completedEnrollments / $totalEnrollments) * 100)
@@ -881,7 +887,7 @@ class UserController extends Controller
                 ->groupByRaw("TO_CHAR(completed_at, 'YYYY-MM'), TO_CHAR(completed_at, 'Mon')")
                 ->orderByRaw("TO_CHAR(completed_at, 'YYYY-MM')")
                 ->get()
-                ->map(fn($row) => ['name' => $row->name, 'rate' => (int) $row->rate])
+                ->map(fn ($row) => ['name' => $row->name, 'rate' => (int) $row->rate])
                 ->values();
         } catch (\Exception $e) {
             // Likely running on SQLite or other DB without TO_CHAR support; fall back to empty trends
@@ -896,9 +902,10 @@ class UserController extends Controller
             ->pluck('department');
 
         $departmentPerformance = $departments->map(function ($dept) {
-            $userIds   = User::where('role', 'employee')->where('department', $dept)->pluck('id');
-            $assigned  = Enrollment::whereIn('user_id', $userIds)->count();
+            $userIds = User::where('role', 'employee')->where('department', $dept)->pluck('id');
+            $assigned = Enrollment::whereIn('user_id', $userIds)->count();
             $completed = Enrollment::whereIn('user_id', $userIds)->where('status', 'Completed')->count();
+
             return ['name' => $dept, 'assigned' => $assigned, 'completed' => $completed];
         })->values();
 
@@ -910,28 +917,29 @@ class UserController extends Controller
             ->map(function ($enrollment) {
                 $action = match ($enrollment->status) {
                     'Completed' => 'Completed Course',
-                    'Dropped'   => 'Dropped Course',
+                    'Dropped' => 'Dropped Course',
                     'In Progress' => 'Started Course',
-                    default     => 'Enrolled',
+                    default => 'Enrolled',
                 };
+
                 return [
-                    'id'     => $enrollment->id,
-                    'user'   => $enrollment->user?->fullname ?? 'Unknown',
+                    'id' => $enrollment->id,
+                    'user' => $enrollment->user?->fullname ?? 'Unknown',
                     'action' => $action,
                     'target' => $enrollment->course?->title ?? 'Unknown',
-                    'time'   => $enrollment->updated_at->diffForHumans(),
+                    'time' => $enrollment->updated_at->diffForHumans(),
                 ];
             });
 
         return response()->json([
-            'total_employees'        => $totalEmployees,
-            'active_employees'       => $activeEmployees,
-            'active_courses'         => $activeCourses,
-            'completion_rate'        => $completionRate,
-            'avg_quiz_score'         => $avgQuizScore,
-            'completion_trends'      => $completionTrends,
+            'total_employees' => $totalEmployees,
+            'active_employees' => $activeEmployees,
+            'active_courses' => $activeCourses,
+            'completion_rate' => $completionRate,
+            'avg_quiz_score' => $avgQuizScore,
+            'completion_trends' => $completionTrends,
             'department_performance' => $departmentPerformance,
-            'recent_activity'        => $recentActivity,
+            'recent_activity' => $recentActivity,
         ]);
     }
 
@@ -964,7 +972,7 @@ class UserController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'Failed to regenerate recovery key: ' . $e->getMessage()
+                'message' => 'Failed to regenerate recovery key: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -997,7 +1005,7 @@ class UserController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'Failed to get recovery key: ' . $e->getMessage()
+                'message' => 'Failed to get recovery key: '.$e->getMessage(),
             ], 500);
         }
     }

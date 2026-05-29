@@ -6,10 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\CustomModule;
 use App\Models\Notification;
 use App\Models\User;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Exception;
 
 class CustomModuleController extends Controller
 {
@@ -21,7 +21,7 @@ class CustomModuleController extends Controller
         $instructor = $request->user();
 
         // Check if instructor has a department assigned
-        if (!$instructor->department) {
+        if (! $instructor->department) {
             return response()->json([
                 'message' => 'You are not assigned to any department',
                 'success_count' => 0,
@@ -78,7 +78,7 @@ class CustomModuleController extends Controller
                 }
             });
 
-            $message = "Module pushed to {$successCount} employee" . ($successCount > 1 ? 's' : '') . " in {$instructor->department} department";
+            $message = "Module pushed to {$successCount} employee".($successCount > 1 ? 's' : '')." in {$instructor->department} department";
 
             Log::info('Instructor pushed module to department', [
                 'instructor_id' => $instructor->id,
@@ -114,7 +114,7 @@ class CustomModuleController extends Controller
         $instructor = $request->user();
 
         // Check if instructor has a department assigned
-        if (!$instructor->department) {
+        if (! $instructor->department) {
             return response()->json([
                 'employees' => [],
                 'department' => null,

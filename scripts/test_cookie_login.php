@@ -1,8 +1,10 @@
 <?php
+
 $base = 'http://127.0.0.1:8000';
 
-function request($method, $path, $headers = [], $body = null, $cookies = []) {
-    $url = rtrim($GLOBALS['base'], '/') . $path;
+function request($method, $path, $headers = [], $body = null, $cookies = [])
+{
+    $url = rtrim($GLOBALS['base'], '/').$path;
 
     $opts = [
         'http' => [
@@ -13,14 +15,16 @@ function request($method, $path, $headers = [], $body = null, $cookies = []) {
         ],
     ];
 
-    if (!empty($cookies)) {
+    if (! empty($cookies)) {
         $cookieStr = [];
-        foreach ($cookies as $k => $v) $cookieStr[] = $k . '=' . $v;
+        foreach ($cookies as $k => $v) {
+            $cookieStr[] = $k.'='.$v;
+        }
         $headers['Cookie'] = implode('; ', $cookieStr);
     }
 
     foreach ($headers as $k => $v) {
-        $opts['http']['header'][] = $k . ': ' . $v;
+        $opts['http']['header'][] = $k.': '.$v;
     }
 
     if ($body !== null) {
@@ -34,10 +38,12 @@ function request($method, $path, $headers = [], $body = null, $cookies = []) {
     $context = stream_context_create($opts);
     $res = @file_get_contents($url, false, $context);
     $respHeaders = isset($http_response_header) ? $http_response_header : [];
+
     return [$res, $respHeaders];
 }
 
-function parseSetCookies($headers) {
+function parseSetCookies($headers)
+{
     $cookies = [];
     foreach ($headers as $h) {
         if (stripos($h, 'Set-Cookie:') === 0) {
@@ -50,19 +56,20 @@ function parseSetCookies($headers) {
             }
         }
     }
+
     return $cookies;
 }
 
 echo "Fetching CSRF cookie...\n";
-list($r, $h) = request('GET', '/sanctum/csrf-cookie', ['Accept' => 'text/html']);
+[$r, $h] = request('GET', '/sanctum/csrf-cookie', ['Accept' => 'text/html']);
 $cookies = parseSetCookies($h);
 if (empty($cookies)) {
     echo "No Set-Cookie received from /sanctum/csrf-cookie\n";
     exit(1);
 }
-echo "Received cookies: " . implode(', ', array_keys($cookies)) . "\n";
+echo 'Received cookies: '.implode(', ', array_keys($cookies))."\n";
 
-if (!isset($cookies['XSRF-TOKEN'])) {
+if (! isset($cookies['XSRF-TOKEN'])) {
     echo "XSRF-TOKEN not present in cookies\n";
 }
 
@@ -75,17 +82,19 @@ $loginHeaders = [
     'X-XSRF-TOKEN' => $xsrf,
 ];
 
-list($lr, $lh) = request('POST', '/login', $loginHeaders, ['email' => 'admin@test.com', 'password' => 'Password123!'], $cookies);
+[$lr, $lh] = request('POST', '/login', $loginHeaders, ['email' => 'admin@test.com', 'password' => 'Password123!'], $cookies);
 $loginCookies = parseSetCookies($lh);
-if (!empty($loginCookies)) {
+if (! empty($loginCookies)) {
     $cookies = array_merge($cookies, $loginCookies);
 }
 
 echo "Login response headers:\n";
-foreach ($lh as $line) echo $line . "\n";
+foreach ($lh as $line) {
+    echo $line."\n";
+}
 
 echo "Login body:\n";
-echo substr($lr, 0, 2000) . (strlen($lr) > 2000 ? "\n...[truncated]\n" : "\n");
+echo substr($lr, 0, 2000).(strlen($lr) > 2000 ? "\n...[truncated]\n" : "\n");
 
 // If login body contains a token, use it as a bearer fallback for API calls
 $loginData = json_decode($lr, true) ?: [];
@@ -100,15 +109,15 @@ $apiHeaders = [
 ];
 
 if ($bearer) {
-    $apiHeaders['Authorization'] = 'Bearer ' . $bearer;
+    $apiHeaders['Authorization'] = 'Bearer '.$bearer;
 }
 
-list($ar, $ah) = request('GET', '/api/admin/notifications', $apiHeaders, null, $cookies);
+[$ar, $ah] = request('GET', '/api/admin/notifications', $apiHeaders, null, $cookies);
 
 echo "API response headers:\n";
-foreach ($ah as $line) echo $line . "\n";
+foreach ($ah as $line) {
+    echo $line."\n";
+}
 
 echo "API body (truncated):\n";
-echo substr($ar, 0, 4000) . (strlen($ar) > 4000 ? "\n...[truncated]\n" : "\n");
-
-?>
+echo substr($ar, 0, 4000).(strlen($ar) > 4000 ? "\n...[truncated]\n" : "\n");

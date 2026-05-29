@@ -3,13 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Course;
-use App\Models\Module;
 use App\Models\Lesson;
+use App\Models\Module;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
-use Exception;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class ContentController extends Controller
 {
@@ -27,7 +25,7 @@ class ContentController extends Controller
 
         // If the requester is an employee, only allow access to courses for their department
         if ($user && $user->isEmployee()) {
-            if (!$user->department) {
+            if (! $user->department) {
                 return response()->json(['message' => 'User has no department assigned'], 403);
             }
 
@@ -146,25 +144,25 @@ class ContentController extends Controller
         }
 
         $validated = $request->validate([
-            'title'   => 'required|string|max:255',
-            'type'    => 'required|in:Video,Document,Text',
-            'status'  => 'nullable|in:Published,Draft',
+            'title' => 'required|string|max:255',
+            'type' => 'required|in:Video,Document,Text',
+            'status' => 'nullable|in:Published,Draft',
             'content' => 'nullable|file|max:512000', // up to 500 MB
             'text_content' => 'nullable|string',
             'duration' => 'nullable|string|max:50', // e.g. "1:23" from frontend
         ]);
 
         $contentPath = null;
-        $fileSize    = null;
-        $duration    = null;
+        $fileSize = null;
+        $duration = null;
         $textContent = null;
 
         if ($validated['type'] === 'Text') {
             $textContent = $validated['text_content'] ?? '';
             // Estimate reading time (~200 words per minute)
             $wordCount = str_word_count($textContent);
-            $minutes   = max(1, (int) ceil($wordCount / 200));
-            $duration  = "{$minutes} min read";
+            $minutes = max(1, (int) ceil($wordCount / 200));
+            $duration = "{$minutes} min read";
         } else {
             if ($request->hasFile('content')) {
                 $file = $request->file('content');
@@ -173,7 +171,7 @@ class ContentController extends Controller
                 $fileSize = $this->formatBytes($bytes);
 
                 // Use frontend-provided duration for videos if available
-                if ($validated['type'] === 'Video' && !empty($validated['duration'])) {
+                if ($validated['type'] === 'Video' && ! empty($validated['duration'])) {
                     $duration = $validated['duration'];
                 } else {
                     $duration = $validated['type'] === 'Video' ? $this->estimateVideoDuration($bytes) : $this->estimateReadTime($bytes);
@@ -184,14 +182,14 @@ class ContentController extends Controller
         $maxOrder = $module->lessons()->max('order') ?? -1;
 
         $lesson = $module->lessons()->create([
-            'title'        => $validated['title'],
-            'type'         => $validated['type'],
+            'title' => $validated['title'],
+            'type' => $validated['type'],
             'content_path' => $contentPath,
             'text_content' => $textContent,
-            'duration'     => $duration,
-            'file_size'    => $fileSize,
-            'status'       => $validated['status'] ?? 'Draft',
-            'order'        => $maxOrder + 1,
+            'duration' => $duration,
+            'file_size' => $fileSize,
+            'status' => $validated['status'] ?? 'Draft',
+            'order' => $maxOrder + 1,
         ]);
 
         return response()->json($lesson, 201);
@@ -215,7 +213,7 @@ class ContentController extends Controller
         }
 
         $validated = $request->validate([
-            'title'  => 'sometimes|required|string|max:255',
+            'title' => 'sometimes|required|string|max:255',
             'status' => 'sometimes|in:Published,Draft',
             'text_content' => 'nullable|string',
             'content' => 'nullable|file|max:512000',
@@ -241,7 +239,7 @@ class ContentController extends Controller
             $lesson->file_size = $this->formatBytes($bytes);
 
             // Use frontend-provided duration for videos if available
-            if ($lesson->type === 'Video' && !empty($validated['duration'])) {
+            if ($lesson->type === 'Video' && ! empty($validated['duration'])) {
                 $lesson->duration = $validated['duration'];
             } else {
                 $lesson->duration = $lesson->type === 'Video'
@@ -293,15 +291,16 @@ class ContentController extends Controller
     private function formatBytes(int $bytes): string
     {
         if ($bytes >= 1073741824) {
-            return round($bytes / 1073741824, 1) . ' GB';
+            return round($bytes / 1073741824, 1).' GB';
         }
         if ($bytes >= 1048576) {
-            return round($bytes / 1048576, 1) . ' MB';
+            return round($bytes / 1048576, 1).' MB';
         }
         if ($bytes >= 1024) {
-            return round($bytes / 1024, 1) . ' KB';
+            return round($bytes / 1024, 1).' KB';
         }
-        return $bytes . ' B';
+
+        return $bytes.' B';
     }
 
     private function estimateVideoDuration(int $bytes): string
@@ -310,6 +309,7 @@ class ContentController extends Controller
         $minutes = max(1, (int) round($bytes / (10 * 1048576)));
         $hrs = intdiv($minutes, 60);
         $mins = $minutes % 60;
+
         return $hrs > 0 ? sprintf('%d:%02d', $hrs, $mins) : sprintf('%d:%02d', $mins, 0);
     }
 
@@ -318,6 +318,7 @@ class ContentController extends Controller
         // Rough: 1 page ≈ 3 KB, 2 minutes per page
         $pages = max(1, (int) round($bytes / 3072));
         $minutes = $pages * 2;
+
         return "{$minutes} min read";
     }
 }

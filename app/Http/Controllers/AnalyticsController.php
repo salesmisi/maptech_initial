@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\LessonEvent;
+use Illuminate\Http\Request;
 
 class AnalyticsController extends Controller
 {
@@ -40,6 +40,7 @@ class AnalyticsController extends Controller
             $query->where('user_id', $request->user_id);
         }
         $events = $query->orderByDesc('created_at')->limit(100)->get();
+
         return response()->json(['data' => $events]);
     }
 }

@@ -2,16 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\NotificationCountUpdated;
 use App\Models\Notification;
 use App\Models\SentHistory;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Storage;
-use App\Events\NotificationCountUpdated;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class NotificationController extends Controller
 {
@@ -90,7 +91,9 @@ class NotificationController extends Controller
     public function readAll(Request $request)
     {
         $user = $request->user() ?? Auth::user();
-        if (! $user) return response()->json(['message' => 'Unauthenticated'], 401);
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
 
         Notification::where('user_id', $user->id)
             ->whereNull('read_at')
@@ -127,7 +130,9 @@ class NotificationController extends Controller
     public function destroy(Request $request, $id)
     {
         $user = $request->user() ?? Auth::user();
-        if (! $user) return response()->json(['message' => 'Unauthenticated'], 401);
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
 
         $notification = Notification::where('id', $id)->where('user_id', $user->id)->firstOrFail();
         $notification->delete();
@@ -184,7 +189,9 @@ class NotificationController extends Controller
     public function permanentlyDeleteNotification(Request $request, int $id)
     {
         $user = $request->user() ?? Auth::user();
-        if (! $user) return response()->json(['message' => 'Unauthenticated'], 401);
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
 
         $notification = Notification::onlyTrashed()
             ->where('id', $id)
@@ -238,7 +245,7 @@ class NotificationController extends Controller
         $imageUrl = null;
         $imageUrls = [];
         // If department_id provided, resolve to department name
-        if ($department_id && !$department) {
+        if ($department_id && ! $department) {
             $dept = \App\Models\Department::find($department_id);
             if ($dept) {
                 $department = $dept->name;
@@ -293,7 +300,7 @@ class NotificationController extends Controller
 
         // Preview should only report recipients and never create notifications/history.
         if ($request->boolean('preview')) {
-            $recipientNames = $users->map(fn($u) => ['id' => $u->id, 'fullname' => $u->fullname])->values()->all();
+            $recipientNames = $users->map(fn ($u) => ['id' => $u->id, 'fullname' => $u->fullname])->values()->all();
             $payload = [
                 'message' => 'Preview recipients calculated',
                 'recipients_count' => $users->count(),
@@ -302,6 +309,7 @@ class NotificationController extends Controller
             if (config('app.debug')) {
                 $payload['matched_user_ids'] = $users->pluck('id')->values()->all();
             }
+
             return response()->json($payload);
         }
 
@@ -345,9 +353,9 @@ class NotificationController extends Controller
         if ($users->count() === 1) {
             $targetDescription = $users->first()->fullname;
         } elseif (is_array($targetIds) && count($targetIds) > 0) {
-            $targetDescription = 'Selected Users (' . $users->count() . ')';
+            $targetDescription = 'Selected Users ('.$users->count().')';
         } elseif ($department) {
-            $targetDescription = $department . ' - ' . implode(', ', $roles);
+            $targetDescription = $department.' - '.implode(', ', $roles);
         } elseif (count($roles) > 0) {
             $targetDescription = implode(', ', $roles);
         }
@@ -451,9 +459,11 @@ class NotificationController extends Controller
         $targetUserId = $request->input('target_user_id');
 
         // If department_id provided, resolve to name
-        if ($departmentId && !$department) {
+        if ($departmentId && ! $department) {
             $dept = \App\Models\Department::find($departmentId);
-            if ($dept) $department = $dept->name;
+            if ($dept) {
+                $department = $dept->name;
+            }
         }
 
         $notifications = [];
@@ -462,7 +472,7 @@ class NotificationController extends Controller
         if ($targetUserId) {
             // Send to a specific employee
             $targetUser = User::find($targetUserId);
-            if (!$targetUser || strtolower($targetUser->role) !== 'employee') {
+            if (! $targetUser || strtolower($targetUser->role) !== 'employee') {
                 return response()->json(['message' => 'Target user must be an employee'], 422);
             }
 
@@ -500,10 +510,10 @@ class NotificationController extends Controller
             $assignedDept = $instructor->department;
 
             $allowed = ($course->instructor_id === $instructor->id)
-                || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+                || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
                 || ($assignedDept && $course->department === $assignedDept);
 
-            if (!$allowed) {
+            if (! $allowed) {
                 return response()->json(['message' => 'Forbidden'], 403);
             }
 
@@ -517,7 +527,7 @@ class NotificationController extends Controller
             $assignedDept = $instructor->department;
 
             // Instructor must belong to the department or have assigned subdepartments in it
-            if (!($assignedDept === $department) && empty($assignedSubIds)) {
+            if (! ($assignedDept === $department) && empty($assignedSubIds)) {
                 return response()->json(['message' => 'Forbidden'], 403);
             }
 
@@ -538,15 +548,18 @@ class NotificationController extends Controller
         }
 
         // Deduplicate recipients by user_id
-        $unique = $recipients->unique(function ($item) { return $item[0]; });
+        $unique = $recipients->unique(function ($item) {
+            return $item[0];
+        });
 
         // If preview mode, return count without creating notifications
         if ($request->boolean('preview')) {
             $recipientNames = User::whereIn('id', $unique->pluck(0)->all())
                 ->select('id', 'fullname')
                 ->get()
-                ->map(fn($u) => ['id' => $u->id, 'fullname' => $u->fullname])
+                ->map(fn ($u) => ['id' => $u->id, 'fullname' => $u->fullname])
                 ->values()->all();
+
             return response()->json([
                 'message' => 'Preview only',
                 'recipients_count' => $unique->count(),
@@ -604,7 +617,7 @@ class NotificationController extends Controller
             }
 
             // Also include instructors linked via user_subdepartment pivot
-            $pivotIds = \DB::table('user_subdepartment')
+            $pivotIds = DB::table('user_subdepartment')
                 ->where('subdepartment_id', $employee->subdepartment_id)
                 ->pluck('user_id');
             $instructorIds = $instructorIds->merge($pivotIds)->unique();
@@ -614,7 +627,8 @@ class NotificationController extends Controller
                     ->where('role', 'instructor')
                     ->select('id', 'fullname', 'profile_picture')
                     ->get()
-                    ->map(fn($i) => ['id' => $i->id, 'fullname' => $i->fullname]);
+                    ->map(fn ($i) => ['id' => $i->id, 'fullname' => $i->fullname]);
+
                 return response()->json($instructors->values());
             }
 
@@ -624,13 +638,14 @@ class NotificationController extends Controller
                 $instructors = \App\Models\User::where('role', 'instructor')
                     ->whereIn('id', function ($q) use ($deptId) {
                         $q->select('head_id')
-                          ->from('subdepartments')
-                          ->where('department_id', $deptId)
-                          ->whereNotNull('head_id');
+                            ->from('subdepartments')
+                            ->where('department_id', $deptId)
+                            ->whereNotNull('head_id');
                     })
                     ->select('id', 'fullname', 'profile_picture')
                     ->get()
-                    ->map(fn($i) => ['id' => $i->id, 'fullname' => $i->fullname]);
+                    ->map(fn ($i) => ['id' => $i->id, 'fullname' => $i->fullname]);
+
                 return response()->json($instructors->values());
             }
         }
@@ -890,7 +905,7 @@ class NotificationController extends Controller
         ]);
 
         $instructor = Auth::user();
-        if (!$instructor) {
+        if (! $instructor) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 

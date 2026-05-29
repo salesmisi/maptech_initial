@@ -26,7 +26,7 @@ class SyncCustomModuleToCourses
      */
     public function handle(CustomModuleUpdated $event): void
     {
-        if (!$event->shouldSync) {
+        if (! $event->shouldSync) {
             return;
         }
 

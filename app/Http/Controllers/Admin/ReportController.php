@@ -49,7 +49,7 @@ class ReportController extends Controller
             }
 
             $completedAt = $enrollment->completed_at;
-            if (!$completedAt && $enrollment->status === 'Completed') {
+            if (! $completedAt && $enrollment->status === 'Completed') {
                 $completedAt = $enrollment->enrolled_at;
             }
 

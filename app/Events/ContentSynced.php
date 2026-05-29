@@ -3,8 +3,8 @@
 namespace App\Events;
 
 use App\Models\Course;
-use App\Models\Module;
 use App\Models\CustomModule;
+use App\Models\Module;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -21,8 +21,11 @@ class ContentSynced implements ShouldBroadcastNow
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public Course $course;
+
     public Module $module;
+
     public CustomModule $customModule;
+
     public string $action; // 'created', 'updated', 'deleted'
 
     public function __construct(Course $course, Module $module, CustomModule $customModule, string $action = 'created')
@@ -40,7 +43,7 @@ class ContentSynced implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('course.' . $this->course->id),
+            new PrivateChannel('course.'.$this->course->id),
         ];
     }
 
