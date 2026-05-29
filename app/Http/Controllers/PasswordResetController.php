@@ -56,9 +56,6 @@ class PasswordResetController extends Controller
      * 5. Sends the OTP via email
      *
      * Security: Always returns success message to prevent email enumeration.
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function sendResetOTP(Request $request): JsonResponse
     {
@@ -71,7 +68,7 @@ class PasswordResetController extends Controller
         $ipAddress = $request->ip();
 
         // Rate limiting: Max 5 requests per hour per IP
-        $rateLimitKey = 'password_reset:' . $ipAddress;
+        $rateLimitKey = 'password_reset:'.$ipAddress;
 
         if (RateLimiter::tooManyAttempts($rateLimitKey, self::MAX_REQUESTS_PER_HOUR)) {
             $seconds = RateLimiter::availableIn($rateLimitKey);
@@ -83,7 +80,7 @@ class PasswordResetController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Too many requests. Please try again in ' . ceil($seconds / 60) . ' minutes.',
+                'message' => 'Too many requests. Please try again in '.ceil($seconds / 60).' minutes.',
             ], 429);
         }
 
@@ -95,7 +92,7 @@ class PasswordResetController extends Controller
         $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
 
         // If not found by work email, check if an admin entered their personal_gmail
-        if (!$user) {
+        if (! $user) {
             $user = User::whereRaw('LOWER(personal_gmail) = ?', [$email])
                 ->whereRaw('LOWER(role) = ?', ['admin'])
                 ->first();
@@ -197,9 +194,6 @@ class PasswordResetController extends Controller
 
     /**
      * Masks an email address for display (e.g., "jo***@gmail.com").
-     *
-     * @param string $email
-     * @return string
      */
     private function maskEmail(string $email): string
     {
@@ -213,14 +207,14 @@ class PasswordResetController extends Controller
 
         // Mask local part
         if (strlen($local) > 3) {
-            $maskedLocal = substr($local, 0, 2) . '***' . substr($local, -1);
+            $maskedLocal = substr($local, 0, 2).'***'.substr($local, -1);
         } elseif (strlen($local) > 1) {
-            $maskedLocal = $local[0] . '***';
+            $maskedLocal = $local[0].'***';
         } else {
             $maskedLocal = '***';
         }
 
-        return $maskedLocal . '@' . $domain;
+        return $maskedLocal.'@'.$domain;
     }
 
     /**
@@ -232,9 +226,6 @@ class PasswordResetController extends Controller
      * 3. Verifies the OTP matches
      * 4. Tracks failed attempts for brute-force protection
      * 5. Returns a reset token on success
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function verifyOTP(Request $request): JsonResponse
     {
@@ -248,7 +239,7 @@ class PasswordResetController extends Controller
         $ipAddress = $request->ip();
 
         // Rate limiting for OTP verification attempts
-        $rateLimitKey = 'otp_verify:' . $ipAddress;
+        $rateLimitKey = 'otp_verify:'.$ipAddress;
 
         if (RateLimiter::tooManyAttempts($rateLimitKey, 10)) {
             return response()->json([
@@ -264,7 +255,7 @@ class PasswordResetController extends Controller
             ->whereRaw('LOWER(email) = ?', [$email])
             ->first();
 
-        if (!$resetRecord) {
+        if (! $resetRecord) {
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid or expired verification code.',
@@ -297,7 +288,7 @@ class PasswordResetController extends Controller
         }
 
         // Verify OTP
-        if (!Hash::check($otp, $resetRecord->otp)) {
+        if (! Hash::check($otp, $resetRecord->otp)) {
             // Increment attempt counter
             DB::table('password_reset_tokens')
                 ->where('email', $resetRecord->email)
@@ -313,7 +304,7 @@ class PasswordResetController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid verification code. ' . max(0, $remainingAttempts) . ' attempts remaining.',
+                'message' => 'Invalid verification code. '.max(0, $remainingAttempts).' attempts remaining.',
             ], 400);
         }
 
@@ -349,9 +340,6 @@ class PasswordResetController extends Controller
      * - At least one uppercase letter
      * - At least one special character
      * - At least two numbers
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function resetPassword(Request $request): JsonResponse
     {
@@ -365,11 +353,11 @@ class PasswordResetController extends Controller
                 'confirmed', // Requires password_confirmation field
                 function ($attribute, $value, $fail) {
                     // At least one uppercase letter
-                    if (!preg_match('/[A-Z]/', $value)) {
+                    if (! preg_match('/[A-Z]/', $value)) {
                         $fail('Password must contain at least one uppercase letter.');
                     }
                     // At least one special character
-                    if (!preg_match('/[!@#$%^&*(),.?":{}|<>_\-=+\[\]\\\\\/`~;\']/u', $value)) {
+                    if (! preg_match('/[!@#$%^&*(),.?":{}|<>_\-=+\[\]\\\\\/`~;\']/u', $value)) {
                         $fail('Password must contain at least one special character.');
                     }
                     // At least two numbers
@@ -390,7 +378,7 @@ class PasswordResetController extends Controller
             ->whereRaw('LOWER(email) = ?', [$email])
             ->first();
 
-        if (!$resetRecord) {
+        if (! $resetRecord) {
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid or expired reset token.',
@@ -408,7 +396,7 @@ class PasswordResetController extends Controller
         }
 
         // Verify token
-        if (!Hash::check($token, $resetRecord->token)) {
+        if (! Hash::check($token, $resetRecord->token)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid reset token.',
@@ -418,7 +406,7 @@ class PasswordResetController extends Controller
         // Find the user
         $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'success' => false,
                 'message' => 'User not found.',
@@ -434,7 +422,7 @@ class PasswordResetController extends Controller
 
         // Determine confirmation email address (admins use personal_gmail)
         $isAdmin = strtolower($user->role ?? '') === 'admin';
-        $confirmationEmail = $isAdmin && !empty($user->personal_gmail)
+        $confirmationEmail = $isAdmin && ! empty($user->personal_gmail)
             ? $user->personal_gmail
             : $user->email;
 
@@ -480,9 +468,6 @@ class PasswordResetController extends Controller
      *
      * This endpoint allows users to request a new OTP if the previous one has expired
      * or if they didn't receive it.
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function resendOTP(Request $request): JsonResponse
     {
@@ -495,9 +480,6 @@ class PasswordResetController extends Controller
      *
      * This endpoint allows users to reset their password using their recovery key
      * without needing email access.
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function resetPasswordWithRecoveryKey(Request $request): JsonResponse
     {
@@ -511,11 +493,11 @@ class PasswordResetController extends Controller
                 'confirmed', // Requires password_confirmation field
                 function ($attribute, $value, $fail) {
                     // At least one uppercase letter
-                    if (!preg_match('/[A-Z]/', $value)) {
+                    if (! preg_match('/[A-Z]/', $value)) {
                         $fail('Password must contain at least one uppercase letter.');
                     }
                     // At least one special character
-                    if (!preg_match('/[!@#$%^&*(),.?":{}|<>_\-=+\[\]\\\\\/`~;\']/u', $value)) {
+                    if (! preg_match('/[!@#$%^&*(),.?":{}|<>_\-=+\[\]\\\\\/`~;\']/u', $value)) {
                         $fail('Password must contain at least one special character.');
                     }
                     // At least two numbers
@@ -532,7 +514,7 @@ class PasswordResetController extends Controller
         $ipAddress = $request->ip();
 
         // Rate limiting for recovery key attempts
-        $rateLimitKey = 'recovery_key_reset:' . $ipAddress;
+        $rateLimitKey = 'recovery_key_reset:'.$ipAddress;
 
         if (RateLimiter::tooManyAttempts($rateLimitKey, 5)) {
             $seconds = RateLimiter::availableIn($rateLimitKey);
@@ -544,7 +526,7 @@ class PasswordResetController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Too many attempts. Please try again in ' . ceil($seconds / 60) . ' minutes.',
+                'message' => 'Too many attempts. Please try again in '.ceil($seconds / 60).' minutes.',
             ], 429);
         }
 
@@ -553,7 +535,7 @@ class PasswordResetController extends Controller
         // Find the user
         $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
 
-        if (!$user) {
+        if (! $user) {
             Log::info('Recovery key reset attempted for non-existent email', [
                 'email' => $email,
                 'ip' => $ipAddress,
@@ -580,7 +562,7 @@ class PasswordResetController extends Controller
         }
 
         // Verify the recovery key
-        if (!$user->verifyRecoveryKey($recoveryKey)) {
+        if (! $user->verifyRecoveryKey($recoveryKey)) {
             Log::info('Invalid recovery key attempt', [
                 'user_id' => $user->id,
                 'email' => $email,

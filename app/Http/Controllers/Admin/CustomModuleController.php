@@ -3,18 +3,17 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\CustomModule;
-use App\Models\CustomLesson;
 use App\Models\Course;
+use App\Models\CustomModule;
 use App\Models\Module;
 use App\Models\Notification;
+use Exception;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\DB;
-use Exception;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class CustomModuleController extends Controller
 {
@@ -129,12 +128,14 @@ class CustomModuleController extends Controller
             ], 201);
         } catch (ValidationException $e) {
             Log::error('Validation failed', $e->errors());
+
             return response()->json([
                 'message' => 'Validation failed',
                 'errors' => $e->errors(),
             ], 422);
         } catch (Exception $e) {
             Log::error('Error creating custom module', ['error' => $e->getMessage()]);
+
             return response()->json([
                 'message' => 'An error occurred while creating the custom module',
                 'error' => $e->getMessage(),
@@ -178,7 +179,7 @@ class CustomModuleController extends Controller
             // Create version snapshot before update
             $changes = [];
             foreach (['title', 'module_type', 'route_path', 'icon_name', 'description', 'category', 'status'] as $field) {
-                if (isset($validated[$field]) && $module->$field !== $validated[$field]) {
+                if (isset($validated[$field]) && $validated[$field] !== $module->$field) {
                     $changes[$field] = [
                         'old' => $module->$field,
                         'new' => $validated[$field],
@@ -186,7 +187,7 @@ class CustomModuleController extends Controller
                 }
             }
 
-            if (!empty($changes)) {
+            if (! empty($changes)) {
                 $module->createVersionSnapshot($request->user()->id, $changes);
                 $validated['version'] = $module->version + 1;
             }
@@ -217,12 +218,14 @@ class CustomModuleController extends Controller
             ]);
         } catch (ValidationException $e) {
             Log::error('Validation failed', $e->errors());
+
             return response()->json([
                 'message' => 'Validation failed',
                 'errors' => $e->errors(),
             ], 422);
         } catch (Exception $e) {
             Log::error('Error updating custom module', ['error' => $e->getMessage()]);
+
             return response()->json([
                 'message' => 'An error occurred while updating the custom module',
                 'error' => $e->getMessage(),
@@ -245,7 +248,7 @@ class CustomModuleController extends Controller
 
             // Delete all lesson files
             foreach ($module->lessons as $lesson) {
-                if ($lesson->content_path && !preg_match('#^https?://#i', $lesson->content_path)) {
+                if ($lesson->content_path && ! preg_match('#^https?://#i', $lesson->content_path)) {
                     Storage::disk('public')->delete($lesson->content_path);
                 }
             }
@@ -259,6 +262,7 @@ class CustomModuleController extends Controller
             ]);
         } catch (Exception $e) {
             Log::error('Error deleting custom module', ['error' => $e->getMessage()]);
+
             return response()->json([
                 'message' => 'An error occurred while deleting the custom module',
                 'error' => $e->getMessage(),
@@ -419,6 +423,7 @@ class CustomModuleController extends Controller
             ]);
         } catch (Exception $e) {
             Log::error('Error syncing module to course', ['error' => $e->getMessage()]);
+
             return response()->json([
                 'message' => 'An error occurred while syncing the module',
                 'error' => $e->getMessage(),
@@ -453,9 +458,9 @@ class CustomModuleController extends Controller
             ], 500);
         }
 
-        $message = "Module synced to {$results['success_count']} course" . ($results['success_count'] > 1 ? 's' : '') . " successfully";
+        $message = "Module synced to {$results['success_count']} course".($results['success_count'] > 1 ? 's' : '').' successfully';
         if (count($results['errors']) > 0) {
-            $message .= " (some errors occurred)";
+            $message .= ' (some errors occurred)';
         }
 
         return response()->json([
@@ -556,6 +561,7 @@ class CustomModuleController extends Controller
                     // Skip users who are already assigned this module
                     if (in_array($userId, $alreadyAssignedUserIds)) {
                         $skippedCount++;
+
                         continue;
                     }
 
@@ -586,13 +592,13 @@ class CustomModuleController extends Controller
             });
 
             // Build appropriate message
-            $roleLabel = 'instructor' . ($successCount !== 1 ? 's' : '');
+            $roleLabel = 'instructor'.($successCount !== 1 ? 's' : '');
             if ($successCount > 0 && $skippedCount > 0) {
                 $message = "Module pushed to {$successCount} {$roleLabel}. {$skippedCount} already had this module.";
             } elseif ($successCount > 0) {
                 $message = "Module pushed to {$successCount} {$roleLabel} successfully";
             } else {
-                $message = "All selected instructors already have this module assigned.";
+                $message = 'All selected instructors already have this module assigned.';
             }
 
             return response()->json([
@@ -603,6 +609,7 @@ class CustomModuleController extends Controller
             ]);
         } catch (Exception $e) {
             Log::error('Error pushing module to instructors', ['error' => $e->getMessage()]);
+
             return response()->json([
                 'message' => 'An error occurred while pushing the module to instructors',
                 'error' => $e->getMessage(),
@@ -663,6 +670,7 @@ class CustomModuleController extends Controller
             ], 422);
         } catch (Exception $e) {
             Log::error('Error uploading thumbnail', ['error' => $e->getMessage()]);
+
             return response()->json([
                 'message' => 'An error occurred while uploading the thumbnail',
                 'error' => $e->getMessage(),
@@ -694,6 +702,7 @@ class CustomModuleController extends Controller
             ]);
         } catch (Exception $e) {
             Log::error('Error removing thumbnail', ['error' => $e->getMessage()]);
+
             return response()->json([
                 'message' => 'An error occurred while removing the thumbnail',
                 'error' => $e->getMessage(),

@@ -25,7 +25,7 @@ class Lesson extends Model
 
     public function getContentUrlAttribute(): ?string
     {
-        if (!$this->content_path) {
+        if (! $this->content_path) {
             return null;
         }
 
@@ -34,7 +34,7 @@ class Lesson extends Model
             return $this->content_path;
         }
 
-        return url('/lesson-files/course/' . $this->id);
+        return url('/lesson-files/course/'.$this->id);
     }
 
     /**
@@ -47,27 +47,30 @@ class Lesson extends Model
 
     public function getFileTypeAttribute(): ?string
     {
-        if (!$this->content_path) {
+        if (! $this->content_path) {
             return null;
         }
 
         // If it's an external URL and the lesson type is Video, treat as video
         if (preg_match('#^https?://#i', $this->content_path)) {
-            if ($this->type === 'Video') return 'video';
+            if ($this->type === 'Video') {
+                return 'video';
+            }
+
             return 'file';
         }
 
         $extension = strtolower(pathinfo($this->content_path, PATHINFO_EXTENSION));
 
         $types = [
-            'pdf'  => 'pdf',
-            'doc'  => 'document',
+            'pdf' => 'pdf',
+            'doc' => 'document',
             'docx' => 'document',
-            'ppt'  => 'presentation',
+            'ppt' => 'presentation',
             'pptx' => 'presentation',
-            'mp4'  => 'video',
-            'mp3'  => 'audio',
-            'txt'  => 'text',
+            'mp4' => 'video',
+            'mp3' => 'audio',
+            'txt' => 'text',
         ];
 
         return $types[$extension] ?? 'file';

@@ -1,15 +1,16 @@
 <?php
+
 /**
  * Script to fix ALL incorrect quiz answers in the database.
  * Run with: php scripts/fix_all_quiz_answers.php
  */
 
-require __DIR__ . '/../vendor/autoload.php';
-$app = require_once __DIR__ . '/../bootstrap/app.php';
+require __DIR__.'/../vendor/autoload.php';
+$app = require_once __DIR__.'/../bootstrap/app.php';
 $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
 
-use App\Models\QuizQuestion;
 use App\Models\QuizOption;
+use App\Models\QuizQuestion;
 use Illuminate\Support\Facades\DB;
 
 // Comprehensive corrections mapping: question text => correct answer text
@@ -47,9 +48,10 @@ try {
         // Find the question (case-insensitive partial match)
         $question = QuizQuestion::where('question_text', 'LIKE', "%{$questionText}%")->first();
 
-        if (!$question) {
+        if (! $question) {
             echo "⚠️  Question not found: '{$questionText}'\n";
             $notFoundCount++;
+
             continue;
         }
 
@@ -60,13 +62,14 @@ try {
         $currentCorrect = $options->firstWhere('is_correct', true);
 
         // Find the option that should be correct
-        $correctOption = $options->first(function($opt) use ($correctAnswerText) {
+        $correctOption = $options->first(function ($opt) use ($correctAnswerText) {
             return stripos($opt->option_text, $correctAnswerText) !== false;
         });
 
-        if (!$correctOption) {
+        if (! $correctOption) {
             echo "⚠️  Q#{$question->id}: '{$questionText}' - Correct answer option not found: '{$correctAnswerText}'\n";
             $notFoundCount++;
+
             continue;
         }
 
@@ -74,6 +77,7 @@ try {
         if ($correctOption->is_correct) {
             echo "✓  Q#{$question->id}: {$questionText} - Already correct\n";
             $alreadyCorrectCount++;
+
             continue;
         }
 
@@ -93,16 +97,16 @@ try {
 
     DB::commit();
 
-    echo "\n" . str_repeat("=", 50) . "\n";
+    echo "\n".str_repeat('=', 50)."\n";
     echo "Summary:\n";
     echo "  Fixed: {$fixedCount} questions\n";
     echo "  Already correct: {$alreadyCorrectCount} questions\n";
     echo "  Not found/issues: {$notFoundCount} questions\n";
-    echo str_repeat("=", 50) . "\n";
+    echo str_repeat('=', 50)."\n";
     echo "\n🎉 All corrections applied successfully!\n";
 
 } catch (Exception $e) {
     DB::rollBack();
-    echo "\n❌ Error: " . $e->getMessage() . "\n";
+    echo "\n❌ Error: ".$e->getMessage()."\n";
     exit(1);
 }

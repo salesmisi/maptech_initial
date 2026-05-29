@@ -17,12 +17,12 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
-User::factory()->create([
-    'fullname' => 'Test User',
-    'email' => 'test@example.com',
-    'role' => 'employee',
-    'status' => 'Active',
-]);
+        User::factory()->create([
+            'fullname' => 'Test User',
+            'email' => 'test@example.com',
+            'role' => 'employee',
+            'status' => 'Active',
+        ]);
         // Add example YouTube lesson for testing (seed separately)
         $this->call(\Database\Seeders\YouTubeLessonSeeder::class);
     }

@@ -2,11 +2,11 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
+use App\Events\TimeLogUpdated;
 use App\Models\TimeLog;
 use App\Models\User;
-use App\Events\TimeLogUpdated;
 use Carbon\Carbon;
+use Illuminate\Database\Seeder;
 
 class TimeLogSeeder extends Seeder
 {
@@ -15,6 +15,7 @@ class TimeLogSeeder extends Seeder
         $user = User::first();
         if (! $user) {
             $this->command->info('No users found; skipping TimeLog seeder.');
+
             return;
         }
 

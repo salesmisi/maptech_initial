@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
+use App\Events\NotificationCountUpdated;
+use App\Events\NotificationCreated;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Cache;
-use App\Events\NotificationCreated;
-use App\Events\NotificationCountUpdated;
 
 class Notification extends Model
 {
@@ -87,7 +87,7 @@ class Notification extends Model
     /**
      * Enforce trash limit: if recently deleted count >= 50, permanently delete oldest half.
      *
-     * @param int $userId The user's ID
+     * @param  int  $userId  The user's ID
      * @return int Number of permanently deleted entries
      */
     public static function enforceTrashLimit(int $userId): int

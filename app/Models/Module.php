@@ -39,7 +39,7 @@ class Module extends Model
      */
     public function getContentUrlAttribute(): ?string
     {
-        if (!$this->content_path) {
+        if (! $this->content_path) {
             return null;
         }
 
@@ -49,7 +49,7 @@ class Module extends Model
         }
 
         // Use relative URL so browser keeps same host/session cookies.
-        return '/api/modules/' . $this->id . '/content';
+        return '/api/modules/'.$this->id.'/content';
     }
 
     /**
@@ -57,7 +57,7 @@ class Module extends Model
      */
     public function getFileTypeAttribute(): ?string
     {
-        if (!$this->content_path) {
+        if (! $this->content_path) {
             return null;
         }
 

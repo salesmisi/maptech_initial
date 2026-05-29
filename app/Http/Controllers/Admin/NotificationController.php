@@ -3,12 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Department;
 use App\Models\Notification;
 use App\Models\User;
-use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
 
 class NotificationController extends Controller
 {
@@ -98,6 +97,7 @@ class NotificationController extends Controller
     {
         $user = $request->user();
         $count = Notification::where('user_id', $user->id)->whereNull('read_at')->count();
+
         return response()->json(['count' => $count]);
     }
 
@@ -110,6 +110,7 @@ class NotificationController extends Controller
         $notification = Notification::where('id', $id)->where('user_id', $user->id)->firstOrFail();
         $notification->read_at = now();
         $notification->save();
+
         return response()->json(['message' => 'Marked read']);
     }
 
@@ -120,6 +121,7 @@ class NotificationController extends Controller
     {
         $user = $request->user();
         Notification::where('user_id', $user->id)->whereNull('read_at')->update(['read_at' => now()]);
+
         return response()->json(['message' => 'All marked read']);
     }
 
@@ -131,6 +133,7 @@ class NotificationController extends Controller
         $user = $request->user();
         $notification = Notification::where('id', $id)->where('user_id', $user->id)->firstOrFail();
         $notification->delete();
+
         return response()->json(['message' => 'Deleted']);
     }
 

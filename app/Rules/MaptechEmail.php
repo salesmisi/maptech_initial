@@ -19,13 +19,14 @@ class MaptechEmail implements ValidationRule
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         // Ensure value is a string
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             $fail('The :attribute must be a string.');
+
             return;
         }
 
         // Check if email ends with @maptech.com (case-insensitive)
-        if (!preg_match('/@maptech\.com$/i', $value)) {
+        if (! preg_match('/@maptech\.com$/i', $value)) {
             $fail('The :attribute must be a valid @maptech.com email address.');
         }
     }
