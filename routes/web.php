@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\CustomLesson;
+use App\Models\Lesson;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
@@ -17,6 +19,40 @@ use App\Http\Controllers\YouTubeController;
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get('/lesson-files/{kind}/{id}', function (string $kind, int $id) {
+    $lesson = match ($kind) {
+        'course' => Lesson::findOrFail($id),
+        'custom' => CustomLesson::findOrFail($id),
+        default => abort(404),
+    };
+
+    $contentPath = $lesson->content_path ?? null;
+
+    if (!$contentPath) {
+        if (!empty($lesson->content_full_url) && preg_match('#^https?://#i', $lesson->content_full_url)) {
+            return redirect()->away($lesson->content_full_url);
+        }
+
+        abort(404);
+    }
+
+    if (preg_match('#^https?://#i', $contentPath)) {
+        return redirect()->away($contentPath);
+    }
+
+    if (!Storage::disk('public')->exists($contentPath)) {
+        abort(404);
+    }
+
+    $absolutePath = Storage::disk('public')->path($contentPath);
+    $mimeType = Storage::disk('public')->mimeType($contentPath) ?: 'application/octet-stream';
+
+    return response()->file($absolutePath, [
+        'Content-Type' => $mimeType,
+        'Content-Disposition' => 'inline; filename="' . ($lesson->file_name ?? basename($contentPath)) . '"',
+    ]);
+})->where('kind', 'course|custom')->middleware('auth');
 
 Route::get('/media/profile-picture/{path}', function (string $path) {
     $normalized = trim(str_replace('\\', '/', $path), '/');

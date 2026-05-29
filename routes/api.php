@@ -505,6 +505,46 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                     }
                 }
 
+                // Attempt to attach the associated TimeLog record (if any). Prefer explicit linkage
+                // via login_audit_log_id / logout_audit_log_id so the frontend can display Actual Time In/Out.
+                $timeLog = null;
+                try {
+                    $timeLog = \App\Models\TimeLog::where('login_audit_log_id', $row->id)
+                        ->orWhere('logout_audit_log_id', $row->id)
+                        ->first();
+                } catch (\Throwable $e) {
+                    // ignore lookup failures; time_log will remain null
+                }
+
+                // Legacy fallback: when explicit audit log linkage is missing, try matching by user_id
+                // within a ±2 minute window of the audit event. This helps for older records.
+                if (! $timeLog && ! empty($row->user_id) && ! empty($row->created_at)) {
+                    try {
+                        $logAt = Carbon::parse($row->created_at);
+                        $start = $logAt->copy()->subMinutes(2)->toDateTimeString();
+                        $end = $logAt->copy()->addMinutes(2)->toDateTimeString();
+                        if ($row->action === 'login') {
+                            $candidates = \App\Models\TimeLog::where('user_id', $row->user_id)
+                                ->whereBetween('time_in', [$start, $end])
+                                ->get();
+                            $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
+                                if (! $tl->time_in) return PHP_INT_MAX;
+                                return abs(Carbon::parse($tl->time_in)->diffInSeconds($logAt, false));
+                            })->first();
+                        } elseif ($row->action === 'logout') {
+                            $candidates = \App\Models\TimeLog::where('user_id', $row->user_id)
+                                ->whereBetween('time_out', [$start, $end])
+                                ->get();
+                            $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
+                                if (! $tl->time_out) return PHP_INT_MAX;
+                                return abs(Carbon::parse($tl->time_out)->diffInSeconds($logAt, false));
+                            })->first();
+                        }
+                    } catch (\Throwable $e) {
+                        // ignore fallback errors
+                    }
+                }
+
                 return [
                     'id' => $row->id,
                     'user_id' => $row->user_id,
@@ -517,6 +557,11 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                         'email' => $row->user_email,
                         'role' => $row->user_role,
                         'department' => $row->user_department,
+                    ] : null,
+                    'time_log' => $timeLog ? [
+                        'id' => $timeLog->id,
+                        'time_in' => \App\Support\AuditDate::modelFieldUtcIso($timeLog, 'time_in'),
+                        'time_out' => \App\Support\AuditDate::modelFieldUtcIso($timeLog, 'time_out'),
                     ] : null,
                 ];
             })->values();

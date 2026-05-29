@@ -21,7 +21,7 @@ class Lesson extends Model
         'order',
     ];
 
-    protected $appends = ['content_url', 'file_type'];
+    protected $appends = ['content_url', 'content_full_url', 'file_type'];
 
     public function getContentUrlAttribute(): ?string
     {
@@ -34,7 +34,15 @@ class Lesson extends Model
             return $this->content_path;
         }
 
-        return url('/storage/' . $this->content_path);
+        return url('/lesson-files/course/' . $this->id);
+    }
+
+    /**
+     * Get the full content URL attribute.
+     */
+    public function getContentFullUrlAttribute(): ?string
+    {
+        return $this->content_url;
     }
 
     public function getFileTypeAttribute(): ?string

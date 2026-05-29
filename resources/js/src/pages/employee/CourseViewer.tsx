@@ -81,6 +81,7 @@ interface LessonData {
   title: string;
   text_content: string | null;
   content_path: string | null;
+  content_full_url: string | null;
   content_url: string | null;
   file_type: string | null;
   order: number;
@@ -537,16 +538,16 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
   };
 
   // Helper to get file extension from URL
-  const getFileExtension = (url: string | null): string => {
-    if (!url) return '';
-    const match = url.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+  const getFileExtension = (urlOrPath: string | null): string => {
+    if (!urlOrPath) return '';
+    const match = urlOrPath.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
     return match ? match[1].toLowerCase() : '';
   };
 
-  // Helper to get file name from URL
-  const getFileName = (url: string | null): string => {
-    if (!url) return 'File';
-    const match = url.match(/([^/]+)(?:\?|$)/);
+  // Helper to get file name from URL or stored path
+  const getFileName = (urlOrPath: string | null): string => {
+    if (!urlOrPath) return 'File';
+    const match = urlOrPath.match(/([^/]+)(?:\?|$)/);
     return match ? decodeURIComponent(match[1]) : 'File';
   };
 
@@ -576,8 +577,9 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       );
     }
 
+    const lessonFileUrl = currentLesson.content_full_url || currentLesson.content_url;
     const hasText = !!currentLesson.text_content;
-    const hasFile = !!currentLesson.content_url;
+    const hasFile = !!lessonFileUrl;
 
     if (!hasText && !hasFile) {
       return (
@@ -626,8 +628,9 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       );
     }
 
-    const { file_type, content_url, title } = currentLesson;
-    const lessonContentUrl = content_url ?? undefined;
+    const { file_type, title } = currentLesson;
+    const lessonContentUrl = lessonFileUrl ?? undefined;
+    const lessonSourcePath = currentLesson.content_path || lessonFileUrl;
 
     const textBlock = hasText ? (
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden mb-4">
@@ -663,8 +666,8 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     ) : null;
 
     if (file_type === 'video') {
-      // Check if content_url is a YouTube link
-      const isYouTube = content_url && (/youtube\.com|youtu\.be/.test(content_url));
+      // Check if the file URL is a YouTube link
+      const isYouTube = lessonFileUrl && (/youtube\.com|youtu\.be/.test(lessonFileUrl));
       return (
         <div className="space-y-4">
           {textBlock}
@@ -673,7 +676,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
               // YouTube player container; we'll initialize the YT player via JS API
               <YouTubePlayer contentUrl={lessonContentUrl || ''} lessonId={currentLesson!.id} />
             ) : (
-              <video controls className="w-full h-full" src={content_url || undefined}>
+              <video controls className="w-full h-full" src={lessonFileUrl || undefined}>
                 Your browser does not support the video tag.
               </video>
             )}
@@ -690,7 +693,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             <Music className="h-20 w-20 text-slate-400 dark:text-slate-500 mb-4" />
             <h3 className="text-lg font-medium text-slate-700 dark:text-slate-100 mb-4">{title}</h3>
             <audio controls className="w-full max-w-md">
-              <source src={content_url || undefined} />
+              <source src={lessonFileUrl || undefined} />
               Your browser does not support the audio element.
             </audio>
           </div>
@@ -704,9 +707,9 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
           {textBlock}
           <Suspense fallback={<div className="p-4">Loading document...</div>}>
             <PDFViewer
-              url={content_url || ''}
+              url={lessonFileUrl || ''}
               title={title}
-              fileName={getFileName(content_url)}
+              fileName={getFileName(lessonSourcePath)}
               lessonId={currentLesson.id}
               moduleId={currentModule?.id}
               showConvertButton={false}
@@ -718,7 +721,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
     // Handle presentations (PPTX, PPT) with interactive PresentationViewer
     if (file_type === 'presentation') {
-      const ext = getFileExtension(content_url);
+      const ext = getFileExtension(lessonSourcePath);
       const isPptx = ext === 'pptx' || ext === 'ppt';
 
       if (isPptx) {
@@ -727,9 +730,9 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             {textBlock}
             <Suspense fallback={<div className="p-4">Loading presentation...</div>}>
               <PresentationViewer
-                url={content_url || ''}
+                url={lessonFileUrl || ''}
                 title={title}
-                fileName={getFileName(content_url)}
+                fileName={getFileName(lessonSourcePath)}
               />
             </Suspense>
           </div>
@@ -737,12 +740,12 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       }
 
       // Fallback to Office Online viewer for other presentation formats
-      const absoluteUrl = content_url?.startsWith('http')
-        ? content_url
-        : `${window.location.origin}${content_url}`;
+      const absoluteUrl = lessonFileUrl?.startsWith('http')
+        ? lessonFileUrl
+        : `${window.location.origin}${lessonFileUrl}`;
       const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absoluteUrl || '')}`;
-      const fileName = getFileName(content_url);
-      const fileTypeDisplay = getFileTypeDisplay(file_type, content_url);
+      const fileName = getFileName(lessonSourcePath);
+      const fileTypeDisplay = getFileTypeDisplay(file_type, lessonSourcePath);
 
       return (
         <div className="space-y-4">
@@ -769,7 +772,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                 <Eye className="h-5 w-5 mr-2" />View / Study
               </a>
               <a
-                href={content_url || undefined}
+                href={lessonFileUrl || undefined}
                 download
                 className="inline-flex items-center px-5 py-2.5 border border-green-600 text-green-600 dark:text-green-400 rounded-lg font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
               >
@@ -787,12 +790,12 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     // Handle documents (DOCX, DOC) with Office Online viewer
     if (file_type === 'document') {
       // Get absolute URL for Office Online viewer
-      const absoluteUrl = content_url?.startsWith('http')
-        ? content_url
-        : `${window.location.origin}${content_url}`;
+      const absoluteUrl = lessonFileUrl?.startsWith('http')
+        ? lessonFileUrl
+        : `${window.location.origin}${lessonFileUrl}`;
       const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absoluteUrl || '')}`;
-      const fileName = getFileName(content_url);
-      const fileTypeDisplay = getFileTypeDisplay(file_type, content_url);
+      const fileName = getFileName(lessonSourcePath);
+      const fileTypeDisplay = getFileTypeDisplay(file_type, lessonSourcePath);
 
       return (
         <div className="space-y-4">
@@ -828,7 +831,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
               {/* Secondary: Open in new tab (direct file) */}
               <a
-                href={content_url || undefined}
+                href={lessonFileUrl || undefined}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center px-5 py-2.5 bg-slate-600 text-white rounded-lg font-medium hover:bg-slate-700 transition-colors"
@@ -839,7 +842,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
               {/* Optional: Download button */}
               <a
-                href={content_url || undefined}
+                href={lessonFileUrl || undefined}
                 download
                 className="inline-flex items-center px-5 py-2.5 border border-green-600 text-green-600 dark:text-green-400 dark:border-green-500 rounded-lg font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
               >
@@ -877,16 +880,16 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
               {getLargeFileIcon(file_type)}
             </div>
             <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-1">{title}</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">{getFileName(content_url)}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">{getFileName(lessonSourcePath)}</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mb-6">
-              {getFileTypeDisplay(file_type, content_url)}
+              {getFileTypeDisplay(file_type, lessonSourcePath)}
             </p>
 
             {/* Action buttons */}
             <div className="flex flex-wrap items-center justify-center gap-3">
               {/* Primary: Open/View in new tab */}
               <a
-                href={content_url || undefined}
+                href={lessonFileUrl || undefined}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-md"
@@ -897,7 +900,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
               {/* Optional: Download button */}
               <a
-                href={content_url || undefined}
+                href={lessonFileUrl || undefined}
                 download
                 className="inline-flex items-center px-6 py-3 border border-green-600 text-green-600 dark:text-green-400 dark:border-green-500 rounded-lg font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
               >

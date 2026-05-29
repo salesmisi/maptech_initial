@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\FileConversionService;
 use App\Models\Module;
 use App\Models\Lesson;
+use App\Models\CustomLesson;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -436,6 +437,8 @@ class FileConversionController extends Controller
                 if (file_exists($pdfPath)) {
                     // Return existing PDF
                     $relativePath = str_replace(storage_path('app/public/'), '', $pdfPath);
+                    // Normalize directory separators for URLs
+                    $relativePath = str_replace('\\', '/', $relativePath);
                     return response()->json([
                         'success' => true,
                         'file_name' => basename($pdfPath),
@@ -456,6 +459,8 @@ class FileConversionController extends Controller
                 }
 
                 $relativePath = str_replace(storage_path('app/public/'), '', $result['output_path']);
+                // Normalize directory separators for URLs
+                $relativePath = str_replace('\\', '/', $relativePath);
 
                 return response()->json([
                     'success' => true,
@@ -489,17 +494,7 @@ class FileConversionController extends Controller
         $url = $request->input('url');
 
         try {
-            // Parse URL to get storage path
-            $path = parse_url($url, PHP_URL_PATH);
-
-            // Remove /storage/ prefix if present
-            if (Str::startsWith($path, '/storage/')) {
-                $storagePath = Str::after($path, '/storage/');
-            } else {
-                $storagePath = ltrim($path, '/');
-            }
-
-            $fullPath = storage_path('app/public/' . $storagePath);
+            $fullPath = $this->resolvePptxFullPathFromUrl($url);
 
             if (!file_exists($fullPath)) {
                 return response()->json([
@@ -525,6 +520,8 @@ class FileConversionController extends Controller
             }
 
             $relativePath = str_replace(storage_path('app/public/'), '', $pdfPath);
+            // Normalize directory separators for URLs
+            $relativePath = str_replace('\\', '/', $relativePath);
 
             return response()->json([
                 'success' => true,
@@ -541,5 +538,41 @@ class FileConversionController extends Controller
                 'error' => 'Failed to get PDF version: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Resolve a lesson/file URL to a local storage path for conversion.
+     */
+    private function resolvePptxFullPathFromUrl(string $url): string
+    {
+        $path = parse_url($url, PHP_URL_PATH) ?: '';
+
+        if (preg_match('#^/lesson-files/(course|custom)/(\d+)$#', $path, $matches)) {
+            $lessonId = (int) $matches[2];
+            $lesson = $matches[1] === 'course'
+                ? Lesson::find($lessonId)
+                : CustomLesson::find($lessonId);
+
+            if ($lesson?->content_path) {
+                if (Str::startsWith($lesson->content_path, 'public/')) {
+                    return storage_path('app/' . $lesson->content_path);
+                }
+
+                if (Str::startsWith($lesson->content_path, '/storage/')) {
+                    return storage_path('app/public/' . Str::after($lesson->content_path, '/storage/'));
+                }
+
+                return storage_path('app/public/' . $lesson->content_path);
+            }
+        }
+
+        // Remove /storage/ prefix if present
+        if (Str::startsWith($path, '/storage/')) {
+            $storagePath = Str::after($path, '/storage/');
+        } else {
+            $storagePath = ltrim($path, '/');
+        }
+
+        return storage_path('app/public/' . $storagePath);
     }
 }
