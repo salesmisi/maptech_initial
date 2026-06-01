@@ -43,10 +43,6 @@ RUN composer install --no-dev --optimize-autoloader
 
 RUN npm ci && npm run build
 
-# route/view caches don't depend on runtime env vars — safe to bake in
-RUN php artisan route:cache \
-    && php artisan view:cache
-
 # ─── Entrypoint ───────────────────────────────────────────────────────────────
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
