@@ -178,6 +178,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [savingModule, setSavingModule] = useState(false);
   const [tagInput, setTagInput] = useState('');
+  const [isCustomModule, setIsCustomModule] = useState(false);
 
   // Lesson modal state
   const [showLessonModal, setShowLessonModal] = useState(false);
@@ -977,12 +978,12 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
         {/* Create Buttons */}
         <div className="flex gap-2">
           <button
-            onClick={() => openCreateModule('learning')}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-medium transition-colors"
-            title="Create a learning module with lessons (visible to instructors and employees when published)"
+            onClick={() => openCreateModule('ui_component')}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md font-medium transition-colors"
+            title="Create a custom sidebar navigation item (admin-only, not visible to instructors or employees)"
           >
             <PlusIcon className="w-5 h-5" />
-            New Learning Module
+            New UI Component
           </button>
         </div>
       </div>
@@ -999,16 +1000,8 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
           <p className="mt-2 text-slate-500 dark:text-slate-400">Get started by creating your first custom module.</p>
           <div className="mt-4 flex gap-2 justify-center">
             <button
-              onClick={() => openCreateModule('learning')}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-medium transition-colors"
-              title="Create a learning module with lessons (visible to instructors and employees when published)"
-            >
-              <PlusIcon className="w-5 h-5" />
-              Learning Module
-            </button>
-            <button
               onClick={() => openCreateModule('ui_component')}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md font-medium transition-colors"
               title="Create a custom sidebar navigation item (admin-only, not visible to instructors or employees)"
             >
               <PlusIcon className="w-5 h-5" />
