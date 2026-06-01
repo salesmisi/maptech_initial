@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Course;
 use App\Models\Module;
-use App\Models\Quiz;use App\Models\QuizAttempt;use App\Models\QuizQuestion;
+use App\Models\Quiz;
+use App\Models\QuizAttempt;
 use App\Models\QuizOption;
+use App\Models\QuizQuestion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Schema;
@@ -27,14 +29,14 @@ class QuizController extends Controller
             ->get()
             ->map(function ($quiz) {
                 return [
-                    'id'                 => $quiz->id,
-                    'title'              => $quiz->title,
-                    'description'        => $quiz->description,
-                    'pass_percentage'    => $quiz->pass_percentage,
-                    'course_id'          => $quiz->course_id,
-                    'course_title'       => $quiz->course->title,
-                    'course_dept'        => $quiz->course->department,
-                    'subdepartment_id'   => $quiz->course->subdepartment_id,
+                    'id' => $quiz->id,
+                    'title' => $quiz->title,
+                    'description' => $quiz->description,
+                    'pass_percentage' => $quiz->pass_percentage,
+                    'course_id' => $quiz->course_id,
+                    'course_title' => $quiz->course->title,
+                    'course_dept' => $quiz->course->department,
+                    'subdepartment_id' => $quiz->course->subdepartment_id,
                     'subdepartment_name' => $quiz->course->subdepartment?->name,
                     'module_id'          => $quiz->module_id,
                     'module_title'       => $quiz->module?->title,
@@ -60,7 +62,7 @@ class QuizController extends Controller
             'quiz.module:id,title',
         ]);
 
-        if (!empty($quizId)) {
+        if (! empty($quizId)) {
             $query->where('quiz_id', (int) $quizId);
         }
 
@@ -108,10 +110,10 @@ class QuizController extends Controller
             ->where('course_id', $courseId)
             ->latest()
             ->get()
-            ->map(fn($quiz) => [
-                'id'              => $quiz->id,
-                'title'           => $quiz->title,
-                'description'     => $quiz->description,
+            ->map(fn ($quiz) => [
+                'id' => $quiz->id,
+                'title' => $quiz->title,
+                'description' => $quiz->description,
                 'pass_percentage' => $quiz->pass_percentage,
                 'module_id'       => $quiz->module_id,
                 'module_title'    => $quiz->module?->title,
@@ -140,14 +142,14 @@ class QuizController extends Controller
             ->where('module_id', $moduleId)
             ->latest()
             ->get()
-            ->map(fn($quiz) => [
-                'id'              => $quiz->id,
-                'title'           => $quiz->title,
-                'description'     => $quiz->description,
+            ->map(fn ($quiz) => [
+                'id' => $quiz->id,
+                'title' => $quiz->title,
+                'description' => $quiz->description,
                 'pass_percentage' => $quiz->pass_percentage,
-                'module_id'       => $quiz->module_id,
-                'question_count'  => $quiz->questions->count(),
-                'created_at'      => $quiz->created_at,
+                'module_id' => $quiz->module_id,
+                'question_count' => $quiz->questions->count(),
+                'created_at' => $quiz->created_at,
             ]);
 
         return response()->json($quizzes);
@@ -173,11 +175,11 @@ class QuizController extends Controller
             'pass_percentage' => 'nullable|integer|min:1|max:100',
         ]);
 
-        $createData = [
-            'course_id'       => $courseId,
-            'module_id'       => $validated['module_id'] ?? null,
-            'title'           => $validated['title'],
-            'description'     => $validated['description'] ?? null,
+        $quiz = Quiz::create([
+            'course_id' => $courseId,
+            'module_id' => $validated['module_id'] ?? null,
+            'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
             'pass_percentage' => $validated['pass_percentage'] ?? 70,
         ];
 
@@ -191,9 +193,9 @@ class QuizController extends Controller
         $quiz = Quiz::create($createData);
 
         return response()->json([
-            'id'              => $quiz->id,
-            'title'           => $quiz->title,
-            'description'     => $quiz->description,
+            'id' => $quiz->id,
+            'title' => $quiz->title,
+            'description' => $quiz->description,
             'pass_percentage' => $quiz->pass_percentage,
             'course_id'       => $quiz->course_id,
             'module_id'       => $quiz->module_id,
@@ -225,11 +227,11 @@ class QuizController extends Controller
             'pass_percentage' => 'nullable|integer|min:1|max:100',
         ]);
 
-        $createData = [
-            'course_id'       => $module->course_id,
-            'module_id'       => $moduleId,
-            'title'           => $validated['title'],
-            'description'     => $validated['description'] ?? null,
+        $quiz = Quiz::create([
+            'course_id' => $module->course_id,
+            'module_id' => $moduleId,
+            'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
             'pass_percentage' => $validated['pass_percentage'] ?? 70,
         ];
 
@@ -243,9 +245,9 @@ class QuizController extends Controller
         $quiz = Quiz::create($createData);
 
         return response()->json([
-            'id'              => $quiz->id,
-            'title'           => $quiz->title,
-            'description'     => $quiz->description,
+            'id' => $quiz->id,
+            'title' => $quiz->title,
+            'description' => $quiz->description,
             'pass_percentage' => $quiz->pass_percentage,
             'course_id'       => $quiz->course_id,
             'module_id'       => $quiz->module_id,
@@ -269,16 +271,16 @@ class QuizController extends Controller
         }
 
         return response()->json([
-            'id'              => $quiz->id,
-            'title'           => $quiz->title,
-            'description'     => $quiz->description,
+            'id' => $quiz->id,
+            'title' => $quiz->title,
+            'description' => $quiz->description,
             'pass_percentage' => $quiz->pass_percentage,
-            'course_id'       => $quiz->course_id,
-            'course_title'    => $quiz->course->title,
-            'module_id'       => $quiz->module_id,
-            'module_title'    => $quiz->module?->title,
-            'questions'       => $quiz->questions->map(fn($q) => $this->formatQuestion($q))->values(),
-            'created_at'      => $quiz->created_at,
+            'course_id' => $quiz->course_id,
+            'course_title' => $quiz->course->title,
+            'module_id' => $quiz->module_id,
+            'module_title' => $quiz->module?->title,
+            'questions' => $quiz->questions->map(fn ($q) => $this->formatQuestion($q))->values(),
+            'created_at' => $quiz->created_at,
         ]);
     }
 
@@ -328,8 +330,12 @@ class QuizController extends Controller
         }
 
         foreach ($quiz->questions as $question) {
-            if ($question->image_path) Storage::disk('public')->delete($question->image_path);
-            if ($question->video_path) Storage::disk('public')->delete($question->video_path);
+            if ($question->image_path) {
+                Storage::disk('public')->delete($question->image_path);
+            }
+            if ($question->video_path) {
+                Storage::disk('public')->delete($question->video_path);
+            }
         }
 
         $quiz->delete();
@@ -352,18 +358,18 @@ class QuizController extends Controller
         }
 
         $request->validate([
-            'question_text'          => 'required|string',
-            'options'                => 'required|array|min:2',
-            'options.*.text'         => 'required|string',
-            'options.*.is_correct'   => 'required|boolean',
-            'image'                  => 'nullable|file|mimes:jpg,jpeg,png,gif,webp|max:10240',
-            'video'                  => 'nullable|file|mimes:mp4,webm,ogg,mov|max:102400',
+            'question_text' => 'required|string',
+            'options' => 'required|array|min:2',
+            'options.*.text' => 'required|string',
+            'options.*.is_correct' => 'required|boolean',
+            'image' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp|max:10240',
+            'video' => 'nullable|file|mimes:mp4,webm,ogg,mov|max:102400',
         ]);
 
         $order = $quiz->questions()->max('order') + 1;
 
         $imagePath = null;
-        $videoPath  = null;
+        $videoPath = null;
 
         if ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store('quiz-media/images', 'public');
@@ -373,19 +379,19 @@ class QuizController extends Controller
         }
 
         $question = QuizQuestion::create([
-            'quiz_id'       => $quizId,
+            'quiz_id' => $quizId,
             'question_text' => $request->question_text,
-            'image_path'    => $imagePath,
-            'video_path'    => $videoPath,
-            'order'         => $order,
+            'image_path' => $imagePath,
+            'video_path' => $videoPath,
+            'order' => $order,
         ]);
 
         foreach ($request->options as $idx => $opt) {
             QuizOption::create([
                 'question_id' => $question->id,
                 'option_text' => $opt['text'],
-                'is_correct'  => (bool) $opt['is_correct'],
-                'order'       => $idx,
+                'is_correct' => (bool) $opt['is_correct'],
+                'order' => $idx,
             ]);
         }
 
@@ -409,18 +415,18 @@ class QuizController extends Controller
         $question = QuizQuestion::where('quiz_id', $quizId)->findOrFail($questionId);
 
         $request->validate([
-            'question_text'        => 'required|string',
-            'options'              => 'required|array|min:2',
-            'options.*.text'       => 'required|string',
+            'question_text' => 'required|string',
+            'options' => 'required|array|min:2',
+            'options.*.text' => 'required|string',
             'options.*.is_correct' => 'required|boolean',
-            'image'                => 'nullable|file|mimes:jpg,jpeg,png,gif,webp|max:10240',
-            'video'                => 'nullable|file|mimes:mp4,webm,ogg,mov|max:102400',
-            'remove_image'         => 'nullable|boolean',
-            'remove_video'         => 'nullable|boolean',
+            'image' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp|max:10240',
+            'video' => 'nullable|file|mimes:mp4,webm,ogg,mov|max:102400',
+            'remove_image' => 'nullable|boolean',
+            'remove_video' => 'nullable|boolean',
         ]);
 
         $imagePath = $question->image_path;
-        $videoPath  = $question->video_path;
+        $videoPath = $question->video_path;
 
         if ($request->boolean('remove_image') && $imagePath) {
             Storage::disk('public')->delete($imagePath);
@@ -431,18 +437,22 @@ class QuizController extends Controller
             $videoPath = null;
         }
         if ($request->hasFile('image')) {
-            if ($imagePath) Storage::disk('public')->delete($imagePath);
+            if ($imagePath) {
+                Storage::disk('public')->delete($imagePath);
+            }
             $imagePath = $request->file('image')->store('quiz-media/images', 'public');
         }
         if ($request->hasFile('video')) {
-            if ($videoPath) Storage::disk('public')->delete($videoPath);
+            if ($videoPath) {
+                Storage::disk('public')->delete($videoPath);
+            }
             $videoPath = $request->file('video')->store('quiz-media/videos', 'public');
         }
 
         $question->update([
             'question_text' => $request->question_text,
-            'image_path'    => $imagePath,
-            'video_path'    => $videoPath,
+            'image_path' => $imagePath,
+            'video_path' => $videoPath,
         ]);
 
         $question->options()->delete();
@@ -450,8 +460,8 @@ class QuizController extends Controller
             QuizOption::create([
                 'question_id' => $question->id,
                 'option_text' => $opt['text'],
-                'is_correct'  => (bool) $opt['is_correct'],
-                'order'       => $idx,
+                'is_correct' => (bool) $opt['is_correct'],
+                'order' => $idx,
             ]);
         }
 
@@ -473,8 +483,12 @@ class QuizController extends Controller
         }
         $question = QuizQuestion::where('quiz_id', $quizId)->findOrFail($questionId);
 
-        if ($question->image_path) Storage::disk('public')->delete($question->image_path);
-        if ($question->video_path) Storage::disk('public')->delete($question->video_path);
+        if ($question->image_path) {
+            Storage::disk('public')->delete($question->image_path);
+        }
+        if ($question->video_path) {
+            Storage::disk('public')->delete($question->video_path);
+        }
 
         $question->delete();
 
@@ -486,18 +500,18 @@ class QuizController extends Controller
     private function formatQuestion(QuizQuestion $q): array
     {
         return [
-            'id'            => $q->id,
+            'id' => $q->id,
             'question_text' => $q->question_text,
-            'image_url'     => $q->image_path ? Storage::url($q->image_path) : null,
-            'video_url'     => $q->video_path ? Storage::url($q->video_path) : null,
-            'image_path'    => $q->image_path,
-            'video_path'    => $q->video_path,
-            'order'         => $q->order,
-            'options'       => $q->options->map(fn($o) => [
-                'id'          => $o->id,
+            'image_url' => $q->image_path ? Storage::url($q->image_path) : null,
+            'video_url' => $q->video_path ? Storage::url($q->video_path) : null,
+            'image_path' => $q->image_path,
+            'video_path' => $q->video_path,
+            'order' => $q->order,
+            'options' => $q->options->map(fn ($o) => [
+                'id' => $o->id,
                 'option_text' => $o->option_text,
-                'is_correct'  => $o->is_correct,
-                'order'       => $o->order,
+                'is_correct' => $o->is_correct,
+                'order' => $o->order,
             ]),
         ];
     }

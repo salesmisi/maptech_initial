@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\LessonFeedback;
 use App\Models\Department;
+use App\Models\LessonFeedback;
 use App\Models\QuizFeedback;
 use Illuminate\Http\Request;
 
@@ -87,7 +87,9 @@ class FeedbackController extends Controller
 
         if ($request->has('department_id')) {
             $dept = Department::find($request->department_id);
-            if ($dept) $departmentName = $dept->name;
+            if ($dept) {
+                $departmentName = $dept->name;
+            }
         } elseif ($request->has('department')) {
             $departmentName = $request->department;
         }
@@ -155,8 +157,11 @@ class FeedbackController extends Controller
     public function destroy(Request $request, $id)
     {
         $fb = LessonFeedback::find($id);
-        if (!$fb) return response()->json(['message' => 'Not found'], 404);
+        if (! $fb) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
         $fb->delete();
+
         return response()->json(['message' => 'Feedback deleted']);
     }
 
@@ -175,6 +180,7 @@ class FeedbackController extends Controller
         } else {
             LessonFeedback::whereIn('id', $ids)->delete();
         }
+
         return response()->json(['message' => 'Deleted', 'count' => count($ids)]);
     }
 
@@ -197,7 +203,7 @@ class FeedbackController extends Controller
             $fb = LessonFeedback::findOrFail($id);
         } else {
             $fb = LessonFeedback::find($id);
-            if (!$fb) {
+            if (! $fb) {
                 $fb = QuizFeedback::findOrFail($id);
             }
         }

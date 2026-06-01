@@ -11,11 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasTable('product_logos')) {
+        if (! Schema::hasTable('product_logos')) {
             return;
         }
 
-        if (!Schema::hasColumn('product_logos', 'course_id')) {
+        if (! Schema::hasColumn('product_logos', 'course_id')) {
             Schema::table('product_logos', function (Blueprint $table) {
                 $table->uuid('course_id')->nullable()->after('file_path');
                 $table->index('course_id');
@@ -29,7 +29,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        if (!Schema::hasTable('product_logos')) {
+        if (! Schema::hasTable('product_logos')) {
             return;
         }
 

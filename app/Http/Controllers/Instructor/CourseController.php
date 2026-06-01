@@ -2,27 +2,25 @@
 
 namespace App\Http\Controllers\Instructor;
 
+use App\Events\EnrollmentUnlocked;
+use App\Events\ModuleUnlocked;
 use App\Http\Controllers\Controller;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Module;
+use App\Models\Notification;
 use App\Models\Question;
-use App\Models\Quiz;
-use App\Models\QuizAttempt;
 use App\Models\Subdepartment;
 use App\Models\User;
-use App\Models\Notification;
-use App\Events\EnrollmentUnlocked;
-use App\Events\ModuleUnlocked;
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Storage;
-use Exception;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 
 class CourseController extends Controller
 {
@@ -35,10 +33,10 @@ class CourseController extends Controller
 
         $courses = $this->accessibleCourseQuery($user)
             ->with([
-            'instructor:id,fullname,email,profile_picture',
-            'subdepartment:id,name,department_id',
-            'modules.lessons',
-        ])
+                'instructor:id,fullname,email,profile_picture',
+                'subdepartment:id,name,department_id',
+                'modules.lessons',
+            ])
             ->withCount('enrollments')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -55,7 +53,7 @@ class CourseController extends Controller
                 ->where('module_user.unlocked', true)
                 ->where(function ($q) {
                     $q->whereNull('module_user.unlocked_until')
-                      ->orWhere('module_user.unlocked_until', '>', now());
+                        ->orWhere('module_user.unlocked_until', '>', now());
                 })
                 ->pluck('modules.course_id')
                 ->map(fn ($id) => (string) $id)
@@ -91,36 +89,36 @@ class CourseController extends Controller
         $courseQueryForIds = $this->accessibleCourseQuery($user);
 
         $courseIds = $courseQueryForIds->pluck('id');
-        $quizIds   = DB::table('quizzes')->whereIn('course_id', $courseIds)->pluck('id');
+        $quizIds = DB::table('quizzes')->whereIn('course_id', $courseIds)->pluck('id');
 
         // ── Stats ────────────────────────────────────────────────────────────
-        $totalCourses  = $courseIds->count();
+        $totalCourses = $courseIds->count();
         $totalStudents = DB::table('enrollments')->whereIn('course_id', $courseIds)
-                            ->distinct('user_id')
-                            ->count('user_id');
-        $avgPassRate   = $quizIds->isNotEmpty()
+            ->distinct('user_id')
+            ->count('user_id');
+        $avgPassRate = $quizIds->isNotEmpty()
                     ? (int) round(DB::table('quiz_attempts')->whereIn('quiz_id', $quizIds)->avg('percentage') ?? 0)
                             : 0;
-        $pendingCount  = DB::table('questions')->whereIn('course_id', $courseIds)
-                            ->whereNull('answer')
-                            ->count();
-        $newThisMonth  = DB::table('enrollments')->whereIn('course_id', $courseIds)
-                            ->where('created_at', '>=', Carbon::now()->startOfMonth())
-                            ->distinct('user_id')
-                            ->count('user_id');
+        $pendingCount = DB::table('questions')->whereIn('course_id', $courseIds)
+            ->whereNull('answer')
+            ->count();
+        $newThisMonth = DB::table('enrollments')->whereIn('course_id', $courseIds)
+            ->where('created_at', '>=', Carbon::now()->startOfMonth())
+            ->distinct('user_id')
+            ->count('user_id');
 
         // ── Performance trend (last 6 weeks) ─────────────────────────────────
         $performanceTrend = [];
         for ($i = 5; $i >= 0; $i--) {
             $start = Carbon::now()->startOfWeek()->subWeeks($i);
-            $end   = Carbon::now()->startOfWeek()->subWeeks($i)->endOfWeek();
-            $agg   = DB::table('quiz_attempts')->whereIn('quiz_id', $quizIds)
-                        ->whereBetween('created_at', [$start, $end])
-                        ->selectRaw('AVG(percentage) as avg_score, COUNT(*) as submissions')
-                        ->first();
+            $end = Carbon::now()->startOfWeek()->subWeeks($i)->endOfWeek();
+            $agg = DB::table('quiz_attempts')->whereIn('quiz_id', $quizIds)
+                ->whereBetween('created_at', [$start, $end])
+                ->selectRaw('AVG(percentage) as avg_score, COUNT(*) as submissions')
+                ->first();
             $performanceTrend[] = [
-                'name'        => 'Week ' . (6 - $i),
-                'avgScore'    => (int) round($agg->avg_score ?? 0),
+                'name' => 'Week '.(6 - $i),
+                'avgScore' => (int) round($agg->avg_score ?? 0),
                 'submissions' => (int) ($agg->submissions ?? 0),
             ];
         }
@@ -133,8 +131,8 @@ class CourseController extends Controller
             ])
             ->get()
             ->map(fn ($c) => [
-                'name'      => $c->title,
-                'enrolled'  => $c->enrollments_count,
+                'name' => $c->title,
+                'enrolled' => $c->enrollments_count,
                 'completed' => $c->completed_count,
             ]);
 
@@ -151,12 +149,12 @@ class CourseController extends Controller
             ->sortByDesc('created_at')
             ->values()
             ->map(fn ($q) => [
-                'id'        => $q->id,
-                'student'   => $q->user->fullname ?? 'Unknown',
-                'question'  => $q->question,
-                'course'    => $q->course->title ?? 'Unknown',
+                'id' => $q->id,
+                'student' => $q->user->fullname ?? 'Unknown',
+                'question' => $q->question,
+                'course' => $q->course->title ?? 'Unknown',
                 'submitted' => $q->created_at->diffForHumans(),
-                'type'      => 'Question',
+                'type' => 'Question',
             ]);
 
         // ── Recent student questions ──────────────────────────────────────────
@@ -171,35 +169,35 @@ class CourseController extends Controller
             ->sortByDesc('created_at')
             ->values()
             ->map(fn ($q) => [
-                'id'       => $q->id,
-                'student'  => $q->user->fullname ?? 'Unknown',
+                'id' => $q->id,
+                'student' => $q->user->fullname ?? 'Unknown',
                 'question' => $q->question,
-                'course'   => $q->course->title ?? 'Unknown',
-                'time'     => $q->created_at->diffForHumans(),
-                'answered' => !is_null($q->answer),
+                'course' => $q->course->title ?? 'Unknown',
+                'time' => $q->created_at->diffForHumans(),
+                'answered' => ! is_null($q->answer),
             ]);
 
         return response()->json([
             'user' => [
-                'id'              => $user->id,
-                'name'            => $user->fullname,
-                'email'           => $user->email,
-                'role'            => $user->role,
+                'id' => $user->id,
+                'name' => $user->fullname,
+                'email' => $user->email,
+                'role' => $user->role,
                 'profile_picture' => $user->profile_picture
-                                        ? asset('storage/' . $user->profile_picture)
+                                        ? asset('storage/'.$user->profile_picture)
                                         : null,
             ],
             'stats' => [
-                'pending_reviews'    => $pendingCount,
-                'total_courses'      => $totalCourses,
-                'total_students'     => $totalStudents,
-                'avg_pass_rate'      => $avgPassRate,
+                'pending_reviews' => $pendingCount,
+                'total_courses' => $totalCourses,
+                'total_students' => $totalStudents,
+                'avg_pass_rate' => $avgPassRate,
                 'new_students_month' => $newThisMonth,
             ],
-            'performance_trend'   => $performanceTrend,
-            'course_stats'        => $courseStats,
+            'performance_trend' => $performanceTrend,
+            'course_stats' => $courseStats,
             'pending_evaluations' => $pendingEvaluations,
-            'recent_questions'    => $recentQuestions,
+            'recent_questions' => $recentQuestions,
         ]);
     }
 
@@ -219,7 +217,7 @@ class CourseController extends Controller
             'enrolledUsers:id,fullname,email,department,role,status',
         ])->find($id);
 
-        if (!$course) {
+        if (! $course) {
             return response()->json(['message' => 'Course not found.'], 404);
         }
 
@@ -227,10 +225,10 @@ class CourseController extends Controller
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id == $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
@@ -261,21 +259,21 @@ class CourseController extends Controller
 
         try {
             $validated = $request->validate([
-                'title'              => 'required|string|max:255',
-                'description'        => 'nullable|string',
-                'department'         => 'required|string|max:255',
-                'subdepartment_id'   => 'required|exists:subdepartments,id',
-                'status'             => ['nullable', Rule::in(['Active', 'Inactive', 'Draft'])],
-                'start_date'         => 'nullable|date',
-                'deadline'           => 'nullable|date',
-                'logo'               => 'nullable|image|mimes:png,jpg,jpeg,svg|max:2048',
-                'modules'            => 'nullable|array',
-                'modules.*.title'    => 'nullable|string|max:255',
-                'modules.*.content'  => 'nullable|file|max:102400',
+                'title' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'department' => 'required|string|max:255',
+                'subdepartment_id' => 'required|exists:subdepartments,id',
+                'status' => ['nullable', Rule::in(['Active', 'Inactive', 'Draft'])],
+                'start_date' => 'nullable|date',
+                'deadline' => 'nullable|date',
+                'logo' => 'nullable|image|mimes:png,jpg,jpeg,svg|max:2048',
+                'modules' => 'nullable|array',
+                'modules.*.title' => 'nullable|string|max:255',
+                'modules.*.content' => 'nullable|file|max:102400',
             ]);
 
             $selectedSubdepartment = Subdepartment::with('department:id,name,code')->find((int) $validated['subdepartment_id']);
-            if (!$selectedSubdepartment) {
+            if (! $selectedSubdepartment) {
                 return response()->json([
                     'message' => 'Invalid subdepartment selected.',
                     'errors' => ['subdepartment_id' => ['The selected subdepartment is invalid.']],
@@ -288,7 +286,7 @@ class CourseController extends Controller
             $deptMatches = $courseDepartment === $subDeptDepartmentName
                 || ($subDeptDepartmentCode !== '' && $courseDepartment === $subDeptDepartmentCode);
 
-            if (!$deptMatches) {
+            if (! $deptMatches) {
                 return response()->json([
                     'message' => 'Selected subdepartment does not belong to the selected department.',
                     'errors' => ['subdepartment_id' => ['Subdepartment must belong to the selected department.']],
@@ -300,7 +298,7 @@ class CourseController extends Controller
             $isAssignedSub = $user->subdepartments()->where('subdepartments.id', $selectedSubId)->exists();
             $isSubHead = (int) ($selectedSubdepartment->head_id ?? 0) === (int) $user->id;
 
-            if (!$isPrimarySub && !$isAssignedSub && !$isSubHead) {
+            if (! $isPrimarySub && ! $isAssignedSub && ! $isSubHead) {
                 return response()->json([
                     'message' => 'You can only create courses for your assigned subdepartment(s).',
                     'errors' => ['subdepartment_id' => ['Subdepartment is not assigned to this instructor.']],
@@ -314,23 +312,23 @@ class CourseController extends Controller
             }
 
             $course = Course::create([
-                'title'         => $validated['title'],
-                'description'   => $validated['description'] ?? null,
-                'department'    => $validated['department'],
+                'title' => $validated['title'],
+                'description' => $validated['description'] ?? null,
+                'department' => $validated['department'],
                 'subdepartment_id' => (int) $validated['subdepartment_id'],
                 'instructor_id' => $user->id,
-                'status'        => $validated['status'] ?? 'Active',
-                'start_date'    => $validated['start_date'] ?? null,
-                'deadline'      => $validated['deadline'] ?? null,
-                'logo_path'     => $logoPath,
+                'status' => $validated['status'] ?? 'Active',
+                'start_date' => $validated['start_date'] ?? null,
+                'deadline' => $validated['deadline'] ?? null,
+                'logo_path' => $logoPath,
             ]);
 
-            if (!empty($validated['modules'])) {
+            if (! empty($validated['modules'])) {
                 foreach ($validated['modules'] as $module) {
                     if (isset($module['content']) && $module['content'] instanceof \Illuminate\Http\UploadedFile) {
                         $filePath = $module['content']->store('course-content', 'public');
                         $course->modules()->create([
-                            'title'        => $module['title'] ?? 'Untitled Module',
+                            'title' => $module['title'] ?? 'Untitled Module',
                             'content_path' => $filePath,
                         ]);
                     }
@@ -339,12 +337,12 @@ class CourseController extends Controller
 
             return response()->json([
                 'message' => 'Course created successfully',
-                'course'  => $course->load('modules', 'subdepartment:id,name,department_id'),
+                'course' => $course->load('modules', 'subdepartment:id,name,department_id'),
             ], 201);
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
         } catch (Exception $e) {
-            return response()->json(['message' => 'An error occurred: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'An error occurred: '.$e->getMessage()], 500);
         }
     }
 
@@ -361,26 +359,26 @@ class CourseController extends Controller
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id == $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         try {
             $validated = $request->validate([
-                'title'             => 'sometimes|string|max:255',
-                'description'       => 'nullable|string',
-                'department'        => 'sometimes|string|max:255',
-                'subdepartment_id'  => 'nullable|exists:subdepartments,id',
-                'status'            => ['sometimes', Rule::in(['Active', 'Inactive', 'Draft'])],
-                'start_date'        => 'nullable|date',
-                'deadline'          => 'nullable|date',
-                'logo'              => 'nullable|image|mimes:png,jpg,jpeg,svg|max:2048',
-                'remove_logo'       => 'nullable|boolean',
-                'modules'           => 'nullable|array',
-                'modules.*.title'   => 'nullable|string|max:255',
+                'title' => 'sometimes|string|max:255',
+                'description' => 'nullable|string',
+                'department' => 'sometimes|string|max:255',
+                'subdepartment_id' => 'nullable|exists:subdepartments,id',
+                'status' => ['sometimes', Rule::in(['Active', 'Inactive', 'Draft'])],
+                'start_date' => 'nullable|date',
+                'deadline' => 'nullable|date',
+                'logo' => 'nullable|image|mimes:png,jpg,jpeg,svg|max:2048',
+                'remove_logo' => 'nullable|boolean',
+                'modules' => 'nullable|array',
+                'modules.*.title' => 'nullable|string|max:255',
                 'modules.*.content' => 'nullable|file|max:102400',
             ]);
 
@@ -397,7 +395,7 @@ class CourseController extends Controller
             }
 
             $selectedSubdepartment = Subdepartment::with('department:id,name,code')->find((int) $effectiveSubdepartmentId);
-            if (!$selectedSubdepartment) {
+            if (! $selectedSubdepartment) {
                 return response()->json([
                     'message' => 'Invalid subdepartment selected.',
                     'errors' => ['subdepartment_id' => ['The selected subdepartment is invalid.']],
@@ -409,7 +407,7 @@ class CourseController extends Controller
             $deptMatches = $effectiveDepartment === $subDeptDepartmentName
                 || ($subDeptDepartmentCode !== '' && $effectiveDepartment === $subDeptDepartmentCode);
 
-            if (!$deptMatches) {
+            if (! $deptMatches) {
                 return response()->json([
                     'message' => 'Selected subdepartment does not belong to the selected department.',
                     'errors' => ['subdepartment_id' => ['Subdepartment must belong to the selected department.']],
@@ -421,7 +419,7 @@ class CourseController extends Controller
             $isAssignedSub = $user->subdepartments()->where('subdepartments.id', $selectedSubId)->exists();
             $isSubHead = (int) ($selectedSubdepartment->head_id ?? 0) === (int) $user->id;
 
-            if (!$isPrimarySub && !$isAssignedSub && !$isSubHead) {
+            if (! $isPrimarySub && ! $isAssignedSub && ! $isSubHead) {
                 return response()->json([
                     'message' => 'You can only assign courses to your assigned subdepartment(s).',
                     'errors' => ['subdepartment_id' => ['Subdepartment is not assigned to this instructor.']],
@@ -441,17 +439,16 @@ class CourseController extends Controller
                 $course->logo_path = null;
             }
 
-            $course->update(array_filter($validated, fn ($k) =>
-                in_array($k, ['title', 'description', 'department', 'subdepartment_id', 'status', 'start_date', 'deadline', 'logo_path']),
+            $course->update(array_filter($validated, fn ($k) => in_array($k, ['title', 'description', 'department', 'subdepartment_id', 'status', 'start_date', 'deadline', 'logo_path']),
                 ARRAY_FILTER_USE_KEY
             ));
 
-            if (!empty($validated['modules'])) {
+            if (! empty($validated['modules'])) {
                 foreach ($validated['modules'] as $module) {
                     if (isset($module['content']) && $module['content'] instanceof \Illuminate\Http\UploadedFile) {
                         $filePath = $module['content']->store('course-content', 'public');
                         $course->modules()->create([
-                            'title'        => $module['title'] ?? 'Untitled Module',
+                            'title' => $module['title'] ?? 'Untitled Module',
                             'content_path' => $filePath,
                         ]);
                     }
@@ -460,12 +457,12 @@ class CourseController extends Controller
 
             return response()->json([
                 'message' => 'Course updated successfully',
-                'course'  => $course->load('modules', 'subdepartment:id,name,department_id'),
+                'course' => $course->load('modules', 'subdepartment:id,name,department_id'),
             ]);
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
         } catch (Exception $e) {
-            return response()->json(['message' => 'An error occurred: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'An error occurred: '.$e->getMessage()], 500);
         }
     }
 
@@ -482,10 +479,10 @@ class CourseController extends Controller
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id == $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
@@ -507,32 +504,32 @@ class CourseController extends Controller
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id == $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $request->validate([
-            'title'       => 'required|string|max:255',
+            'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'content'     => 'nullable|file|max:102400',
+            'content' => 'nullable|file|max:102400',
         ]);
 
-$nextOrder = $course->modules()->max('order') + 1;
+        $nextOrder = $course->modules()->max('order') + 1;
 
-$data = [
-    'title'       => $request->input('title'),
-    'description' => $request->input('description'),
-    'order'       => $nextOrder,
-];
+        $data = [
+            'title' => $request->input('title'),
+            'description' => $request->input('description'),
+            'order' => $nextOrder,
+        ];
 
-if ($request->hasFile('content')) {
-    $data['content_path'] = $request->file('content')->store('course-content', 'public');
-}
+        if ($request->hasFile('content')) {
+            $data['content_path'] = $request->file('content')->store('course-content', 'public');
+        }
 
-$module = $course->modules()->create($data);
+        $module = $course->modules()->create($data);
 
         // Notify enrolled users about new module
         try {
@@ -586,10 +583,10 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id === $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
@@ -611,29 +608,29 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($module->course->instructor_id == $user->id)
-            || (!empty($assignedSubIds) && in_array($module->course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($module->course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $module->course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             abort(403, 'Forbidden.');
         }
 
         $request->validate([
-            'title'        => 'required|string|max:255',
+            'title' => 'required|string|max:255',
             'text_content' => 'nullable|string',
             // Allow large video files (up to ~5 GB)
-            'content'      => 'nullable|file|max:5242880',
-            'content_url'  => 'nullable|url|max:2000',
-            'type'         => 'nullable|in:Video,Document,Text',
-            'status'       => 'nullable|in:Published,Draft',
+            'content' => 'nullable|file|max:5242880',
+            'content_url' => 'nullable|url|max:2000',
+            'type' => 'nullable|in:Video,Document,Text',
+            'status' => 'nullable|in:Published,Draft',
         ]);
 
         $nextOrder = $module->lessons()->max('order') + 1;
 
         $data = [
-            'title'        => $request->input('title'),
+            'title' => $request->input('title'),
             'text_content' => $request->input('text_content'),
-            'order'        => $nextOrder,
+            'order' => $nextOrder,
         ];
 
         // If an external content URL is provided (e.g., YouTube embed), store it directly
@@ -703,10 +700,10 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($module->course->instructor_id == $user->id)
-            || (!empty($assignedSubIds) && in_array($module->course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($module->course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $module->course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             abort(403, 'Forbidden.');
         }
 
@@ -732,17 +729,17 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id == $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $module = $course->modules()->findOrFail($moduleId);
 
         $validated = $request->validate([
-            'title'       => 'sometimes|string|max:255',
+            'title' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
         ]);
 
@@ -763,35 +760,39 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($module->course->instructor_id == $user->id)
-            || (!empty($assignedSubIds) && in_array($module->course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($module->course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $module->course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             abort(403, 'Forbidden.');
         }
 
         $request->validate([
-            'title'        => 'sometimes|string|max:255',
+            'title' => 'sometimes|string|max:255',
             'text_content' => 'nullable|string',
             // Allow large video files (up to ~5 GB)
-            'content'      => 'nullable|file|max:5242880',
-            'content_url'  => 'nullable|url|max:2000',
+            'content' => 'nullable|file|max:5242880',
+            'content_url' => 'nullable|url|max:2000',
         ]);
 
         $lesson = $module->lessons()->findOrFail($lessonId);
 
-        if ($request->has('title')) $lesson->title = $request->input('title');
-        if ($request->has('text_content')) $lesson->text_content = $request->input('text_content');
+        if ($request->has('title')) {
+            $lesson->title = $request->input('title');
+        }
+        if ($request->has('text_content')) {
+            $lesson->text_content = $request->input('text_content');
+        }
 
         if ($request->has('content_url')) {
-            if ($lesson->content_path && !preg_match('#^https?://#i', $lesson->content_path)) {
+            if ($lesson->content_path && ! preg_match('#^https?://#i', $lesson->content_path)) {
                 Storage::disk('public')->delete($lesson->content_path);
             }
             $lesson->content_path = $request->filled('content_url') ? $request->input('content_url') : null;
         }
 
         if ($request->hasFile('content')) {
-            if ($lesson->content_path && !preg_match('#^https?://#i', $lesson->content_path)) {
+            if ($lesson->content_path && ! preg_match('#^https?://#i', $lesson->content_path)) {
                 Storage::disk('public')->delete($lesson->content_path);
             }
             $lesson->content_path = $request->file('content')->store('course-content', 'public');
@@ -814,15 +815,15 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id == $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $request->validate([
-            'order'   => 'required|array',
+            'order' => 'required|array',
             'order.*' => 'integer|exists:modules,id',
         ]);
 
@@ -850,10 +851,10 @@ $module = $course->modules()->create($data);
             $course = Course::findOrFail((string) $request->input('course_id'));
 
             $allowed = ($course->instructor_id == $instructor->id)
-                || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+                || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
                 || ($assignedDept !== '' && $this->departmentsMatch($course->department, $assignedDept));
 
-            if (!$allowed) {
+            if (! $allowed) {
                 return response()->json(['message' => 'Forbidden'], 403);
             }
 
@@ -895,10 +896,10 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id == $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
@@ -912,17 +913,17 @@ $module = $course->modules()->create($data);
             ->get()
             ->map(function ($user) {
                 return [
-                    'id'                => $user->id,
-                    'fullname'          => $user->fullname,
-                    'email'             => $user->email,
-                    'department'        => $user->department,
-                    'role'              => $user->role,
-                    'status'            => $user->status,
-                    'enrolled_at'       => $user->pivot->enrolled_at,
-                    'progress'          => $user->pivot->progress,
+                    'id' => $user->id,
+                    'fullname' => $user->fullname,
+                    'email' => $user->email,
+                    'department' => $user->department,
+                    'role' => $user->role,
+                    'status' => $user->status,
+                    'enrolled_at' => $user->pivot->enrolled_at,
+                    'progress' => $user->pivot->progress,
                     'enrollment_status' => $user->pivot->status,
-                    'locked'            => $user->pivot->locked ?? false,
-                    'unlocked_until'    => $user->pivot->unlocked_until ?? null,
+                    'locked' => $user->pivot->locked ?? false,
+                    'unlocked_until' => $user->pivot->unlocked_until ?? null,
                 ];
             });
 
@@ -941,16 +942,16 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id === $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $this->departmentsMatch($course->department, $assignedDept));
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         /** @var \App\Models\CourseEnrollment|null $enrollment */
         $enrollment = $course->enrollments()->where('user_id', $userId)->first();
-        if (!$enrollment) {
+        if (! $enrollment) {
             return response()->json(['message' => 'Enrollment not found'], 404);
         }
 
@@ -975,16 +976,16 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id === $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         /** @var \App\Models\CourseEnrollment|null $enrollment */
         $enrollment = $course->enrollments()->where('user_id', $userId)->first();
-        if (!$enrollment) {
+        if (! $enrollment) {
             return response()->json(['message' => 'Enrollment not found'], 404);
         }
 
@@ -997,7 +998,9 @@ $module = $course->modules()->create($data);
         }
 
         $data = ['locked' => false];
-        if ($until) $data['unlocked_until'] = $until;
+        if ($until) {
+            $data['unlocked_until'] = $until;
+        }
 
         $enrollment->update($data);
 
@@ -1006,7 +1009,7 @@ $module = $course->modules()->create($data);
             event(new EnrollmentUnlocked($enrollment->user_id, $course->id));
         } catch (\Throwable $e) {
             // Don't fail the API if broadcasting isn't configured
-            Log::warning('Failed to broadcast EnrollmentUnlocked: ' . $e->getMessage());
+            Log::warning('Failed to broadcast EnrollmentUnlocked: '.$e->getMessage());
         }
 
         return response()->json(['message' => 'Enrollment unlocked']);
@@ -1028,15 +1031,17 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id === $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $module = Module::query()->where('course_id', $course->id)->where('id', $moduleId)->first();
-        if (!$module) return response()->json(['message' => 'Module not found'], 404);
+        if (! $module) {
+            return response()->json(['message' => 'Module not found'], 404);
+        }
 
         // Upsert pivot
         $until = null;
@@ -1047,7 +1052,9 @@ $module = $course->modules()->create($data);
         }
 
         $payload = ['unlocked' => true, 'unlocked_at' => now(), 'updated_at' => now(), 'created_at' => now()];
-        if ($until) $payload['unlocked_until'] = $until;
+        if ($until) {
+            $payload['unlocked_until'] = $until;
+        }
 
         DB::table('module_user')->updateOrInsert(
             ['module_id' => $module->id, 'user_id' => $userId],
@@ -1057,7 +1064,7 @@ $module = $course->modules()->create($data);
         try {
             event(new ModuleUnlocked($userId, $course->id, $module->id));
         } catch (\Throwable $e) {
-            Log::warning('Failed to broadcast ModuleUnlocked: ' . $e->getMessage());
+            Log::warning('Failed to broadcast ModuleUnlocked: '.$e->getMessage());
         }
 
         return response()->json(['message' => 'Module unlocked for user']);
@@ -1075,15 +1082,17 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id === $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $module = Module::query()->where('course_id', $course->id)->where('id', $moduleId)->first();
-        if (!$module) return response()->json(['message' => 'Module not found'], 404);
+        if (! $module) {
+            return response()->json(['message' => 'Module not found'], 404);
+        }
 
         DB::table('module_user')->updateOrInsert(
             ['module_id' => $module->id, 'user_id' => $userId],
@@ -1110,17 +1119,19 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id === $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $validated = $request->validate(['department' => 'required|string']);
 
         $module = Module::query()->where('course_id', $course->id)->where('id', $moduleId)->first();
-        if (!$module) return response()->json(['message' => 'Module not found'], 404);
+        if (! $module) {
+            return response()->json(['message' => 'Module not found'], 404);
+        }
 
         // find enrolled users in that department for this course
         $userIds = $course->enrollments()->whereHas('user', function ($q) use ($validated) {
@@ -1135,14 +1146,20 @@ $module = $course->modules()->create($data);
         }
 
         $payload = ['unlocked' => true, 'unlocked_at' => now(), 'updated_at' => now(), 'created_at' => now()];
-        if ($until) $payload['unlocked_until'] = $until;
+        if ($until) {
+            $payload['unlocked_until'] = $until;
+        }
 
         foreach ($userIds as $uid) {
             DB::table('module_user')->updateOrInsert(
                 ['module_id' => $module->id, 'user_id' => $uid],
                 $payload
             );
-            try { event(new ModuleUnlocked($uid, $course->id, $module->id)); } catch (\Throwable $e) { Log::warning('ModuleUnlocked broadcast failed: ' . $e->getMessage()); }
+            try {
+                event(new ModuleUnlocked($uid, $course->id, $module->id));
+            } catch (\Throwable $e) {
+                Log::warning('ModuleUnlocked broadcast failed: '.$e->getMessage());
+            }
         }
 
         return response()->json(['message' => 'Module unlocked for department', 'department' => $validated['department'], 'count' => count($userIds)]);
@@ -1160,17 +1177,19 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id === $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $validated = $request->validate(['department' => 'required|string']);
 
         $module = Module::query()->where('course_id', $course->id)->where('id', $moduleId)->first();
-        if (!$module) return response()->json(['message' => 'Module not found'], 404);
+        if (! $module) {
+            return response()->json(['message' => 'Module not found'], 404);
+        }
 
         $userIds = $course->enrollments()->whereHas('user', function ($q) use ($validated) {
             $q->where('department', $validated['department']);
@@ -1205,10 +1224,10 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id === $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
@@ -1237,7 +1256,9 @@ $module = $course->modules()->create($data);
         }
 
         $payload = ['unlocked' => true, 'unlocked_at' => now(), 'updated_at' => now(), 'created_at' => now()];
-        if ($until) $payload['unlocked_until'] = $until;
+        if ($until) {
+            $payload['unlocked_until'] = $until;
+        }
 
         // Upsert for each module-user pair
         foreach ($moduleIds as $mid) {
@@ -1246,7 +1267,11 @@ $module = $course->modules()->create($data);
                     ['module_id' => $mid, 'user_id' => $uid],
                     $payload
                 );
-                try { event(new ModuleUnlocked($uid, $course->id, $mid)); } catch (\Throwable $e) { Log::warning('ModuleUnlocked broadcast failed: ' . $e->getMessage()); }
+                try {
+                    event(new ModuleUnlocked($uid, $course->id, $mid));
+                } catch (\Throwable $e) {
+                    Log::warning('ModuleUnlocked broadcast failed: '.$e->getMessage());
+                }
             }
         }
 
@@ -1269,10 +1294,10 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id === $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
@@ -1288,7 +1313,7 @@ $module = $course->modules()->create($data);
         }
 
         $eligibilityReason = null;
-        if (!$this->employeeCanEnrollInCourse($targetUser, $course, $eligibilityReason)) {
+        if (! $this->employeeCanEnrollInCourse($targetUser, $course, $eligibilityReason)) {
             return response()->json([
                 'message' => $eligibilityReason ?? 'This employee cannot be enrolled in the selected course.',
             ], 422);
@@ -1299,14 +1324,14 @@ $module = $course->modules()->create($data);
         }
 
         $course->enrollments()->create([
-            'user_id'     => $request->user_id,
-            'progress'    => 0,
+            'user_id' => $request->user_id,
+            'progress' => 0,
             'enrolled_at' => now(),
         ]);
 
         return response()->json([
             'message' => 'User enrolled successfully',
-            'user'    => $targetUser,
+            'user' => $targetUser,
         ], 201);
     }
 
@@ -1322,16 +1347,16 @@ $module = $course->modules()->create($data);
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id === $user->id)
-            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (!$allowed) {
+        if (! $allowed) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $deleted = $course->enrollments()->where('user_id', $userId)->delete();
 
-        if (!$deleted) {
+        if (! $deleted) {
             return response()->json(['message' => 'Enrollment not found'], 404);
         }
 
@@ -1341,14 +1366,22 @@ $module = $course->modules()->create($data);
     private function normalizeDepartmentKey(?string $value): string
     {
         $raw = strtolower(trim((string) $value));
-        if ($raw === '') return '';
+        if ($raw === '') {
+            return '';
+        }
 
         $compact = preg_replace('/department|dept/', '', $raw);
         $compact = preg_replace('/[^a-z0-9]/', '', (string) $compact);
 
-        if (in_array($compact, ['it', 'informationtechnology', 'informationtech'], true)) return 'it';
-        if (in_array($compact, ['hr', 'humanresources'], true)) return 'humanresources';
-        if (in_array($compact, ['salesandmarketing', 'marketingandsales'], true)) return 'salesandmarketing';
+        if (in_array($compact, ['it', 'informationtechnology', 'informationtech'], true)) {
+            return 'it';
+        }
+        if (in_array($compact, ['hr', 'humanresources'], true)) {
+            return 'humanresources';
+        }
+        if (in_array($compact, ['salesandmarketing', 'marketingandsales'], true)) {
+            return 'salesandmarketing';
+        }
 
         return (string) $compact;
     }
@@ -1361,9 +1394,9 @@ $module = $course->modules()->create($data);
         return Course::query()->where(function (Builder $query) use ($user, $assignedSubIds, $assignedDept) {
             $query->where('instructor_id', $user->id);
 
-            if (!empty($assignedSubIds) || $assignedDept) {
+            if (! empty($assignedSubIds) || $assignedDept) {
                 $query->orWhere(function (Builder $nestedQuery) use ($assignedSubIds, $assignedDept) {
-                    if (!empty($assignedSubIds)) {
+                    if (! empty($assignedSubIds)) {
                         $nestedQuery->whereIn('subdepartment_id', $assignedSubIds);
                     }
                     if ($assignedDept) {
@@ -1388,13 +1421,15 @@ $module = $course->modules()->create($data);
 
     private function employeeCanEnrollInCourse(User $employee, Course $course, ?string &$reason = null): bool
     {
-        if (!$this->departmentsMatch($course->department, $employee->department)) {
+        if (! $this->departmentsMatch($course->department, $employee->department)) {
             $reason = 'This employee is not in the course department and cannot be enrolled here.';
+
             return false;
         }
 
-        if (!empty($course->subdepartment_id) && (int) ($employee->subdepartment_id ?? 0) !== (int) $course->subdepartment_id) {
+        if (! empty($course->subdepartment_id) && (int) ($employee->subdepartment_id ?? 0) !== (int) $course->subdepartment_id) {
             $reason = 'This employee is not in the course subdepartment and cannot be enrolled here.';
+
             return false;
         }
 

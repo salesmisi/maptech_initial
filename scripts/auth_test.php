@@ -1,4 +1,5 @@
 <?php
+
 if ($argc < 3) {
     echo "Usage: php auth_test.php email password\n";
     exit(2);

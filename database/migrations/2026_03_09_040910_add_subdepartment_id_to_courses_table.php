@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('courses', function (Blueprint $table) {
             $table->foreignId('subdepartment_id')->nullable()->after('department')
-                  ->constrained('subdepartments')->nullOnDelete();
+                ->constrained('subdepartments')->nullOnDelete();
         });
     }
 

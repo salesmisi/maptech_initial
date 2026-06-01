@@ -1,14 +1,14 @@
 <?php
 
+use App\Http\Controllers\Admin\AuditLogRetentionPolicyController;
+use App\Http\Controllers\LoginController;
+use App\Http\Controllers\PasswordResetController;
 use App\Models\AuditLog;
 use App\Models\Department;
 use App\Models\Subdepartment;
 use App\Models\TimeLog;
 use App\Models\User;
 use App\Support\AuditDate;
-use App\Http\Controllers\LoginController;
-use App\Http\Controllers\PasswordResetController;
-use App\Http\Controllers\Admin\AuditLogRetentionPolicyController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -93,10 +93,10 @@ Route::post('/departments', function (Request $request) {
     if ($request->filled('head_id')) {
         $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
         $headRole = strtolower((string) ($headUser?->role ?? ''));
-        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
+        if (! $headUser || ! in_array($headRole, ['admin', 'instructor'], true)) {
             return response()->json([
                 'message' => 'Department head must be an Admin or Instructor.',
-                'errors' => ['head_id' => ['Department head must be an Admin or Instructor.']]
+                'errors' => ['head_id' => ['Department head must be an Admin or Instructor.']],
             ], 422);
         }
     }
@@ -127,10 +127,10 @@ Route::put('/departments/{id}', function (Request $request, $id) {
     if ($request->filled('head_id')) {
         $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
         $headRole = strtolower((string) ($headUser?->role ?? ''));
-        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
+        if (! $headUser || ! in_array($headRole, ['admin', 'instructor'], true)) {
             return response()->json([
                 'message' => 'Department head must be an Admin or Instructor.',
-                'errors' => ['head_id' => ['Department head must be an Admin or Instructor.']]
+                'errors' => ['head_id' => ['Department head must be an Admin or Instructor.']],
             ], 422);
         }
     }
@@ -175,10 +175,10 @@ Route::post('/departments/{id}/subdepartments', function (Request $request, $id)
     if ($request->filled('head_id')) {
         $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
         $headRole = strtolower((string) ($headUser?->role ?? ''));
-        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
+        if (! $headUser || ! in_array($headRole, ['admin', 'instructor'], true)) {
             return response()->json([
                 'message' => 'Subdepartment head must be an Admin or Instructor.',
-                'errors' => ['head_id' => ['Subdepartment head must be an Admin or Instructor.']]
+                'errors' => ['head_id' => ['Subdepartment head must be an Admin or Instructor.']],
             ], 422);
         }
     }
@@ -208,10 +208,10 @@ Route::put('/subdepartments/{id}', function (Request $request, $id) {
     if ($request->filled('head_id')) {
         $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
         $headRole = strtolower((string) ($headUser?->role ?? ''));
-        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
+        if (! $headUser || ! in_array($headRole, ['admin', 'instructor'], true)) {
             return response()->json([
                 'message' => 'Subdepartment head must be an Admin or Instructor.',
-                'errors' => ['head_id' => ['Subdepartment head must be an Admin or Instructor.']]
+                'errors' => ['head_id' => ['Subdepartment head must be an Admin or Instructor.']],
             ], 422);
         }
     }
@@ -277,7 +277,7 @@ Route::get('/me/audit-logs', function (Request $request) {
 
         // Legacy fallback: match by user + tight time window.
         $logAt = AuditDate::modelStorageDateTime($log, 'created_at');
-        if (!$timeLog && $logAt) {
+        if (! $timeLog && $logAt) {
             $start = $logAt->copy()->subMinutes(2)->toDateTimeString();
             $end = $logAt->copy()->addMinutes(2)->toDateTimeString();
             if ($log->action === 'login') {
@@ -497,7 +497,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
             $data = collect($paginator->items())->map(function ($row) {
                 $createdAt = null;
-                if (!empty($row->created_at)) {
+                if (! empty($row->created_at)) {
                     try {
                         $createdAt = Carbon::parse($row->created_at)->setTimezone('UTC')->toIso8601String();
                     } catch (\Throwable $e) {
@@ -528,7 +528,10 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                                 ->whereBetween('time_in', [$start, $end])
                                 ->get();
                             $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
-                                if (! $tl->time_in) return PHP_INT_MAX;
+                                if (! $tl->time_in) {
+                                    return PHP_INT_MAX;
+                                }
+
                                 return abs(Carbon::parse($tl->time_in)->diffInSeconds($logAt, false));
                             })->first();
                         } elseif ($row->action === 'logout') {
@@ -536,7 +539,10 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                                 ->whereBetween('time_out', [$start, $end])
                                 ->get();
                             $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
-                                if (! $tl->time_out) return PHP_INT_MAX;
+                                if (! $tl->time_out) {
+                                    return PHP_INT_MAX;
+                                }
+
                                 return abs(Carbon::parse($tl->time_out)->diffInSeconds($logAt, false));
                             })->first();
                         }
@@ -611,13 +617,13 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         }
 
         $format = $request->input('format', 'csv'); // csv, excel, or pdf
-        if (!in_array($format, ['csv', 'excel', 'pdf'])) {
+        if (! in_array($format, ['csv', 'excel', 'pdf'])) {
             $format = 'csv';
         }
 
         // Period filter: weekly, monthly, yearly (optional)
         $period = $request->input('period');
-        if ($period !== null && !in_array($period, ['weekly', 'monthly', 'yearly'])) {
+        if ($period !== null && ! in_array($period, ['weekly', 'monthly', 'yearly'])) {
             return response()->json(['message' => 'Invalid period filter'], 422);
         }
 
@@ -662,9 +668,9 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
             // CSV Export
             if ($format === 'csv') {
-                $filename = 'audit_logs_' . $timestamp . '.csv';
+                $filename = 'audit_logs_'.$timestamp.'.csv';
 
-                $callback = function() use ($logs) {
+                $callback = function () use ($logs) {
                     $file = fopen('php://output', 'w');
 
                     // Add BOM for Excel UTF-8 compatibility
@@ -692,20 +698,20 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
                 return response()->stream($callback, 200, [
                     'Content-Type' => 'text/csv',
-                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                    'Content-Disposition' => 'attachment; filename="'.$filename.'"',
                 ]);
             }
 
             // Excel Export — real XLSX (OpenXML / ZIP) so Excel opens it without warnings
             if ($format === 'excel') {
-                if (!class_exists('ZipArchive')) {
+                if (! class_exists('ZipArchive')) {
                     return response()->json(['message' => 'Server is missing the PHP zip extension. Please contact the administrator.'], 500);
                 }
-                $filename  = 'audit_logs_' . $timestamp . '.xlsx';
-                $roleLabel = $roleFilter ? ucfirst($roleFilter) . ' ' : '';
-                $logoPath  = public_path('assets/Maptech-Official-Logo.png');
-                $hasLogo   = file_exists($logoPath);
-                $genInfo   = 'Generated: ' . date('F j, Y g:i A') . '  |  Total Records: ' . count($logs);
+                $filename = 'audit_logs_'.$timestamp.'.xlsx';
+                $roleLabel = $roleFilter ? ucfirst($roleFilter).' ' : '';
+                $logoPath = public_path('assets/Maptech-Official-Logo.png');
+                $hasLogo = file_exists($logoPath);
+                $genInfo = 'Generated: '.date('F j, Y g:i A').'  |  Total Records: '.count($logs);
                 $logoCx = null;
                 $logoCy = null;
                 if ($hasLogo) {
@@ -724,23 +730,23 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 }
 
                 // XML-escape helper
-                $xe = fn($s) => htmlspecialchars((string) $s, ENT_XML1, 'UTF-8');
+                $xe = fn ($s) => htmlspecialchars((string) $s, ENT_XML1, 'UTF-8');
 
                 // Column definitions
-                $headers    = ['ID','User ID','Full Name','Email','Role','Department','Action','IP Address','Date & Time'];
-                $colLetters = ['A','B','C','D','E','F','G','H','I'];
-                $colWidths  = [8, 8, 20, 28, 12, 22, 15, 14, 22];
+                $headers = ['ID', 'User ID', 'Full Name', 'Email', 'Role', 'Department', 'Action', 'IP Address', 'Date & Time'];
+                $colLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+                $colWidths = [8, 8, 20, 28, 12, 22, 15, 14, 22];
 
                 // ── Worksheet XML ─────────────────────────────────────────────────────
                 // Layout: Row 1 = logo area (tall), Row 2 = title, Row 3 = meta,
                 //         Row 4 = column headers, Row 5+ = data
-                $sw  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+                $sw = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
                 $sw .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"';
                 $sw .= ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
                 $sw .= '<sheetFormatPr defaultRowHeight="15"/>';
                 $sw .= '<cols>';
                 foreach ($colWidths as $i => $w) {
-                    $sw .= '<col min="'.($i+1).'" max="'.($i+1).'" width="'.$w.'" customWidth="1"/>';
+                    $sw .= '<col min="'.($i + 1).'" max="'.($i + 1).'" width="'.$w.'" customWidth="1"/>';
                 }
                 $sw .= '</cols>';
                 $sw .= '<sheetData>';
@@ -763,18 +769,18 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 // Data rows
                 $rowNum = 5;
                 foreach ($logs as $log) {
-                    $s  = ($rowNum % 2 === 0) ? 5 : 4; // alternate row shading
+                    $s = ($rowNum % 2 === 0) ? 5 : 4; // alternate row shading
                     $sw .= '<row r="'.$rowNum.'">';
                     $vals = [
                         (string) $log->id,
                         (string) $log->user_id,
-                        $log->user_fullname   ?? '',
-                        $log->user_email      ?? '',
-                        $log->user_role       ?? '',
+                        $log->user_fullname ?? '',
+                        $log->user_email ?? '',
+                        $log->user_role ?? '',
                         $log->user_department ?? '',
-                        $log->action          ?? '',
-                        $log->ip_address      ?? '',
-                        $log->created_at      ?? '',
+                        $log->action ?? '',
+                        $log->ip_address ?? '',
+                        $log->created_at ?? '',
                     ];
                     foreach ($colLetters as $i => $letter) {
                         $sw .= '<c r="'.$letter.$rowNum.'" s="'.$s.'" t="inlineStr"><is><t>'.$xe($vals[$i]).'</t></is></c>';
@@ -785,11 +791,13 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 $sw .= '</sheetData>';
                 // Merge title and meta rows across all 9 columns
                 $sw .= '<mergeCells count="2"><mergeCell ref="A2:I2"/><mergeCell ref="A3:I3"/></mergeCells>';
-                if ($hasLogo) { $sw .= '<drawing r:id="rId1"/>'; }
+                if ($hasLogo) {
+                    $sw .= '<drawing r:id="rId1"/>';
+                }
                 $sw .= '</worksheet>';
 
                 // ── Styles XML ────────────────────────────────────────────────────────
-                $sx  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+                $sx = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
                 $sx .= '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
                 // Fonts: 0=default, 1=title bold green, 2=meta grey, 3=header white bold, 4=data
                 $sx .= '<fonts count="5">';
@@ -824,18 +832,18 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 $sx .= '</styleSheet>';
 
                 // ── Drawing XML (logo image anchored to cell A1) ──────────────────────
-                $dx  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+                $dx = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
                 $dx .= '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"';
                 $dx .= ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
                 $dx .= ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
                 $dx .= '<xdr:oneCellAnchor>';
                 $dx .= '<xdr:from><xdr:col>0</xdr:col><xdr:colOff>38100</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>38100</xdr:rowOff></xdr:from>';
-                $dx .= '<xdr:ext cx="' . ($logoCx ?? 1828800) . '" cy="' . ($logoCy ?? 495300) . '"/>';
+                $dx .= '<xdr:ext cx="'.($logoCx ?? 1828800).'" cy="'.($logoCy ?? 495300).'"/>';
                 $dx .= '<xdr:pic>';
                 $dx .= '<xdr:nvPicPr><xdr:cNvPr id="2" name="MaptechLogo"/>';
                 $dx .= '<xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>';
                 $dx .= '<xdr:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>';
-                $dx .= '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' . ($logoCx ?? 1828800) . '" cy="' . ($logoCy ?? 495300) . '"/></a:xfrm>';
+                $dx .= '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'.($logoCx ?? 1828800).'" cy="'.($logoCy ?? 495300).'"/></a:xfrm>';
                 $dx .= '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>';
                 $dx .= '</xdr:pic><xdr:clientData/>';
                 $dx .= '</xdr:oneCellAnchor>';
@@ -843,19 +851,23 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
                 // ── Assemble XLSX ZIP ─────────────────────────────────────────────────
                 $tmpFile = tempnam(sys_get_temp_dir(), 'audit_xlsx_');
-                $zip = new \ZipArchive();
+                $zip = new \ZipArchive;
                 $zip->open($tmpFile, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
 
                 // [Content_Types].xml
-                $ct  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+                $ct = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
                 $ct .= '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">';
                 $ct .= '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>';
                 $ct .= '<Default Extension="xml" ContentType="application/xml"/>';
-                if ($hasLogo) { $ct .= '<Default Extension="png" ContentType="image/png"/>'; }
+                if ($hasLogo) {
+                    $ct .= '<Default Extension="png" ContentType="image/png"/>';
+                }
                 $ct .= '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>';
                 $ct .= '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
                 $ct .= '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>';
-                if ($hasLogo) { $ct .= '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>'; }
+                if ($hasLogo) {
+                    $ct .= '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>';
+                }
                 $ct .= '</Types>';
                 $zip->addFromString('[Content_Types].xml', $ct);
 
@@ -910,18 +922,18 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 @unlink($tmpFile);
 
                 return response($xlsxContent, 200, [
-                    'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-                    'Content-Length'      => strlen($xlsxContent),
+                    'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+                    'Content-Length' => strlen($xlsxContent),
                 ]);
             }
 
             // PDF Export (render the report layout directly so it matches the reference PDF)
             if ($format === 'pdf') {
-                $filename = 'audit_logs_' . $timestamp . '.pdf';
+                $filename = 'audit_logs_'.$timestamp.'.pdf';
                 $logoPath = public_path('assets/Maptech-Official-Logo.png');
                 $logoBase64 = file_exists($logoPath)
-                    ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
+                    ? 'data:image/png;base64,'.base64_encode(file_get_contents($logoPath))
                     : null;
 
                 $appTimezone = (string) config('app.timezone', 'UTC');
@@ -946,6 +958,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                     }
 
                     $parts = preg_split('/[._]/', $action, 2);
+
                     return $parts[0] ?: 'audit';
                 };
 
@@ -955,34 +968,34 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                         return 'System';
                     }
 
-                    return 'User #' . $log->user_id;
+                    return 'User #'.$log->user_id;
                 };
 
                 $displayActivity = function ($log) use ($actionToEntity) {
                     $entity = $actionToEntity($log->action ?? '');
-                    $suffix = !empty($log->user_id) && !str_starts_with(strtolower((string) ($log->action ?? '')), 'budget_report')
+                    $suffix = ! empty($log->user_id) && ! str_starts_with(strtolower((string) ($log->action ?? '')), 'budget_report')
                         ? $log->user_id
                         : 0;
 
-                    return $entity . ' #' . $suffix;
+                    return $entity.' #'.$suffix;
                 };
 
                 $displayDetails = function ($log) {
                     $context = [];
 
-                    if (!empty($log->user_email)) {
+                    if (! empty($log->user_email)) {
                         $context['email'] = $log->user_email;
                     }
 
-                    if (!empty($log->user_department)) {
+                    if (! empty($log->user_department)) {
                         $context['department'] = $log->user_department;
                     }
 
-                    if (!empty($log->ip_address)) {
+                    if (! empty($log->ip_address)) {
                         $context['ip'] = $log->ip_address;
                     }
 
-                    if (!empty($log->session_key)) {
+                    if (! empty($log->session_key)) {
                         $context['session_key'] = $log->session_key;
                     }
 
@@ -990,7 +1003,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                         return 'context={}';
                     }
 
-                    return 'context=' . json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    return 'context='.json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                 };
 
                 $totalLogs = count($logs);
@@ -1000,7 +1013,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
                 foreach ($logs as $log) {
                     $actions[] = (string) ($log->action ?? '');
-                    if (!empty($log->user_id)) {
+                    if (! empty($log->user_id)) {
                         $userIds[] = (string) $log->user_id;
                     }
                     if (preg_match('/failed|export|delete|password|reset|permission/i', (string) ($log->action ?? ''))) {
@@ -1016,7 +1029,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                         ? 'Monthly Audit Logs Report'
                         : ($period === 'yearly' ? 'Yearly Audit Logs Report' : 'Audit Logs Report'));
                 $headerRange = $totalLogs > 0
-                    ? $formatDate($logs->last()->created_at) . ' - ' . $formatDate($logs->first()->created_at)
+                    ? $formatDate($logs->last()->created_at).' - '.$formatDate($logs->first()->created_at)
                     : 'No records available';
                 $generatedAt = \Carbon\Carbon::now($appTimezone)->format('M j, Y h:i A');
                 $searchValue = 'None';
@@ -1080,17 +1093,17 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 $html .= '<table class="header-table"><tr>';
                 $html .= '<td class="header-left">';
                 if ($logoBase64) {
-                    $html .= '<div class="brand"><img src="' . $logoBase64 . '" alt="Maptech Logo"></div>';
+                    $html .= '<div class="brand"><img src="'.$logoBase64.'" alt="Maptech Logo"></div>';
                 }
                 $html .= '</td>';
                 $html .= '<td class="header-center">';
                 $html .= '<h1 class="title">Audit Logs Report</h1>';
-                $html .= '<div class="subtitle">' . $escape($reportTitle) . '</div>';
-                $html .= '<div class="range">' . $escape($headerRange) . ' &mdash; Generated on ' . $escape($generatedAt) . '</div>';
+                $html .= '<div class="subtitle">'.$escape($reportTitle).'</div>';
+                $html .= '<div class="range">'.$escape($headerRange).' &mdash; Generated on '.$escape($generatedAt).'</div>';
                 $html .= '</td>';
                 $html .= '<td class="header-right">';
-                $html .= '<div>Generated: ' . $escape($generatedAt) . '</div>';
-                $html .= '<div>Total Records: ' . $escape($totalLogs) . '</div>';
+                $html .= '<div>Generated: '.$escape($generatedAt).'</div>';
+                $html .= '<div>Total Records: '.$escape($totalLogs).'</div>';
                 $html .= '</td>';
                 $html .= '</tr></table>';
                 $html .= '<div class="header-rule"></div>';
@@ -1109,19 +1122,19 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 $html .= '<table class="stats"><tr>';
                 $html .= '<th>Total Logs</th><th>Sensitive Logs</th><th>Unique Actions</th><th>Users Involved</th>';
                 $html .= '</tr><tr>';
-                $html .= '<td><span class="pill pill-green">' . $escape($totalLogs) . '</span></td>';
-                $html .= '<td><span class="pill pill-red">' . $escape($sensitiveLogs) . '</span></td>';
-                $html .= '<td><span class="pill pill-yellow">' . $escape($uniqueActions) . '</span></td>';
-                $html .= '<td><span class="pill pill-blue">' . $escape($usersInvolved) . '</span></td>';
+                $html .= '<td><span class="pill pill-green">'.$escape($totalLogs).'</span></td>';
+                $html .= '<td><span class="pill pill-red">'.$escape($sensitiveLogs).'</span></td>';
+                $html .= '<td><span class="pill pill-yellow">'.$escape($uniqueActions).'</span></td>';
+                $html .= '<td><span class="pill pill-blue">'.$escape($usersInvolved).'</span></td>';
                 $html .= '</tr></table>';
 
                 $html .= '<table class="filters"><tr>';
                 $html .= '<th>Search</th><th>Action</th><th>Entity</th><th>Project</th>';
                 $html .= '</tr><tr>';
-                $html .= '<td><span class="value">' . $escape($searchValue) . '</span></td>';
-                $html .= '<td><span class="value">' . $escape($actionValue) . '</span></td>';
-                $html .= '<td><span class="value">' . $escape($entityValue) . '</span></td>';
-                $html .= '<td><span class="value">' . $escape($projectValue) . '</span></td>';
+                $html .= '<td><span class="value">'.$escape($searchValue).'</span></td>';
+                $html .= '<td><span class="value">'.$escape($actionValue).'</span></td>';
+                $html .= '<td><span class="value">'.$escape($entityValue).'</span></td>';
+                $html .= '<td><span class="value">'.$escape($projectValue).'</span></td>';
                 $html .= '</tr></table>';
 
                 $html .= '<div class="section-title">Audit Entries</div>';
@@ -1138,13 +1151,13 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
                 foreach ($logs as $log) {
                     $html .= '<tr>';
-                    $html .= '<td class="nowrap">' . $escape($formatDate($log->created_at)) . '</td>';
-                    $html .= '<td>' . $escape($actionToEntity($log->action ?? '')) . '</td>';
-                    $html .= '<td>' . $escape($displayActivity($log)) . '</td>';
-                    $html .= '<td>' . $escape($log->action ?? '') . '</td>';
-                    $html .= '<td>' . $escape($displayActor($log)) . '</td>';
+                    $html .= '<td class="nowrap">'.$escape($formatDate($log->created_at)).'</td>';
+                    $html .= '<td>'.$escape($actionToEntity($log->action ?? '')).'</td>';
+                    $html .= '<td>'.$escape($displayActivity($log)).'</td>';
+                    $html .= '<td>'.$escape($log->action ?? '').'</td>';
+                    $html .= '<td>'.$escape($displayActor($log)).'</td>';
                     $html .= '<td>Global</td>';
-                    $html .= '<td>' . $escape($displayDetails($log)) . '</td>';
+                    $html .= '<td>'.$escape($displayDetails($log)).'</td>';
                     $html .= '</tr>';
                 }
 
@@ -1160,7 +1173,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
                 if (class_exists('\\Dompdf\\Dompdf')) {
                     try {
-                        $dompdf = new \Dompdf\Dompdf();
+                        $dompdf = new \Dompdf\Dompdf;
                         $dompdf->setPaper('A4', 'portrait');
                         $dompdf->loadHtml($html);
                         $dompdf->render();
@@ -1168,7 +1181,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
                         return response($pdfOutput, 200, [
                             'Content-Type' => 'application/pdf',
-                            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
                             'Content-Length' => strlen($pdfOutput),
                         ]);
                     } catch (\Throwable $e) {
@@ -1178,12 +1191,12 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
                 return response($html, 200, [
                     'Content-Type' => 'text/html',
-                    'Content-Disposition' => 'inline; filename="' . $filename . '"',
+                    'Content-Disposition' => 'inline; filename="'.$filename.'"',
                 ]);
             }
 
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Export failed: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Export failed: '.$e->getMessage()], 500);
         }
     });
 
@@ -1468,10 +1481,10 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
                 'user:id,fullname,department,role',
                 'quiz.module.course:id,title,department,instructor_id',
             ])
-            ->whereHas('quiz.module.course', function ($q) use ($instructorId) {
-                $q->where('instructor_id', $instructorId);
-            })
-            ->orderByDesc('created_at');
+                ->whereHas('quiz.module.course', function ($q) use ($instructorId) {
+                    $q->where('instructor_id', $instructorId);
+                })
+                ->orderByDesc('created_at');
 
             if ($archived) {
                 $query->whereNotNull('archived_at');
@@ -1510,10 +1523,10 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
             'user:id,fullname,department,role',
             'lesson.module.course:id,title,department,instructor_id',
         ])
-        ->whereHas('lesson.module.course', function ($q) use ($instructorId) {
-            $q->where('instructor_id', $instructorId);
-        })
-        ->orderByDesc('created_at');
+            ->whereHas('lesson.module.course', function ($q) use ($instructorId) {
+                $q->where('instructor_id', $instructorId);
+            })
+            ->orderByDesc('created_at');
 
         if ($archived) {
             $query->whereNotNull('archived_at');
@@ -1582,7 +1595,6 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::post('/custom-modules/{id}/push-to-department', [\App\Http\Controllers\Instructor\CustomModuleController::class, 'pushToDepartment']);
     Route::get('/custom-modules/{id}/department-employees', [\App\Http\Controllers\Instructor\CustomModuleController::class, 'getDepartmentEmployees']);
 });
-
 
 /*
 |--------------------------------------------------------------------------
@@ -1827,12 +1839,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
             \Illuminate\Support\Facades\Storage::disk('public')->delete($user->profile_picture);
         }
         $user->update(['profile_picture' => null]);
+
         return response()->json(['message' => 'Profile picture removed.']);
     });
 
     Route::post('/profile/signature', function (Request $request) {
         $user = $request->user();
-        if (!$user || !($user->isInstructor() || $user->isAdmin())) {
+        if (! $user || ! ($user->isInstructor() || $user->isAdmin())) {
             return response()->json(['message' => 'Only admins and instructors can upload a certificate signature.'], 403);
         }
 
@@ -1843,23 +1856,24 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         $file = $request->file('signature');
         $realPath = $file?->getRealPath();
-        if (!is_string($realPath) || !is_file($realPath)) {
+        if (! is_string($realPath) || ! is_file($realPath)) {
             return response()->json(['message' => 'Invalid signature upload. Please try again.'], 422);
         }
 
         $signatureInfo = @getimagesize($realPath);
-        if (!$signatureInfo || (int) ($signatureInfo[2] ?? 0) !== IMAGETYPE_PNG) {
+        if (! $signatureInfo || (int) ($signatureInfo[2] ?? 0) !== IMAGETYPE_PNG) {
             return response()->json(['message' => 'Signature must be a PNG image.'], 422);
         }
 
         $isSignatureLike = function (string $path): bool {
-            if (!extension_loaded('gd')) {
+            if (! extension_loaded('gd')) {
                 \Illuminate\Support\Facades\Log::warning('Signature validation skipped: GD extension not available.');
+
                 return true;
             }
 
             $info = @getimagesize($path);
-            if (!$info || empty($info[0]) || empty($info[1])) {
+            if (! $info || empty($info[0]) || empty($info[1])) {
                 return false;
             }
 
@@ -1876,7 +1890,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
                 $img = @imagecreatefrompng($path);
             }
 
-            if (!$img) {
+            if (! $img) {
                 return false;
             }
 
@@ -1903,20 +1917,30 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
                     if ($alpha >= 100) {
                         $transparent++;
+
                         continue;
                     }
 
                     if ($lum >= 230) {
                         $nearWhite++;
+
                         continue;
                     }
 
                     if ($lum <= 90) {
                         $ink++;
-                        if ($x < $minX) $minX = $x;
-                        if ($y < $minY) $minY = $y;
-                        if ($x > $maxX) $maxX = $x;
-                        if ($y > $maxY) $maxY = $y;
+                        if ($x < $minX) {
+                            $minX = $x;
+                        }
+                        if ($y < $minY) {
+                            $minY = $y;
+                        }
+                        if ($x > $maxX) {
+                            $maxX = $x;
+                        }
+                        if ($y > $maxY) {
+                            $maxY = $y;
+                        }
                     }
                 }
             }
@@ -1953,9 +1977,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
             return true;
         };
 
-        if (!$isSignatureLike($realPath)) {
+        if (! $isSignatureLike($realPath)) {
             return response()->json([
-                'message' => 'Signature image must look like a real signature (transparent or white background with minimal ink).'
+                'message' => 'Signature image must look like a real signature (transparent or white background with minimal ink).',
             ], 422);
         }
 

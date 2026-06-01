@@ -41,7 +41,7 @@ class TimeLog extends Model
     /**
      * Enforce time log limit: if count >= 50, permanently delete oldest half.
      *
-     * @param int $userId The user's ID
+     * @param  int  $userId  The user's ID
      * @return int Number of deleted entries
      */
     public static function enforceTimeLogLimit(int $userId): int
@@ -55,7 +55,6 @@ class TimeLog extends Model
                 ->orderBy('time_in', 'asc')
                 ->limit($halfCount)
                 ->pluck('id');
-
 
             return static::whereIn('id', $oldestIds)->delete();
         }

@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -27,12 +27,12 @@ return new class extends Migration
         $modules = DB::table('modules')->whereNotNull('content_path')->where('content_path', '!=', '')->get();
         foreach ($modules as $mod) {
             DB::table('lessons')->insert([
-                'module_id'    => $mod->id,
-                'title'        => $mod->title,
+                'module_id' => $mod->id,
+                'title' => $mod->title,
                 'content_path' => $mod->content_path,
-                'order'        => 1,
-                'created_at'   => now(),
-                'updated_at'   => now(),
+                'order' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
         }
     }

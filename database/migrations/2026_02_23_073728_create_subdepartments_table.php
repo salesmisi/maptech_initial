@@ -16,8 +16,8 @@ return new class extends Migration
 
             // Foreign key to departments table
             $table->foreignId('department_id')
-                  ->constrained('departments')
-                  ->onDelete('cascade');
+                ->constrained('departments')
+                ->onDelete('cascade');
 
             $table->string('name'); // Subdepartment name
             $table->text('description')->nullable(); // Optional description

@@ -20,6 +20,7 @@ class CourseEnrollmentSeeder extends Seeder
 
         if ($users->isEmpty() || $courses->isEmpty()) {
             $this->command->warn('No users or courses found. Please run user and course seeders first.');
+
             return;
         }
 

@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
-use App\Models\LessonFeedback;
-use App\Models\Lesson;
 use App\Models\Enrollment;
+use App\Models\Lesson;
+use App\Models\LessonFeedback;
 use Illuminate\Http\Request;
 
 class FeedbackController extends Controller
@@ -21,15 +21,15 @@ class FeedbackController extends Controller
             ->get()
             ->map(function ($fb) {
                 return [
-                    'id'          => $fb->id,
-                    'lesson_id'   => $fb->lesson_id,
+                    'id' => $fb->id,
+                    'lesson_id' => $fb->lesson_id,
                     'lesson_title' => $fb->lesson?->title ?? 'Unknown Lesson',
                     'module_title' => $fb->lesson?->module?->title ?? '',
                     'course_title' => $fb->lesson?->module?->course?->title ?? '',
-                    'rating'      => $fb->rating,
-                    'comment'     => $fb->comment,
-                    'created_at'  => $fb->created_at->toISOString(),
-                    'date'        => $fb->created_at->format('Y-m-d'),
+                    'rating' => $fb->rating,
+                    'comment' => $fb->comment,
+                    'created_at' => $fb->created_at->toISOString(),
+                    'date' => $fb->created_at->format('Y-m-d'),
                 ];
             });
 
@@ -48,19 +48,19 @@ class FeedbackController extends Controller
         $lessons = Lesson::whereIn('module_id', function ($q) use ($courseIds) {
             $q->select('id')->from('modules')->whereIn('course_id', $courseIds);
         })
-        ->with('module:id,title,course_id', 'module.course:id,title,department')
-        ->orderBy('module_id')
-        ->orderBy('order')
-        ->get()
-        ->map(function ($lesson) {
-            return [
-                'id'           => $lesson->id,
-                'title'        => $lesson->title,
-                'module_title' => $lesson->module?->title ?? '',
-                'course_title' => $lesson->module?->course?->title ?? '',
-                'course_department' => $lesson->module?->course?->department ?? null,
-            ];
-        });
+            ->with('module:id,title,course_id', 'module.course:id,title,department')
+            ->orderBy('module_id')
+            ->orderBy('order')
+            ->get()
+            ->map(function ($lesson) {
+                return [
+                    'id' => $lesson->id,
+                    'title' => $lesson->title,
+                    'module_title' => $lesson->module?->title ?? '',
+                    'course_title' => $lesson->module?->course?->title ?? '',
+                    'course_department' => $lesson->module?->course?->department ?? null,
+                ];
+            });
 
         return response()->json($lessons);
     }
@@ -76,18 +76,18 @@ class FeedbackController extends Controller
         $quizzes = \App\Models\Quiz::whereIn('module_id', function ($q) use ($courseIds) {
             $q->select('id')->from('modules')->whereIn('course_id', $courseIds);
         })
-        ->with('module:id,title,course_id', 'module.course:id,title,department')
-        ->orderBy('module_id')
-        ->get()
-        ->map(function ($quiz) {
-            return [
-                'id' => $quiz->id,
-                'title' => $quiz->title,
-                'module_title' => $quiz->module?->title ?? '',
-                'course_title' => $quiz->module?->course?->title ?? '',
-                'course_department' => $quiz->module?->course?->department ?? null,
-            ];
-        });
+            ->with('module:id,title,course_id', 'module.course:id,title,department')
+            ->orderBy('module_id')
+            ->get()
+            ->map(function ($quiz) {
+                return [
+                    'id' => $quiz->id,
+                    'title' => $quiz->title,
+                    'module_title' => $quiz->module?->title ?? '',
+                    'course_title' => $quiz->module?->course?->title ?? '',
+                    'course_department' => $quiz->module?->course?->department ?? null,
+                ];
+            });
 
         return response()->json($quizzes);
     }
@@ -98,19 +98,21 @@ class FeedbackController extends Controller
     public function storeQuiz(Request $request)
     {
         $validated = $request->validate([
-            'quiz_id'  => 'required|exists:quizzes,id',
-            'rating'   => 'required|integer|min:1|max:5',
-            'comment'  => 'nullable|string|max:1000',
+            'quiz_id' => 'required|exists:quizzes,id',
+            'rating' => 'required|integer|min:1|max:5',
+            'comment' => 'nullable|string|max:1000',
         ]);
 
         $user = $request->user();
 
         // confirm enrollment in quiz's course
         $quiz = \App\Models\Quiz::with('module.course:id')->find($validated['quiz_id']);
-        if (!$quiz) return response()->json(['message' => 'Quiz not found'], 404);
+        if (! $quiz) {
+            return response()->json(['message' => 'Quiz not found'], 404);
+        }
 
         $courseId = $quiz->module?->course?->id ?? null;
-        if (!$courseId || !Enrollment::where('user_id', $user->id)->where('course_id', $courseId)->exists()) {
+        if (! $courseId || ! Enrollment::where('user_id', $user->id)->where('course_id', $courseId)->exists()) {
             return response()->json(['message' => 'You are not enrolled in this quiz\'s course'], 403);
         }
 
@@ -122,7 +124,7 @@ class FeedbackController extends Controller
         $fb = \App\Models\QuizFeedback::create([
             'user_id' => $user->id,
             'quiz_id' => $validated['quiz_id'],
-            'rating'  => $validated['rating'],
+            'rating' => $validated['rating'],
             'comment' => $validated['comment'] ?? null,
         ]);
 
@@ -137,6 +139,7 @@ class FeedbackController extends Controller
             'comment' => 'nullable|string|max:1000',
         ]);
         $fb->update($validated);
+
         return response()->json($fb);
     }
 
@@ -144,6 +147,7 @@ class FeedbackController extends Controller
     {
         $fb = \App\Models\QuizFeedback::where('user_id', $request->user()->id)->findOrFail($id);
         $fb->delete();
+
         return response()->json(['message' => 'Quiz feedback deleted']);
     }
 
@@ -154,8 +158,8 @@ class FeedbackController extends Controller
     {
         $validated = $request->validate([
             'lesson_id' => 'required|exists:lessons,id',
-            'rating'    => 'required|integer|min:1|max:5',
-            'comment'   => 'nullable|string|max:1000',
+            'rating' => 'required|integer|min:1|max:5',
+            'comment' => 'nullable|string|max:1000',
         ]);
 
         $existing = LessonFeedback::where('user_id', $request->user()->id)
@@ -170,17 +174,17 @@ class FeedbackController extends Controller
 
         // Ensure the lesson belongs to the user's department
         $lesson = Lesson::with('module.course:id,department')->find($validated['lesson_id']);
-        if (!$lesson || ($lesson->module?->course?->department ?? null) !== $request->user()->department) {
+        if (! $lesson || ($lesson->module?->course?->department ?? null) !== $request->user()->department) {
             return response()->json([
-                'message' => 'You are not allowed to give feedback for lessons outside your department.'
+                'message' => 'You are not allowed to give feedback for lessons outside your department.',
             ], 403);
         }
 
         $feedback = LessonFeedback::create([
-            'user_id'   => $request->user()->id,
+            'user_id' => $request->user()->id,
             'lesson_id' => $validated['lesson_id'],
-            'rating'    => $validated['rating'],
-            'comment'   => $validated['comment'],
+            'rating' => $validated['rating'],
+            'comment' => $validated['comment'],
         ]);
 
         return response()->json($feedback->load('lesson.module.course:id,title'), 201);
@@ -195,7 +199,7 @@ class FeedbackController extends Controller
             ->findOrFail($id);
 
         $validated = $request->validate([
-            'rating'  => 'required|integer|min:1|max:5',
+            'rating' => 'required|integer|min:1|max:5',
             'comment' => 'nullable|string|max:1000',
         ]);
 

@@ -1,14 +1,14 @@
 <?php
-require __DIR__ . '/../vendor/autoload.php';
-$app = require __DIR__ . '/../bootstrap/app.php';
+
+require __DIR__.'/../vendor/autoload.php';
+$app = require __DIR__.'/../bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use App\Models\Module;
 use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 
-$roles = ['admin','instructor','employee'];
+$roles = ['admin', 'instructor', 'employee'];
 $rows = [];
 $modules = Module::all();
 if ($modules->count() === 0) {
@@ -26,18 +26,21 @@ foreach ($modules as $m) {
         $user = User::withTrashed()->where('email', $email)->first();
         if ($user) {
             if (method_exists($user, 'restore') && $user->trashed()) {
-                try { $user->restore(); } catch (\Exception $e) { /* ignore */ }
+                try {
+                    $user->restore();
+                } catch (\Exception $e) { /* ignore */
+                }
             }
             $user->password = Hash::make($password);
             $user->role = $r;
             $user->status = 'Active';
             if (empty($user->fullname)) {
-                $user->fullname = ucfirst($r) . ' Module ' . $m->id;
+                $user->fullname = ucfirst($r).' Module '.$m->id;
             }
             $user->save();
         } else {
             $user = User::create([
-                'fullname' => ucfirst($r) . ' Module ' . $m->id,
+                'fullname' => ucfirst($r).' Module '.$m->id,
                 'email' => $email,
                 'password' => Hash::make($password),
                 'role' => $r,
@@ -47,7 +50,10 @@ foreach ($modules as $m) {
 
         // Attach module via pivot if relation exists
         if (method_exists($user, 'modules')) {
-            try { $user->modules()->syncWithoutDetaching([$m->id]); } catch (\Exception $e) { /* ignore */ }
+            try {
+                $user->modules()->syncWithoutDetaching([$m->id]);
+            } catch (\Exception $e) { /* ignore */
+            }
         }
 
         $rows[] = [
@@ -60,7 +66,7 @@ foreach ($modules as $m) {
     }
 }
 
-$fp = fopen(__DIR__ . '/../generated_users.csv', 'w');
+$fp = fopen(__DIR__.'/../generated_users.csv', 'w');
 if ($fp === false) {
     echo "Failed to open generated_users.csv for writing.\n";
     exit(1);
@@ -72,4 +78,4 @@ foreach ($rows as $row) {
 }
 fclose($fp);
 
-echo "Created " . count($rows) . " users. Credentials saved to generated_users.csv\n";
+echo 'Created '.count($rows)." users. Credentials saved to generated_users.csv\n";

@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Script to fix incorrect quiz answers in the database.
  *
@@ -12,12 +13,12 @@
  * Run with: php scripts/fix_quiz_answers.php
  */
 
-require __DIR__ . '/../vendor/autoload.php';
-$app = require_once __DIR__ . '/../bootstrap/app.php';
+require __DIR__.'/../vendor/autoload.php';
+$app = require_once __DIR__.'/../bootstrap/app.php';
 $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
 
-use App\Models\QuizQuestion;
 use App\Models\QuizOption;
+use App\Models\QuizQuestion;
 use Illuminate\Support\Facades\DB;
 
 // Corrections mapping: question text => correct answer text
@@ -38,8 +39,9 @@ try {
         // Find the question (case-insensitive partial match)
         $question = QuizQuestion::where('question_text', 'LIKE', "%{$questionText}%")->first();
 
-        if (!$question) {
+        if (! $question) {
             echo "⚠️  Question not found: '{$questionText}'\n";
+
             continue;
         }
 
@@ -68,8 +70,9 @@ try {
                 }
             }
 
-            if (!$correctOption) {
+            if (! $correctOption) {
                 echo "   ⚠️  Could not determine correct answer for malware question. Please check manually.\n";
+
                 continue;
             }
 
@@ -77,13 +80,14 @@ try {
         }
 
         // Find the option that should be correct
-        $correctOption = $options->first(function($opt) use ($correctAnswerText) {
+        $correctOption = $options->first(function ($opt) use ($correctAnswerText) {
             return stripos($opt->option_text, $correctAnswerText) !== false
                 || stripos($correctAnswerText, $opt->option_text) !== false;
         });
 
-        if (!$correctOption) {
+        if (! $correctOption) {
             echo "   ⚠️  Correct answer option not found: '{$correctAnswerText}'\n";
+
             continue;
         }
 
@@ -102,6 +106,6 @@ try {
 
 } catch (Exception $e) {
     DB::rollBack();
-    echo "\n❌ Error: " . $e->getMessage() . "\n";
+    echo "\n❌ Error: ".$e->getMessage()."\n";
     exit(1);
 }
