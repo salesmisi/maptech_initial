@@ -59,9 +59,11 @@ export function ProfileSettings() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [companyRole, setCompanyRole] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showPicPreview, setShowPicPreview] = useState(false);
   const [showSignaturePreview, setShowSignaturePreview] = useState(false);
@@ -158,6 +160,11 @@ export function ProfileSettings() {
         body.company_role = companyRole;
       }
       if (password) {
+        if (!currentPassword) {
+          setMessage({ type: 'error', text: 'Current password is required to set a new password.' });
+          setSaving(false);
+          return;
+        }
         if (password.length < 8) {
           setMessage({ type: 'error', text: 'Password must be at least 8 characters.' });
           setSaving(false);
@@ -168,6 +175,7 @@ export function ProfileSettings() {
           setSaving(false);
           return;
         }
+        body.current_password = currentPassword;
         body.password = password;
         body.password_confirmation = passwordConfirmation;
       }
@@ -203,6 +211,7 @@ export function ProfileSettings() {
           company_role: data.user.company_role ?? prev.company_role,
         } : prev);
         setCompanyRole(data.user.company_role ?? '');
+        setCurrentPassword('');
         setPassword('');
         setPasswordConfirmation('');
       }
@@ -454,6 +463,7 @@ export function ProfileSettings() {
 
   const normalizedRole = profile?.role?.toLowerCase() ?? '';
   const isAdmin = normalizedRole === 'admin';
+  const canChangePassword = ['admin', 'employee'].includes(normalizedRole);
   const canManageSignature = ['admin', 'instructor'].includes(normalizedRole);
   const signatureOwnerLabel = normalizedRole === 'admin' ? 'Admin' : 'Instructor';
 
@@ -902,12 +912,36 @@ export function ProfileSettings() {
             </div>
           </div>
 
-          {profile.role.toLowerCase() === 'admin' && (
+          {canChangePassword && (
           <div className="border-t border-slate-200 pt-4 mt-4">
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Change Password</h3>
-            <p className="text-xs text-slate-500 mb-3">Leave blank to keep your current password.</p>
+            <p className="text-xs text-slate-500 mb-3">Enter your current password first. Leave the new password blank to keep it unchanged.</p>
 
             <div className="space-y-3">
+              <div>
+                <label htmlFor="current_password" className="block text-sm font-medium text-slate-700 mb-1">Current Password</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <input
+                    id="current_password"
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password"
+                    className="block w-full pl-10 pr-10 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                  >
+                    {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
                 <div className="relative">
@@ -1020,11 +1054,11 @@ export function ProfileSettings() {
           </div>
           )}
 
-          <div className="flex justify-end pt-4">
+          <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-4">
             <button
               type="submit"
               disabled={saving}
-              className="btn btn-primary"
+              className="btn btn-primary w-full sm:w-auto"
             >
               {saving ? (
                 <>

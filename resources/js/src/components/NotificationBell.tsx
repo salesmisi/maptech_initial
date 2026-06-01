@@ -71,9 +71,13 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
   const latestNotificationIdRef = useRef<number | null>(null);
   const seenBannerNotificationIdsRef = useRef<Set<number>>(new Set());
   const bannerTimeoutRef = useRef<number | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   // -1 = baseline not yet set (skip first comparison to avoid banner on page load)
   const prevUnreadCountRef = useRef<number>(-1);
   const fetchRecentForBannerRef = useRef<(() => void) | null>(null);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
 
   const messagePreviewText = (value: string) => {
     const html = String(value || '');
@@ -298,6 +302,68 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
   }, [open, fetchUnread, fetchRecent]);
 
   useEffect(() => {
+    if (!open) return;
+
+    const updatePosition = () => {
+      const button = buttonRef.current;
+      if (!button) return;
+
+      const rect = button.getBoundingClientRect();
+      const mobile = window.innerWidth < 640;
+      setIsMobileViewport(mobile);
+
+      const dropdownWidth = mobile ? window.innerWidth - 16 : Math.min(384, window.innerWidth - 16);
+      const left = mobile
+        ? 8
+        : Math.max(8, Math.min(rect.right - dropdownWidth, window.innerWidth - dropdownWidth - 8));
+      const top = rect.bottom + 8;
+      const maxHeight = Math.max(280, window.innerHeight - top - 8);
+
+      setDropdownStyle({
+        position: 'fixed',
+        top,
+        left,
+        width: dropdownWidth,
+        zIndex: 10001,
+        maxHeight,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (buttonRef.current?.contains(target)) return;
+      if (dropdownRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
     // Poll as a fallback when websocket events are delayed or unavailable.
     // fetchUnread already triggers fetchRecent when count increases (via fetchRecentForBannerRef)
     const timer = window.setInterval(() => {
@@ -416,7 +482,7 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
         <div
           role="alert"
           aria-live="polite"
-          className="fixed right-4 top-20 z-[9999] w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-2xl dark:border-emerald-700 dark:bg-slate-900"
+          className="fixed left-2 right-2 top-16 z-[9999] w-auto overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-2xl sm:left-auto sm:right-4 sm:top-20 sm:w-[min(22rem,calc(100vw-2rem))] dark:border-emerald-700 dark:bg-slate-900"
         >
           <div className="flex items-start gap-3 p-4">
             {banner.data?.from_user_profile_picture ? (
@@ -455,6 +521,7 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
       )}
 
       <button
+        ref={buttonRef}
         type="button"
         onClick={toggleOpen}
         className="relative bg-white dark:bg-slate-800 p-1 rounded-full text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
@@ -468,8 +535,21 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
         )}
       </button>
 
-      {open && (
-        <div className="absolute right-0 mt-2 w-[22rem] sm:w-96 rounded-xl shadow-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900 z-50 overflow-hidden">
+      {open && createPortal(
+        <>
+          {isMobileViewport && (
+            <button
+              type="button"
+              aria-label="Close notifications"
+              className="fixed inset-0 z-[10000] bg-black/35"
+              onClick={() => setOpen(false)}
+            />
+          )}
+          <div
+            ref={dropdownRef}
+            style={dropdownStyle}
+            className="rounded-xl shadow-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900 overflow-hidden"
+          >
           <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{prefixLabel} Notifications</p>
@@ -477,20 +557,32 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
                 {hasUnread ? `${unreadCount} unread` : 'No unread notifications'}
               </p>
             </div>
-            {hasUnread && (
-              <button
-                type="button"
-                onClick={handleMarkAllAsRead}
-                disabled={marking}
-                className="flex items-center gap-1 text-xs font-medium text-green-600 hover:text-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Mark all as read"
-              >
-                <CheckCheck className="h-3.5 w-3.5" />
-                {marking ? 'Marking...' : 'Mark all read'}
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {hasUnread && (
+                <button
+                  type="button"
+                  onClick={handleMarkAllAsRead}
+                  disabled={marking}
+                  className="flex items-center gap-1 text-xs font-medium text-green-600 hover:text-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Mark all as read"
+                >
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  {marking ? 'Marking...' : 'Mark all read'}
+                </button>
+              )}
+              {isMobileViewport && (
+                <button
+                  type="button"
+                  aria-label="Close notifications"
+                  className="rounded-full p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                  onClick={() => setOpen(false)}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
-          <div className="max-h-[22rem] overflow-y-auto">
+          <div className="max-h-[inherit] overflow-y-auto">
             {loading && (
               <div className="px-4 py-5">
                 <LoadingState message="Loading notifications" size="sm" inline />
@@ -559,7 +651,9 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
               View all
             </button>
           </div>
-        </div>
+          </div>
+        </>,
+        document.body
       )}
     </div>
   );

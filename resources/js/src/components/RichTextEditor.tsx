@@ -343,7 +343,7 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '150p
       </div>
 
       {/* Editor area */}
-      <div className="relative">
+      <div className="relative overflow-x-auto">
         {isEmpty && placeholder && (
           <div className="absolute top-0 left-0 px-3 py-2 text-sm text-slate-400 dark:text-slate-500 pointer-events-none">
             {placeholder}

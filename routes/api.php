@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Support\AuditDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 
@@ -1748,12 +1749,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         $rules = [
             'fullName' => 'sometimes|string|max:255',
+            'password' => 'sometimes|string|min:8|confirmed',
+            'current_password' => 'required_with:password|string',
         ];
 
-        // Only admins can change email and password
+        // Only admins can change email and the extended profile fields.
         if ($user->isAdmin()) {
             $rules['email'] = 'sometimes|email|max:255|unique:users,email,'.$user->id;
-            $rules['password'] = 'sometimes|string|min:8|confirmed';
             $rules['company_role'] = 'sometimes|nullable|string|max:255';
             $rules['personal_gmail'] = 'sometimes|nullable|email|max:255';
         }
@@ -1767,15 +1769,23 @@ Route::middleware(['auth:sanctum'])->group(function () {
             unset($validated['fullName']);
         }
 
-        // Strip email and password if a non-admin somehow submitted them
+        // Strip admin-only fields if a non-admin somehow submitted them
         if (! $user->isAdmin()) {
             unset($validated['email']);
-            unset($validated['password']);
         }
 
         if (isset($validated['password'])) {
+            if (! isset($validated['current_password']) || ! Hash::check($validated['current_password'], $user->password)) {
+                return response()->json([
+                    'message' => 'Current password is incorrect.',
+                    'errors' => ['current_password' => ['Current password is incorrect.']],
+                ], 422);
+            }
+
             $validated['password'] = bcrypt($validated['password']);
         }
+
+        unset($validated['current_password']);
 
         $user->update($validated);
         $user->refresh();

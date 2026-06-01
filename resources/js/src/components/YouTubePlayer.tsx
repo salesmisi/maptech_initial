@@ -130,5 +130,11 @@ export default function YouTubePlayer({ contentUrl, lessonId }: { contentUrl: st
     };
   }, [contentUrl, lessonId, playerElementId]);
 
-  return <div ref={wrapperRef} className="w-full h-full" />;
+  return (
+    <div className="w-full">
+      <div className="relative" style={{ paddingTop: '56.25%' }}>
+        <div ref={wrapperRef} className="absolute inset-0 w-full h-full" />
+      </div>
+    </div>
+  );
 }
