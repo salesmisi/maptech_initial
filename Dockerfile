@@ -41,7 +41,7 @@ COPY . .
 
 RUN composer install --no-dev --optimize-autoloader
 
-RUN npm ci && NODE_OPTIONS=--max-old-space-size=512 npm run build
+RUN npm ci && npm run build
 
 # route/view caches don't depend on runtime env vars — safe to bake in
 RUN php artisan route:cache \
