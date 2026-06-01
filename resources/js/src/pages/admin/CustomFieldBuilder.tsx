@@ -1140,7 +1140,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               Sidebar Navigation
                             </span>
                             {module.route_path && (
-                              <span className="text-sm text-slate-500 dark:text-slate-400">• /{module.route_path}</span>
+                              <span className="text-sm text-slate-500 dark:text-slate-400">ï¿½ /{module.route_path}</span>
                             )}
                           </>
                         ) : (
@@ -1149,11 +1149,11 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               {module.lessons_count} lesson{module.lessons_count !== 1 ? 's' : ''}
                             </span>
                             {module.category && (
-                              <span className="text-sm text-slate-500 dark:text-slate-400">• {module.category}</span>
+                              <span className="text-sm text-slate-500 dark:text-slate-400">ï¿½ {module.category}</span>
                             )}
                           </>
                         )}
-                        <span className="text-sm text-slate-500 dark:text-slate-400">• v{module.version}</span>
+                        <span className="text-sm text-slate-500 dark:text-slate-400">ï¿½ v{module.version}</span>
                       </div>
                       {module.tags && module.tags.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">
@@ -1174,11 +1174,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => togglePublish(module)}
-                        className={`p-2 rounded-lg transition-colors ${
-                          module.status === 'published'
-                            ? 'text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
-                            : 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
-                        }`}
+                        className={`btn-icon um-icon-btn ${module.status === 'published' ? 'btn-icon-close' : 'btn-icon-green'}`}
                         title={module.status === 'published' ? 'Unpublish' : 'Publish'}
                       >
                         {module.status === 'published' ? (
@@ -1191,7 +1187,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                       {module.module_type === 'learning' && (
                         <button
                           onClick={() => openPushToUsers(module)}
-                          className="p-2 rounded-lg text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+                          className="btn-icon btn-icon-view um-icon-btn"
                           title="Push to Instructor"
                         >
                           <ArrowsUpDownIcon className="w-5 h-5" />
@@ -1199,14 +1195,14 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                       )}
                       <button
                         onClick={() => openEditModule(module)}
-                        className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        className="btn-icon btn-icon-edit um-icon-btn"
                         title="Edit Module"
                       >
                         <PencilIcon className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => deleteModule(module)}
-                        className="p-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        className="btn-icon btn-icon-delete um-icon-btn"
                         title="Delete Module"
                       >
                         <TrashIcon className="w-5 h-5" />
@@ -1260,21 +1256,21 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               <p className="font-medium text-slate-900 dark:text-white truncate">{lesson.title}</p>
                               <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                                 <span className="capitalize">{lesson.content_type}</span>
-                                {lesson.formatted_duration && <span>• {lesson.formatted_duration}</span>}
-                                {lesson.formatted_file_size && <span>• {lesson.formatted_file_size}</span>}
+                                {lesson.formatted_duration && <span>| {lesson.formatted_duration}</span>}
+                                {lesson.formatted_file_size && <span>| {lesson.formatted_file_size}</span>}
                               </div>
                             </div>
                             <StatusBadge status={lesson.status} />
                             <div className="flex items-center gap-1">
                               <button
                                 onClick={() => openEditLesson(module.id, lesson)}
-                                className="p-1.5 rounded text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                className="btn-icon btn-icon-edit um-icon-btn"
                               >
                                 <PencilIcon className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => deleteLesson(module.id, lesson)}
-                                className="p-1.5 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                className="btn-icon btn-icon-delete um-icon-btn"
                               >
                                 <TrashIcon className="w-4 h-4" />
                               </button>
@@ -1321,7 +1317,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                       </div>
                     </div>
                     <p className="mt-4 text-xs text-purple-600 dark:text-purple-400">
-                      ? When published, this module will appear in the sidebar navigation for all admins.
+                      When published, this module will appear in the sidebar navigation for all admins.
                     </p>
                   </div>
                 </div>
@@ -1789,7 +1785,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                         {/* Auto-generated page content preview */}
                         <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
                           <p className="text-sm text-purple-800 dark:text-purple-200">
-                            <span className="font-medium">? Page content will be auto-generated</span>
+                            <span className="font-medium">Page content will be auto-generated</span>
                             <br />
                             <span className="text-xs text-purple-600 dark:text-purple-400">
                               A professional page layout will be created based on your title and description.
