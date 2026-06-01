@@ -543,7 +543,14 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
       fd.append('title', lessonTitle.trim());
       if (lessonTextContent.trim()) fd.append('text_content', lessonTextContent.trim());
       if (lessonLink.trim()) fd.append('content_url', lessonLink.trim());
-      if (lessonFile) fd.append('content', lessonFile);
+      if (lessonFile) {
+        fd.append('content', lessonFile);
+        const ext = lessonFile.name.split('.').pop()?.toLowerCase() || '';
+        const videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'flv'];
+        fd.append('type', videoExts.includes(ext) ? 'Video' : 'Document');
+      } else {
+        fd.append('type', 'Text');
+      }
 
       const res = await fetch(`${API_BASE}/admin/modules/${moduleId}/lessons`, {
         method: 'POST',

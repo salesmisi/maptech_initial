@@ -1067,7 +1067,14 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       const combinedText = composeLessonContent(lessonInfo, lessonTextContent, {});
       if (combinedText.trim()) fd.append('text_content', combinedText);
       if (lessonLink.trim()) fd.append('content_url', lessonLink.trim());
-      if (lessonFile) fd.append('content', lessonFile);
+      if (lessonFile) {
+        fd.append('content', lessonFile);
+        const ext = lessonFile.name.split('.').pop()?.toLowerCase() || '';
+        const videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'flv'];
+        fd.append('type', videoExts.includes(ext) ? 'Video' : 'Document');
+      } else {
+        fd.append('type', 'Text');
+      }
 
       const res = await fetch(`${API_BASE}/${apiPrefix}/modules/${moduleId}/lessons`, {
         method: 'POST',
