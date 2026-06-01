@@ -1,5 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Loader, AlertCircle } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowRight,
+  Bell,
+  Calendar,
+  ExternalLink,
+  Loader,
+  Plus,
+  Settings,
+  Star,
+} from 'lucide-react';
+import {
+  BUTTON_VARIANTS,
+  STANDARD_BUTTON_SIZE,
+  normalizeBuilderConfig,
+} from '../../components/admin-dashboard/custom-builder/builderSchema';
 
 interface CustomModulePageProps {
   routePath: string;
@@ -66,6 +81,93 @@ export function CustomModulePage({ routePath }: CustomModulePageProps) {
         <AlertCircle className="w-12 h-12 text-red-600 mb-4" />
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Error Loading Module</h2>
         <p className="text-gray-600 dark:text-gray-400">{error || 'Module not found'}</p>
+      </div>
+    );
+  }
+
+  const config = normalizeBuilderConfig(module.component_config, module.title, module.description || '');
+  const hasBuilderConfig = module.component_config?.builder_version === 2;
+
+  const getAlignClass = (align?: string) => {
+    if (align === 'center') return 'justify-center';
+    if (align === 'right') return 'justify-end';
+    return 'justify-start';
+  };
+
+  const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+    Plus,
+    ArrowRight,
+    Calendar,
+    Bell,
+    Settings,
+    Star,
+  };
+
+  const renderBuilderButton = (item: any, withIcon: boolean) => {
+    const styleKey = (item.style || 'primary') as 'primary' | 'secondary' | 'ghost';
+    const buttonClass = `${STANDARD_BUTTON_SIZE} ${BUTTON_VARIANTS[styleKey] || BUTTON_VARIANTS.primary}`;
+    const Icon = iconMap[item.icon || 'Plus'] || Plus;
+
+    const content = (
+      <>
+        {withIcon && <Icon className="h-4 w-4" />}
+        <span>{item.label || 'Button'}</span>
+      </>
+    );
+
+    if (item.url) {
+      return (
+        <a href={item.url} target="_blank" rel="noopener noreferrer" className={buttonClass}>
+          {content}
+          <ExternalLink className="h-3.5 w-3.5 opacity-80" />
+        </a>
+      );
+    }
+
+    return (
+      <button type="button" className={buttonClass}>
+        {content}
+      </button>
+    );
+  };
+
+  if (hasBuilderConfig) {
+    return (
+      <div className="space-y-6">
+        <div className="rounded-xl bg-gradient-to-r from-cyan-600 via-blue-700 to-indigo-700 p-6 text-white shadow-sm">
+          <h1 className="text-3xl font-bold">{config.hero.title || module.title}</h1>
+          <p className="mt-2 text-cyan-100">{config.hero.description || module.description || 'No description yet.'}</p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6 space-y-4">
+          {config.elements.length === 0 && (
+            <div className="text-slate-500 dark:text-slate-400 text-sm">No elements configured yet.</div>
+          )}
+
+          {config.elements.map((item) => {
+            if (item.type === 'text') {
+              return (
+                <div key={item.id} className={`flex ${getAlignClass(item.align)}`}>
+                  <p className="text-slate-700 dark:text-slate-200 leading-relaxed">{item.text || ''}</p>
+                </div>
+              );
+            }
+
+            if (item.type === 'icon_button') {
+              return (
+                <div key={item.id} className={`flex ${getAlignClass(item.align)}`}>
+                  {renderBuilderButton(item, true)}
+                </div>
+              );
+            }
+
+            return (
+              <div key={item.id} className={`flex ${getAlignClass(item.align)}`}>
+                {renderBuilderButton(item, false)}
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }

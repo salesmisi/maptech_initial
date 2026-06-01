@@ -22,6 +22,8 @@ import {
   Folder as FolderIcon,
   Eye as EyeIcon,
 } from 'lucide-react';
+import { NoCodePageBuilder } from '../../components/admin-dashboard/custom-builder/NoCodePageBuilder';
+import { createDefaultBuilderConfig, normalizeBuilderConfig } from '../../components/admin-dashboard/custom-builder/builderSchema';
 
 // Types
 interface CustomLesson {
@@ -173,7 +175,6 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [savingModule, setSavingModule] = useState(false);
   const [tagInput, setTagInput] = useState('');
-  const [isCustomModule, setIsCustomModule] = useState(false);
 
   // Lesson modal state
   const [showLessonModal, setShowLessonModal] = useState(false);
@@ -314,17 +315,16 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   // Open create module modal
   const openCreateModule = (type: 'learning' | 'ui_component' = 'learning') => {
     setEditingModule(null);
-    setIsCustomModule(false);
     setModuleForm({
       title: '',
       module_type: type,
       route_path: '',
       icon_name: '',
-      component_config: {},
+      component_config: type === 'ui_component' ? createDefaultBuilderConfig() : {},
       description: '',
       category: '',
       tags: [],
-      status: 'draft',
+      status: type === 'ui_component' ? 'published' : 'draft',
     });
     setThumbnailFile(null);
     setThumbnailPreview(null);
@@ -335,17 +335,14 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   const openEditModule = (module: CustomModule) => {
     setEditingModule(module);
 
-    // Check if it's a custom UI component (not matching any template)
-    const isCustom = module.module_type === 'ui_component' &&
-                     !['ClipboardCheck', 'BarChart3', 'Calendar', 'Bell'].includes(module.icon_name || '');
-    setIsCustomModule(isCustom);
-
     setModuleForm({
       title: module.title,
       module_type: module.module_type || 'learning',
       route_path: module.route_path || '',
       icon_name: module.icon_name || '',
-      component_config: module.component_config || {},
+      component_config: module.module_type === 'ui_component'
+        ? normalizeBuilderConfig(module.component_config || {}, module.title, module.description || '')
+        : (module.component_config || {}),
       description: module.description || '',
       category: module.category || '',
       tags: module.tags || [],
@@ -509,52 +506,6 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   };
 
   // Save module
-  // Auto-generate page content HTML for custom UI components
-  const generatePageContent = (title: string, description: string, iconName: string) => {
-    const safeTitle = title || 'Custom Module';
-    const safeDescription = description || 'This is your custom module page.';
-
-    return `<div class="space-y-6">
-  <div class="bg-gradient-to-r from-purple-500 to-blue-600 p-6 rounded-lg text-white">
-    <h2 class="text-2xl font-bold mb-2">${safeTitle}</h2>
-    <p class="text-purple-100">${safeDescription}</p>
-  </div>
-
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Quick Stats</h3>
-        <span class="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300 px-3 py-1 rounded-full text-sm font-medium">New</span>
-      </div>
-      <p class="text-gray-600 dark:text-gray-400">View your module statistics here</p>
-    </div>
-
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Recent Activity</h3>
-        <span class="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 px-3 py-1 rounded-full text-sm font-medium">Live</span>
-      </div>
-      <p class="text-gray-600 dark:text-gray-400">Track recent activities and updates</p>
-    </div>
-
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Actions</h3>
-        <span class="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 px-3 py-1 rounded-full text-sm font-medium">Ready</span>
-      </div>
-      <p class="text-gray-600 dark:text-gray-400">Perform quick actions from here</p>
-    </div>
-  </div>
-
-  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-    <h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">${safeTitle} Content</h3>
-    <p class="text-gray-600 dark:text-gray-400 mb-4">
-      Welcome to your custom ${safeTitle.toLowerCase()} module. You can customize this page by editing the module in the Custom Field Builder.
-    </p>
-    <!-- BUTTONS_PLACEHOLDER -->
-  </div>
-</div>`;
-  };
 
   const saveModule = async () => {
     // Validation based on module type
@@ -565,23 +516,22 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
 
     // Validation for UI component modules
     if (moduleForm.module_type === 'ui_component') {
-      // For custom modules, require both title and icon_name
-      if (isCustomModule) {
-        if (!moduleForm.title || !moduleForm.title.trim()) {
-          pushToast('Error', 'Title is required for custom UI components', 'error');
-          return;
-        }
-        if (!moduleForm.icon_name || !moduleForm.icon_name.trim()) {
-          pushToast('Error', 'Icon name is required for custom UI components', 'error');
-          return;
-        }
-      } else if (!moduleForm.icon_name || !moduleForm.icon_name.trim()) {
-        pushToast('Error', 'Please select a module type or enter an icon name', 'error');
+      if (!moduleForm.title || !moduleForm.title.trim()) {
+        pushToast('Error', 'Title is required for page builder modules', 'error');
         return;
       }
 
       // Create a mutable copy of the form data for submission
       const submissionData = { ...moduleForm };
+
+      if (!submissionData.icon_name || !submissionData.icon_name.trim()) {
+        submissionData.icon_name = suggestIconFromTitle(submissionData.title);
+      }
+
+      if (!submissionData.icon_name || !submissionData.icon_name.trim()) {
+        pushToast('Error', 'Icon name is required for page builder modules', 'error');
+        return;
+      }
 
       // Auto-generate route_path from icon_name (convert to kebab-case)
       const autoRoutePath = submissionData.icon_name
@@ -589,33 +539,11 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
         .toLowerCase();
       submissionData.route_path = `custom-${autoRoutePath}`;
 
-      // Auto-generate title from icon_name if title is empty
-      if (!submissionData.title || !submissionData.title.trim()) {
-        submissionData.title = submissionData.icon_name
-          .replace(/([a-z])([A-Z])/g, '$1 $2')
-          .trim();
-      }
-
-      // Final validation to ensure title is not empty after auto-generation
-      if (!submissionData.title || !submissionData.title.trim()) {
-        pushToast('Error', 'Title is required. Please provide a valid icon name or title.', 'error');
-        return;
-      }
-
-      // Auto-generate page content if it's a custom module (isCustomModule) and no content exists
-      if (isCustomModule && (!submissionData.component_config.pageContent || !submissionData.component_config.pageContent.trim())) {
-        // Set default buttons if not already set
-        if (!submissionData.component_config.buttons) {
-          submissionData.component_config.buttons = [
-            { label: 'Get Started', url: '', style: 'primary', visible: true },
-            { label: 'Learn More', url: '', style: 'secondary', visible: true }
-          ];
-        }
-        submissionData.component_config = {
-          ...submissionData.component_config,
-          pageContent: generatePageContent(submissionData.title, submissionData.description, submissionData.icon_name)
-        };
-      }
+      submissionData.component_config = normalizeBuilderConfig(
+        submissionData.component_config,
+        submissionData.title,
+        submissionData.description
+      );
 
       // Use submission data for the rest of the function
       return await submitModuleData(submissionData);
@@ -1140,7 +1068,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               Sidebar Navigation
                             </span>
                             {module.route_path && (
-                              <span className="text-sm text-slate-500 dark:text-slate-400">• /{module.route_path}</span>
+                              <span className="text-sm text-slate-500 dark:text-slate-400">ï¿½ /{module.route_path}</span>
                             )}
                           </>
                         ) : (
@@ -1149,11 +1077,11 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               {module.lessons_count} lesson{module.lessons_count !== 1 ? 's' : ''}
                             </span>
                             {module.category && (
-                              <span className="text-sm text-slate-500 dark:text-slate-400">• {module.category}</span>
+                              <span className="text-sm text-slate-500 dark:text-slate-400">ï¿½ {module.category}</span>
                             )}
                           </>
                         )}
-                        <span className="text-sm text-slate-500 dark:text-slate-400">• v{module.version}</span>
+                        <span className="text-sm text-slate-500 dark:text-slate-400">ï¿½ v{module.version}</span>
                       </div>
                       {module.tags && module.tags.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">
@@ -1260,8 +1188,8 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               <p className="font-medium text-slate-900 dark:text-white truncate">{lesson.title}</p>
                               <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                                 <span className="capitalize">{lesson.content_type}</span>
-                                {lesson.formatted_duration && <span>• {lesson.formatted_duration}</span>}
-                                {lesson.formatted_file_size && <span>• {lesson.formatted_file_size}</span>}
+                                {lesson.formatted_duration && <span>ï¿½ {lesson.formatted_duration}</span>}
+                                {lesson.formatted_file_size && <span>ï¿½ {lesson.formatted_file_size}</span>}
                               </div>
                             </div>
                             <StatusBadge status={lesson.status} />
@@ -1352,8 +1280,8 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
               </div>
 
               <div className="space-y-4">
-                {/* Title - For learning modules OR editing UI components */}
-                {(moduleForm.module_type === 'learning' || (moduleForm.module_type === 'ui_component' && editingModule)) && (
+                {/* Title */}
+                {(moduleForm.module_type === 'learning' || moduleForm.module_type === 'ui_component') && (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Title *
@@ -1373,8 +1301,8 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                   </div>
                 )}
 
-                {/* Icon Name - Only for editing UI components */}
-                {moduleForm.module_type === 'ui_component' && editingModule && (
+                {/* Icon Name */}
+                {moduleForm.module_type === 'ui_component' && (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Icon Name *
@@ -1405,84 +1333,6 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                   </div>
                 )}
 
-                {/* Button Configuration - Only for editing UI components */}
-                {moduleForm.module_type === 'ui_component' && editingModule && (
-                  <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
-                      Page Buttons
-                    </label>
-                    <div className="space-y-3">
-                      {(moduleForm.component_config?.buttons || [
-                        { label: 'Get Started', url: '', style: 'primary', visible: true },
-                        { label: 'Learn More', url: '', style: 'secondary', visible: true }
-                      ]).map((btn: any, idx: number) => (
-                        <div key={idx} className="bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
-                          <div className="flex items-center gap-2 mb-2">
-                            <input
-                              type="checkbox"
-                              checked={btn.visible !== false}
-                              onChange={(e) => {
-                                const buttons = [...(moduleForm.component_config?.buttons || [
-                                  { label: 'Get Started', url: '', style: 'primary', visible: true },
-                                  { label: 'Learn More', url: '', style: 'secondary', visible: true }
-                                ])];
-                                buttons[idx] = { ...buttons[idx], visible: e.target.checked };
-                                setModuleForm((prev) => ({
-                                  ...prev,
-                                  component_config: { ...prev.component_config, buttons }
-                                }));
-                              }}
-                              className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
-                            />
-                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                              Button {idx + 1} {idx === 0 ? '(Primary)' : '(Secondary)'}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <input
-                              type="text"
-                              value={btn.label || ''}
-                              onChange={(e) => {
-                                const buttons = [...(moduleForm.component_config?.buttons || [
-                                  { label: 'Get Started', url: '', style: 'primary', visible: true },
-                                  { label: 'Learn More', url: '', style: 'secondary', visible: true }
-                                ])];
-                                buttons[idx] = { ...buttons[idx], label: e.target.value };
-                                setModuleForm((prev) => ({
-                                  ...prev,
-                                  component_config: { ...prev.component_config, buttons }
-                                }));
-                              }}
-                              className="px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                              placeholder="Button text"
-                            />
-                            <input
-                              type="text"
-                              value={btn.url || ''}
-                              onChange={(e) => {
-                                const buttons = [...(moduleForm.component_config?.buttons || [
-                                  { label: 'Get Started', url: '', style: 'primary', visible: true },
-                                  { label: 'Learn More', url: '', style: 'secondary', visible: true }
-                                ])];
-                                buttons[idx] = { ...buttons[idx], url: e.target.value };
-                                setModuleForm((prev) => ({
-                                  ...prev,
-                                  component_config: { ...prev.component_config, buttons }
-                                }));
-                              }}
-                              className="px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                              placeholder="URL (optional)"
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      Customize the buttons shown on the module page. Uncheck to hide a button.
-                    </p>
-                  </div>
-                )}
-
                 {/* Module Type - Only show when editing */}
                 {editingModule && (
                   <div>
@@ -1498,311 +1348,25 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                   </div>
                 )}
 
-                {/* UI Component specific fields - Template selector only when creating */}
-                {moduleForm.module_type === 'ui_component' && !editingModule && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                        Select Module Type *
-                      </label>
-                      <select
-                        value={
-                          isCustomModule ? 'custom' :
-                          moduleForm.icon_name === 'ClipboardCheck' ? 'task-management' :
-                          moduleForm.icon_name === 'BarChart3' ? 'reports-dashboard' :
-                          moduleForm.icon_name === 'Calendar' ? 'calendar-events' :
-                          moduleForm.icon_name === 'Bell' ? 'notifications' :
-                          ''
-                        }
-                        onChange={(e) => {
-                          const selectedValue = e.target.value;
-                          if (selectedValue === 'custom') {
-                            setIsCustomModule(true);
-                            setModuleForm((prev) => ({
-                              ...prev,
-                              icon_name: '',
-                              description: '',
-                              component_config: { ...prev.component_config, pageContent: '' }
-                            }));
-                            return;
-                          }
-                          setIsCustomModule(false);
-                          const templates: Record<string, { icon: string; description: string; content: string }> = {
-                            'task-management': {
-                              icon: 'ClipboardCheck',
-                              description: 'Manage and track tasks across your organization',
-                              content: `<div class="space-y-6">
-  <div class="bg-gradient-to-r from-blue-500 to-blue-600 p-6 rounded-lg text-white">
-    <h2 class="text-2xl font-bold mb-2">Task Management</h2>
-    <p class="text-blue-100">Track and manage all your tasks in one place</p>
-  </div>
-
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Pending</h3>
-        <span class="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 px-3 py-1 rounded-full text-sm font-medium">12</span>
-      </div>
-      <p class="text-gray-600 dark:text-gray-400">Tasks awaiting action</p>
-    </div>
-
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">In Progress</h3>
-        <span class="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 px-3 py-1 rounded-full text-sm font-medium">8</span>
-      </div>
-      <p class="text-gray-600 dark:text-gray-400">Currently being worked on</p>
-    </div>
-
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Completed</h3>
-        <span class="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 px-3 py-1 rounded-full text-sm font-medium">45</span>
-      </div>
-      <p class="text-gray-600 dark:text-gray-400">Successfully finished</p>
-    </div>
-  </div>
-
-  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-    <h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Recent Tasks</h3>
-    <div class="space-y-3">
-      <div class="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-slate-700">
-        <input type="checkbox" class="w-5 h-5 rounded border-gray-300" />
-        <div class="flex-1">
-          <p class="text-slate-900 dark:text-white font-medium">Review quarterly reports</p>
-          <p class="text-sm text-slate-500 dark:text-slate-400">Due: April 15, 2026</p>
-        </div>
-        <span class="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 px-2 py-1 rounded text-xs">High Priority</span>
-      </div>
-    </div>
-  </div>
-</div>`
-                            },
-                            'reports-dashboard': {
-                              icon: 'BarChart3',
-                              description: 'View analytics and generate reports',
-                              content: `<div class="space-y-6">
-  <div class="bg-gradient-to-r from-purple-500 to-purple-600 p-6 rounded-lg text-white">
-    <h2 class="text-2xl font-bold mb-2">Reports & Analytics</h2>
-    <p class="text-purple-100">Comprehensive insights into your organization</p>
-  </div>
-
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-      <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Total Users</p>
-      <p class="text-3xl font-bold text-slate-900 dark:text-white">1,234</p>
-      <p class="text-sm text-green-600 mt-2">? 12% from last month</p>
-    </div>
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-      <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Active Courses</p>
-      <p class="text-3xl font-bold text-slate-900 dark:text-white">48</p>
-      <p class="text-sm text-green-600 mt-2">? 8% from last month</p>
-    </div>
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-      <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Completion Rate</p>
-      <p class="text-3xl font-bold text-slate-900 dark:text-white">87%</p>
-      <p class="text-sm text-green-600 mt-2">? 5% from last month</p>
-    </div>
-    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-      <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Avg. Score</p>
-      <p class="text-3xl font-bold text-slate-900 dark:text-white">92%</p>
-      <p class="text-sm text-green-600 mt-2">? 3% from last month</p>
-    </div>
-  </div>
-
-  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-    <h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Quick Reports</h3>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-      <button class="p-4 border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 text-left">
-        <p class="font-medium text-slate-900 dark:text-white">User Activity Report</p>
-        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Export user engagement data</p>
-      </button>
-      <button class="p-4 border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 text-left">
-        <p class="font-medium text-slate-900 dark:text-white">Course Completion Report</p>
-        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Track completion rates</p>
-      </button>
-    </div>
-  </div>
-</div>`
-                            },
-                            'calendar-events': {
-                              icon: 'Calendar',
-                              description: 'View and manage upcoming events and schedules',
-                              content: `<div class="space-y-6">
-  <div class="bg-gradient-to-r from-green-500 to-green-600 p-6 rounded-lg text-white">
-    <h2 class="text-2xl font-bold mb-2">Calendar & Events</h2>
-    <p class="text-green-100">Stay on top of important dates and events</p>
-  </div>
-
-  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-    <h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Upcoming Events</h3>
-    <div class="space-y-3">
-      <div class="flex gap-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-        <div class="text-center">
-          <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">15</p>
-          <p class="text-sm text-blue-600 dark:text-blue-400">APR</p>
-        </div>
-        <div class="flex-1">
-          <p class="font-semibold text-slate-900 dark:text-white">Team Training Session</p>
-          <p class="text-sm text-gray-600 dark:text-gray-400">10:00 AM - 12:00 PM</p>
-          <p class="text-sm text-gray-500 dark:text-gray-500 mt-1">Conference Room A</p>
-        </div>
-      </div>
-      <div class="flex gap-4 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-        <div class="text-center">
-          <p class="text-2xl font-bold text-green-600 dark:text-green-400">20</p>
-          <p class="text-sm text-green-600 dark:text-green-400">APR</p>
-        </div>
-        <div class="flex-1">
-          <p class="font-semibold text-slate-900 dark:text-white">Department Meeting</p>
-          <p class="text-sm text-gray-600 dark:text-gray-400">2:00 PM - 3:30 PM</p>
-          <p class="text-sm text-gray-500 dark:text-gray-500 mt-1">Virtual Meeting</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>`
-                            },
-                            'notifications': {
-                              icon: 'Bell',
-                              description: 'View system notifications and announcements',
-                              content: `<div class="space-y-6">
-  <div class="bg-gradient-to-r from-orange-500 to-orange-600 p-6 rounded-lg text-white">
-    <h2 class="text-2xl font-bold mb-2">Notifications</h2>
-    <p class="text-orange-100">Stay updated with important announcements</p>
-  </div>
-
-  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-    <div class="space-y-4">
-      <div class="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-        <div class="flex items-start gap-3">
-          <span class="bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 p-2 rounded-lg">??</span>
-          <div class="flex-1">
-            <p class="font-semibold text-slate-900 dark:text-white">System Maintenance</p>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Scheduled maintenance on April 15, 2026 from 2:00 AM - 4:00 AM</p>
-            <p class="text-xs text-gray-500 dark:text-gray-500 mt-2">2 hours ago</p>
-          </div>
-        </div>
-      </div>
-      <div class="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-        <div class="flex items-start gap-3">
-          <span class="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 p-2 rounded-lg">??</span>
-          <div class="flex-1">
-            <p class="font-semibold text-slate-900 dark:text-white">New Course Available</p>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Advanced Safety Training is now available for enrollment</p>
-            <p class="text-xs text-gray-500 dark:text-gray-500 mt-2">5 hours ago</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>`
-                            }
-                          };
-                          const template = templates[e.target.value];
-                          if (template) {
-                            // Auto-generate title from icon name
-                            const autoTitle = template.icon
-                              .replace(/([a-z])([A-Z])/g, '$1 $2')
-                              .trim();
-
-                            setModuleForm((prev) => ({
-                              ...prev,
-                              title: autoTitle,
-                              icon_name: template.icon,
-                              description: template.description,
-                              component_config: { ...prev.component_config, pageContent: template.content }
-                            }));
-                          }
-                        }}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
-                        disabled={!!editingModule}
-                      >
-                        <option value="">-- Select a Module Type --</option>
-                        <option value="task-management">Task Management</option>
-                        <option value="reports-dashboard">Reports & Analytics</option>
-                        <option value="calendar-events">Calendar & Events</option>
-                        <option value="notifications">Notifications Center</option>
-                        <option value="custom">Custom (Create your own)</option>
-                      </select>
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        {isCustomModule ? 'Create a custom module with your own configuration' : 'Select a pre-built module template'}
-                      </p>
-                    </div>
-
-                    {/* Custom Module Fields */}
-                    {isCustomModule && (
-                      <>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                            Title *
-                          </label>
-                          <input
-                            type="text"
-                            value={moduleForm.title}
-                            onChange={(e) => {
-                              const newTitle = e.target.value;
-                              const suggestedIcon = suggestIconFromTitle(newTitle);
-                              setModuleForm((prev) => ({
-                                ...prev,
-                                title: newTitle,
-                                icon_name: suggestedIcon // Auto-suggest icon based on title
-                              }));
-                            }}
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
-                            placeholder="e.g., Birthday, Task Dashboard, Calendar"
-                          />
-                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            The display name - icon will be auto-suggested based on this
-                          </p>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                            Icon Name * <span className="text-purple-600 dark:text-purple-400 font-normal">(auto-suggested)</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={moduleForm.icon_name}
-                            onChange={(e) => setModuleForm((prev) => ({ ...prev, icon_name: e.target.value }))}
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
-                            placeholder="e.g., Cake, Gift, Calendar, Bell"
-                          />
-                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            Icon is auto-suggested from title. You can change it manually if needed.
-                          </p>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                            Page Description
-                          </label>
-                          <textarea
-                            value={moduleForm.description}
-                            onChange={(e) => setModuleForm((prev) => ({ ...prev, description: e.target.value }))}
-                            rows={3}
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
-                            placeholder="Brief description of what this module does"
-                          />
-                        </div>
-
-                        {/* Auto-generated page content preview */}
-                        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
-                          <p className="text-sm text-purple-800 dark:text-purple-200">
-                            <span className="font-medium">? Page content will be auto-generated</span>
-                            <br />
-                            <span className="text-xs text-purple-600 dark:text-purple-400">
-                              A professional page layout will be created based on your title and description.
-                            </span>
-                          </p>
-                        </div>
-                      </>
-                    )}
-                  </>
+                {moduleForm.module_type === 'ui_component' && (
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-slate-50 dark:bg-slate-900/40">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                      Page Builder
+                    </label>
+                    <NoCodePageBuilder
+                      value={normalizeBuilderConfig(moduleForm.component_config, moduleForm.title, moduleForm.description)}
+                      onChange={(nextConfig) => {
+                        setModuleForm((prev) => ({
+                          ...prev,
+                          component_config: nextConfig,
+                        }));
+                      }}
+                    />
+                  </div>
                 )}
 
-                {/* Description - Only for learning modules */}
-                {moduleForm.module_type === 'learning' && (
+                {/* Description */}
+                {(moduleForm.module_type === 'learning' || moduleForm.module_type === 'ui_component') && (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Description
@@ -1946,7 +1510,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                   disabled={
                     savingModule ||
                     (moduleForm.module_type === 'learning' && !moduleForm.title.trim()) ||
-                    (moduleForm.module_type === 'ui_component' && !moduleForm.icon_name.trim())
+                    (moduleForm.module_type === 'ui_component' && (!moduleForm.title.trim() || !moduleForm.icon_name.trim()))
                   }
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
                 >
