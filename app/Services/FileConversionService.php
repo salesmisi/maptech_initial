@@ -93,9 +93,12 @@ class FileConversionService
     }
 
     /**
-     * Check if Microsoft PowerPoint (Office) is available for COM automation.
-     * Only applicable on Windows with Office installed and PHP com_dotnet extension enabled.
+     * Return the detected LibreOffice path (useful for diagnostics).
      */
+    public function getLibreOfficePath(): string
+    {
+        return $this->libreOfficePath;
+    }
     public function isPowerPointAvailable(): bool
     {
         if (PHP_OS_FAMILY !== 'Windows') {
@@ -435,11 +438,19 @@ class FileConversionService
             copy($inputPath, $tempInputPath);
 
             // Build LibreOffice command for PDF conversion
-            // On Windows: soffice.com is the console variant that always runs headless
-            // On Linux/Mac: use standard soffice with --headless flag
+            // Use a per-conversion user profile to avoid lock conflicts when multiple
+            // conversions run concurrently. --norestore skips crash recovery prompts.
+            $userProfile = 'file://'.$workDir.'/lo-profile';
+            if (PHP_OS_FAMILY === 'Windows') {
+                $userProfile = 'file:///'.str_replace('\\', '/', $workDir).'/lo-profile';
+            }
+            // On Linux, set HOME to ensure LibreOffice can write temp files
+            $envPrefix = PHP_OS_FAMILY !== 'Windows' ? 'HOME=/root ' : '';
             $command = sprintf(
-                '"%s" --headless --convert-to pdf --outdir "%s" "%s" 2>&1',
+                '%s"%s" --headless --norestore -env:UserInstallation=%s --convert-to pdf --outdir "%s" "%s" 2>&1',
+                $envPrefix,
                 $this->libreOfficePath,
+                escapeshellarg($userProfile),
                 $workDir,
                 $tempInputPath
             );

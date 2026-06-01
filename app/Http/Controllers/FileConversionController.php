@@ -26,12 +26,15 @@ class FileConversionController extends Controller
      */
     public function checkAvailability()
     {
+        $loAvailable = $this->conversionService->isLibreOfficeAvailable();
+
         return response()->json([
-            'libreoffice_available' => $this->conversionService->isLibreOfficeAvailable()
-                || $this->conversionService->isPowerPointAvailable(),
+            'libreoffice_available' => $loAvailable || $this->conversionService->isPowerPointAvailable(),
             'engine'                => $this->conversionService->isPowerPointAvailable()
                 ? 'microsoft-office'
-                : ($this->conversionService->isLibreOfficeAvailable() ? 'libreoffice' : 'none'),
+                : ($loAvailable ? 'libreoffice' : 'none'),
+            'libreoffice_path'      => $this->conversionService->getLibreOfficePath(),
+            'libreoffice_exists'    => file_exists($this->conversionService->getLibreOfficePath()),
             'supported_conversions' => $this->conversionService->getSupportedConversions(),
         ]);
     }
