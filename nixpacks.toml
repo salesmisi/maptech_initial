@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["php82Extensions.zip", "php82Extensions.gd"]
+nixPkgs = ["php82Extensions.zip", "php82Extensions.gd", "libreoffice"]
 
 [phases.build]
 cmds = [
@@ -12,4 +12,4 @@ cmds = [
 ]
 
 [start]
-cmd = "php artisan serve --host=0.0.0.0 --port=${PORT:-8080}"
+cmd = "php artisan storage:link --quiet 2>/dev/null || true && php artisan serve --host=0.0.0.0 --port=${PORT:-8080}"
