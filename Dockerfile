@@ -39,6 +39,14 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /app
 COPY . .
 
+# Ensure required Laravel directories exist (they may be absent if git-ignored)
+RUN mkdir -p storage/framework/cache/data \
+        storage/framework/sessions \
+        storage/framework/views \
+        storage/logs \
+        bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
+
 RUN composer install --no-dev --optimize-autoloader
 
 RUN npm ci && npm run build
