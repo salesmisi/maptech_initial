@@ -143,9 +143,9 @@ export function QuizEvaluation({ apiPrefix = 'instructor' }: Props) {
       ) : filtered.length === 0 ? (
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 p-8 text-center text-slate-500 dark:text-slate-400">No quiz attempts found yet.</div>
       ) : (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 shadow-sm overflow-hidden">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] text-sm">
+            <table className="w-full min-w-full text-sm">
               <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
                 <tr>
                   <th className="text-left px-4 py-3 font-semibold">Employee</th>

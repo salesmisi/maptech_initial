@@ -42,11 +42,11 @@ export default function PromptModal({ open, message, defaultValue = '', onConfir
             placeholder="Enter value"
           />
         </div>
-        <div className="flex justify-end gap-2">
-          <button onClick={onCancel} className="px-3 py-1 border rounded bg-white">Cancel</button>
+        <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
+          <button onClick={onCancel} className="w-full sm:w-auto px-3 py-1 border rounded bg-white">Cancel</button>
           <button
             onClick={() => onConfirm(value)}
-            className="px-3 py-1 rounded bg-blue-600 text-white"
+            className="w-full sm:w-auto px-3 py-1 rounded bg-blue-600 text-white"
           >
             OK
           </button>
