@@ -14,3 +14,6 @@ cmds = [
 
 [start]
 cmd = "php artisan serve --host=0.0.0.0 --port=${PORT:-8080}"
+# NOTE: This file is only used if Railway falls back to nixpacks.
+# When a Dockerfile is present at the project root, Railway uses
+# the Dockerfile instead (which includes LibreOffice for PPTX→PDF conversion).

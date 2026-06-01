@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Lesson extends Model
 {
@@ -34,7 +35,9 @@ class Lesson extends Model
             return $this->content_path;
         }
 
-        return url('/lesson-files/course/'.$this->id);
+        // Return direct public storage URL so pptx-preview can fetch it without
+        // requiring an active session cookie (works on both localhost and Railway).
+        return Storage::disk('public')->url($this->content_path);
     }
 
     /**
