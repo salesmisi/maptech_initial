@@ -982,29 +982,32 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 };
 
                 $displayDetails = function ($log) {
-                    $context = [];
+                    // Produce a human-friendly, sentence-like details string instead of raw JSON
+                    $parts = [];
 
                     if (! empty($log->user_email)) {
-                        $context['email'] = $log->user_email;
+                        $parts[] = 'Email: '.(string) $log->user_email;
                     }
 
                     if (! empty($log->user_department)) {
-                        $context['department'] = $log->user_department;
+                        $parts[] = 'Department: '.(string) $log->user_department;
                     }
 
                     if (! empty($log->ip_address)) {
-                        $context['ip'] = $log->ip_address;
+                        $parts[] = 'IP: '.(string) $log->ip_address;
                     }
 
                     if (! empty($log->session_key)) {
-                        $context['session_key'] = $log->session_key;
+                        // Shorten session key for readability
+                        $sk = (string) $log->session_key;
+                        $parts[] = 'Session: '.(strlen($sk) > 12 ? substr($sk, 0, 8).'…'.substr($sk, -4) : $sk);
                     }
 
-                    if (empty($context)) {
-                        return 'context={}';
+                    if (empty($parts)) {
+                        return '-';
                     }
 
-                    return 'context='.json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    return implode(' — ', $parts);
                 };
 
                 $totalLogs = count($logs);
