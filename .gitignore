@@ -22,3 +22,17 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+# Sensitive artifacts
+*.key
+*.pem
+*.crt
+*.bak
+*.csv
+primary_credentials.csv
+generated_users.csv
+generated_users_readable.csv
+.env.bak
+.env.bak*
+.env.*
+*.bundle
+repo-backup.bundle
