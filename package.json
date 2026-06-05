@@ -33,13 +33,14 @@
         "laravel-echo": "^1.11.0",
         "lucide-react": "^0.575.0",
         "pdfjs-dist": "^5.6.205",
-        "pptx-preview": "^1.0.7",
+        "pptx-preview": "^0.0.5",
         "pptxgenjs": "^4.0.1",
         "pusher-js": "^8.0.0",
         "react": "^19.2.4",
         "react-dom": "^19.2.4",
         "react-router-dom": "^7.13.0",
         "recharts": "^3.7.0",
-        "tailwind-merge": "^3.5.0"
+        "tailwind-merge": "^3.5.0",
+        "uuid": "^11.1.1"
     }
 }
