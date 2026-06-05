@@ -2,6 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+html,
+body {
+	width: 100%;
+	overflow-x: hidden;
+}
+
+#app {
+	width: 100%;
+	overflow-x: clip;
+}
+
+/* Keep mobile viewport height stable across browser chrome changes. */
+@supports (height: 100dvh) {
+	.min-h-screen {
+		min-height: 100dvh;
+	}
+}
+
+/* Shared dashboard shell guards against accidental horizontal bleed from children. */
+.app-theme-scope {
+	width: 100%;
+	max-width: 100%;
+	overflow-x: clip;
+}
+
+.app-theme-scope main {
+	-webkit-overflow-scrolling: touch;
+	overscroll-behavior: contain;
+}
+
 /* Design tokens (global) — XLSX design system */
 :root {
 	--GREEN_DARK: #154734;
@@ -12,9 +42,24 @@
 	--ALT_ROW: #F0FDF4;
 	--BORDER_CLR: #D1FAE5;
 	--GRAY_ROW: #F9FAFB;
+	--APP_SCROLLBAR_TRACK: rgba(148, 163, 184, 0.16);
+	--APP_SCROLLBAR_THUMB_TOP: rgba(100, 116, 139, 0.74);
+	--APP_SCROLLBAR_THUMB_BOTTOM: rgba(71, 85, 105, 0.74);
+	--APP_SCROLLBAR_THUMB_HOVER_TOP: rgba(71, 85, 105, 0.86);
+	--APP_SCROLLBAR_THUMB_HOVER_BOTTOM: rgba(51, 65, 85, 0.86);
+	--APP_SCROLLBAR_THUMB_BORDER: rgba(255, 255, 255, 0.3);
 
 	--PDF-HEADER-BG: #154734;
 	--PDF-BODY-FG: #1f2937;
+}
+
+html.dark {
+	--APP_SCROLLBAR_TRACK: rgba(51, 65, 85, 0.36);
+	--APP_SCROLLBAR_THUMB_TOP: rgba(100, 116, 139, 0.86);
+	--APP_SCROLLBAR_THUMB_BOTTOM: rgba(71, 85, 105, 0.86);
+	--APP_SCROLLBAR_THUMB_HOVER_TOP: rgba(148, 163, 184, 0.92);
+	--APP_SCROLLBAR_THUMB_HOVER_BOTTOM: rgba(100, 116, 139, 0.92);
+	--APP_SCROLLBAR_THUMB_BORDER: rgba(15, 23, 42, 0.58);
 }
 
 /* Small helper class for pdf-style summary panels */
@@ -63,6 +108,81 @@ html.dark select {
 	background-color: #0b1220 !important;
 	color: #e5e7eb !important;
 	border-color: #374151 !important;
+}
+
+/* Keep course datetime controls readable with visible native picker icon in dark mode */
+html.dark .course-datetime-input {
+	background-color: #1e293b !important;
+	color: #f1f5f9 !important;
+	border-color: #475569 !important;
+}
+
+html.dark .course-datetime-input::-webkit-calendar-picker-indicator {
+	filter: invert(1) !important;
+	opacity: 0.85 !important;
+}
+
+/* Global select treatment to avoid harsh native arrow panels and improve hover comfort. */
+select:not([multiple]):not(.ui-select-custom-arrow) {
+	appearance: none;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5L10 12.5L15 7.5' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 0.72rem center;
+	background-size: 0.95rem;
+	padding-right: 2.35rem;
+	transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+select:not([multiple]):not(.ui-select-custom-arrow):hover {
+	border-color: #94a3b8;
+	background-color: #f8fafc;
+}
+
+select:not([multiple]):not(.ui-select-custom-arrow):focus {
+	outline: none;
+	border-color: #34d399;
+	box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.24);
+}
+
+html.dark select:not([multiple]):not(.ui-select-custom-arrow) {
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5L10 12.5L15 7.5' stroke='%23cbd5e1' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+	background-color: #0f172a !important;
+	border-color: #475569 !important;
+}
+
+html.dark select:not([multiple]):not(.ui-select-custom-arrow):hover {
+	background-color: #111827 !important;
+	border-color: #64748b !important;
+}
+
+/* Use this class when a select renders its own chevron icon (absolute-positioned). */
+.ui-select-custom-arrow {
+	appearance: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	background-image: none !important;
+}
+
+.ui-select-custom-arrow::-ms-expand {
+	display: none;
+}
+
+.ui-select-wrap .ui-select-arrow {
+	transition: color 180ms ease, filter 180ms ease, opacity 180ms ease;
+	opacity: 0.92;
+}
+
+.ui-select-wrap:hover .ui-select-arrow,
+.ui-select-wrap:focus-within .ui-select-arrow {
+	color: #34d399;
+	filter: drop-shadow(0 0 6px rgba(52, 211, 153, 0.28));
+	opacity: 1;
+}
+
+html.dark .ui-select-wrap:hover .ui-select-arrow,
+html.dark .ui-select-wrap:focus-within .ui-select-arrow {
+	color: #6ee7b7;
+	filter: drop-shadow(0 0 6px rgba(110, 231, 183, 0.24));
 }
 
 html.dark .shadow-sm,
@@ -199,6 +319,74 @@ html.dark .shadow-lg {
 			filter: blur(0);
 		}
 	}
+}
+
+/* Global themed scrollbar for all app surfaces */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: var(--APP_SCROLLBAR_THUMB_TOP) var(--APP_SCROLLBAR_TRACK);
+}
+
+*::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+	background: var(--APP_SCROLLBAR_TRACK);
+	border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb {
+	background: linear-gradient(180deg, var(--APP_SCROLLBAR_THUMB_TOP), var(--APP_SCROLLBAR_THUMB_BOTTOM));
+	border-radius: 9999px;
+	border: 2px solid var(--APP_SCROLLBAR_THUMB_BORDER);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+	background: linear-gradient(180deg, var(--APP_SCROLLBAR_THUMB_HOVER_TOP), var(--APP_SCROLLBAR_THUMB_HOVER_BOTTOM));
+}
+
+/* Themed scrollbar for modal content containers */
+.modal-scroll-area {
+	scrollbar-width: thin;
+	scrollbar-color: rgba(100, 116, 139, 0.55) rgba(148, 163, 184, 0.14);
+}
+
+.modal-scroll-area::-webkit-scrollbar {
+	width: 10px;
+}
+
+.modal-scroll-area::-webkit-scrollbar-track {
+	background: rgba(148, 163, 184, 0.12);
+	border-radius: 9999px;
+}
+
+.modal-scroll-area::-webkit-scrollbar-thumb {
+	background: linear-gradient(180deg, rgba(100, 116, 139, 0.72), rgba(71, 85, 105, 0.72));
+	border-radius: 9999px;
+	border: 2px solid rgba(255, 255, 255, 0.28);
+}
+
+.modal-scroll-area::-webkit-scrollbar-thumb:hover {
+	background: linear-gradient(180deg, rgba(71, 85, 105, 0.82), rgba(51, 65, 85, 0.82));
+}
+
+html.dark .modal-scroll-area {
+	scrollbar-color: rgba(148, 163, 184, 0.6) rgba(51, 65, 85, 0.3);
+}
+
+html.dark .modal-scroll-area::-webkit-scrollbar-track {
+	background: rgba(51, 65, 85, 0.35);
+}
+
+html.dark .modal-scroll-area::-webkit-scrollbar-thumb {
+	background: linear-gradient(180deg, rgba(100, 116, 139, 0.85), rgba(71, 85, 105, 0.85));
+	border-color: rgba(15, 23, 42, 0.55);
+}
+
+html.dark .modal-scroll-area::-webkit-scrollbar-thumb:hover {
+	background: linear-gradient(180deg, rgba(148, 163, 184, 0.9), rgba(100, 116, 139, 0.9));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -420,6 +608,93 @@ html.dark .shadow-lg {
 	}
 }
 
+/* Keep interactive feedback enabled on settings/business pages even when global reduced-motion rules apply. */
+.page-open-transition .max-w-4xl button:not(:disabled),
+.page-open-transition .max-w-3xl button:not(:disabled) {
+	transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+}
+
+.page-open-transition .max-w-4xl button:not(:disabled):hover,
+.page-open-transition .max-w-3xl button:not(:disabled):hover {
+	transform: translateY(-1px);
+	filter: brightness(1.02);
+}
+
+@keyframes business-page-in {
+	from {
+		opacity: 0;
+		transform: translateY(14px) scale(0.992);
+		filter: blur(3px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+		filter: blur(0);
+	}
+}
+
+@keyframes business-form-in {
+	from {
+		opacity: 0;
+		transform: translateY(12px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes settings-page-in {
+	from {
+		opacity: 0;
+		transform: translateY(12px) scale(0.994);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+@keyframes settings-card-in {
+	from {
+		opacity: 0;
+		transform: translateY(14px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.page-open-transition .business-page-enter {
+	animation: business-page-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.page-open-transition .business-form-enter {
+	animation: business-form-in 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	animation-delay: 90ms;
+}
+
+.page-open-transition .settings-page-enter {
+	animation: settings-page-in 540ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.page-open-transition .settings-card-enter {
+	animation: settings-card-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.page-open-transition .settings-card-delay-1 {
+	animation-delay: 80ms;
+}
+
+.page-open-transition .settings-card-delay-2 {
+	animation-delay: 150ms;
+}
+
+.page-open-transition .settings-card-delay-3 {
+	animation-delay: 220ms;
+}
+
 @media (prefers-reduced-motion: no-preference) {
 	.ui-pop-in {
 		animation: um-panel-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -445,7 +720,7 @@ html.dark .shadow-lg {
 	.um-icon-btn,
 	.um-search-input,
 	.um-filter-select {
-		transition: transform 170ms ease, box-shadow 170ms ease, filter 170ms ease;
+		transition: transform 170ms ease, box-shadow 170ms ease, filter 170ms ease, border-color 170ms ease, background-color 170ms ease;
 	}
 
 	.um-action-btn:hover,
@@ -705,3 +980,292 @@ html.dark .shadow-lg {
 		content: '...';
 	}
 }
+
+/* Success toast notification animation */
+@keyframes toast-slide-up {
+	from {
+		opacity: 0;
+		transform: translateY(1rem);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.animate-toast-slide-up {
+	animation: toast-slide-up 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.animate-toast-slide-up {
+		animation: none !important;
+		opacity: 1 !important;
+		transform: none !important;
+	}
+}
+
+/* ============================================================
+   GLOBAL BUTTON DESIGN SYSTEM — Maptech LearnHub
+   Theme: emerald-green primary, slate neutral, warm accents.
+   All variants are light-mode safe and dark-mode safe.
+   ============================================================ */
+
+/* --- Base shared traits --- */
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.375rem;
+	font-size: 0.875rem;
+	font-weight: 500;
+	line-height: 1.25rem;
+	border-radius: 0.5rem;
+	padding: 0.5rem 1rem;
+	border: 1px solid transparent;
+	cursor: pointer;
+	transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease,
+		box-shadow 160ms ease, transform 140ms ease, filter 140ms ease;
+	outline: none;
+	white-space: nowrap;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.btn:focus-visible {
+	outline: 2px solid #34d399;
+	outline-offset: 2px;
+}
+
+.btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+	pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.btn:not(:disabled):hover {
+		transform: translateY(-1px);
+	}
+	.btn:not(:disabled):active {
+		transform: translateY(0);
+	}
+}
+
+/* --- Primary: emerald/green — main CTAs --- */
+.btn-primary {
+	background-color: #16a34a;
+	color: #ffffff;
+	border-color: transparent;
+	box-shadow: 0 1px 3px rgba(22, 163, 74, 0.25);
+}
+.btn-primary:not(:disabled):hover {
+	background-color: #15803d;
+	box-shadow: 0 6px 18px rgba(22, 163, 74, 0.35);
+}
+html.dark .btn-primary {
+	background-color: #16a34a;
+}
+html.dark .btn-primary:not(:disabled):hover {
+	background-color: #1db152;
+	box-shadow: 0 8px 20px rgba(16, 185, 129, 0.38);
+}
+
+/* --- Secondary: neutral outlined — cancel / secondary actions --- */
+.btn-secondary {
+	background-color: #ffffff;
+	color: #374151;
+	border-color: #d1d5db;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.btn-secondary:not(:disabled):hover {
+	background-color: #f9fafb;
+	border-color: #9ca3af;
+}
+html.dark .btn-secondary {
+	background-color: #1e293b;
+	color: #e2e8f0;
+	border-color: #475569;
+}
+html.dark .btn-secondary:not(:disabled):hover {
+	background-color: #263447;
+	border-color: #64748b;
+}
+
+/* --- Ghost: minimal — toolbar / icon-adjacent text buttons --- */
+.btn-ghost {
+	background-color: transparent;
+	color: #475569;
+	border-color: transparent;
+}
+.btn-ghost:not(:disabled):hover {
+	background-color: #f1f5f9;
+	color: #1e293b;
+}
+html.dark .btn-ghost {
+	color: #94a3b8;
+}
+html.dark .btn-ghost:not(:disabled):hover {
+	background-color: #1e293b;
+	color: #e2e8f0;
+}
+
+/* --- Danger filled: destructive confirmations --- */
+.btn-danger {
+	background-color: #dc2626;
+	color: #ffffff;
+	border-color: transparent;
+	box-shadow: 0 1px 3px rgba(220, 38, 38, 0.25);
+}
+.btn-danger:not(:disabled):hover {
+	background-color: #b91c1c;
+	box-shadow: 0 6px 18px rgba(220, 38, 38, 0.35);
+}
+html.dark .btn-danger {
+	background-color: #dc2626;
+}
+html.dark .btn-danger:not(:disabled):hover {
+	background-color: #ef4444;
+}
+
+/* --- Danger outline: softer destructive (unenroll, remove) --- */
+.btn-danger-outline {
+	background-color: transparent;
+	color: #dc2626;
+	border-color: #fca5a5;
+}
+.btn-danger-outline:not(:disabled):hover {
+	background-color: #fef2f2;
+	border-color: #f87171;
+}
+html.dark .btn-danger-outline {
+	color: #f87171;
+	border-color: #7f1d1d;
+	background-color: transparent;
+}
+html.dark .btn-danger-outline:not(:disabled):hover {
+	background-color: rgba(239, 68, 68, 0.12);
+	border-color: #b91c1c;
+}
+
+/* --- Amber: warning / recovery / head badge --- */
+.btn-amber {
+	background-color: #fef3c7;
+	color: #92400e;
+	border-color: #fcd34d;
+}
+.btn-amber:not(:disabled):hover {
+	background-color: #fde68a;
+	border-color: #f59e0b;
+}
+html.dark .btn-amber {
+	background-color: rgba(245, 158, 11, 0.12);
+	color: #fcd34d;
+	border-color: rgba(245, 158, 11, 0.38);
+}
+html.dark .btn-amber:not(:disabled):hover {
+	background-color: rgba(245, 158, 11, 0.22);
+	border-color: rgba(245, 158, 11, 0.6);
+}
+
+/* --- Size modifiers --- */
+.btn-xs {
+	font-size: 0.75rem;
+	padding: 0.3125rem 0.625rem;
+	border-radius: 0.375rem;
+}
+.btn-sm {
+	font-size: 0.8125rem;
+	padding: 0.375rem 0.75rem;
+}
+.btn-lg {
+	font-size: 1rem;
+	padding: 0.625rem 1.5rem;
+	border-radius: 0.625rem;
+}
+.btn-full {
+	width: 100%;
+}
+
+/* --- Icon-only round buttons --- */
+.btn-icon {
+	padding: 0.375rem;
+	border-radius: 0.375rem;
+	border: 1px solid transparent;
+	background-color: transparent;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	transition: background-color 150ms ease, color 150ms ease, transform 140ms ease;
+}
+.btn-icon:disabled { opacity: 0.4; cursor: not-allowed; }
+@media (prefers-reduced-motion: no-preference) {
+	.btn-icon:not(:disabled):hover { transform: translateY(-1px) scale(1.05); }
+}
+
+.btn-icon-edit {
+	color: #d97706;
+}
+.btn-icon-edit:not(:disabled):hover {
+	color: #b45309;
+	background-color: #fef3c7;
+}
+html.dark .btn-icon-edit { color: #fbbf24; }
+html.dark .btn-icon-edit:not(:disabled):hover {
+	color: #fde68a;
+	background-color: rgba(245, 158, 11, 0.14);
+}
+
+.btn-icon-delete {
+	color: #e11d48;
+}
+.btn-icon-delete:not(:disabled):hover {
+	color: #be123c;
+	background-color: #fff1f2;
+}
+html.dark .btn-icon-delete { color: #fb7185; }
+html.dark .btn-icon-delete:not(:disabled):hover {
+	color: #fda4af;
+	background-color: rgba(225, 29, 72, 0.14);
+}
+
+.btn-icon-view {
+	color: #0284c7;
+}
+.btn-icon-view:not(:disabled):hover {
+	color: #0369a1;
+	background-color: #e0f2fe;
+}
+html.dark .btn-icon-view { color: #38bdf8; }
+html.dark .btn-icon-view:not(:disabled):hover {
+	color: #7dd3fc;
+	background-color: rgba(2, 132, 199, 0.14);
+}
+
+.btn-icon-close {
+	color: #94a3b8;
+}
+.btn-icon-close:not(:disabled):hover {
+	color: #475569;
+	background-color: #f1f5f9;
+}
+html.dark .btn-icon-close { color: #64748b; }
+html.dark .btn-icon-close:not(:disabled):hover {
+	color: #e2e8f0;
+	background-color: #1e293b;
+}
+
+.btn-icon-green {
+	color: #16a34a;
+}
+.btn-icon-green:not(:disabled):hover {
+	color: #15803d;
+	background-color: #dcfce7;
+}
+html.dark .btn-icon-green { color: #34d399; }
+html.dark .btn-icon-green:not(:disabled):hover {
+	color: #6ee7b7;
+	background-color: rgba(16, 185, 129, 0.14);
+}
+

@@ -1,15 +1,18 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
-use Illuminate\Support\Facades\Artisan;
 use App\Models\Certificate;
 use App\Models\Enrollment;
+use Illuminate\Foundation\Inspiring;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
+    /** @var \Illuminate\Console\Command $this */
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
 Artisan::command('certificates:backfill-logo-path {--dry-run : Preview changes without writing to database} {--only-missing : Update only certificates with empty logo_path}', function () {
+    /** @var \Illuminate\Console\Command $this */
     $dryRun = (bool) $this->option('dry-run');
     $onlyMissing = (bool) $this->option('only-missing');
 
@@ -40,15 +43,17 @@ Artisan::command('certificates:backfill-logo-path {--dry-run : Preview changes w
 
                 if (empty($resolved)) {
                     $skippedNoLogo++;
+
                     continue;
                 }
 
                 if ((string) $cert->logo_path === (string) $resolved) {
                     $unchanged++;
+
                     continue;
                 }
 
-                if (!$dryRun) {
+                if (! $dryRun) {
                     $cert->update(['logo_path' => $resolved]);
                 }
 
@@ -72,8 +77,10 @@ Artisan::command('certificates:backfill-logo-path {--dry-run : Preview changes w
     $this->newLine();
     $this->info('Backfill summary:');
     $this->line("Checked: {$checked}");
-    $this->line("Updated: {$updated}" . ($dryRun ? ' (simulated)' : ''));
+    $this->line("Updated: {$updated}".($dryRun ? ' (simulated)' : ''));
     $this->line("Unchanged: {$unchanged}");
     $this->line("Skipped (no resolved logo): {$skippedNoLogo}");
     $this->line("Errors: {$errors}");
 })->purpose('Backfill certificate logo_path from completion-aware module/lesson logo mappings');
+
+Schedule::command('audit-logs:apply-retention')->dailyAt('01:00');

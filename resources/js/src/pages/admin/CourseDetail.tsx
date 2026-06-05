@@ -28,6 +28,9 @@ import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../compone
 import UnlockModuleModal from '../../components/UnlockModuleModal';
 import ConfirmModal from '../../components/ConfirmModal';
 import { safeArray } from '../../utils/safe';
+import { lazy, Suspense } from 'react';
+const PDFViewer = lazy(() => import('../../components/PDFViewer'));
+const PresentationViewer = lazy(() => import('../../components/PresentationViewer'));
 
 const API_BASE = '/api';
 
@@ -80,6 +83,8 @@ interface CourseData {
   title: string;
   description: string;
   department: string;
+  subdepartment_id?: number | null;
+  subdepartment?: { id: number; name: string } | null;
   status: string;
   instructor: { id: number; fullname: string; email: string } | null;
   modules: Module[];
@@ -92,6 +97,8 @@ interface AllUser {
   email: string;
   role: string;
   department: string | null;
+  subdepartment_id?: number | null;
+  subdepartment?: { id: number; name: string } | null;
   status: string;
 }
 
@@ -144,22 +151,22 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz }: 
   };
 
   return (
-    <div className="mt-3 p-4 bg-indigo-50 border border-indigo-200 rounded-lg space-y-3">
-      <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">Attach Quiz to this Module</p>
+    <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+      <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Attach Quiz to this Module</p>
       {err && <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{err}</p>}
       <input
         type="text"
         placeholder="Quiz title (e.g. Module 1 Assessment)"
         value={title}
         onChange={e => setTitle(e.target.value)}
-        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
       />
       <textarea
         rows={2}
         placeholder="Description (optional)"
         value={desc}
         onChange={e => setDesc(e.target.value)}
-        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+        className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
       />
       <div className="flex items-center gap-3">
         <label className="text-xs font-medium text-slate-600 whitespace-nowrap">Pass Percentage</label>
@@ -168,7 +175,7 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz }: 
           min={1} max={100}
           value={passPercent}
           onChange={e => setPassPercent(Number(e.target.value))}
-          className="w-20 border border-slate-300 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-indigo-500"
+          className="w-20 border border-slate-300 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-blue-500"
         />
         <span className="text-xs text-slate-500">% to unlock next module</span>
       </div>
@@ -176,12 +183,12 @@ function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz }: 
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
+          className="btn btn-primary btn-sm"
         >
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
           {saving ? 'Creating...' : 'Create & Add Questions'}
         </button>
-        <button onClick={onCancel} className="px-4 py-1.5 border border-slate-300 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50">
+        <button onClick={onCancel} className="btn btn-secondary btn-sm">
           Cancel
         </button>
       </div>
@@ -247,6 +254,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
   const [lessonTitle, setLessonTitle] = useState('');
   const [lessonFile, setLessonFile] = useState<File | null>(null);
   const [lessonTextContent, setLessonTextContent] = useState('');
+  const [lessonLink, setLessonLink] = useState('');
   const [uploadingLesson, setUploadingLesson] = useState(false);
   const [lessonError, setLessonError] = useState<string | null>(null);
   const lessonFileRef = useRef<HTMLInputElement>(null);
@@ -278,6 +286,11 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
   const [editLessonFile, setEditLessonFile] = useState<File | null>(null);
   const [savingLesson, setSavingLesson] = useState(false);
   const editLessonFileRef = useRef<HTMLInputElement>(null);
+
+  // Edit course description state
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [editDescriptionValue, setEditDescriptionValue] = useState('');
+  const [savingDescription, setSavingDescription] = useState(false);
 
   // Drag-and-drop state
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -342,11 +355,18 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
       });
       if (!res.ok) throw new Error('Failed to load course');
       const data = await res.json();
-      setCourse({
+      const mappedCourse: CourseData = {
         id: data.id,
         title: data.title,
         description: data.description || '',
         department: data.department,
+        subdepartment_id: data.subdepartment_id ?? null,
+        subdepartment: data.subdepartment
+          ? {
+              id: Number(data.subdepartment.id),
+              name: String(data.subdepartment.name || ''),
+            }
+          : null,
         status: data.status,
         instructor: data.instructor ?? null,
         modules: data.modules ?? [],
@@ -361,17 +381,33 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
           progress: u.pivot?.progress ?? u.progress ?? 0,
           enrollment_status: u.pivot?.status ?? u.enrollment_status ?? 'Active',
         })),
+      };
+      setCourse(mappedCourse);
+      await loadAllUsers({
+        department: mappedCourse.department,
+        subdepartment_id: mappedCourse.subdepartment_id ?? null,
       });
     } catch (e: any) {
+      setAllUsers([]);
       setError(e.message || 'Failed to load course');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadAllUsers = async () => {
+  const loadAllUsers = async (filters?: { department?: string | null; subdepartment_id?: number | null }) => {
     try {
-      const res = await fetch(`${API_BASE}/admin/users`, {
+      const params = new URLSearchParams();
+      params.set('role', 'employee');
+      params.set('status', 'Active');
+
+      if (filters?.subdepartment_id) {
+        params.set('subdepartment_id', String(filters.subdepartment_id));
+      } else if (filters?.department) {
+        params.set('department', filters.department);
+      }
+
+      const res = await fetch(`${API_BASE}/admin/users?${params.toString()}`, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
@@ -382,7 +418,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
         : Array.isArray(raw?.data)
           ? raw.data
           : raw?.users || [];
-      setAllUsers(safeArray<AllUser>(list).filter(u => u.status === 'Active'));
+      setAllUsers(safeArray<AllUser>(list));
     } catch {
       // ignore
     }
@@ -390,7 +426,6 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
 
   useEffect(() => {
     loadCourse();
-    loadAllUsers();
     loadQuizzes();
   }, [courseId]);
 
@@ -504,6 +539,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
       const fd = new FormData();
       fd.append('title', lessonTitle.trim());
       if (lessonTextContent.trim()) fd.append('text_content', lessonTextContent.trim());
+      if (lessonLink.trim()) fd.append('content_url', lessonLink.trim());
       if (lessonFile) fd.append('content', lessonFile);
 
       const res = await fetch(`${API_BASE}/admin/modules/${moduleId}/lessons`, {
@@ -518,6 +554,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
       }
       setLessonTitle('');
       setLessonTextContent('');
+      setLessonLink('');
       setLessonFile(null);
       if (lessonFileRef.current) lessonFileRef.current.value = '';
       setAddingLessonForModule(null);
@@ -633,7 +670,10 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
   // ─── ENROLLMENT HANDLERS ─────────────────────────────────────────────────────
 
   const enrolledIds = new Set(safeArray<EnrolledUser>(course?.enrolled_users).map(u => u.id));
-  const availableUsers = safeArray<AllUser>(allUsers).filter(u => !enrolledIds.has(u.id));
+  const availableUsers = safeArray<AllUser>(allUsers).filter(u => {
+    if (enrolledIds.has(u.id)) return false;
+    return String(u.role || '').toLowerCase() === 'employee';
+  });
 
   const handleEnroll = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -737,10 +777,83 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
             <div className="h-14 w-14 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
               <BookOpen className="h-7 w-7 text-green-600" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-xl font-bold text-slate-900">{course.title}</h1>
-              {course.description && (
-                <p className="text-sm text-slate-500 mt-1 max-w-xl">{course.description}</p>
+              {editingDescription ? (
+                <div className="mt-2 space-y-2">
+                  <textarea
+                    value={editDescriptionValue}
+                    onChange={(e) => setEditDescriptionValue(e.target.value)}
+                    rows={3}
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                    placeholder="Enter course description..."
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        setSavingDescription(true);
+                        try {
+                          const xsrf = await getXsrfToken();
+                          const res = await fetch(`${API_BASE}/admin/courses/${courseId}`, {
+                            method: 'PUT',
+                            credentials: 'include',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'X-XSRF-TOKEN': xsrf,
+                              Accept: 'application/json',
+                            },
+                            body: JSON.stringify({
+                              title: course.title,
+                              description: editDescriptionValue,
+                              department: course.department,
+                              status: course.status,
+                              instructor_id: course.instructor?.id || null,
+                            }),
+                          });
+                          if (!res.ok) throw new Error('Failed to update description');
+                          await loadCourse();
+                          setEditingDescription(false);
+                        } catch (e: any) {
+                          alert(e.message || 'Failed to update description');
+                        } finally {
+                          setSavingDescription(false);
+                        }
+                      }}
+                      disabled={savingDescription}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700 disabled:opacity-50"
+                    >
+                      <Save className="h-3 w-3" />
+                      {savingDescription ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingDescription(false);
+                        setEditDescriptionValue(course.description || '');
+                      }}
+                      disabled={savingDescription}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-slate-200 text-slate-700 text-xs rounded-md hover:bg-slate-300 disabled:opacity-50"
+                    >
+                      <X className="h-3 w-3" />
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-1 flex items-start gap-2 group">
+                  <p className="text-sm text-slate-500 max-w-xl flex-1">
+                    {course.description || 'No description'}
+                  </p>
+                  <button
+                    onClick={() => {
+                      setEditDescriptionValue(course.description || '');
+                      setEditingDescription(true);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-green-600 transition-opacity"
+                    title="Edit description"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               )}
               <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
                 <span className="font-medium text-slate-700">{course.department}</span>
@@ -878,7 +991,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                       {quizzesLoading ? (
                         <Loader2 className="h-4 w-4 animate-spin text-slate-400 flex-shrink-0" />
                       ) : quiz ? (
-                        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium flex-shrink-0">
+                        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-medium flex-shrink-0">
                           <HelpCircle className="h-3.5 w-3.5" />
                           Quiz
                         </span>
@@ -997,7 +1110,25 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                                         )}
                                         {lesson.content_url && lesson.file_type === 'pdf' && (
                                           <div className="px-4 pb-3 pt-1 border-t border-slate-200">
-                                            <iframe src={lesson.content_url} className="w-full h-96 rounded-md border border-slate-300" title={lesson.title} />
+                                            <Suspense fallback={<div className="p-3">Loading document...</div>}>
+                                              <PDFViewer
+                                                url={lesson.content_url}
+                                                title={lesson.title}
+                                                lessonId={lesson.id}
+                                                moduleId={mod.id}
+                                                showConvertButton={false}
+                                              />
+                                            </Suspense>
+                                          </div>
+                                        )}
+                                        {lesson.content_url && lesson.file_type === 'presentation' && (
+                                          <div className="px-4 pb-3 pt-1 border-t border-slate-200">
+                                            <Suspense fallback={<div className="p-3">Loading presentation...</div>}>
+                                              <PresentationViewer
+                                                url={lesson.content_url}
+                                                title={lesson.title}
+                                              />
+                                            </Suspense>
                                           </div>
                                         )}
                                       </>
@@ -1010,15 +1141,15 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
 
                           {/* Add Lesson form */}
                           {addingLessonForModule === mod.id ? (
-                            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg space-y-2">
-                              <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Add Lesson</p>
+                            <div className="mt-3 p-3 bg-green-50 border border-green-200 dark:bg-slate-800/85 dark:border-slate-700 rounded-lg space-y-2">
+                              <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide">Add Lesson</p>
                               {lessonError && <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{lessonError}</p>}
                               <input
                                 type="text"
                                 placeholder="Lesson title"
                                 value={lessonTitle}
                                 onChange={e => setLessonTitle(e.target.value)}
-                                className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                               />
                               <RichTextEditor
                                 value={lessonTextContent}
@@ -1026,8 +1157,20 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                                 placeholder="Type the lesson content here — use the toolbar for bold, headings, lists..."
                                 minHeight="120px"
                               />
+                              <div className="space-y-1">
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                                  Link URL <span className="text-slate-400 dark:text-slate-500">(optional)</span>
+                                </label>
+                                <input
+                                  type="url"
+                                  placeholder="https://..."
+                                  value={lessonLink}
+                                  onChange={e => setLessonLink(e.target.value)}
+                                  className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                />
+                              </div>
                               <div className="flex items-center gap-2">
-                                <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 rounded-md cursor-pointer hover:bg-white text-xs text-slate-600">
+                                <label className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md cursor-pointer bg-white/70 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900 text-xs text-slate-600 dark:text-slate-300 transition-colors">
                                   <Upload className="h-3.5 w-3.5" />
                                   {lessonFile ? lessonFile.name : 'Upload document or video (optional)'}
                                   <input
@@ -1051,14 +1194,14 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                                 <button
                                   onClick={() => handleAddLesson(mod.id)}
                                   disabled={uploadingLesson}
-                                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-md disabled:opacity-50 flex items-center gap-1"
+                                  className="btn btn-primary btn-xs"
                                 >
                                   {uploadingLesson ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
                                   {uploadingLesson ? 'Saving...' : 'Save Lesson'}
                                 </button>
                                 <button
-                                  onClick={() => { setAddingLessonForModule(null); setLessonTitle(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
-                                  className="px-3 py-1.5 border border-slate-300 text-slate-600 text-xs font-medium rounded-md hover:bg-white"
+                                  onClick={() => { setAddingLessonForModule(null); setLessonTitle(''); setLessonTextContent(''); setLessonLink(''); setLessonFile(null); setLessonError(null); }}
+                                  className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-md bg-white/80 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900 transition-colors"
                                 >
                                   Cancel
                                 </button>
@@ -1067,9 +1210,9 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                           ) : (
                             <button
                               onClick={() => { setAddingLessonForModule(mod.id); setLessonTitle(''); setLessonTextContent(''); setLessonFile(null); setLessonError(null); }}
-                              className="mt-2 flex items-center gap-1 text-xs text-green-600 hover:text-green-800 font-medium"
+                              className="btn btn-secondary btn-sm mt-2"
                             >
-                              <Plus className="h-3.5 w-3.5" /> Add Lesson
+                              <Plus className="h-4 w-4" /> Add Lesson
                             </button>
                           )}
                         </div>
@@ -1078,11 +1221,11 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                         <div className="border-t border-slate-100 px-5 py-3">
                           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Quiz</p>
                           {quiz ? (
-                            <div className="bg-indigo-50 rounded-lg p-3">
+                            <div className="bg-blue-50 rounded-lg p-3">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-start gap-3">
-                                  <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                                    <HelpCircle className="h-4 w-4 text-indigo-600" />
+                                  <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                    <HelpCircle className="h-4 w-4 text-blue-600" />
                                   </div>
                                   <div>
                                     <p className="text-sm font-semibold text-slate-900">{quiz.title}</p>
@@ -1134,9 +1277,9 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                             ) : (
                               <button
                                 onClick={() => setAddingQuizForModule(mod.id)}
-                                className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                                className="btn btn-secondary btn-sm"
                               >
-                                <Plus className="h-3.5 w-3.5" /> Add Quiz
+                                <Plus className="h-4 w-4" /> Add Quiz
                               </button>
                             )
                           )}
@@ -1188,7 +1331,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                   <button
                     type="submit"
                     disabled={uploading}
-                    className="flex-1 py-2 px-4 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="btn btn-primary flex-1"
                   >
                     {uploading ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : <><Plus className="h-4 w-4" /> Add Module</>}
                   </button>
@@ -1198,7 +1341,7 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
           ) : (
             <button
               onClick={() => setAddingModule(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700"
+              className="btn btn-primary btn-sm"
             >
               <Plus className="h-4 w-4" />
               Add Module
@@ -1234,13 +1377,17 @@ export function CourseDetail({ courseId, onBack, onManageQuiz }: CourseDetailPro
                 onChange={e => setSelectedUserId(e.target.value)}
                 className="flex-1 border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
               >
-                <option value="">— Select a user to enroll —</option>
+                <option value="">
+                  — Select {course.subdepartment?.name ? `${course.subdepartment.name} subdepartment` : course.department} employee —
+                </option>
                 {availableUsers.length === 0 && (
-                  <option disabled>All active users are already enrolled</option>
+                  <option disabled>
+                    No eligible active employees available for this {course.subdepartment?.name ? 'subdepartment' : 'department'}
+                  </option>
                 )}
                 {safeArray(availableUsers).map(u => (
                   <option key={u.id} value={u.id}>
-                    {u.fullname} ({u.email}) · {u.role}
+                    {u.fullname} ({u.email}){u.subdepartment?.name ? ` · ${u.subdepartment.name}` : ''}
                   </option>
                 ))}
               </select>

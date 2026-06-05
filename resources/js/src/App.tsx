@@ -1,56 +1,12 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
-import { LoginPage } from './pages/LoginPage';
-import { QADiscussion as InstructorQADiscussion } from './pages/instructor/QADiscussion';
-import { QADiscussion as AdminQADiscussion } from './pages/admin/QADiscussion';
-import { AdminLayout } from './components/layout/AdminLayout';
-import { InstructorLayout } from './components/layout/InstructorLayout';
-import { EmployeeLayout } from './components/layout/EmployeeLayout';
-
-// Admin Pages
-import { AdminDashboard } from './pages/admin/AdminDashboard';
-import DepartmentManagement from './pages/admin/DepartmentManagement.tsx';
-import { UserManagement } from './pages/admin/UserManagement';
-import { CoursesAndContent } from './pages/admin/CoursesAndContent';
-import { CourseContentEditor } from './pages/admin/CourseContentEditor';
-import { EnrollmentManagement } from './pages/admin/EnrollmentManagement';
-import { ReportsAnalytics } from './pages/admin/ReportsAnalytics';
-import { NotificationManagement } from './pages/admin/NotificationManagement';
-import { AuditLogs } from './pages/admin/AuditLogs';
-import { AdminFeedback } from './pages/admin/AdminFeedback';
-import { BusinessDetails } from './pages/admin/BusinessDetails';
-import { ProductLogoManager } from './pages/admin/ProductLogoManager';
-import { CustomFieldBuilder } from './pages/admin/CustomFieldBuilder';
-import { CustomModulePage } from './pages/admin/CustomModulePage';
-
-// Instructor Pages
-import { InstructorDashboard } from './pages/instructor/InstructorDashboard';
-import { InstructorCourseManagement } from './pages/instructor/CourseManagement';
-import { InstructorCourseDetail } from './pages/instructor/CourseDetail';
-// InstructorQuizBuilder was unused and removed to fix TS warning
-import { QuizAssessmentManagement } from './pages/instructor/QuizAssessmentManagement';
-import { LessonVideoUpload } from './pages/instructor/LessonVideoUpload';
-import { QuizEvaluation } from './pages/instructor/QuizEvaluation';
-import { InstructorNotifications } from './pages/instructor/InstructorNotifications';
-import { InstructorFeedback } from './pages/instructor/InstructorFeedback';
-
-// Employee Pages
-import { EmployeeDashboard } from './pages/employee/EmployeeDashboard';
-import { MyCourses } from './pages/employee/MyCourses';
-import { CourseEnrollDetail } from './pages/employee/CourseEnrollDetail';
-import { CourseViewer } from './pages/employee/CourseViewer';
-import { CustomModuleViewer } from './pages/employee/CustomModuleViewer';
-import { MyProgress } from './pages/employee/MyProgress';
-import { MyCertificates } from './pages/employee/MyCertificates';
-import { QAModule } from './pages/employee/QAModule';
-import { MyFeedback } from './pages/employee/MyFeedback';
-import { EmployeeNotifications } from './pages/employee/EmployeeNotifications';
-
-// Shared Pages
-import { ProfileSettings } from './pages/shared/ProfileSettings';
-import { YTDebug } from './pages/debug/YTDebug';
-import { resolveImageUrl } from './utils/safe';
 import { LoadingState } from './components/ui/LoadingState';
+import { FullscreenLoader } from './components/ui/FullscreenLoader';
+import { LoginPage } from './pages/LoginPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { VerifyOTPPage } from './pages/VerifyOTPPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { resolveImageUrl } from './utils/safe';
 
 interface User {
   id?: number;
@@ -63,6 +19,49 @@ interface User {
   profile_picture?: string | null;
 }
 
+const AdminLayout = lazy(() => import('./components/layout/AdminLayout').then((module) => ({ default: module.AdminLayout })));
+const InstructorLayout = lazy(() => import('./components/layout/InstructorLayout').then((module) => ({ default: module.InstructorLayout })));
+const EmployeeLayout = lazy(() => import('./components/layout/EmployeeLayout').then((module) => ({ default: module.EmployeeLayout })));
+
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard').then((module) => ({ default: module.AdminDashboard })));
+const DepartmentManagement = lazy(() => import('./pages/admin/DepartmentManagement.tsx'));
+const UserManagement = lazy(() => import('./pages/admin/UserManagement').then((module) => ({ default: module.UserManagement })));
+const CoursesAndContent = lazy(() => import('./pages/admin/CoursesAndContent').then((module) => ({ default: module.CoursesAndContent })));
+const EnrollmentManagement = lazy(() => import('./pages/admin/EnrollmentManagement').then((module) => ({ default: module.EnrollmentManagement })));
+const ReportsAnalytics = lazy(() => import('./pages/admin/ReportsAnalytics').then((module) => ({ default: module.ReportsAnalytics })));
+const NotificationManagement = lazy(() => import('./pages/admin/NotificationManagement').then((module) => ({ default: module.NotificationManagement })));
+const AuditLogs = lazy(() => import('./pages/admin/AuditLogs').then((module) => ({ default: module.AuditLogs })));
+const AdminFeedback = lazy(() => import('./pages/admin/AdminFeedback').then((module) => ({ default: module.AdminFeedback })));
+const BusinessDetails = lazy(() => import('./pages/admin/BusinessDetails').then((module) => ({ default: module.BusinessDetails })));
+const ProductLogoManager = lazy(() => import('./pages/admin/ProductLogoManager').then((module) => ({ default: module.ProductLogoManager })));
+const CustomFieldBuilder = lazy(() => import('./pages/admin/CustomFieldBuilder').then((module) => ({ default: module.CustomFieldBuilder })));
+const CustomModulePage = lazy(() => import('./pages/admin/CustomModulePage').then((module) => ({ default: module.CustomModulePage })));
+const AdminQADiscussion = lazy(() => import('./pages/admin/QADiscussion').then((module) => ({ default: module.QADiscussion })));
+
+const InstructorDashboard = lazy(() => import('./pages/instructor/InstructorDashboard').then((module) => ({ default: module.InstructorDashboard })));
+const InstructorCourseManagement = lazy(() => import('./pages/instructor/CourseManagement').then((module) => ({ default: module.InstructorCourseManagement })));
+const InstructorCourseDetail = lazy(() => import('./pages/instructor/CourseDetail').then((module) => ({ default: module.InstructorCourseDetail })));
+const QuizAssessmentManagement = lazy(() => import('./pages/instructor/QuizAssessmentManagement').then((module) => ({ default: module.QuizAssessmentManagement })));
+const LessonVideoUpload = lazy(() => import('./pages/instructor/LessonVideoUpload').then((module) => ({ default: module.LessonVideoUpload })));
+const QuizEvaluation = lazy(() => import('./pages/instructor/QuizEvaluation').then((module) => ({ default: module.QuizEvaluation })));
+const InstructorNotifications = lazy(() => import('./pages/instructor/InstructorNotifications').then((module) => ({ default: module.InstructorNotifications })));
+const InstructorFeedback = lazy(() => import('./pages/instructor/InstructorFeedback').then((module) => ({ default: module.InstructorFeedback })));
+const InstructorQADiscussion = lazy(() => import('./pages/instructor/QADiscussion').then((module) => ({ default: module.QADiscussion })));
+
+const EmployeeDashboard = lazy(() => import('./pages/employee/EmployeeDashboard').then((module) => ({ default: module.EmployeeDashboard })));
+const MyCourses = lazy(() => import('./pages/employee/MyCourses').then((module) => ({ default: module.MyCourses })));
+const CourseEnrollDetail = lazy(() => import('./pages/employee/CourseEnrollDetail').then((module) => ({ default: module.CourseEnrollDetail })));
+const CourseViewer = lazy(() => import('./pages/employee/CourseViewer').then((module) => ({ default: module.CourseViewer })));
+const CustomModuleViewer = lazy(() => import('./pages/employee/CustomModuleViewer').then((module) => ({ default: module.CustomModuleViewer })));
+const MyProgress = lazy(() => import('./pages/employee/MyProgress').then((module) => ({ default: module.MyProgress })));
+const MyCertificates = lazy(() => import('./pages/employee/MyCertificates').then((module) => ({ default: module.MyCertificates })));
+const QAModule = lazy(() => import('./pages/employee/QAModule').then((module) => ({ default: module.QAModule })));
+const MyFeedback = lazy(() => import('./pages/employee/MyFeedback').then((module) => ({ default: module.MyFeedback })));
+const EmployeeNotifications = lazy(() => import('./pages/employee/EmployeeNotifications').then((module) => ({ default: module.EmployeeNotifications })));
+
+const ProfileSettings = lazy(() => import('./pages/shared/ProfileSettings').then((module) => ({ default: module.ProfileSettings })));
+const YTDebug = lazy(() => import('./pages/debug/YTDebug').then((module) => ({ default: module.YTDebug })));
+
 export function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') return 'light';
@@ -74,9 +73,16 @@ export function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(true);
   const [logoutPhase, setLogoutPhase] = useState<'idle' | 'covering' | 'revealing'>('idle');
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedCustomModuleId, setSelectedCustomModuleId] = useState<number | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
+
+  // Password reset flow state
+  const [authPage, setAuthPage] = useState<'login' | 'forgotPassword' | 'verifyOTP' | 'resetPassword'>('login');
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetMaskedEmail, setResetMaskedEmail] = useState('');
+  const [resetToken, setResetToken] = useState('');
 
   const matches = (value: string | null | undefined, query: string) =>
     (value ?? '').toLowerCase().includes(query);
@@ -105,6 +111,7 @@ export function App() {
         { page: 'enrollments', keywords: ['enrollment', 'enroll', 'student', 'students'] },
         { page: 'reports', keywords: ['report', 'reports', 'analytics', 'trend', 'completion'] },
         { page: 'notifications', keywords: ['notification', 'notifications', 'alert'] },
+        { page: 'feedbacks', keywords: ['feedback', 'feedbacks', 'review', 'reviews', 'rating', 'ratings'] },
         { page: 'audit-logs', keywords: ['audit', 'log', 'logs'] },
         { page: 'business-details', keywords: ['business', 'company', 'details', 'vat'] },
         { page: 'product-logos', keywords: ['logo', 'logos', 'branding', 'brand'] },
@@ -360,8 +367,11 @@ export function App() {
   // =========================
   // HANDLE LOGOUT
   // =========================
-  const handleLogout = async () => {
+  const performLogout = async () => {
     if (logoutPhase !== 'idle') return;
+
+    setIsLogoutConfirmOpen(false);
+
     setLogoutPhase('covering');
 
     try {
@@ -418,6 +428,11 @@ export function App() {
     }, 180);
   };
 
+  const handleLogout = () => {
+    if (logoutPhase !== 'idle') return;
+    setIsLogoutConfirmOpen(true);
+  };
+
   const logoutOverlay = (
     <div
       className={`ui-screen-wipe ui-screen-wipe--logout ${theme === 'dark' ? 'is-dark' : 'is-light'} ${logoutPhase === 'covering' ? 'is-covering' : ''} ${logoutPhase === 'revealing' ? 'is-revealing' : ''}`}
@@ -429,6 +444,46 @@ export function App() {
       </div>
     </div>
   );
+
+  const logoutConfirmModal = isLogoutConfirmOpen ? (
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 px-4"
+      onClick={() => {
+        if (logoutPhase === 'idle') {
+          setIsLogoutConfirmOpen(false);
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="logout-confirm-title"
+    >
+      <div
+        className={`w-full max-w-sm rounded-xl border p-5 shadow-2xl ${theme === 'dark' ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 id="logout-confirm-title" className="text-base font-semibold">Confirm Sign Out</h3>
+        <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+          Are you sure you want to sign out?
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setIsLogoutConfirmOpen(false)}
+            className={`rounded-md border px-4 py-2 text-sm font-medium ${theme === 'dark' ? 'border-slate-600 text-slate-200 hover:bg-slate-800' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={performLogout}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   const handleNavigate = (page: string, courseId?: string, quizIdOrModuleId?: number) => {
     setCurrentPage(page);
@@ -450,10 +505,10 @@ export function App() {
 
     updateUrlRouteState(page, courseId);
 
-    // Handle custom module ID for custom-field page and custom-module-viewer
-    if ((page === 'custom-field' || page === 'custom-module-viewer') && typeof quizIdOrModuleId === 'number') {
+    // Handle custom module ID for custom-field page, custom-module-viewer, and custom-module-detail
+    if ((page === 'custom-field' || page === 'custom-module-viewer' || page === 'custom-module-detail') && typeof quizIdOrModuleId === 'number') {
       setSelectedCustomModuleId(quizIdOrModuleId);
-    } else if (page !== 'custom-field' && page !== 'custom-module-viewer') {
+    } else if (page !== 'custom-field' && page !== 'custom-module-viewer' && page !== 'custom-module-detail') {
       setSelectedCustomModuleId(null);
     }
 
@@ -470,29 +525,67 @@ export function App() {
   if (isLoading) {
     return (
       <>
-        <LoadingState message="Loading app" size="lg" className="min-h-screen bg-slate-50 dark:bg-slate-900" />
         <div className="relative min-h-screen overflow-hidden flex items-center justify-center bg-slate-950">
           <div
             aria-hidden="true"
-            className="absolute inset-0 bg-cover bg-center opacity-80"
-            style={{ backgroundImage: "url('/assets/pasted-image.jpg')" }}
+            className="absolute inset-0 opacity-80"
+            style={{
+              background:
+                'radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.24), transparent 28%), radial-gradient(circle at 80% 18%, rgba(16, 185, 129, 0.2), transparent 24%), linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.84))',
+            }}
           />
           <div aria-hidden="true" className="absolute inset-0 bg-slate-950/65" />
 
-          <div className="relative z-10 flex flex-col items-center px-6 text-center transition-opacity duration-500 opacity-100">
-            <img
-              className="h-20 w-auto"
-              src="/assets/Maptech-Official-Logo.png"
-              alt="Maptech LearnHub"
-            />
-            <p className="mt-5 text-sm font-medium tracking-wide text-slate-200">Preparing LearnHub...</p>
-            <div className="mt-4 h-1 w-44 overflow-hidden rounded-full bg-white/20">
-              <span className="block h-full w-full rounded-full bg-green-400 animate-pulse" />
+          <div className="relative z-10 w-full max-w-5xl px-6 transition-opacity duration-500 opacity-100">
+            <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+              <div className="rounded-[2rem] border border-white/10 bg-white/6 p-6 shadow-2xl shadow-emerald-950/20 backdrop-blur-xl">
+                <div className="flex items-center gap-4">
+                  <img
+                    className="h-16 w-auto"
+                    src="/assets/Maptech-Official-Logo.png"
+                    alt="Maptech LearnHub"
+                  />
+                  <div className="space-y-3">
+                    <div className="h-3 w-40 rounded-full bg-white/20 animate-pulse" />
+                    <div className="h-2.5 w-28 rounded-full bg-emerald-300/30 animate-pulse" />
+                  </div>
+                </div>
+
+                <div className="mt-8 space-y-4">
+                  <div className="h-4 w-52 rounded-full bg-white/15 animate-pulse" />
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {[0, 1, 2].map((card) => (
+                      <div key={card} className="rounded-2xl border border-white/8 bg-slate-900/35 p-4">
+                        <div className="h-10 w-10 rounded-2xl bg-white/10 animate-pulse" />
+                        <div className="mt-4 h-3 w-20 rounded-full bg-white/15 animate-pulse" />
+                        <div className="mt-2 h-2.5 w-14 rounded-full bg-emerald-300/30 animate-pulse" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[2rem] border border-white/10 bg-slate-900/40 p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+                <div className="h-3 w-32 rounded-full bg-white/15 animate-pulse" />
+                <div className="mt-6 space-y-4">
+                  {[0, 1, 2, 3].map((row) => (
+                    <div key={row} className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                      <div className="h-2.5 w-24 rounded-full bg-white/15 animate-pulse" />
+                      <div className="mt-3 h-2.5 w-full rounded-full bg-white/10 animate-pulse" />
+                      <div className="mt-2 h-2.5 w-4/5 rounded-full bg-emerald-300/20 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-6 text-xs font-medium uppercase tracking-[0.28em] text-slate-300/80">
+                  Preparing LearnHub
+                </p>
+              </div>
             </div>
           </div>
         </div>
         {renderThemeToggle()}
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -504,6 +597,7 @@ export function App() {
         <YTDebug />
         {renderThemeToggle()}
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -512,11 +606,64 @@ export function App() {
   // NOT AUTHENTICATED
   // =========================
   if (!user) {
+    // Password reset flow handlers
+    const handleForgotPassword = () => setAuthPage('forgotPassword');
+    const handleBackToLogin = () => {
+      setAuthPage('login');
+      setResetEmail('');
+      setResetMaskedEmail('');
+      setResetToken('');
+    };
+    const handleOTPSent = (email: string, maskedEmail?: string) => {
+      setResetEmail(email);
+      setResetMaskedEmail(maskedEmail || '');
+      setAuthPage('verifyOTP');
+    };
+    const handleOTPVerified = (email: string, token: string) => {
+      setResetEmail(email);
+      setResetToken(token);
+      setAuthPage('resetPassword');
+    };
+    const handlePasswordResetSuccess = () => {
+      setAuthPage('login');
+      setResetEmail('');
+      setResetMaskedEmail('');
+      setResetToken('');
+    };
+
     return (
       <>
-        <LoginPage onLogin={handleLogin} theme={theme} />
+        {authPage === 'login' && (
+          <LoginPage onLogin={handleLogin} onForgotPassword={handleForgotPassword} theme={theme} />
+        )}
+        {authPage === 'forgotPassword' && (
+          <ForgotPasswordPage
+            onBackToLogin={handleBackToLogin}
+            onOTPSent={handleOTPSent}
+            theme={theme}
+          />
+        )}
+        {authPage === 'verifyOTP' && (
+          <VerifyOTPPage
+            email={resetEmail}
+            maskedEmail={resetMaskedEmail}
+            onBack={() => setAuthPage('forgotPassword')}
+            onVerified={handleOTPVerified}
+            theme={theme}
+          />
+        )}
+        {authPage === 'resetPassword' && (
+          <ResetPasswordPage
+            email={resetEmail}
+            resetToken={resetToken}
+            onSuccess={handlePasswordResetSuccess}
+            onBackToLogin={handleBackToLogin}
+            theme={theme}
+          />
+        )}
         {renderThemeToggle()}
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -529,6 +676,7 @@ export function App() {
 
     return (
       <>
+        <Suspense fallback={<FullscreenLoader message="Loading admin..." />}>
         <AdminLayout
           currentPage={currentPage}
           onNavigate={handleNavigate}
@@ -536,16 +684,16 @@ export function App() {
           user={user}
           theme={theme}
           onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
-          globalSearch={globalSearch}
-          onGlobalSearch={setGlobalSearch}
-          onGlobalSearchSubmit={handleGlobalSearchSubmit}
         >
           <div key={transitionKey} className="page-open-transition">
             {currentPage === 'dashboard' && <AdminDashboard onNavigate={handleNavigate} />}
             {currentPage === 'departments' && <DepartmentManagement />}
-            {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={handleLogout} />}
+            {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={async () => handleLogout()} />}
             {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
             {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
+            {currentPage === 'quiz-management' && <QuizAssessmentManagement apiPrefix="admin" />}
+            {currentPage === 'evaluation' && <QuizEvaluation apiPrefix="admin" />}
+            {currentPage === 'lessons' && <LessonVideoUpload apiPrefix="admin" />}
             {currentPage === 'enrollments' && <EnrollmentManagement />}
             {currentPage === 'reports' && <ReportsAnalytics />}
             {currentPage === 'notifications' && <NotificationManagement />}
@@ -562,12 +710,14 @@ export function App() {
             )}
             {currentPage === 'settings' && <ProfileSettings />}
           {/* Fallback to custom module page for any unmatched route */}
-          {!['dashboard', 'departments', 'users', 'courses', 'custom-field', 'course-detail', 'course-content-editor', 'enrollments', 'reports', 'notifications', 'qa', 'audit-logs', 'business-details', 'feedbacks', 'product-logos', 'settings'].includes(currentPage) && (
+          {!['dashboard', 'departments', 'users', 'courses', 'custom-field', 'course-detail', 'quiz-management', 'evaluation', 'lessons', 'course-content-editor', 'enrollments', 'reports', 'notifications', 'qa', 'audit-logs', 'business-details', 'feedbacks', 'product-logos', 'settings'].includes(currentPage) && (
             <CustomModulePage routePath={currentPage} />
           )}
           </div>
         </AdminLayout>
+        </Suspense>
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -580,6 +730,7 @@ export function App() {
 
     return (
       <>
+        <Suspense fallback={<FullscreenLoader message="Loading instructor..." />}>
         <InstructorLayout
           currentPage={currentPage}
           onNavigate={handleNavigate}
@@ -592,9 +743,10 @@ export function App() {
           onGlobalSearchSubmit={handleGlobalSearchSubmit}
         >
           <div key={transitionKey} className="page-open-transition">
-            {currentPage === 'dashboard' && <InstructorDashboard />}
+            {currentPage === 'dashboard' && <InstructorDashboard onNavigate={handleNavigate} />}
             {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
             {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} />}
+            {currentPage === 'custom-module-detail' && selectedCustomModuleId && <CustomModuleViewer moduleId={selectedCustomModuleId} apiPath="instructor/custom-modules" editApiPath="instructor/custom-modules" allowEdit={true} onBack={() => handleNavigate('courses')} />}
             {currentPage === 'quiz-management' && <QuizAssessmentManagement />}
             {currentPage === 'lessons' && <LessonVideoUpload />}
             {currentPage === 'quizzes' && <QuizAssessmentManagement />}
@@ -605,7 +757,9 @@ export function App() {
             {currentPage === 'settings' && <ProfileSettings />}
           </div>
         </InstructorLayout>
+        </Suspense>
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
@@ -618,6 +772,7 @@ export function App() {
 
     return (
       <>
+        <Suspense fallback={<FullscreenLoader message="Loading learner..." />}>
         <EmployeeLayout
           currentPage={currentPage}
           onNavigate={handleNavigate}
@@ -647,6 +802,12 @@ export function App() {
                 onBack={() => handleNavigate('my-courses')}
               />
             )}
+            {currentPage === 'custom-module-viewer' && selectedCustomModuleId && (
+              <CustomModuleViewer
+                moduleId={selectedCustomModuleId}
+                onBack={() => handleNavigate('dashboard')}
+              />
+            )}
             {currentPage === 'progress' && <MyProgress />}
             {currentPage === 'certificates' && <MyCertificates />}
             {currentPage === 'qa' && <QAModule userId={user.id} />}
@@ -655,17 +816,19 @@ export function App() {
             {currentPage === 'settings' && <ProfileSettings />}
           </div>
         </EmployeeLayout>
+        </Suspense>
         {logoutOverlay}
+        {logoutConfirmModal}
       </>
     );
   }
 
   return (
     <>
-      <LoginPage onLogin={handleLogin} theme={theme} />
-      <LoginPage onLogin={handleLogin} theme={theme} />
+      <LoginPage onLogin={handleLogin} onForgotPassword={() => setAuthPage('forgotPassword')} theme={theme} />
       {renderThemeToggle()}
       {logoutOverlay}
+      {logoutConfirmModal}
     </>
   );
 }

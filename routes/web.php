@@ -1,11 +1,12 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\LoginController;
-use App\Http\Controllers\ReadOnlyLoginController;
 use App\Http\Controllers\YouTubeController;
+use App\Models\CustomLesson;
+use App\Models\Lesson;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
 /*
 |--------------------------------------------------------------------------
@@ -16,6 +17,66 @@ use App\Http\Controllers\YouTubeController;
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get('/lesson-files/{kind}/{id}', function (string $kind, int $id) {
+    $lesson = match ($kind) {
+        'course' => Lesson::findOrFail($id),
+        'custom' => CustomLesson::findOrFail($id),
+        default => abort(404),
+    };
+
+    $contentPath = $lesson->content_path ?? null;
+
+    if (! $contentPath) {
+        if (! empty($lesson->content_full_url) && preg_match('#^https?://#i', $lesson->content_full_url)) {
+            return redirect()->away($lesson->content_full_url);
+        }
+
+        abort(404);
+    }
+
+    if (preg_match('#^https?://#i', $contentPath)) {
+        return redirect()->away($contentPath);
+    }
+
+    if (! Storage::disk('public')->exists($contentPath)) {
+        abort(404);
+    }
+
+    $absolutePath = Storage::disk('public')->path($contentPath);
+    $mimeType = Storage::disk('public')->mimeType($contentPath) ?: 'application/octet-stream';
+
+    return response()->file($absolutePath, [
+        'Content-Type' => $mimeType,
+        'Content-Disposition' => 'inline; filename="'.($lesson->file_name ?? basename($contentPath)).'"',
+    ]);
+})->where('kind', 'course|custom')->middleware('auth');
+
+Route::get('/media/profile-picture/{path}', function (string $path) {
+    $normalized = trim(str_replace('\\', '/', $path), '/');
+
+    if ($normalized === '' || str_contains($normalized, '..')) {
+        abort(404);
+    }
+
+    if (! str_starts_with($normalized, 'profile-pictures/')) {
+        $normalized = 'profile-pictures/'.ltrim($normalized, '/');
+    }
+
+    if (Storage::disk('public')->exists($normalized)) {
+        return response()->file(Storage::disk('public')->path($normalized));
+    }
+
+    $svg = <<<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+  <rect width="128" height="128" rx="64" fill="#D1D5DB"/>
+  <circle cx="64" cy="50" r="24" fill="#F8FAFC"/>
+  <path d="M26 108c7-20 25-30 38-30s31 10 38 30" fill="#F8FAFC"/>
+</svg>
+SVG;
+
+    return response($svg, 200, ['Content-Type' => 'image/svg+xml']);
+})->where('path', '.*');
 
 // =====================
 // LOGIN (Session-based for SPA)
@@ -52,3 +113,5 @@ Route::get('/youtube/callback', [YouTubeController::class, 'callback'])->name('y
 Route::post('/youtube/logout', [YouTubeController::class, 'logout'])->name('youtube.logout');
 // Upload route for instructors/admins (uses session auth)
 Route::post('/youtube/upload', [YouTubeController::class, 'uploadVideo'])->middleware('auth');
+
+// (debug route removed)

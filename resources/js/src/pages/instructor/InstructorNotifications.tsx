@@ -1,8 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import useConfirm from '../../hooks/useConfirm';
-import { Bell, Send, Eye, Trash2, Users, AlertCircle, X, MessageCircle } from 'lucide-react';
-import { safeArray } from '../../utils/safe';
+import { Bell, Send, Eye, Trash2, Users, User, AlertCircle, X, MessageCircle, RotateCcw, Archive, CheckCircle, Shield, Search, ChevronDown } from 'lucide-react';
+import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
+import { useToast } from '../../components/ToastProvider';
+import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
+import InfoModal from '../../components/InfoModal';
+
+// Helper to get cookie value
+const getCookie = (name: string) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift();
+  return undefined;
+};
 
 interface Notification {
   id: number;
@@ -15,10 +26,15 @@ interface Notification {
     from_user_id?: number;
     from_user_name?: string;
     from_role?: string;
+    from_user_profile_picture?: string | null;
+    from_department?: string | null;
     course_title?: string;
+    image_url?: string | null;
+    image_urls?: string[];
   } | null;
   read_at: string | null;
   created_at: string;
+  deleted_at?: string | null;
 }
 
 interface Course {
@@ -26,34 +42,84 @@ interface Course {
   title: string;
 }
 
-interface FormData {
+interface SentNotification {
+  id: number;
   title: string;
   message: string;
-  course_id: string;
-  department_id: string | number;
-  type: string;
+  target: string;
+  announcement_mode?: 'group' | 'one_person';
+  data?: {
+    image_url?: string | null;
+    image_urls?: string[];
+  } | null;
+  date: string;
+  status: 'Sent';
+  recipients_count: number;
+  target_roles?: string[];
+  department_name?: string | null;
+  subdepartment_name?: string | null;
+}
+
+const NOTIFICATION_LIMIT = 50;
+const PENDING_NOTIFICATION_ID_KEY = 'maptech_pending_notification_id';
+const PENDING_NOTIFICATION_ROLE_KEY = 'maptech_pending_notification_role';
+const OPEN_NOTIFICATION_EVENT = 'maptech-open-notification';
+const NOTIFICATION_READ_EVENT = 'maptech-notification-read';
+
+function extractNotificationItems(payload: any): Notification[] {
+  const candidates = [
+    payload,
+    payload?.data,
+    payload?.notifications,
+    payload?.notifications?.data,
+    payload?.data?.data,
+    payload?.notifications?.data?.data,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate;
+    }
+  }
+
+  return [];
 }
 
 export function InstructorNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [sentHistory, setSentHistory] = useState<SentNotification[]>([]);
+  const [recentlyDeleted, setRecentlyDeleted] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
-  const [departments, setDepartments] = useState<{id:number;name:string}[]>([]);
-
-  const [formData, setFormData] = useState<FormData>({
-    title: '',
-    message: '',
-    course_id: '',
-    department_id: '',
-    type: 'announcement',
-  });
+  const [departments, setDepartments] = useState<{id:number;name:string;subdepartments?:{id:number;name:string}[]}[]>([]);
+  const [activeTab, setActiveTab] = useState<'received' | 'sent' | 'deleted'>('received');
+  // Unified announcement modal state
+  const [announcementTarget, setAnnouncementTarget] = useState<'employees' | 'specific_employee' | 'admin'>('employees');
+  const [announcementTitle, setAnnouncementTitle] = useState('');
+  const [announcementMessage, setAnnouncementMessage] = useState('');
+  const [announcementType, setAnnouncementType] = useState('announcement');
+  const [selectedDeptId, setSelectedDeptId] = useState('');
+  const [selectedSubdeptId, setSelectedSubdeptId] = useState('');
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [allEmployees, setAllEmployees] = useState<{id:number;fullname:string;department:string}[]>([]);
+  const [selectedEmployee, setSelectedEmployee] = useState<{id:number;fullname:string} | null>(null);
+  const [announcementImages, setAnnouncementImages] = useState<File[]>([]);
+  const [announcementImagePreviewUrls, setAnnouncementImagePreviewUrls] = useState<string[]>([]);
+  const [previewModal, setPreviewModal] = useState<{open:boolean;recipientCount:number|null;recipients?:{id:number;fullname:string}[];error?:string}>({open:false,recipientCount:null});
+  const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
+  const [listSearchQuery, setListSearchQuery] = useState('');
+  const [visibleCount, setVisibleCount] = useState(5);
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const [highlightedNotificationId, setHighlightedNotificationId] = useState<number | null>(null);
+  const notifRowRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   const token = localStorage.getItem('token');
   const confirm = useConfirm();
   const { showConfirm } = confirm;
+  const { pushToast } = useToast();
 
   const fetchOptions = (method: 'GET' | 'POST', body?: unknown): RequestInit => ({
     method,
@@ -65,19 +131,100 @@ export function InstructorNotifications() {
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
+  async function fetchCourses() {
+    try {
+      const res = await fetch('/api/instructor/courses', fetchOptions('GET'));
+      const data = await res.json();
+      setCourses(Array.isArray(data) ? data : data.data || []);
+    } catch (err) {
+      console.error('Failed to load courses:', err);
+    }
+  }
+
+  async function fetchDepartments() {
+    try {
+      const res = await fetch('/api/departments', { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
+      const data = await res.json();
+      setDepartments(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load departments:', err);
+    }
+  }
+
+  async function fetchAllEmployees() {
+    try {
+      const res = await fetch('/api/instructor/users', { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
+      const data = await res.json();
+      setAllEmployees(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load employees:', err);
+    }
+  }
+
+  async function fetchNotifications() {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/instructor/notifications', fetchOptions('GET'));
+      const data = await res.json();
+      setNotifications(safeArray(data?.data ?? data?.notifications?.data));
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchUnreadCount() {
+    try {
+      const res = await fetch('/api/instructor/notifications/unread-count', fetchOptions('GET'));
+      const data = await res.json();
+      setUnreadCount(data.count || 0);
+    } catch (err) {
+      console.error('Failed to load unread count:', err);
+    }
+  }
+
+  async function fetchSentHistory() {
+    try {
+      const res = await fetch('/api/instructor/notifications/sent-history', fetchOptions('GET'));
+      const data = await res.json();
+      setSentHistory(data.sent_announcements || []);
+    } catch (err) {
+      console.error('Failed to load sent history:', err);
+    }
+  }
+
+  async function fetchRecentlyDeleted() {
+    try {
+      const res = await fetch('/api/instructor/notifications/recently-deleted', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      const data = await res.json();
+      setRecentlyDeleted(data.recently_deleted || []);
+    } catch (err) {
+      console.error('Failed to load recently deleted:', err);
+    }
+  }
+
   useEffect(() => {
     fetchNotifications();
+    fetchSentHistory();
     fetchUnreadCount();
+    fetchRecentlyDeleted();
     fetchCourses();
     fetchDepartments();
+    fetchAllEmployees();
 
     // Subscribe to realtime notifications if Echo is available
+    let cleanup: (() => void) | undefined;
     (async () => {
       try {
         const Echo = (window as any).Echo;
         if (!Echo || typeof Echo.private !== 'function') return;
-        // Try to fetch current user id (token auth may work via Bearer)
-        const res = await fetch('/user', { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
+        const res = await fetch('/user', { credentials: 'include', headers: { 'Accept': 'application/json' } });
         if (!res.ok) return;
         const me = await res.json();
         if (!me?.id) return;
@@ -94,73 +241,43 @@ export function InstructorNotifications() {
         channel.listen('NotificationCreated', createdHandler);
         channel.listen('NotificationCountUpdated', countHandler);
 
-        return () => {
+        cleanup = () => {
           try { channel.stopListening('NotificationCreated'); channel.stopListening('NotificationCountUpdated'); } catch (e) {}
         };
       } catch (e) {
         // ignore
       }
     })();
+
+    return () => {
+      if (cleanup) cleanup();
+    };
   }, []);
 
-  const fetchCourses = async () => {
-    try {
-      const res = await fetch('/api/instructor/courses', fetchOptions('GET'));
-      const data = await res.json();
-      setCourses(Array.isArray(data) ? data : data.data || []);
-    } catch (err) {
-      console.error('Failed to load courses:', err);
-    }
-  };
-
-  const fetchDepartments = async () => {
-    try {
-      const res = await fetch('/api/departments', { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
-      const data = await res.json();
-      setDepartments(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Failed to load departments:', err);
-    }
-  };
-
-  const fetchNotifications = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/instructor/notifications', fetchOptions('GET'));
-      const data = await res.json();
-      setNotifications(data.notifications?.data || []);
-    } catch (err) {
-      console.error('Failed to load notifications:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchUnreadCount = async () => {
-    try {
-      const res = await fetch('/api/instructor/notifications/unread-count', fetchOptions('GET'));
-      const data = await res.json();
-      setUnreadCount(data.count || 0);
-    } catch (err) {
-      console.error('Failed to load unread count:', err);
-    }
-  };
-
   const markAsRead = async (id: number) => {
+    const target = notifications.find((item) => item.id === id);
+    if (!target || target.read_at) return;
+
+    setNotifications((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, read_at: new Date().toISOString() } : item))
+    );
+    setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
+
     try {
       await fetch(`/api/instructor/notifications/${id}/read`, fetchOptions('POST'));
-      fetchNotifications();
-      fetchUnreadCount();
     } catch (err) {
       console.error('Failed to mark as read:', err);
     }
   };
 
   const markAllAsRead = async () => {
+    setNotifications((prev) =>
+      prev.map((item) => (item.read_at ? item : { ...item, read_at: new Date().toISOString() }))
+    );
+    setUnreadCount(0);
+
     try {
       await fetch('/api/instructor/notifications/read-all', fetchOptions('POST'));
-      fetchNotifications();
-      fetchUnreadCount();
     } catch (err) {
       console.error('Failed to mark all as read:', err);
     }
@@ -169,61 +286,383 @@ export function InstructorNotifications() {
   const deleteNotification = async (id: number) => {
     showConfirm('Delete this notification?', async () => {
       try {
+        // Fetch CSRF cookie first
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const xsrfToken = getCookie('XSRF-TOKEN');
+
         await fetch(`/api/instructor/notifications/${id}`, {
           method: 'DELETE',
+          credentials: 'include',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/json',
+            'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
           },
         });
         fetchNotifications();
+        fetchRecentlyDeleted();
       } catch (err) {
         console.error('Failed to delete notification:', err);
       }
     });
   };
 
-  const handleSendToEmployees = async (e: React.FormEvent) => {
-    e.preventDefault();
 
-    // allow either department or course selection
-    if (!formData.course_id && !formData.department_id) {
-      alert('Please select a department or a course');
+  const restoreNotification = async (id: number) => {
+    try {
+      // Fetch CSRF cookie first
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      const xsrfToken = getCookie('XSRF-TOKEN');
+
+      await fetch(`/api/instructor/notifications/${id}/restore`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+          'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
+        },
+      });
+      fetchNotifications();
+      fetchRecentlyDeleted();
+      fetchUnreadCount();
+    } catch (err) {
+      console.error('Failed to restore notification:', err);
+    }
+  };
+
+  const permanentlyDeleteNotification = async (id: number) => {
+    showConfirm('Permanently delete this notification? This cannot be undone.', async () => {
+      try {
+        // Fetch CSRF cookie first
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const xsrfToken = getCookie('XSRF-TOKEN');
+
+        await fetch(`/api/instructor/notifications/${id}/permanent`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+            'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
+          },
+        });
+        fetchRecentlyDeleted();
+      } catch (err) {
+        console.error('Failed to permanently delete notification:', err);
+      }
+    });
+  };
+
+  const tryOpenPendingNotification = React.useCallback(() => {
+    const pendingIdRaw = localStorage.getItem(PENDING_NOTIFICATION_ID_KEY);
+    const pendingRole = localStorage.getItem(PENDING_NOTIFICATION_ROLE_KEY);
+    if (!pendingIdRaw || pendingRole !== 'Instructor') return;
+
+    const pendingId = Number(pendingIdRaw);
+    if (!Number.isFinite(pendingId)) {
+      localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
+      localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
       return;
     }
 
-    setIsSending(true);
-    try {
-      const payload: any = {
-        title: formData.title,
-        message: formData.message,
-        type: formData.type,
-      };
-      if (formData.course_id) payload.course_id = formData.course_id;
-      if (formData.department_id) payload.department_id = formData.department_id;
+    const target = notifications.find((item) => item.id === pendingId);
+    if (!target) return;
 
+    setActiveTab('received');
+    const targetIdx = notifications.findIndex((item) => item.id === pendingId);
+    if (targetIdx >= 0) setVisibleCount((c) => Math.max(c, targetIdx + 1));
+    setHighlightedNotificationId(pendingId);
+    setSelectedNotification(target);
+    localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
+    localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
+
+    if (!target.read_at) {
+      markAsRead(target.id);
+    }
+  }, [notifications]);
+
+  useEffect(() => {
+    tryOpenPendingNotification();
+  }, [notifications, tryOpenPendingNotification]);
+
+  useEffect(() => {
+    const handler = () => tryOpenPendingNotification();
+    window.addEventListener(OPEN_NOTIFICATION_EVENT, handler);
+    return () => window.removeEventListener(OPEN_NOTIFICATION_EVENT, handler);
+  }, [tryOpenPendingNotification]);
+
+  // When the bell marks a notification as read, immediately reflect it in the received list.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent<{ id: number }>).detail?.id;
+      if (!id) return;
+      setNotifications((prev) =>
+        prev.map((item) => (item.id === id && !item.read_at ? { ...item, read_at: new Date().toISOString() } : item))
+      );
+      setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
+    };
+    window.addEventListener(NOTIFICATION_READ_EVENT, handler);
+    return () => window.removeEventListener(NOTIFICATION_READ_EVENT, handler);
+  }, []);
+
+  // Scroll to and briefly highlight a notification when opened from the bell.
+  useEffect(() => {
+    if (highlightedNotificationId == null) return;
+    const el = notifRowRefs.current[highlightedNotificationId];
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const timer = setTimeout(() => setHighlightedNotificationId(null), 2500);
+    return () => clearTimeout(timer);
+  }, [highlightedNotificationId]);
+
+  // Auto-cleanup: when notifications exceed limit, delete oldest half
+  useEffect(() => {
+    if (notifications.length > NOTIFICATION_LIMIT) {
+      const sortedByDate = [...notifications].sort((a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+      const toDelete = sortedByDate.slice(0, Math.floor(notifications.length / 2));
+
+      // Delete oldest half
+      Promise.all(
+        toDelete.map(n =>
+          fetch(`/api/instructor/notifications/${n.id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json',
+            },
+          })
+        )
+      ).then(() => {
+        fetchNotifications();
+        fetchRecentlyDeleted();
+      });
+    }
+  }, [notifications.length]);
+
+  const closeAnnouncementModal = () => {
+    setIsModalOpen(false);
+    setIsTargetModalOpen(false);
+    setAnnouncementTitle('');
+    setAnnouncementMessage('');
+    setAnnouncementType('announcement');
+    setSelectedDeptId('');
+    setSelectedSubdeptId('');
+    setEmployeeSearch('');
+    setSelectedEmployee(null);
+    setAnnouncementTarget('employees');
+    setAnnouncementImages([]);
+  };
+
+  // Build image preview URLs whenever announcementImages changes
+  useEffect(() => {
+    if (announcementImages.length === 0) {
+      setAnnouncementImagePreviewUrls([]);
+      return;
+    }
+    const urls = announcementImages.map((f) => URL.createObjectURL(f));
+    setAnnouncementImagePreviewUrls(urls);
+    return () => { urls.forEach((u) => URL.revokeObjectURL(u)); };
+  }, [announcementImages]);
+
+  const isMessageEmpty = (html: string) => {
+    const text = String(html || '')
+      .replace(/<br\s*\/?\s*>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .trim();
+    return text.length === 0;
+  };
+
+  const buildEmployeePayload = (preview = false) => {
+    const employeeTypeLabels: Record<string, string> = {
+      announcement: 'Announcement',
+      lesson_update: 'Lesson Update',
+      quiz_reminder: 'Quiz Reminder',
+    };
+    const title = announcementTitle.trim() || employeeTypeLabels[announcementType] || 'Announcement';
+
+    const fd = new FormData();
+    fd.append('title', title);
+    fd.append('message', announcementMessage);
+    fd.append('type', announcementType);
+    if (preview) fd.append('preview', '1');
+
+    if (announcementTarget === 'specific_employee' && selectedEmployee) {
+      fd.append('target_user_id', String(selectedEmployee.id));
+    } else if (announcementTarget === 'employees') {
+      if (selectedDeptId) fd.append('department_id', selectedDeptId);
+      if (selectedSubdeptId) fd.append('subdepartment_id', selectedSubdeptId);
+    }
+
+    announcementImages.forEach((img) => fd.append('message_images[]', img));
+    return fd;
+  };
+
+  const handlePreview = async () => {
+    if (isMessageEmpty(announcementMessage)) {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please enter a message.' });
+      return;
+    }
+    if (announcementTarget === 'employees' && !selectedDeptId) {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please select a department.' });
+      return;
+    }
+    if (announcementTarget === 'specific_employee' && !selectedEmployee) {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Please select an employee.' });
+      return;
+    }
+    if (announcementTarget === 'admin') {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Admin target does not support preview.' });
+      return;
+    }
+    // specific_employee: we already have the name, no need to call API
+    if (announcementTarget === 'specific_employee' && selectedEmployee) {
+      setPreviewModal({ open: true, recipientCount: 1, recipients: [{ id: selectedEmployee.id, fullname: selectedEmployee.fullname }] });
+      return;
+    }
+
+    try {
+      await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      const xsrfToken = getCookie('XSRF-TOKEN');
+      const fd = buildEmployeePayload(true);
       const res = await fetch('/api/instructor/notifications/notify-employees', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
           'Accept': 'application/json',
+          'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
         },
-        body: JSON.stringify(payload),
+        body: fd,
       });
-
       const data = await res.json();
-
       if (res.ok) {
-        alert(`Notification sent to ${data.recipients_count} enrolled employees!`);
-        setIsModalOpen(false);
-        setFormData({ title: '', message: '', course_id: '', department_id: '', type: 'announcement' });
+        setPreviewModal({ open: true, recipientCount: data.recipients_count ?? null, recipients: data.recipients ?? [] });
       } else {
-        alert(data.message || 'Failed to send notification');
+        setPreviewModal({ open: true, recipientCount: null, error: data.message || 'Preview failed.' });
+      }
+    } catch {
+      setPreviewModal({ open: true, recipientCount: null, error: 'Preview failed.' });
+    }
+  };
+
+  const handleSendAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!announcementTitle.trim()) {
+      pushToast('Missing Title', 'Please enter a title', 'warning');
+      return;
+    }
+    if (isMessageEmpty(announcementMessage)) {
+      pushToast('Missing Message', 'Please write a message', 'warning');
+      return;
+    }
+
+    const adminTypeLabels: Record<string, string> = {
+      report: 'Report',
+      feedback: 'Feedback',
+      issue: 'Issue',
+      suggestion: 'Suggestion',
+    };
+
+    const employeeTypeLabels: Record<string, string> = {
+      announcement: 'Announcement',
+      lesson_update: 'Lesson Update',
+      quiz_reminder: 'Quiz Reminder',
+    };
+
+    setIsSending(true);
+    try {
+      if (announcementTarget === 'admin') {
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const xsrfToken = getCookie('XSRF-TOKEN');
+        const title = adminTypeLabels[announcementType] || 'Report';
+
+        const res = await fetch('/api/instructor/notifications/notify-admin', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
+          },
+          body: JSON.stringify({ message: announcementMessage, type: announcementType, title }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} admin(s)!`, 'success');
+          closeAnnouncementModal();
+          fetchSentHistory();
+        } else {
+          pushToast('Failed', data.message || 'Failed to send notification', 'error');
+        }
+      } else if (announcementTarget === 'specific_employee') {
+        if (!selectedEmployee) {
+          pushToast('Missing Selection', 'Please select an employee', 'warning');
+          setIsSending(false);
+          return;
+        }
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const xsrfToken = getCookie('XSRF-TOKEN');
+        const title = announcementTitle.trim() || employeeTypeLabels[announcementType] || 'Announcement';
+        const res = await fetch('/api/instructor/notifications/notify-employees', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
+          },
+          body: JSON.stringify({ title, message: announcementMessage, type: announcementType, target_user_id: selectedEmployee.id }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          pushToast('Sent Successfully', `Notification sent to ${selectedEmployee.fullname}!`, 'success');
+          closeAnnouncementModal();
+          fetchSentHistory();
+        } else {
+          pushToast('Failed', data.message || 'Failed to send notification', 'error');
+        }
+      } else {
+        // employees by department
+        if (!selectedDeptId) {
+          pushToast('Missing Selection', 'Please select a department', 'warning');
+          setIsSending(false);
+          return;
+        }
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const xsrfToken = getCookie('XSRF-TOKEN');
+        const title = announcementTitle.trim() || employeeTypeLabels[announcementType] || 'Announcement';
+        const payload: any = { title, message: announcementMessage, type: announcementType, department_id: Number(selectedDeptId) };
+        if (selectedSubdeptId) payload.subdepartment_id = Number(selectedSubdeptId);
+
+        const res = await fetch('/api/instructor/notifications/notify-employees', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
+          },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} employee(s)!`, 'success');
+          closeAnnouncementModal();
+          fetchSentHistory();
+        } else {
+          pushToast('Failed', data.message || 'Failed to send notification', 'error');
+        }
       }
     } catch (err) {
-      console.error('Failed to send notification:', err);
-      alert('Failed to send notification');
+      console.error('Failed to send announcement:', err);
+      pushToast('Error', 'Failed to send notification', 'error');
     } finally {
       setIsSending(false);
     }
@@ -237,6 +676,72 @@ export function InstructorNotifications() {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const messagePreviewText = (value: string) => {
+    const html = String(value || '');
+    if (!html) return '';
+    const plain = new DOMParser().parseFromString(html, 'text/html').body.textContent || '';
+    return plain.replace(/\s+/g, ' ').trim();
+  };
+
+  const normalizedListSearch = listSearchQuery.trim().toLowerCase();
+
+  const filteredSentHistory = useMemo(() => {
+    if (!normalizedListSearch) return safeArray(sentHistory);
+
+    return safeArray(sentHistory).filter((item) => {
+      const plainMessage = String(item.message || '')
+        .replace(/<br\s*\/?\s*>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const rolesText = safeArray((item as any).target_roles)
+        .map((role) => String(role || '').trim())
+        .filter(Boolean)
+        .join(', ');
+
+      return [
+        item.title,
+        plainMessage,
+        item.target,
+        item.announcement_mode,
+        rolesText,
+        (item as any).department_name,
+        (item as any).subdepartment_name,
+      ].some((value) => String(value || '').toLowerCase().includes(normalizedListSearch));
+    });
+  }, [sentHistory, normalizedListSearch]);
+
+  const deleteSentHistory = async (id: number) => {
+    showConfirm('Move this announcement to recently deleted?', async () => {
+      try {
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const xsrfToken = getCookie('XSRF-TOKEN');
+
+        await fetch(`/api/instructor/notifications/sent-history/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+            'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
+          },
+        });
+
+        fetchSentHistory();
+        fetchRecentlyDeleted();
+      } catch (err) {
+        console.error('Failed to delete sent history:', err);
+      }
+    });
+  };
+
+  const getNotificationImages = (notification: Notification) => {
+    return notification.data?.image_urls?.length
+      ? notification.data.image_urls
+      : (notification.data?.image_url ? [notification.data.image_url] : []);
   };
 
   const getNotificationIcon = (type: string) => {
@@ -261,11 +766,23 @@ export function InstructorNotifications() {
     }
   };
 
+  const selectedDeptSubdepartments = useMemo(() => {
+    if (!selectedDeptId) return [];
+    const dept = departments.find(d => d.id === Number(selectedDeptId));
+    return (dept as any)?.subdepartments || [];
+  }, [departments, selectedDeptId]);
+
+  const filteredEmployees = useMemo(() => {
+    if (employeeSearch.trim().length < 2) return [];
+    return allEmployees
+      .filter(e => e.fullname.toLowerCase().includes(employeeSearch.toLowerCase()))
+      .slice(0, 8);
+  }, [allEmployees, employeeSearch]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Notifications</h1>
           {unreadCount > 0 && (
             <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">
               You have {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
@@ -273,200 +790,569 @@ export function InstructorNotifications() {
           )}
         </div>
         <div className="flex gap-2">
-          {unreadCount > 0 && (
+          {unreadCount > 0 && activeTab === 'received' && (
             <button
               onClick={markAllAsRead}
               className="inline-flex items-center px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
             >
+              <CheckCircle className="h-4 w-4 mr-2" />
               Mark All Read
             </button>
           )}
           <button
+            onClick={() => {
+              fetchNotifications();
+              fetchUnreadCount();
+            }}
+            className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
+          >
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Refresh
+          </button>
+          <button
             onClick={() => setIsModalOpen(true)}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
           >
-            <Users className="h-4 w-4 mr-2" />
-            Notify Employees
+            <Send className="h-4 w-4 mr-2" />
+            Send Announcement
           </button>
         </div>
       </div>
 
-      {/* Notifications List */}
-      <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-        {loading ? (
-          <LoadingState message="Loading notifications" className="p-8" />
-        ) : notifications.length === 0 ? (
-          <div className="p-8 text-center text-slate-500 dark:text-slate-300">
-            <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
-            <p>No notifications yet</p>
-            <p className="text-sm mt-2">You'll receive notifications from employees here</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-200 dark:divide-slate-700">
-            {notifications.map((notification) => (
-              <div
-                key={notification.id}
-                className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
-                  !notification.read_at ? 'bg-emerald-50 dark:bg-emerald-950/35' : 'bg-white dark:bg-slate-900'
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-3">
-                    <div className={`mt-1 p-2 rounded-full ${getNotificationBg(notification.type)}`}>
-                      {getNotificationIcon(notification.type)}
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                        {notification.title}
-                        {!notification.read_at && (
-                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
-                            New
-                          </span>
-                        )}
-                      </h3>
-                      <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{notification.message}</p>
-                      {notification.data?.from_user_name && (
-                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                          From: {notification.data.from_user_name} ({notification.data.from_role})
-                          {notification.data.course_title && ` • ${notification.data.course_title}`}
-                        </p>
-                      )}
-                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                        {formatDate(notification.created_at)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {!notification.read_at && (
-                      <button
-                        onClick={() => markAsRead(notification.id)}
-                        className="text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-300"
-                        title="Mark as read"
-                      >
-                        <Eye className="h-5 w-5" />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => deleteNotification(notification.id)}
-                      className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"
-                      title="Delete"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+      {/* Tabs */}
+      <div className="border-b border-slate-200 dark:border-slate-700">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('received')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'received'
+                ? 'border-green-500 text-green-600 dark:text-green-400'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300'
+            }`}
+          >
+            <Bell className="h-4 w-4 inline mr-2" />
+            Received ({notifications.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('sent')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'sent'
+                ? 'border-green-500 text-green-600 dark:text-green-400'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300'
+            }`}
+          >
+            <Send className="h-4 w-4 inline mr-2" />
+            Sent History ({sentHistory.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('deleted')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'deleted'
+                ? 'border-green-500 text-green-600 dark:text-green-400'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300'
+            }`}
+          >
+            <Archive className="h-4 w-4 inline mr-2" />
+            Recently Deleted ({recentlyDeleted.length})
+          </button>
+        </nav>
       </div>
 
-      {/* Send to Employees Modal */}
+      <div className="max-w-xl">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={listSearchQuery}
+            onChange={(e) => setListSearchQuery(e.target.value)}
+            placeholder={
+              activeTab === 'received'
+                ? 'Search received notifications'
+                : activeTab === 'sent'
+                  ? 'Search sent history'
+                  : 'Search recently deleted notifications'
+            }
+            className="w-full rounded-md border border-slate-300 bg-white py-2 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400"
+          />
+        </div>
+      </div>
+
+      {/* Received Notifications List */}
+      {activeTab === 'received' && (
+        <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+          {loading ? (
+            <div className="p-8 text-center text-slate-500 dark:text-slate-300">Loading...</div>
+          ) : notifications.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 dark:text-slate-300">
+              <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
+              <p>No notifications yet</p>
+              <p className="text-sm mt-2">You'll receive notifications from employees here</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-200 dark:divide-slate-700">
+              {notifications.slice(0, visibleCount).map((notification) => (
+                <div
+                  key={notification.id}
+                  ref={el => { notifRowRefs.current[notification.id] = el; }}
+                  onClick={() => setSelectedNotification(notification)}
+                  className={`p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
+                    !notification.read_at ? 'bg-green-50 dark:bg-green-950/35' : 'bg-white dark:bg-slate-900'
+                  }${notification.id === highlightedNotificationId ? ' ring-2 ring-inset ring-green-400 dark:ring-green-500' : ''}`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-3">
+                      {notification.data?.from_user_profile_picture ? (
+                        <img
+                          src={resolveImageUrl(notification.data.from_user_profile_picture)}
+                          alt={notification.data.from_user_name || 'User'}
+                          className="mt-1 h-10 w-10 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600"
+                        />
+                      ) : (
+                        <div className={`mt-1 p-2 rounded-full ${getNotificationBg(notification.type)}`}>
+                          {getNotificationIcon(notification.type)}
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                          {notification.title}
+                          {notification.data?.from_user_name && !notification.title.includes('from ') && (
+                            <span className="font-normal text-slate-600 dark:text-slate-400">
+                              {' '}from {notification.data.from_user_name}
+                              {notification.data.course_title ? ` (${notification.data.course_title})` : ''}
+                            </span>
+                          )}
+                          {!notification.read_at && (
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/60 text-green-800 dark:text-green-200">
+                              New
+                            </span>
+                          )}
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{messagePreviewText(notification.message)}</p>
+                        {getNotificationImages(notification).length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {getNotificationImages(notification).slice(0, 3).map((imgUrl) => (
+                              <img
+                                key={imgUrl}
+                                src={resolveImageUrl(imgUrl)}
+                                alt="Announcement attachment"
+                                className="h-16 w-16 rounded-lg border border-slate-200 dark:border-slate-700 object-cover"
+                              />
+                            ))}
+                          </div>
+                        )}
+                        {notification.data?.from_role && (
+                          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                            {notification.data.from_role}
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                          {formatDate(notification.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
+                      {!notification.read_at && (
+                        <button
+                          onClick={() => markAsRead(notification.id)}
+                          className="text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-300"
+                          title="Mark as read"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => deleteNotification(notification.id)}
+                        className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {!loading && notifications.length > visibleCount && (
+            <button
+              onClick={() => setVisibleCount((c) => c + 5)}
+              className="w-full py-3 text-sm text-green-600 dark:text-green-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-200 dark:border-slate-700 transition-colors font-medium"
+            >
+              See previous notifications ({notifications.length - visibleCount} more)
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Sent History */}
+      {activeTab === 'sent' && (
+        <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+          {filteredSentHistory.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 dark:text-slate-300">
+              <Send className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
+              <p>No announcements sent yet</p>
+              <p className="text-sm mt-2">Sent messages will appear here for monitoring</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                <thead className="bg-slate-50 dark:bg-slate-800">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Title</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Message</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Target</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Recipients</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
+                  {filteredSentHistory.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
+                        <div className="flex items-center gap-2">
+                          <span>{item.title}</span>
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${item.announcement_mode === 'one_person' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'}`}>
+                            {item.announcement_mode === 'one_person' ? 'One Person' : 'Group'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-200 truncate max-w-xs">
+                        {messagePreviewText(item.message)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                        {item.target}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                        {item.recipients_count} users
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
+                        {item.date}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteSentHistory(item.id);
+                          }}
+                          className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
+                          title="Move to Recently Deleted"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Recently Deleted Notifications List */}
+      {activeTab === 'deleted' && (
+        <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+          {recentlyDeleted.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 dark:text-slate-300">
+              <Archive className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
+              <p>No recently deleted notifications</p>
+              <p className="text-sm mt-2">Deleted notifications will appear here</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-200 dark:divide-slate-700">
+              {recentlyDeleted.map((notification) => (
+                <div
+                  key={notification.id}
+                  onClick={() => setSelectedNotification(notification)}
+                  className="p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors bg-slate-50 dark:bg-slate-800/50"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-3">
+                      {notification.data?.from_user_profile_picture ? (
+                        <img
+                          src={resolveImageUrl(notification.data.from_user_profile_picture)}
+                          alt={notification.data.from_user_name || 'User'}
+                          className="mt-1 h-10 w-10 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600 opacity-60"
+                        />
+                      ) : (
+                        <div className={`mt-1 p-2 rounded-full opacity-60 ${getNotificationBg(notification.type)}`}>
+                          {getNotificationIcon(notification.type)}
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                          {notification.title}
+                          {notification.data?.from_user_name && !notification.title.includes('from ') && (
+                            <span className="font-normal text-slate-500 dark:text-slate-400">
+                              {' '}from {notification.data.from_user_name}
+                              {notification.data.course_title ? ` (${notification.data.course_title})` : ''}
+                            </span>
+                          )}
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{messagePreviewText(notification.message)}</p>
+                        {getNotificationImages(notification).length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2 opacity-80">
+                            {getNotificationImages(notification).slice(0, 3).map((imgUrl) => (
+                              <img
+                                key={imgUrl}
+                                src={resolveImageUrl(imgUrl)}
+                                alt="Announcement attachment"
+                                className="h-16 w-16 rounded-lg border border-slate-200 dark:border-slate-700 object-cover"
+                              />
+                            ))}
+                          </div>
+                        )}
+                        {notification.data?.from_role && (
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            {notification.data.from_role}
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          Deleted: {notification.deleted_at ? formatDate(notification.deleted_at) : 'Unknown'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); restoreNotification(notification.id); }}
+                        className="text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-300"
+                        title="Restore"
+                      >
+                        <RotateCcw className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); permanentlyDeleteNotification(notification.id); }}
+                        className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"
+                        title="Delete permanently"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Send Announcement Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="fixed inset-0 z-50">
           <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity" aria-hidden="true">
               <div className="absolute inset-0 bg-slate-900/70"></div>
             </div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white dark:bg-slate-900 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-slate-200 dark:border-slate-700">
-              <div className="absolute top-4 right-4">
-                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 dark:text-slate-300 hover:text-slate-600 dark:hover:text-white">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="bg-white dark:bg-slate-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <h3 className="text-lg leading-6 font-medium text-slate-900 dark:text-slate-100 mb-4">
-                  <Users className="h-5 w-5 inline mr-2" />
-                  Notify Enrolled Employees
+            <div className="relative inline-block align-bottom bg-white dark:bg-slate-800 rounded-xl text-left overflow-y-auto max-h-[88vh] shadow-2xl transform transition-all sm:my-8 sm:align-middle w-full max-w-2xl">
+              <button
+                onClick={closeAnnouncementModal}
+                className="absolute top-3 right-3 z-10 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              <div className="px-5 pt-5 pb-4">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                  <Send className="h-4 w-4 text-green-600" />
+                  Send Announcement
                 </h3>
-                <form onSubmit={handleSendToEmployees} className="space-y-4">
+
+                <form onSubmit={handleSendAnnouncement} className="space-y-3">
+                  {/* Title */}
                   <div>
-                    <label htmlFor="notify-department" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Department *</label>
-                    <select
-                      id="notify-department"
-                      name="department_id"
-                      value={(formData as any).department_id ?? ''}
-                      onChange={(e) => setFormData({ ...formData, course_id: '', department_id: e.target.value ? Number(e.target.value) : '' })}
-                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    >
-                      <option value="">Select a department</option>
-                      {departments.map((d) => (
-                        <option key={d.id} value={d.id}>{d.name}</option>
-                      ))}
-                    </select>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
-                      Notification will be sent to all enrolled employees across courses in this department (where you have access)
-                    </p>
-                    <div className="mt-3 text-xs text-slate-500 dark:text-slate-300">Or choose a specific course below:</div>
-                    <select
-                      id="notify-course"
-                      name="course_id"
-                      value={formData.course_id}
-                      onChange={(e) => setFormData({ ...formData, course_id: e.target.value, department_id: '' })}
-                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    >
-                      <option value="">Select a course (optional)</option>
-                      {courses.map((course) => (
-                        <option key={course.id} value={course.id}>{course.title}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="notify-type" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Type</label>
-                    <select
-                      id="notify-type"
-                      name="type"
-                      value={formData.type}
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    >
-                      <option value="announcement">Announcement</option>
-                      <option value="lesson_update">Lesson Update</option>
-                      <option value="quiz_reminder">Quiz Reminder</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="notify-title" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Title *</label>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Title <span className="text-red-500">*</span>
+                    </label>
                     <input
-                      id="notify-title"
-                      name="title"
                       type="text"
-                      required
-                      value={formData.title}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                      placeholder="Notification title"
+                      value={announcementTitle}
+                      onChange={(e) => setAnnouncementTitle(e.target.value)}
+                      placeholder="Enter announcement title..."
+                      className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
                     />
                   </div>
+
+                  {/* Message */}
                   <div>
-                    <label htmlFor="notify-message" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Message *</label>
-                    <textarea
-                      id="notify-message"
-                      name="message"
-                      rows={4}
-                      required
-                      value={formData.message}
-                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                      placeholder="Type your message here..."
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Message <span className="text-red-500">*</span>
+                    </label>
+                    <RichTextEditor
+                      value={announcementMessage}
+                      onChange={setAnnouncementMessage}
+                      placeholder="Type your announcement here..."
+                      minHeight="120px"
                     />
                   </div>
-                  <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
+
+                  {/* Message Images */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Message Images <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
+                    </label>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/png,image/jpeg,image/gif,image/webp"
+                      onChange={(e) => setAnnouncementImages(Array.from(e.target.files || []))}
+                      className="mt-1 block w-full text-sm text-slate-700 dark:text-slate-300 file:mr-3 file:py-1.5 file:px-2 file:rounded-md file:border-0 file:bg-slate-100 dark:file:bg-slate-700 file:text-slate-700 dark:file:text-slate-200 hover:file:bg-slate-200 dark:hover:file:bg-slate-600"
+                    />
+                    {announcementImagePreviewUrls.length > 0 && (
+                      <div className="mt-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-slate-500 dark:text-slate-400">
+                            {announcementImages.length} image{announcementImages.length !== 1 ? 's' : ''} selected
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setAnnouncementImages([])}
+                            className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400"
+                          >
+                            Remove all images
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {announcementImagePreviewUrls.map((url, i) => (
+                            <img
+                              key={i}
+                              src={url}
+                              alt={`Preview ${i + 1}`}
+                              className="h-16 w-16 object-cover rounded-md border border-slate-200 dark:border-slate-600"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Send to */}
+                  <div>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Send to <span className="text-red-500">*</span>
+                    </p>
                     <button
                       type="button"
-                      onClick={() => setIsModalOpen(false)}
-                      className="w-full inline-flex justify-center rounded-md border border-slate-300 dark:border-slate-600 shadow-sm px-4 py-2 bg-white dark:bg-slate-800 text-base font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 sm:text-sm"
+                      onClick={() => setIsTargetModalOpen(true)}
+                      className="w-full flex items-center justify-between px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/10 transition-colors text-sm"
+                    >
+                      <span className="flex items-center gap-2">
+                        {announcementTarget === 'employees' && (<><Users className="h-4 w-4 text-green-500" /><span>Employees</span></>)}
+                        {announcementTarget === 'specific_employee' && (<><User className="h-4 w-4 text-orange-500" /><span>Specific Employee</span></>)}
+                        {announcementTarget === 'admin' && (<><Shield className="h-4 w-4 text-purple-500" /><span>Admin</span></>)}
+                      </span>
+                      <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                    </button>
+                  </div>
+
+                  {/* Employees: dept + subdept selectors */}
+                  {announcementTarget === 'employees' && (
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                          Department <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={selectedDeptId}
+                          onChange={(e) => { setSelectedDeptId(e.target.value); setSelectedSubdeptId(''); }}
+                          className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                        >
+                          <option value="">Select department...</option>
+                          {departments.map((d) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {selectedDeptSubdepartments.length > 0 && (
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            Sub-department <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
+                          </label>
+                          <select
+                            value={selectedSubdeptId}
+                            onChange={(e) => setSelectedSubdeptId(e.target.value)}
+                            className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                          >
+                            <option value="">All sub-departments</option>
+                            {selectedDeptSubdepartments.map((s: any) => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Specific employee search */}
+                  {announcementTarget === 'specific_employee' && (
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Search Employee <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={employeeSearch}
+                          onChange={(e) => { setEmployeeSearch(e.target.value); setSelectedEmployee(null); }}
+                          placeholder="Type employee name..."
+                          className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 pl-9 pr-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                        />
+                      </div>
+                      {selectedEmployee ? (
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700">
+                          <span className="text-sm font-medium text-green-800 dark:text-green-200">{selectedEmployee.fullname}</span>
+                          <button type="button" onClick={() => { setSelectedEmployee(null); setEmployeeSearch(''); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : filteredEmployees.length > 0 ? (
+                        <div className="max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-100 dark:divide-slate-800">
+                          {filteredEmployees.map(e => (
+                            <button
+                              key={e.id}
+                              type="button"
+                              onClick={() => { setSelectedEmployee(e); setEmployeeSearch(e.fullname); }}
+                              className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700"
+                            >
+                              <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{e.fullname}</div>
+                              {e.department && <div className="text-xs text-slate-400 dark:text-slate-500">{e.department}</div>}
+                            </button>
+                          ))}
+                        </div>
+                      ) : employeeSearch.trim().length >= 2 ? (
+                        <p className="text-sm text-slate-500 dark:text-slate-400 px-1">No employees found</p>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {/* Buttons */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={closeAnnouncementModal}
+                      className="py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                     >
                       Cancel
                     </button>
+                    {announcementTarget !== 'admin' && (
+                      <button
+                        type="button"
+                        onClick={handlePreview}
+                        className="py-2 border border-blue-400 dark:border-blue-500 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <Eye className="h-4 w-4" />
+                        Preview Recipients
+                      </button>
+                    )}
                     <button
                       type="submit"
                       disabled={isSending}
-                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 disabled:opacity-50 sm:text-sm"
+                      className="col-span-2 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-medium rounded-lg flex items-center justify-center gap-2 text-sm transition-colors"
                     >
-                      <Send className="h-4 w-4 mr-2" />
-                      {isSending ? 'Sending...' : 'Send'}
+                      <Send className="h-4 w-4" />
+                      {isSending ? 'Sending...' : 'Send Announcement'}
                     </button>
                   </div>
                 </form>
@@ -475,6 +1361,254 @@ export function InstructorNotifications() {
           </div>
         </div>
       )}
+
+      {/* Target Audience Picker Modal */}
+      {isTargetModalOpen && (
+        <div className="fixed inset-0 z-[60]">
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <div
+              className="fixed inset-0 bg-slate-900/60"
+              onClick={() => setIsTargetModalOpen(false)}
+            />
+            <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md z-10">
+              <div className="px-5 pt-5 pb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-base font-semibold text-slate-900 dark:text-white">Select Recipient</h4>
+                  <button
+                    onClick={() => setIsTargetModalOpen(false)}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    { value: 'admin', label: 'Admin', icon: <Shield className="h-4 w-4 text-purple-500" /> },
+                    { value: 'employees', label: 'Employees', icon: <Users className="h-4 w-4 text-green-500" /> },
+                    { value: 'specific_employee', label: 'Specific Employee', icon: <User className="h-4 w-4 text-orange-500" /> },
+                  ].map(({ value, label, icon }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        setAnnouncementTarget(value as any);
+                        setAnnouncementType(value === 'admin' ? 'report' : 'announcement');
+                        setIsTargetModalOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
+                        announcementTarget === value
+                          ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                          : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                        announcementTarget === value ? 'border-green-500' : 'border-slate-400 dark:border-slate-500'
+                      }`}>
+                        {announcementTarget === value && (
+                          <span className="w-2 h-2 rounded-full bg-green-500" />
+                        )}
+                      </span>
+                      {icon}
+                      <span className="text-sm text-slate-700 dark:text-slate-200">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview Recipients Info Modal */}
+      <InfoModal
+        open={previewModal.open}
+        onClose={() => setPreviewModal({ open: false, recipientCount: null, recipients: [] })}
+        title={previewModal.error ? 'Preview Failed' : `Preview Recipients (${previewModal.recipientCount ?? 0})`}
+        message={
+          previewModal.error
+            ? previewModal.error
+            : previewModal.recipients && previewModal.recipients.length > 0
+              ? (
+                <span>
+                  <span className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">This announcement will be sent to:</span>
+                  <span className="block max-h-48 overflow-y-auto space-y-1 pr-1">
+                    {previewModal.recipients.map((r) => (
+                      <span key={r.id} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0 inline-block" />
+                        {r.fullname}
+                      </span>
+                    ))}
+                  </span>
+                </span>
+              )
+              : 'No recipients found.'
+        }
+        variant={previewModal.error ? 'error' : 'info'}
+        icon={<Users className="h-6 w-6" />}
+      />
+
+      {/* Notification Detail Modal */}
+      {selectedNotification && (
+        <div className="fixed inset-0 z-50">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 overflow-y-auto">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div
+                className="absolute inset-0 bg-slate-900/70"
+                onClick={() => setSelectedNotification(null)}
+              ></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white dark:bg-slate-800 rounded-lg text-left overflow-y-auto max-h-[90vh] shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+              <div className="absolute top-4 right-4">
+                <button
+                  onClick={() => setSelectedNotification(null)}
+                  className="text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="bg-white dark:bg-slate-800 px-6 py-8">
+                {/* Icon and Header */}
+                <div className="flex items-start space-x-4 mb-6">
+                  {selectedNotification.data?.from_user_profile_picture ? (
+                    <img
+                      src={resolveImageUrl(selectedNotification.data.from_user_profile_picture)}
+                      alt={selectedNotification.data.from_user_name || 'User'}
+                      className="h-14 w-14 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600"
+                    />
+                  ) : (
+                    <div className={`p-3 rounded-full flex-shrink-0 ${getNotificationBg(selectedNotification.type)}`}>
+                      {getNotificationIcon(selectedNotification.type)}
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                      {selectedNotification.title}
+                    </h2>
+                    {!selectedNotification.read_at && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 mt-2">
+                        New
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Main Message */}
+                <div className="mb-8">
+                  <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">Message</h3>
+                  <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                    <div
+                      className={RICH_CONTENT_STYLES}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedNotification.message || '') }}
+                    />
+                    {(() => {
+                      const images = selectedNotification.data?.image_urls?.length
+                        ? selectedNotification.data.image_urls
+                        : (selectedNotification.data?.image_url ? [selectedNotification.data.image_url] : []);
+                      if (images.length === 0) return null;
+                      return (
+                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {images.map((imgUrl) => (
+                            <img
+                              key={imgUrl}
+                              src={resolveImageUrl(imgUrl)}
+                              alt="Announcement attachment"
+                              className="max-h-80 w-auto max-w-full rounded-lg border border-slate-200 dark:border-slate-700 object-contain"
+                            />
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Details */}
+                <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Sent On</h3>
+                    <p className="text-slate-900 dark:text-white">{formatDate(selectedNotification.created_at)}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Sent By</h3>
+                    <p className="text-slate-900 dark:text-white">
+                      {selectedNotification.data?.from_user_name
+                        ? `${selectedNotification.data.from_user_name}${selectedNotification.data.from_role ? ` (${selectedNotification.data.from_role})` : ''}`
+                        : (selectedNotification.data?.from_role || 'System')}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Sent To</h3>
+                    <p className="text-slate-900 dark:text-white">Instructor</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Department</h3>
+                    <p className="text-slate-900 dark:text-white">{selectedNotification.data?.from_department || 'Not specified'}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Type</h3>
+                    <p className="text-slate-900 dark:text-white capitalize">{selectedNotification.type.replace(/_/g, ' ')}</p>
+                  </div>
+                  {selectedNotification.deleted_at && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Deleted On</h3>
+                      <p className="text-slate-900 dark:text-white">{formatDate(selectedNotification.deleted_at)}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Sender Info */}
+                {selectedNotification.data?.from_user_name && (
+                  <div className="mb-8 pb-8 border-b border-slate-200 dark:border-slate-700">
+                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">From</h3>
+                    <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                      <p className="font-medium text-slate-900 dark:text-white">{selectedNotification.data.from_user_name}</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{selectedNotification.data.from_role}</p>
+                      {selectedNotification.data.course_title && (
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">Course: {selectedNotification.data.course_title}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex justify-between">
+                  <div className="flex space-x-3">
+                    {!selectedNotification.read_at && (
+                      <button
+                        onClick={() => {
+                          markAsRead(selectedNotification.id);
+                          setSelectedNotification({ ...selectedNotification, read_at: new Date().toISOString() });
+                        }}
+                        className="inline-flex items-center px-4 py-2 border border-green-300 dark:border-green-700 rounded-md shadow-sm text-sm font-medium text-green-700 dark:text-green-200 bg-white dark:bg-slate-700 hover:bg-green-50 dark:hover:bg-slate-600"
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Mark as Read
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        deleteNotification(selectedNotification.id);
+                        setSelectedNotification(null);
+                      }}
+                      className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-700 rounded-md shadow-sm text-sm font-medium text-red-700 dark:text-red-200 bg-white dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-slate-600"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setSelectedNotification(null)}
+                    className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirm.ConfirmModalRenderer()}
     </div>
   );

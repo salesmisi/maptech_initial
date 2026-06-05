@@ -65,17 +65,17 @@ export default function UnlockModuleModal({ open, modules, onConfirm, onCancel }
         />
         {error && <div className="text-sm text-red-600 mb-2">{error}</div>}
 
-        <div className="flex justify-end gap-3 mt-4">
+        <div className="flex flex-col sm:flex-row sm:justify-end gap-3 mt-4">
           <button
             onClick={onCancel}
-            className="px-4 py-2 rounded-full bg-pink-100 text-pink-700 hover:opacity-90"
+            className="w-full sm:w-auto px-4 py-2 rounded-full bg-pink-100 text-pink-700 hover:opacity-90"
             type="button"
           >
             Cancel
           </button>
           <button
             onClick={handleOk}
-            className="px-4 py-2 rounded-full bg-purple-600 text-white hover:opacity-95"
+            className="w-full sm:w-auto px-4 py-2 rounded-full bg-purple-600 text-white hover:opacity-95"
             type="button"
           >
             OK

@@ -1,18 +1,191 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import useConfirm from '../../hooks/useConfirm';
 import {
   Search,
   UserPlus,
   Filter,
-  MoreVertical,
   CheckCircle,
   Clock,
   AlertCircle,
   Loader2,
   Trash2,
   X,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Building2,
+  Layers,
+  BookOpen,
+  Users,
 } from 'lucide-react';
 import { safeArray } from '../../utils/safe';
+
+// ─── Generic Picker Modal ────────────────────────────────────────────────────
+interface PickerItem { id: string | number; label: string; sub?: string }
+interface PickerModalProps {
+  title: string;
+  items: PickerItem[];
+  onSelect: (item: PickerItem) => void;
+  onClose: () => void;
+  pageSize?: number;
+  multiSelect?: boolean;
+  selectedIds?: (string | number)[];
+  onConfirmMulti?: (ids: (string | number)[]) => void;
+}
+
+function PickerModal({
+  title, items, onSelect, onClose, pageSize = 8,
+  multiSelect = false, selectedIds = [], onConfirmMulti,
+}: PickerModalProps) {
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [checked, setChecked] = useState<(string | number)[]>(selectedIds);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? items.filter(i => i.label.toLowerCase().includes(q) || (i.sub || '').toLowerCase().includes(q)) : items;
+  }, [items, query]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  const toggle = (id: string | number) => {
+    setChecked(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleQueryChange = (v: string) => { setQuery(v); setPage(1); };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-200 dark:border-slate-700">
+          <h4 className="text-base font-semibold text-slate-800 dark:text-slate-100">{title}</h4>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        {/* Search */}
+        <div className="px-4 py-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={e => handleQueryChange(e.target.value)}
+              placeholder="Search..."
+              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+        </div>
+        {/* List */}
+        <div className="flex-1 overflow-y-auto px-4 pb-2 space-y-1">
+          {paginated.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6">No results found.</p>
+          ) : paginated.map(item => (
+            multiSelect ? (
+              <label
+                key={item.id}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked.includes(item.id)}
+                  onChange={() => toggle(item.id)}
+                  className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-500"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{item.label}</p>
+                  {item.sub && <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{item.sub}</p>}
+                </div>
+              </label>
+            ) : (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => { onSelect(item); onClose(); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-green-50 dark:hover:bg-green-900/30 hover:text-green-700 dark:hover:text-green-300 transition-colors group"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-800 dark:text-slate-100 group-hover:text-green-700 dark:group-hover:text-green-300 truncate">{item.label}</p>
+                  {item.sub && <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{item.sub}</p>}
+                </div>
+              </button>
+            )
+          ))}
+        </div>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-2 border-t border-slate-200 dark:border-slate-700">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="p-1 rounded disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-700"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Page {page} of {totalPages}</span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="p-1 rounded disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-700"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+        {/* Multi-select confirm */}
+        {multiSelect && (
+          <div className="px-4 pb-4 pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2">
+            <button type="button" onClick={onClose} className="btn btn-secondary text-sm px-4 py-1.5">Cancel</button>
+            <button
+              type="button"
+              onClick={() => { onConfirmMulti?.(checked); onClose(); }}
+              className="btn btn-primary text-sm px-4 py-1.5"
+            >
+              Confirm ({checked.length})
+            </button>
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ─── Picker Trigger Button ───────────────────────────────────────────────────
+function PickerTrigger({
+  icon: Icon, label, placeholder, disabled = false, onClick,
+}: {
+  icon: React.ElementType; label?: string; placeholder: string; disabled?: boolean; onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`mt-1 w-full flex items-center gap-2 border rounded-md shadow-sm py-2 px-3 text-left text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-green-500
+        ${disabled
+          ? 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-400 cursor-not-allowed'
+          : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 hover:border-green-400 cursor-pointer'
+        }`}
+    >
+      <Icon className="h-4 w-4 text-slate-400 flex-shrink-0" />
+      <span className={`flex-1 truncate ${!label ? 'text-slate-400 dark:text-slate-500' : ''}`}>
+        {label || placeholder}
+      </span>
+      <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
+    </button>
+  );
+}
 
 const API_BASE = '/api';
 
@@ -97,18 +270,14 @@ export function EnrollmentManagement() {
     const confirm = useConfirm();
     const { showConfirm } = confirm;
 
-  // Action menu
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
-  const [unenrolling, setUnenrolling] = useState<number | null>(null);
+  // Picker modal state
+  const [deptPickerOpen, setDeptPickerOpen] = useState(false);
+  const [subDeptPickerOpen, setSubDeptPickerOpen] = useState(false);
+  const [coursePickerOpen, setCoursePickerOpen] = useState(false);
+  const [empPickerOpen, setEmpPickerOpen] = useState(false);
 
-  // Persistent module enrollment lists (Admin view section)
-  const [listCourses, setListCourses] = useState<CourseOption[]>([]);
-  const [listCourseId, setListCourseId] = useState('');
-  const [listModuleId, setListModuleId] = useState('');
-  const [listLoading, setListLoading] = useState(false);
-  const [listError, setListError] = useState<string | null>(null);
-  const [listNotEnrolledUsers, setListNotEnrolledUsers] = useState<UserOption[]>([]);
-  const [listEnrolledUsers, setListEnrolledUsers] = useState<UserOption[]>([]);
+  // Action menu
+  const [unenrolling, setUnenrolling] = useState<number | null>(null);
 
   const loadEnrollments = async () => {
     setLoading(true);
@@ -130,70 +299,7 @@ export function EnrollmentManagement() {
 
   useEffect(() => { loadEnrollments(); }, []);
 
-  const loadCoursesForListSection = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/admin/courses`, {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      setListCourses(data.map((x: any) => ({
-        id: x.id,
-        title: x.title,
-        department: x.department,
-        modules: (x.modules || []).map((m: any) => ({ id: m.id, title: m.title })),
-      })));
-    } catch {
-      // ignore
-    }
-  };
 
-  useEffect(() => {
-    loadCoursesForListSection();
-  }, []);
-
-  const loadPersistentModuleLists = async (moduleId: string) => {
-    if (!moduleId) {
-      setListNotEnrolledUsers([]);
-      setListEnrolledUsers([]);
-      setListError(null);
-      return;
-    }
-
-    setListLoading(true);
-    setListError(null);
-    try {
-      const res = await fetch(`${API_BASE}/admin/modules/${moduleId}/enrollment-lists`, {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-      if (!res.ok) throw new Error('Failed to load employee enrollment lists.');
-      const data = await res.json();
-      setListNotEnrolledUsers((data.not_enrolled_users || []).map((u: any) => ({
-        id: u.id,
-        fullname: u.fullname,
-        email: u.email,
-        department: u.department,
-      })));
-      setListEnrolledUsers((data.enrolled_users || []).map((u: any) => ({
-        id: u.id,
-        fullname: u.fullname,
-        email: u.email,
-        department: u.department,
-      })));
-    } catch (e: any) {
-      setListError(e.message || 'Failed to load employee enrollment lists.');
-      setListNotEnrolledUsers([]);
-      setListEnrolledUsers([]);
-    } finally {
-      setListLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadPersistentModuleLists(listModuleId);
-  }, [listModuleId]);
 
   const loadModalData = async () => {
     try {
@@ -282,6 +388,29 @@ export function EnrollmentManagement() {
     enrollments,
   ]);
 
+  const filteredCourseOptions = useMemo(() => {
+    const selectedDept = selectedDeptId ? departments.find(d => d.id === Number(selectedDeptId)) : null;
+    const selectedDeptName = normalizeDepartment(selectedDept?.name);
+    const selectedDeptCode = normalizeDepartment(selectedDept?.code);
+
+    return courses.filter((c) => {
+      // Must match selected department
+      if (selectedDept) {
+        const courseDept = normalizeDepartment(c.department);
+        if (courseDept !== selectedDeptName && !(selectedDeptCode && courseDept === selectedDeptCode)) {
+          return false;
+        }
+      }
+      // Must match selected subdepartment exactly
+      if (selectedSubDeptId) {
+        if (Number(c.subdepartment_id) !== Number(selectedSubDeptId)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [courses, departments, selectedDeptId, selectedSubDeptId]);
+
   const openModal = () => {
     setIsModalOpen(true);
     setSelectedCourseId('');
@@ -293,6 +422,10 @@ export function EnrollmentManagement() {
     setUserQuery('');
     setSearchResults([]);
     setEnrollError(null);
+    setDeptPickerOpen(false);
+    setSubDeptPickerOpen(false);
+    setCoursePickerOpen(false);
+    setEmpPickerOpen(false);
     loadModalData();
   };
 
@@ -365,6 +498,22 @@ export function EnrollmentManagement() {
     };
   }, [isModalOpen]);
 
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [isModalOpen]);
+
   useEffect(() => {
     if (!selectedModuleId) {
       setModuleNotEnrolledUsers([]);
@@ -415,7 +564,6 @@ export function EnrollmentManagement() {
   const handleUnenroll = async (enrollment: Enrollment) => {
     showConfirm(`Unenroll ${enrollment.employee_name} from ${enrollment.course_title}?`, async () => {
       setUnenrolling(enrollment.id);
-      setOpenMenuId(null);
       try {
         const token = await getXsrfToken();
         const res = await fetch(`${API_BASE}/admin/courses/${enrollment.course_id}/enrollments/${enrollment.user_id}`, {
@@ -451,13 +599,10 @@ export function EnrollmentManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-          Enrollment Management
-        </h1>
+      <div className="flex justify-end">
         <button
           onClick={openModal}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+          className="btn btn-primary">
           <UserPlus className="h-4 w-4 mr-2" />
           New Enrollment
         </button>
@@ -494,96 +639,7 @@ export function EnrollmentManagement() {
         </div>
       </div>
 
-      {/* Module Enrollment Lists */}
-      <div className="bg-white dark:bg-slate-900/80 p-4 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Module Employee Lists</h2>
-          <span className="text-xs text-slate-500">New and old employees are grouped by selected module</span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Course</label>
-            <select
-              className="mt-1 block w-full border border-slate-300 dark:border-slate-700 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-              value={listCourseId}
-              onChange={(e) => {
-                setListCourseId(e.target.value);
-                setListModuleId('');
-                setListNotEnrolledUsers([]);
-                setListEnrolledUsers([]);
-              }}
-            >
-              <option value="">-- Select a course --</option>
-              {listCourses.map((c) => (
-                <option key={c.id} value={c.id}>{c.title} ({c.department})</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Module</label>
-            <select
-              className="mt-1 block w-full border border-slate-300 dark:border-slate-700 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-              value={listModuleId}
-              onChange={(e) => setListModuleId(e.target.value)}
-              disabled={!listCourseId}
-            >
-              <option value="">-- Select a module --</option>
-              {(listCourses.find(c => c.id === listCourseId)?.modules || []).map((m) => (
-                <option key={m.id} value={String(m.id)}>{m.title}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {listError && (
-          <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{listError}</div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
-            <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">Not Yet Enrolled Employees ({listNotEnrolledUsers.length})</div>
-            {listLoading ? (
-              <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading...</div>
-            ) : !listModuleId ? (
-              <div className="text-xs text-slate-500">Select a module to view list.</div>
-            ) : listNotEnrolledUsers.length === 0 ? (
-              <div className="text-xs text-slate-500">No employees pending enrollment for this module.</div>
-            ) : (
-              <div className="max-h-56 overflow-auto divide-y divide-slate-100 dark:divide-slate-700">
-                {listNotEnrolledUsers.map((u) => (
-                  <div key={u.id} className="py-2">
-                    <div className="text-sm text-slate-800 dark:text-slate-100">{u.fullname}</div>
-                    <div className="text-xs text-slate-500">{u.email} - {u.department || 'No Dept'}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
-            <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">Enrolled Employees ({listEnrolledUsers.length})</div>
-            {listLoading ? (
-              <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading...</div>
-            ) : !listModuleId ? (
-              <div className="text-xs text-slate-500">Select a module to view list.</div>
-            ) : listEnrolledUsers.length === 0 ? (
-              <div className="text-xs text-slate-500">No enrolled employees for this module.</div>
-            ) : (
-              <div className="max-h-56 overflow-auto divide-y divide-slate-100 dark:divide-slate-700">
-                {listEnrolledUsers.map((u) => (
-                  <div key={u.id} className="py-2">
-                    <div className="text-sm text-slate-800 dark:text-slate-100">{u.fullname}</div>
-                    <div className="text-xs text-slate-500">{u.email} - {u.department || 'No Dept'}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Table */}
+      {/* Enrollments Table */}
       {loading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-green-600" />
@@ -660,7 +716,7 @@ export function EnrollmentManagement() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        status === 'Completed' ? 'bg-green-100 text-green-800 dark:bg-emerald-500/20 dark:text-emerald-300' :
+                        status === 'Completed' ? 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300' :
                         status === 'In Progress' ? 'bg-yellow-100 text-yellow-800 dark:bg-amber-500/20 dark:text-amber-300' :
                         'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200'
                       }`}>
@@ -674,25 +730,12 @@ export function EnrollmentManagement() {
                     {unenrolling === enrollment.id ? (
                       <Loader2 className="h-4 w-4 animate-spin text-slate-400 inline" />
                     ) : (
-                      <div className="relative inline-block">
-                        <button
-                          className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-100"
-                          onClick={() => setOpenMenuId(openMenuId === enrollment.id ? null : enrollment.id)}
-                        >
-                          <MoreVertical className="h-5 w-5" />
-                        </button>
-                        {openMenuId === enrollment.id && (
-                          <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-slate-200 dark:border-slate-700 z-10">
-                            <button
-                              onClick={() => handleUnenroll(enrollment)}
-                              className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-md"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Unenroll
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      <button
+                        onClick={() => handleUnenroll(enrollment)}
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                      >
+                        Unenroll
+                      </button>
                     )}
                   </td>
                 </tr>
@@ -707,13 +750,13 @@ export function EnrollmentManagement() {
 
       {/* Enrollment Modal */}
       {isModalOpen && (
-      <div className="fixed inset-0 z-50 overflow-y-auto">
-        <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+      <div className="fixed inset-0 z-50">
+        <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 overflow-y-auto">
           <div className="fixed inset-0 transition-opacity" aria-hidden="true">
             <div className="absolute inset-0 bg-slate-500 opacity-75"></div>
           </div>
           <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-          <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-y-auto max-h-[90vh] shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
             <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg leading-6 font-medium text-slate-900">
@@ -731,159 +774,129 @@ export function EnrollmentManagement() {
               <form onSubmit={handleEnroll} className="space-y-4">
                 {/* 1. Select Department */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700">Select Department</label>
-                  <select
-                    className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    value={selectedDeptId}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setSelectedDeptId(v ? Number(v) : '');
-                      setSelectedSubDeptId('');
-                      setSelectedCourseId('');
-                      setSelectedUserIds([]);
-                      setSelectedUsers([]);
-                      setSearchResults([]);
-                      setUserQuery('');
-                    }}
-                  >
-                    <option value="">-- All Departments --</option>
-                    {departments.map(d => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Select Department</label>
+                  <PickerTrigger
+                    icon={Building2}
+                    label={selectedDeptId ? departments.find(d => d.id === Number(selectedDeptId))?.name : undefined}
+                    placeholder="-- All Departments --"
+                    onClick={() => setDeptPickerOpen(true)}
+                  />
+                  {deptPickerOpen && (
+                    <PickerModal
+                      title="Select Department"
+                      items={departments.map(d => ({ id: d.id, label: d.name }))}
+                      onSelect={(item) => {
+                        setSelectedDeptId(Number(item.id));
+                        setSelectedSubDeptId('');
+                        setSelectedCourseId('');
+                        setSelectedUserIds([]);
+                        setSelectedUsers([]);
+                        setSearchResults([]);
+                        setUserQuery('');
+                      }}
+                      onClose={() => setDeptPickerOpen(false)}
+                    />
+                  )}
                 </div>
 
+                {/* Sub Department */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700">Select Sub Department</label>
-                  <select
-                    className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    value={selectedSubDeptId}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setSelectedSubDeptId(v ? Number(v) : '');
-                      setSelectedCourseId('');
-                      setSelectedUserIds([]);
-                      setSelectedUsers([]);
-                      setSearchResults([]);
-                      setUserQuery('');
-                    }}
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Select Sub Department</label>
+                  <PickerTrigger
+                    icon={Layers}
+                    label={selectedSubDeptId
+                      ? departments.find(d => d.id === Number(selectedDeptId))?.subdepartments.find(s => s.id === Number(selectedSubDeptId))?.name
+                      : undefined}
+                    placeholder="-- All Sub Departments --"
                     disabled={!selectedDeptId}
-                  >
-                    <option value="">-- All Sub Departments --</option>
-                    {(selectedDeptId ? (departments.find(d => d.id === Number(selectedDeptId))?.subdepartments || []) : []).map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
+                    onClick={() => setSubDeptPickerOpen(true)}
+                  />
+                  {subDeptPickerOpen && selectedDeptId && (
+                    <PickerModal
+                      title="Select Sub Department"
+                      items={(departments.find(d => d.id === Number(selectedDeptId))?.subdepartments || []).map(s => ({ id: s.id, label: s.name }))}
+                      onSelect={(item) => {
+                        setSelectedSubDeptId(Number(item.id));
+                        setSelectedCourseId('');
+                        setSelectedUserIds([]);
+                        setSelectedUsers([]);
+                        setSearchResults([]);
+                        setUserQuery('');
+                      }}
+                      onClose={() => setSubDeptPickerOpen(false)}
+                    />
+                  )}
                 </div>
 
                 {/* 2. Select Course */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700">Select Course</label>
-                  <select
-                    className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    value={selectedCourseId}
-                    onChange={(e) => {
-                      setSelectedCourseId(e.target.value);
-                      setSelectedUserIds([]);
-                      setSelectedUsers([]);
-                      setSearchResults([]);
-                      setUserQuery('');
-                    }}
-                  >
-                    <option value="">-- Select a course --</option>
-                    {(() => {
-                      const selectedDept = selectedDeptId ? departments.find(d => d.id === Number(selectedDeptId)) : null;
-                      const selectedDeptName = normalizeDepartment(selectedDept?.name);
-                      const selectedDeptCode = normalizeDepartment(selectedDept?.code);
-                      const filtered = selectedDept
-                        ? courses.filter((c) => {
-                            const courseDept = normalizeDepartment(c.department);
-                            return courseDept === selectedDeptName || (selectedDeptCode && courseDept === selectedDeptCode);
-                          })
-                        : courses;
-                      const filteredBySubDept = selectedSubDeptId
-                        ? filtered.filter((c) => !c.subdepartment_id || Number(c.subdepartment_id) === Number(selectedSubDeptId))
-                        : filtered;
-
-                      return filteredBySubDept.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.title} ({c.department})
-                        </option>
-                      ));
-                    })()}
-                  </select>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Select Course</label>
+                  <PickerTrigger
+                    icon={BookOpen}
+                    label={selectedCourseId ? filteredCourseOptions.find(c => String(c.id) === String(selectedCourseId))?.title : undefined}
+                    placeholder="-- Select a course --"
+                    onClick={() => setCoursePickerOpen(true)}
+                  />
+                  {coursePickerOpen && (
+                    <PickerModal
+                      title="Select Course"
+                      items={filteredCourseOptions.map(c => ({ id: c.id, label: c.title, sub: c.department }))}
+                      onSelect={(item) => {
+                        setSelectedCourseId(String(item.id));
+                        setSelectedUserIds([]);
+                        setSelectedUsers([]);
+                        setSearchResults([]);
+                        setUserQuery('');
+                      }}
+                      onClose={() => setCoursePickerOpen(false)}
+                    />
+                  )}
                 </div>
 
-                {/* 3. Search & Click-to-Select Employees */}
+                {/* 3. Select Employees */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700">Select Employees</label>
-                  <div className="mt-1">
-                    <input
-                      type="text"
-                      value={userQuery}
-                      onChange={(e) => setUserQuery(e.target.value)}
-                      placeholder={selectedCourseId ? 'Search employees...' : 'Select a course first...'}
-                      className="block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                      disabled={!selectedCourseId}
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Select Employees</label>
+                  <PickerTrigger
+                    icon={Users}
+                    label={selectedUserIds.length > 0 ? `${selectedUserIds.length} employee${selectedUserIds.length > 1 ? 's' : ''} selected` : undefined}
+                    placeholder={selectedCourseId ? 'Click to select employees...' : 'Select a course first...'}
+                    disabled={!selectedCourseId}
+                    onClick={() => setEmpPickerOpen(true)}
+                  />
+                  {empPickerOpen && selectedCourseId && (
+                    <PickerModal
+                      title="Select Employees"
+                      items={searchResults.map(u => ({ id: u.id, label: u.fullname, sub: u.email + (u.subdepartment_name ? ` · ${u.subdepartment_name}` : '') }))}
+                      multiSelect
+                      selectedIds={selectedUserIds}
+                      onSelect={() => {}}
+                      onConfirmMulti={(ids) => {
+                        const numIds = ids.map(Number);
+                        setSelectedUserIds(numIds);
+                        setSelectedUsers(users.filter(u => numIds.includes(u.id)));
+                      }}
+                      onClose={() => setEmpPickerOpen(false)}
                     />
-                  </div>
+                  )}
 
-                  {selectedCourseId ? (
-                    <div className="mt-3 space-y-3">
-                      <div>
-                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Selected</div>
-                        {selectedUsers.length > 0 ? (
-                          <div className="flex flex-wrap gap-2">
-                            {selectedUsers.map((u) => (
-                              <button
-                                key={u.id}
-                                type="button"
-                                onClick={() => removeSelectedUser(u.id)}
-                                className="inline-flex items-center gap-2 rounded-full border border-blue-400 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                                title="Click to remove"
-                              >
-                                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">✓</span>
-                                <span>{u.fullname}</span>
-                              </button>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                            No employees selected yet.
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Options</div>
-                        {searchResults.length > 0 ? (
-                          <div className="max-h-40 overflow-y-auto rounded-md border border-slate-200 bg-slate-50 p-2">
-                            <div className="flex flex-wrap gap-2">
-                              {searchResults.map((u) => (
-                                <button
-                                  key={u.id}
-                                  type="button"
-                                  onClick={() => addSelectedUser(u)}
-                                  className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-green-400 hover:bg-green-50"
-                                  title={`${u.email} - ${u.subdepartment_name || u.department}`}
-                                >
-                                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] text-slate-500">○</span>
-                                  <span>{u.fullname}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                            {userQuery
-                              ? `No employees found for "${userQuery}".`
-                              : 'No available employees for this department, sub department, and course.'}
-                          </div>
-                        )}
-                      </div>
+                  {/* Selected employees chips */}
+                  {selectedUsers.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedUsers.map(u => (
+                        <span
+                          key={u.id}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-blue-400 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-600 px-3 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300"
+                        >
+                          {u.fullname}
+                          <button type="button" onClick={() => removeSelectedUser(u.id)} className="hover:text-red-500">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
                     </div>
-                  ) : (
-                    <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                  )}
+                  {!selectedCourseId && (
+                    <div className="mt-2 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
                       Select department, sub department, and course first.
                     </div>
                   )}
@@ -892,7 +905,7 @@ export function EnrollmentManagement() {
                   <button
                     type="submit"
                       disabled={enrolling || !selectedCourseId || selectedUserIds.length === 0}
-                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:col-start-2 sm:text-sm disabled:opacity-50"
+                    className="btn btn-primary btn-full sm:col-start-2"
                   >
                     {enrolling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     Enroll Selected
@@ -900,7 +913,7 @@ export function EnrollmentManagement() {
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="mt-3 w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:mt-0 sm:col-start-1 sm:text-sm"
+                    className="btn btn-secondary btn-full sm:mt-0 sm:col-start-1"
                   >
                     Cancel
                   </button>

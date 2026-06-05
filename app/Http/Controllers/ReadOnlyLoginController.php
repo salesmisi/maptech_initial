@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Auth;
 use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 class ReadOnlyLoginController extends Controller
 {
@@ -20,10 +20,14 @@ class ReadOnlyLoginController extends Controller
             'password' => 'required',
         ]);
 
-        $user = User::where('email', $credentials['email'])->first();
+        $user = User::withTrashed()->where('email', $credentials['email'])->first();
 
         if (! $user) {
-            return response()->json(['message' => 'Invalid credentials'], 401);
+            return response()->json(['message' => 'Incorrect Email or Password'], 401);
+        }
+
+        if ($user->trashed()) {
+            return response()->json(['message' => 'Your account is archived. Please contact administrator to restore access.'], 403);
         }
 
         // If there's an isActive method keep the check (read-only)
@@ -32,7 +36,7 @@ class ReadOnlyLoginController extends Controller
         }
 
         if (! Hash::check($credentials['password'], $user->password)) {
-            return response()->json(['message' => 'Invalid credentials'], 401);
+            return response()->json(['message' => 'Incorrect Email or Password'], 401);
         }
 
         // Authenticate the user in the session without modifying the database.
@@ -50,7 +54,7 @@ class ReadOnlyLoginController extends Controller
             'role' => $user->role,
             'department' => $user->department ?? null,
             'status' => $user->status ?? null,
-            'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
+            'profile_picture' => $user->profile_picture ? asset('storage/'.$user->profile_picture) : null,
             'token' => $token,
         ]);
     }
@@ -85,7 +89,7 @@ class ReadOnlyLoginController extends Controller
             'role' => $user->role,
             'department' => $user->department ?? null,
             'status' => $user->status ?? null,
-            'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
+            'profile_picture' => $user->profile_picture ? asset('storage/'.$user->profile_picture) : null,
         ]);
     }
 }

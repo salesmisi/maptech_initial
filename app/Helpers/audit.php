@@ -2,17 +2,18 @@
 
 use Illuminate\Support\Carbon;
 
-if (!function_exists('maptech_audit_storage_timezone')) {
+if (! function_exists('maptech_audit_storage_timezone')) {
     function maptech_audit_storage_timezone(): string
     {
         // Use the app timezone — this matches how Carbon::now() stores timestamps.
         // Locally (Asia/Manila) and on Railway (should also be Asia/Manila via APP_TIMEZONE).
         $tz = (string) config('app.timezone', 'UTC');
+
         return $tz !== '' ? $tz : 'UTC';
     }
 }
 
-if (!function_exists('maptech_parse_storage_datetime')) {
+if (! function_exists('maptech_parse_storage_datetime')) {
     function maptech_parse_storage_datetime($value): ?Carbon
     {
         if ($value === null || $value === '') {
@@ -40,10 +41,10 @@ if (!function_exists('maptech_parse_storage_datetime')) {
     }
 }
 
-if (!function_exists('maptech_model_storage_datetime')) {
+if (! function_exists('maptech_model_storage_datetime')) {
     function maptech_model_storage_datetime($model, string $field): ?Carbon
     {
-        if (!$model) {
+        if (! $model) {
             return null;
         }
 
@@ -60,10 +61,11 @@ if (!function_exists('maptech_model_storage_datetime')) {
     }
 }
 
-if (!function_exists('maptech_model_field_utc_iso')) {
+if (! function_exists('maptech_model_field_utc_iso')) {
     function maptech_model_field_utc_iso($model, string $field): ?string
     {
         $dt = maptech_model_storage_datetime($model, $field);
+
         return $dt ? $dt->utc()->toIso8601String() : null;
     }
 }

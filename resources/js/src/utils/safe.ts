@@ -16,11 +16,34 @@ export function resolveImageUrl(
   const trimmed = value.trim();
   if (!trimmed) return fallback;
 
+  const normalized = trimmed.replace(/\\/g, '/');
+
+  const profilePicturePath = (() => {
+    const local = normalized.replace(/^https?:\/\/[^/]+/i, '');
+    const clean = local.replace(/^\/+/, '');
+
+    if (clean.startsWith('storage/profile-pictures/')) {
+      return clean.slice('storage/'.length);
+    }
+
+    if (clean.startsWith('public/storage/profile-pictures/')) {
+      return clean.slice('public/storage/'.length);
+    }
+
+    if (clean.startsWith('profile-pictures/')) {
+      return clean;
+    }
+
+    return null;
+  })();
+
+  if (profilePicturePath) {
+    return `/media/profile-picture/${profilePicturePath}`;
+  }
+
   if (/^(data:|blob:|https?:\/\/)/i.test(trimmed)) {
     return trimmed;
   }
-
-  const normalized = trimmed.replace(/\\/g, '/');
 
   if (normalized.startsWith('/')) {
     return normalized;

@@ -174,7 +174,7 @@ function QuestionForm({
             Answer Options (select correct one) <span className="text-red-500">*</span>
           </label>
           {draftOptions.length < 6 && (
-            <button type="button" onClick={onAddOption} className="text-xs text-green-600 hover:text-green-800 flex items-center gap-1">
+            <button type="button" onClick={onAddOption} className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 rounded-md shadow-sm transition-colors">
               <Plus className="h-3 w-3" /> Add option
             </button>
           )}
@@ -223,7 +223,7 @@ function QuestionForm({
           type="button"
           onClick={() => onSave(editId)}
           disabled={savingQuestion}
-          className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
+          className="px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
         >
           {savingQuestion ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           {savingQuestion ? 'Saving...' : (editId ? 'Update Question' : 'Save Question')}
@@ -484,7 +484,10 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
       <div className="text-center py-16">
         <AlertCircle className="mx-auto h-12 w-12 text-red-400" />
         <p className="mt-3 text-slate-600">{error || 'Quiz not found.'}</p>
-        <button onClick={onBack} className="mt-4 text-sm text-green-600 hover:underline">&larr; Back</button>
+        <button onClick={onBack} className="inline-flex items-center gap-1.5 px-4 py-2 mt-4 text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 rounded-md shadow-sm transition-colors">
+          <ArrowLeft className="h-4 w-4" />
+          &larr; Back
+        </button>
       </div>
     );
   }
@@ -494,7 +497,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
       {/* Back */}
       <button
         onClick={onBack}
-        className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors"
+        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to Course
@@ -532,7 +535,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
               <button
                 onClick={handleSaveMeta}
                 disabled={savingMeta}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
               >
                 {savingMeta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 {savingMeta ? 'Saving...' : 'Save'}
@@ -546,7 +549,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
         ) : (
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0">
+              <div className="h-10 w-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0">
                 <ClipboardList className="h-5 w-5" />
               </div>
               <div>
@@ -587,7 +590,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
           {!addingQuestion && editingQuestionId === null && (
             <button
               onClick={() => { setAddingQuestion(true); resetAddForm(); setEditingQuestionId(null); }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors"
             >
               <Plus className="h-4 w-4" />
               Add Question
@@ -610,7 +613,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
               {/* Question header */}
               <div className="bg-slate-50 px-5 py-3 flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3 min-w-0">
-                  <span className="flex-shrink-0 h-6 w-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold mt-0.5">
+                  <span className="flex-shrink-0 h-6 w-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold mt-0.5">
                     {idx + 1}
                   </span>
                   <p className="text-sm font-medium text-slate-900 leading-relaxed">{q.question_text}</p>

@@ -20,14 +20,19 @@ class ProductLogoManagerController extends Controller
         $hasCourseLogoPath = Schema::hasColumn('courses', 'logo_path');
         $hasProductLogosTable = Schema::hasTable('product_logos');
         $hasProductLogosCourseId = $hasProductLogosTable && Schema::hasColumn('product_logos', 'course_id');
+        $hasSubdepartmentId = Schema::hasColumn('courses', 'subdepartment_id');
 
         $selectColumns = ['id', 'title', 'department', 'updated_at'];
         if ($hasCourseLogoPath) {
             $selectColumns[] = 'logo_path';
         }
+        if ($hasSubdepartmentId) {
+            $selectColumns[] = 'subdepartment_id';
+        }
 
         $courses = Course::query()
             ->select($selectColumns)
+            ->when($hasSubdepartmentId, fn ($q) => $q->with('subdepartment:id,name'))
             ->when($query !== '', function ($q) use ($query) {
                 $q->where(function ($sub) use ($query) {
                     $sub->where('title', 'like', "%{$query}%")
@@ -46,7 +51,7 @@ class ProductLogoManagerController extends Controller
                 ->keyBy('course_id');
         }
 
-        return response()->json($courses->map(function (Course $course) use ($logoByCourse, $hasCourseLogoPath) {
+        return response()->json($courses->map(function (Course $course) use ($logoByCourse, $hasCourseLogoPath, $hasSubdepartmentId) {
             $exists = false;
             $logoUrl = null;
             $logoName = null;
@@ -57,10 +62,10 @@ class ProductLogoManagerController extends Controller
             $courseLogoPath = $hasCourseLogoPath ? ($course->logo_path ?? null) : null;
             $effectivePath = $courseLogoPath ?: ($savedLogo?->file_path ?? null);
 
-            if (!empty($effectivePath)) {
+            if (! empty($effectivePath)) {
                 $exists = Storage::disk('public')->exists($effectivePath);
                 if ($exists) {
-                    $logoUrl = asset('storage/' . ltrim($effectivePath, '/'));
+                    $logoUrl = asset('storage/'.ltrim($effectivePath, '/'));
                 }
 
                 $logoName = $savedLogo?->name;
@@ -73,10 +78,11 @@ class ProductLogoManagerController extends Controller
                 'id' => $course->id,
                 'title' => $course->title,
                 'department' => $course->department,
+                'subdepartment_name' => $hasSubdepartmentId ? ($course->subdepartment?->name ?? null) : null,
                 'logo_path' => $effectivePath,
                 'logo_name' => $logoName,
                 'logo_url' => $logoUrl,
-                'broken_logo' => !empty($effectivePath) && !$exists,
+                'broken_logo' => ! empty($effectivePath) && ! $exists,
                 'updated_at' => optional($course->updated_at)?->toISOString(),
             ];
         }));
@@ -103,7 +109,7 @@ class ProductLogoManagerController extends Controller
             $currentPath = ProductLogo::where('course_id', $course->id)->orderByDesc('id')->value('file_path');
         }
 
-        if (!empty($currentPath)) {
+        if (! empty($currentPath)) {
             Storage::disk('public')->delete($currentPath);
         }
 
@@ -119,7 +125,7 @@ class ProductLogoManagerController extends Controller
 
             $logoName = trim((string) ($validated['logo_name'] ?? ''));
             if ($logoName === '') {
-                $logoName = pathinfo($validated['logo']->getClientOriginalName(), PATHINFO_FILENAME) ?: ('Course ' . $course->id . ' Logo');
+                $logoName = pathinfo($validated['logo']->getClientOriginalName(), PATHINFO_FILENAME) ?: ('Course '.$course->id.' Logo');
             }
 
             ProductLogo::create([
@@ -138,7 +144,7 @@ class ProductLogoManagerController extends Controller
                 ? ProductLogo::where('course_id', $course->id)->orderByDesc('id')->value('name')
                 : pathinfo($path, PATHINFO_FILENAME),
             'logo_path' => $path,
-            'logo_url' => asset('storage/' . ltrim($path, '/')),
+            'logo_url' => asset('storage/'.ltrim($path, '/')),
         ]);
     }
 
@@ -165,7 +171,7 @@ class ProductLogoManagerController extends Controller
             ], 422);
         }
 
-        if (!$hasProductLogosCourseId) {
+        if (! $hasProductLogosCourseId) {
             return response()->json([
                 'message' => 'Logo name editing is not available because product_logos.course_id is missing.',
             ], 422);
@@ -199,11 +205,11 @@ class ProductLogoManagerController extends Controller
             ? ($course->logo_path ?? null)
             : ($hasProductLogosCourseId ? ProductLogo::where('course_id', $course->id)->orderByDesc('id')->value('file_path') : null);
 
-        if (!empty($currentPath)) {
+        if (! empty($currentPath)) {
             Storage::disk('public')->delete($currentPath);
         }
 
-        if ($hasCourseLogoPath && !empty($course->logo_path)) {
+        if ($hasCourseLogoPath && ! empty($course->logo_path)) {
             $course->logo_path = null;
             $course->save();
         }

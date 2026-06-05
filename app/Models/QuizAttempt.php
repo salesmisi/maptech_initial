@@ -17,7 +17,7 @@ class QuizAttempt extends Model
     ];
 
     protected $casts = [
-        'passed'     => 'boolean',
+        'passed' => 'boolean',
         'percentage' => 'decimal:2',
     ];
 
