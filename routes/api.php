@@ -667,6 +667,44 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
             })->values();
             $timestamp = date('Y-m-d_His');
 
+            $buildReadableDetails = function ($log) {
+                $parts = [];
+
+                $name = trim((string) ($log->user_fullname ?? ''));
+                $email = trim((string) ($log->user_email ?? ''));
+                $department = trim((string) ($log->user_department ?? ''));
+                $ip = trim((string) ($log->ip_address ?? ''));
+
+                if ($name !== '' && $email !== '') {
+                    $parts[] = 'Account: '.$name.' ('.$email.')';
+                } elseif ($name !== '') {
+                    $parts[] = 'Account: '.$name;
+                } elseif ($email !== '') {
+                    $parts[] = 'Account email: '.$email;
+                }
+
+                if ($department !== '') {
+                    $parts[] = 'Department: '.$department;
+                }
+
+                if ($ip !== '') {
+                    $parts[] = 'Source IP: '.$ip;
+                }
+
+                $action = (string) ($log->action ?? '');
+                if ($action !== '') {
+                    $actionLabel = trim(str_replace(['.', '_'], ' ', $action));
+                    $actionLabel = ucwords(strtolower($actionLabel));
+                    $parts[] = 'Activity: '.$actionLabel;
+                }
+
+                if (empty($parts)) {
+                    return 'No additional details available.';
+                }
+
+                return implode('. ', $parts).'.';
+            };
+
             // CSV Export
             if ($format === 'csv') {
                 $filename = 'audit_logs_'.$timestamp.'.csv';
@@ -678,7 +716,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                     fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
 
                     // CSV Headers
-                    fputcsv($file, ['ID', 'User ID', 'Full Name', 'Email', 'Role', 'Department', 'Action', 'IP Address', 'Date & Time']);
+                    fputcsv($file, ['ID', 'User ID', 'Full Name', 'Email', 'Role', 'Department', 'Action', 'IP Address', 'Date & Time', 'Details']);
 
                     foreach ($logs as $log) {
                         fputcsv($file, [
@@ -691,6 +729,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                             $log->action,
                             $log->ip_address ?? '',
                             $log->created_at ?? '',
+                            $buildReadableDetails($log),
                         ]);
                     }
 
@@ -734,9 +773,9 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 $xe = fn ($s) => htmlspecialchars((string) $s, ENT_XML1, 'UTF-8');
 
                 // Column definitions
-                $headers = ['ID', 'User ID', 'Full Name', 'Email', 'Role', 'Department', 'Action', 'IP Address', 'Date & Time'];
-                $colLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
-                $colWidths = [8, 8, 20, 28, 12, 22, 15, 14, 22];
+                $headers = ['ID', 'User ID', 'Full Name', 'Email', 'Role', 'Department', 'Action', 'IP Address', 'Date & Time', 'Details'];
+                $colLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+                $colWidths = [8, 8, 20, 28, 12, 22, 15, 14, 22, 44];
 
                 // ── Worksheet XML ─────────────────────────────────────────────────────
                 // Layout: Row 1 = logo area (tall), Row 2 = title, Row 3 = meta,
@@ -782,6 +821,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                         $log->action ?? '',
                         $log->ip_address ?? '',
                         $log->created_at ?? '',
+                        $buildReadableDetails($log),
                     ];
                     foreach ($colLetters as $i => $letter) {
                         $sw .= '<c r="'.$letter.$rowNum.'" s="'.$s.'" t="inlineStr"><is><t>'.$xe($vals[$i]).'</t></is></c>';
@@ -790,8 +830,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                     $rowNum++;
                 }
                 $sw .= '</sheetData>';
-                // Merge title and meta rows across all 9 columns
-                $sw .= '<mergeCells count="2"><mergeCell ref="A2:I2"/><mergeCell ref="A3:I3"/></mergeCells>';
+                // Merge title and meta rows across all columns
+                $sw .= '<mergeCells count="2"><mergeCell ref="A2:J2"/><mergeCell ref="A3:J3"/></mergeCells>';
                 if ($hasLogo) {
                     $sw .= '<drawing r:id="rId1"/>';
                 }
@@ -981,34 +1021,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                     return $entity.' #'.$suffix;
                 };
 
-                $displayDetails = function ($log) {
-                    // Produce a human-friendly, sentence-like details string instead of raw JSON
-                    $parts = [];
-
-                    if (! empty($log->user_email)) {
-                        $parts[] = 'Email: '.(string) $log->user_email;
-                    }
-
-                    if (! empty($log->user_department)) {
-                        $parts[] = 'Department: '.(string) $log->user_department;
-                    }
-
-                    if (! empty($log->ip_address)) {
-                        $parts[] = 'IP: '.(string) $log->ip_address;
-                    }
-
-                    if (! empty($log->session_key)) {
-                        // Shorten session key for readability
-                        $sk = (string) $log->session_key;
-                        $parts[] = 'Session: '.(strlen($sk) > 12 ? substr($sk, 0, 8).'…'.substr($sk, -4) : $sk);
-                    }
-
-                    if (empty($parts)) {
-                        return '-';
-                    }
-
-                    return implode(' — ', $parts);
-                };
+                $displayDetails = fn ($log) => $buildReadableDetails($log);
 
                 $totalLogs = count($logs);
                 $sensitiveLogs = 0;
