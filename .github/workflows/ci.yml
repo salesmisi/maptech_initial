@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, dev/baron ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, dev/baron ]
 
 jobs:
   test:
@@ -26,10 +26,13 @@ jobs:
         run: composer install --no-progress --no-suggest --prefer-dist
 
       - name: Run PHPStan
-        run: vendor/bin/phpstan analyse app --no-progress || true
+        run: vendor/bin/phpstan analyse app --no-progress
 
       - name: Run Psalm
-        run: vendor/bin/psalm --no-cache || true
+        run: vendor/bin/psalm --no-cache
+
+      - name: Composer security audit
+        run: composer audit --no-interaction --ignore-unreachable
 
       - name: Run PHPUnit
         run: vendor/bin/phpunit --colors=always
@@ -43,7 +46,10 @@ jobs:
         run: npm ci
 
       - name: Run ESLint
-        run: npx eslint "resources/js/src/**/*.{ts,tsx}" --max-warnings=0 || true
+        run: npx eslint "resources/js/src/**/*.{ts,tsx}" --max-warnings=0
+
+      - name: NPM security audit
+        run: npm audit --audit-level=high
 
       - name: Build frontend
         run: npm run build --if-present
