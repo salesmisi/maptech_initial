@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Course;
-use App\Models\Enrollment;
-use App\Models\Lesson;
-use App\Models\Notification;
 use App\Models\Question;
 use App\Models\QuestionReply;
 use App\Models\QuestionReplyReaction;
+use App\Models\Course;
+use App\Models\Lesson;
+use App\Models\Enrollment;
+use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -38,11 +38,11 @@ class QAController extends Controller
         $validated = $request->validate([
             'course_id' => 'required_without:lesson_id|exists:courses,id',
             'lesson_id' => 'nullable|exists:lessons,id',
-            'question' => 'required|string|max:2000',
+            'question'  => 'required|string|max:2000',
         ]);
 
         // If a lesson_id is provided, derive the course_id from the lesson.
-        if (! empty($validated['lesson_id'])) {
+        if (!empty($validated['lesson_id'])) {
             $lesson = \App\Models\Lesson::findOrFail($validated['lesson_id']);
             $courseId = $lesson->module->course_id ?? $validated['course_id'] ?? null;
         } else {
@@ -50,10 +50,10 @@ class QAController extends Controller
         }
 
         $question = Question::create([
-            'user_id' => $request->user()->id,
+            'user_id'   => $request->user()->id,
             'course_id' => $courseId,
             'lesson_id' => $validated['lesson_id'] ?? null,
-            'question' => $validated['question'],
+            'question'  => $validated['question'],
         ]);
 
         $question->load(['course:id,title', 'answerer:id,fullname', 'replies.user:id,fullname,role', 'replies.reactions']);
@@ -172,7 +172,7 @@ class QAController extends Controller
         ]);
 
         $question->update([
-            'answer' => $validated['answer'],
+            'answer'      => $validated['answer'],
             'answered_by' => $request->user()->id,
             'answered_at' => Carbon::now()->utc(),
         ]);
@@ -183,18 +183,17 @@ class QAController extends Controller
         $answerer = $request->user();
         if ($question->user_id && $answerer && $question->user_id !== $answerer->id) {
             Notification::create([
-                'user_id' => $question->user_id,
+                'user_id'   => $question->user_id,
                 'course_id' => $question->course_id,
-                'type' => 'qa_answer',
-                'title' => 'Your question has been answered',
-                'message' => $validated['answer'],
-                'data' => [
-                    'from_user_id' => $answerer->id,
+                'type'      => 'qa_answer',
+                'title'     => 'Your question has been answered',
+                'message'   => $validated['answer'],
+                'data'      => [
+                    'from_user_id'   => $answerer->id,
                     'from_user_name' => $answerer->fullname ?? $answerer->name ?? null,
-                    'from_role' => $answerer->role ?? null,
-                    'from_user_profile_picture' => $answerer->profile_picture ?? null,
-                    'course_title' => optional($question->course)->title,
-                    'question_id' => $question->id,
+                    'from_role'      => $answerer->role ?? null,
+                    'course_title'   => optional($question->course)->title,
+                    'question_id'    => $question->id,
                 ],
             ]);
         }
@@ -210,7 +209,7 @@ class QAController extends Controller
         $question = Question::findOrFail($id);
 
         $question->update([
-            'answer' => null,
+            'answer'      => null,
             'answered_by' => null,
             'answered_at' => null,
         ]);
@@ -252,8 +251,8 @@ class QAController extends Controller
 
         $reply = QuestionReply::create([
             'question_id' => $question->id,
-            'user_id' => $request->user()->id,
-            'message' => $validated['message'],
+            'user_id'     => $request->user()->id,
+            'message'     => $validated['message'],
         ]);
 
         $reply->load('user:id,fullname,role');
@@ -263,18 +262,17 @@ class QAController extends Controller
         $replier = $request->user();
         if ($question->user_id && $replier && $question->user_id !== $replier->id) {
             Notification::create([
-                'user_id' => $question->user_id,
+                'user_id'   => $question->user_id,
                 'course_id' => $question->course_id,
-                'type' => 'qa_reply',
-                'title' => 'New reply to your question',
-                'message' => $validated['message'],
-                'data' => [
-                    'from_user_id' => $replier->id,
+                'type'      => 'qa_reply',
+                'title'     => 'New reply to your question',
+                'message'   => $validated['message'],
+                'data'      => [
+                    'from_user_id'   => $replier->id,
                     'from_user_name' => $replier->fullname ?? $replier->name ?? null,
-                    'from_role' => $replier->role ?? null,
-                    'from_user_profile_picture' => $replier->profile_picture ?? null,
-                    'course_title' => optional($question->course)->title,
-                    'question_id' => $question->id,
+                    'from_role'      => $replier->role ?? null,
+                    'course_title'   => optional($question->course)->title,
+                    'question_id'    => $question->id,
                 ],
             ]);
         }
@@ -315,8 +313,8 @@ class QAController extends Controller
 
         $existing = QuestionReplyReaction::where([
             'reply_id' => $replyId,
-            'user_id' => $request->user()->id,
-            'emoji' => $validated['emoji'],
+            'user_id'  => $request->user()->id,
+            'emoji'    => $validated['emoji'],
         ])->first();
 
         if ($existing) {
@@ -324,8 +322,8 @@ class QAController extends Controller
         } else {
             QuestionReplyReaction::create([
                 'reply_id' => $replyId,
-                'user_id' => $request->user()->id,
-                'emoji' => $validated['emoji'],
+                'user_id'  => $request->user()->id,
+                'emoji'    => $validated['emoji'],
             ]);
         }
 
@@ -345,8 +343,8 @@ class QAController extends Controller
             ->get()
             ->map(function ($lesson) {
                 return [
-                    'id' => $lesson->id,
-                    'title' => $lesson->title,
+                    'id'           => $lesson->id,
+                    'title'        => $lesson->title,
                     'module_title' => $lesson->module?->title ?? '',
                     'course_title' => $lesson->module?->course?->title ?? '',
                 ];
@@ -367,18 +365,18 @@ class QAController extends Controller
         $lessons = Lesson::whereHas('module', function ($q) use ($courseIds) {
             $q->whereIn('course_id', $courseIds);
         })
-            ->with('module:id,title,course_id', 'module.course:id,title')
-            ->orderBy('module_id')
-            ->orderBy('order')
-            ->get()
-            ->map(function ($lesson) {
-                return [
-                    'id' => $lesson->id,
-                    'title' => $lesson->title,
-                    'module_title' => $lesson->module?->title ?? '',
-                    'course_title' => $lesson->module?->course?->title ?? '',
-                ];
-            });
+        ->with('module:id,title,course_id', 'module.course:id,title')
+        ->orderBy('module_id')
+        ->orderBy('order')
+        ->get()
+        ->map(function ($lesson) {
+            return [
+                'id'           => $lesson->id,
+                'title'        => $lesson->title,
+                'module_title' => $lesson->module?->title ?? '',
+                'course_title' => $lesson->module?->course?->title ?? '',
+            ];
+        });
 
         return response()->json($lessons);
     }
@@ -396,18 +394,18 @@ class QAController extends Controller
         $lessons = Lesson::whereHas('module', function ($q) use ($courseIds) {
             $q->whereIn('course_id', $courseIds);
         })
-            ->with('module:id,title,course_id', 'module.course:id,title')
-            ->orderBy('module_id')
-            ->orderBy('order')
-            ->get()
-            ->map(function ($lesson) {
-                return [
-                    'id' => $lesson->id,
-                    'title' => $lesson->title,
-                    'module_title' => $lesson->module?->title ?? '',
-                    'course_title' => $lesson->module?->course?->title ?? '',
-                ];
-            });
+        ->with('module:id,title,course_id', 'module.course:id,title')
+        ->orderBy('module_id')
+        ->orderBy('order')
+        ->get()
+        ->map(function ($lesson) {
+            return [
+                'id'           => $lesson->id,
+                'title'        => $lesson->title,
+                'module_title' => $lesson->module?->title ?? '',
+                'course_title' => $lesson->module?->course?->title ?? '',
+            ];
+        });
 
         return response()->json($lessons);
     }

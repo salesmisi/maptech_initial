@@ -11,7 +11,6 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronUp,
-  Link2,
   Pencil,
   Save,
   GripVertical,
@@ -107,7 +106,6 @@ export function ModuleLessonManager({
   const [addingLessonForModule, setAddingLessonForModule] = useState<number | null>(null);
   const [lessonTitle, setLessonTitle] = useState('');
   const [lessonFile, setLessonFile] = useState<File | null>(null);
-  const [lessonLink, setLessonLink] = useState('');
   const [lessonTextContent, setLessonTextContent] = useState('');
   const [uploadingLesson, setUploadingLesson] = useState(false);
   const [lessonError, setLessonError] = useState<string | null>(null);
@@ -117,7 +115,6 @@ export function ModuleLessonManager({
   const [editingLessonId, setEditingLessonId] = useState<number | null>(null);
   const [editLessonTitle, setEditLessonTitle] = useState('');
   const [editLessonTextContent, setEditLessonTextContent] = useState('');
-  const [editLessonLink, setEditLessonLink] = useState('');
   const [editLessonFile, setEditLessonFile] = useState<File | null>(null);
   const [savingLesson, setSavingLesson] = useState(false);
   const editLessonFileRef = useRef<HTMLInputElement>(null);
@@ -295,7 +292,6 @@ export function ModuleLessonManager({
       const fd = new FormData();
       fd.append('title', lessonTitle.trim());
       if (lessonTextContent.trim()) fd.append('text_content', lessonTextContent.trim());
-      if (lessonLink.trim()) fd.append('content_url', lessonLink.trim());
       if (lessonFile) fd.append('content', lessonFile);
 
       const res = await fetch(`${API_BASE}/admin/modules/${moduleId}/lessons`, {
@@ -310,7 +306,6 @@ export function ModuleLessonManager({
       }
       setLessonTitle('');
       setLessonTextContent('');
-      setLessonLink('');
       setLessonFile(null);
       if (lessonFileRef.current) lessonFileRef.current.value = '';
       setAddingLessonForModule(null);
@@ -351,7 +346,6 @@ export function ModuleLessonManager({
     setEditingLessonId(lesson.id);
     setEditLessonTitle(lesson.title);
     setEditLessonTextContent(lesson.text_content || '');
-    setEditLessonLink(/^https?:\/\//i.test(lesson.content_path || '') ? (lesson.content_path || '') : '');
     setEditLessonFile(null);
   };
 
@@ -359,7 +353,6 @@ export function ModuleLessonManager({
     setEditingLessonId(null);
     setEditLessonTitle('');
     setEditLessonTextContent('');
-    setEditLessonLink('');
     setEditLessonFile(null);
   };
 
@@ -371,7 +364,6 @@ export function ModuleLessonManager({
       const fd = new FormData();
       fd.append('title', editLessonTitle.trim());
       fd.append('text_content', editLessonTextContent);
-      fd.append('content_url', editLessonLink.trim());
       if (editLessonFile) fd.append('content', editLessonFile);
       const res = await fetch(`${API_BASE}/admin/modules/${moduleId}/lessons/${lessonId}`, {
         method: 'POST',
@@ -771,18 +763,6 @@ export function ModuleLessonManager({
                                       placeholder="Lesson content..."
                                       minHeight="120px"
                                     />
-                                    <div className="space-y-1.5">
-                                      <label className="block text-xs font-medium text-slate-700">
-                                        Link URL <span className="text-slate-400">(optional)</span>
-                                      </label>
-                                      <input
-                                        type="url"
-                                        value={editLessonLink}
-                                        onChange={e => setEditLessonLink(e.target.value)}
-                                        className="w-full border border-slate-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                        placeholder="https://..."
-                                      />
-                                    </div>
                                     <div className="flex items-center gap-2">
                                       <label className="flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-lg cursor-pointer hover:bg-white text-xs text-slate-600 transition-colors">
                                         <Upload className="h-3.5 w-3.5" />
@@ -923,18 +903,6 @@ export function ModuleLessonManager({
                             placeholder="Type the lesson content here..."
                             minHeight="120px"
                           />
-                          <div className="space-y-1.5">
-                            <label className="block text-xs font-medium text-slate-700">
-                              Link URL <span className="text-slate-400">(optional)</span>
-                            </label>
-                            <input
-                              type="url"
-                              placeholder="https://..."
-                              value={lessonLink}
-                              onChange={e => setLessonLink(e.target.value)}
-                              className="w-full border border-slate-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                            />
-                          </div>
                           <div className="flex items-center gap-2">
                             <label className="flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-lg cursor-pointer hover:bg-white text-xs text-slate-600 transition-colors">
                               <Upload className="h-3.5 w-3.5" />
@@ -973,7 +941,6 @@ export function ModuleLessonManager({
                                 setAddingLessonForModule(null);
                                 setLessonTitle('');
                                 setLessonTextContent('');
-                                setLessonLink('');
                                 setLessonFile(null);
                                 setLessonError(null);
                               }}

@@ -24,7 +24,7 @@ class QuizController extends Controller
             ->where('course_id', $quiz->course_id)
             ->exists();
 
-        if (! $enrolled) {
+        if (!$enrolled) {
             return response()->json(['message' => 'You are not enrolled in this course.'], 403);
         }
 
@@ -35,27 +35,27 @@ class QuizController extends Controller
             ->first();
 
         return response()->json([
-            'id' => $quiz->id,
-            'title' => $quiz->title,
-            'description' => $quiz->description,
+            'id'              => $quiz->id,
+            'title'           => $quiz->title,
+            'description'     => $quiz->description,
             'pass_percentage' => $quiz->pass_percentage,
-            'module_id' => $quiz->module_id,
-            'module_title' => $quiz->module?->title,
-            'best_attempt' => $bestAttempt ? [
-                'score' => $bestAttempt->score,
+            'module_id'       => $quiz->module_id,
+            'module_title'    => $quiz->module?->title,
+            'best_attempt'    => $bestAttempt ? [
+                'score'           => $bestAttempt->score,
                 'total_questions' => $bestAttempt->total_questions,
-                'percentage' => $bestAttempt->percentage,
-                'passed' => $bestAttempt->passed,
-                'created_at' => $bestAttempt->created_at,
+                'percentage'      => $bestAttempt->percentage,
+                'passed'          => $bestAttempt->passed,
+                'created_at'      => $bestAttempt->created_at,
             ] : null,
-            'questions' => $quiz->questions->map(fn ($q) => [
-                'id' => $q->id,
+            'questions'       => $quiz->questions->map(fn($q) => [
+                'id'            => $q->id,
                 'question_text' => $q->question_text,
-                'image_url' => $q->image_path ? Storage::url($q->image_path) : null,
-                'video_url' => $q->video_path ? Storage::url($q->video_path) : null,
-                'order' => $q->order,
-                'options' => $q->options->map(fn ($o) => [
-                    'id' => $o->id,
+                'image_url'     => $q->image_path ? Storage::url($q->image_path) : null,
+                'video_url'     => $q->video_path ? Storage::url($q->video_path) : null,
+                'order'         => $q->order,
+                'options'       => $q->options->map(fn($o) => [
+                    'id'          => $o->id,
                     'option_text' => $o->option_text,
                     // is_correct is intentionally omitted
                 ]),
@@ -76,17 +76,17 @@ class QuizController extends Controller
             ->where('course_id', $quiz->course_id)
             ->exists();
 
-        if (! $enrolled) {
+        if (!$enrolled) {
             return response()->json(['message' => 'You are not enrolled in this course.'], 403);
         }
 
         $request->validate([
-            'answers' => 'required|array',
+            'answers'   => 'required|array',
             'answers.*' => 'nullable|integer',   // option_id keyed by question_id
         ]);
 
         $answers = $request->answers; // [ "questionId" => optionId, ... ]
-        $total = $quiz->questions->count();
+        $total   = $quiz->questions->count();
         $correct = 0;
 
         foreach ($quiz->questions as $question) {
@@ -100,25 +100,25 @@ class QuizController extends Controller
         }
 
         $percentage = $total > 0 ? round(($correct / $total) * 100, 2) : 0;
-        $passed = $percentage >= $quiz->pass_percentage;
+        $passed     = $percentage >= $quiz->pass_percentage;
 
         QuizAttempt::create([
-            'user_id' => $request->user()->id,
-            'quiz_id' => $quizId,
-            'score' => $correct,
+            'user_id'         => $request->user()->id,
+            'quiz_id'         => $quizId,
+            'score'           => $correct,
             'total_questions' => $total,
-            'percentage' => $percentage,
-            'passed' => $passed,
+            'percentage'      => $percentage,
+            'passed'          => $passed,
         ]);
 
         // ── Recalculate enrollment progress ────────────────────────────────
         Enrollment::recalculateProgress($request->user()->id, $quiz->course_id);
 
         return response()->json([
-            'score' => $correct,
-            'total' => $total,
-            'percentage' => $percentage,
-            'passed' => $passed,
+            'score'           => $correct,
+            'total'           => $total,
+            'percentage'      => $percentage,
+            'passed'          => $passed,
             'pass_percentage' => $quiz->pass_percentage,
         ]);
     }
@@ -135,13 +135,13 @@ class QuizController extends Controller
             ->where('quiz_id', $quizId)
             ->latest()
             ->get()
-            ->map(fn ($a) => [
-                'id' => $a->id,
-                'score' => $a->score,
+            ->map(fn($a) => [
+                'id'              => $a->id,
+                'score'           => $a->score,
                 'total_questions' => $a->total_questions,
-                'percentage' => $a->percentage,
-                'passed' => $a->passed,
-                'created_at' => $a->created_at,
+                'percentage'      => $a->percentage,
+                'passed'          => $a->passed,
+                'created_at'      => $a->created_at,
             ]);
 
         return response()->json($attempts);

@@ -14,7 +14,6 @@ const port = import.meta.env.VITE_PUSHER_PORT || import.meta.env.VITE_PUSHER_POR
 // client-side errors when no websocket server is running or Pusher isn't configured.
 if (key && key !== '' && key !== 'your-pusher-app-key') {
   try {
-    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
     (window as any).Echo = new Echo({
       broadcaster: 'pusher',
       key,
@@ -26,18 +25,15 @@ if (key && key !== '' && key !== 'your-pusher-app-key') {
       encrypted: false,
       disableStats: true,
       enabledTransports: ['ws', 'wss'],
-      withCredentials: true,
-      authEndpoint: '/broadcasting/auth',
       auth: {
         headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           // Laravel Sanctum will need the XSRF token for private channels
           'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
         }
       }
     });
   } catch (e) {
-     
+    // eslint-disable-next-line no-console
     console.warn('Failed to initialize Echo:', e);
   }
 } else {

@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { BusinessFooter } from '../components/business/BusinessFooter';
-import { useToast } from '../components/ToastProvider';
 
 interface LoginPageProps {
   onLogin: (
@@ -12,11 +11,10 @@ interface LoginPageProps {
     department?: string,
     profile_picture?: string | null
   ) => void;
-  onForgotPassword?: () => void;
   theme: 'light' | 'dark';
 }
 
-export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) {
+export function LoginPage({ onLogin, theme }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -28,8 +26,6 @@ export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) 
   const [videoFailed, setVideoFailed] = useState(false);
   const loginVideoSources = ['/assets/loginvid.mp4', '/loginvid.mp4'];
   const videoRef = useRef<HTMLVideoElement | null>(null);
-
-  const { pushToast } = useToast();
 
   // ✅ Function to get cookie value
   const getCookie = (name: string) => {
@@ -143,12 +139,6 @@ export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) 
         data.profile_picture
       );
 
-      try {
-        pushToast('Signed in', `Welcome back${data.fullName || data.fullname ? `, ${data.fullName ?? data.fullname}` : ''}! You have successfully signed in.`, 'success', 4000);
-      } catch (e) {
-        // ignore if toast cannot be shown
-      }
-
       // If server returned the created time_log, emit a window event so dashboard can update immediately
       try {
         if (data?.time_log) {
@@ -224,11 +214,8 @@ export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) 
 
       {videoFailed && (
         <div
-          className="absolute inset-0 h-full w-full"
-          style={{
-            background:
-              'radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.24), transparent 28%), radial-gradient(circle at 80% 18%, rgba(16, 185, 129, 0.2), transparent 24%), linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.84))',
-          }}
+          className="absolute inset-0 h-full w-full bg-cover bg-center"
+          style={{ backgroundImage: 'url(/assets/pasted-image.jpg)' }}
           aria-hidden="true"
         />
       )}
@@ -260,6 +247,12 @@ export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) 
         >
           Sign in to LearnHub
         </h2>
+        <p
+          className={`mt-2 text-center text-sm ${isDark ? 'text-slate-200' : 'text-slate-100'}`}
+          style={{ textShadow: '0 2px 12px rgba(2, 6, 23, 0.7)' }}
+        >
+          Maptech Information Solutions Inc.
+        </p>
       </div>
 
       <div
@@ -268,7 +261,7 @@ export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) 
         }`}
       >
         <div className={`backdrop-blur-sm py-6 px-4 shadow sm:rounded-lg sm:px-8 border-t-4 border-green-500 ${isDark ? 'bg-slate-950/75' : 'bg-white/90'}`}>
-          <form className="space-y-4" onSubmit={handleSubmit} autoComplete="off">
+          <form className="space-y-4" onSubmit={handleSubmit}>
 
             <div>
               <label htmlFor="login-email" className={`block text-sm font-medium ${isDark ? 'text-slate-100' : 'text-slate-700'}`}>
@@ -308,9 +301,6 @@ export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) 
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  onCopy={(e) => e.preventDefault()}
-                  onCut={(e) => e.preventDefault()}
-                  onPaste={(e) => e.preventDefault()}
                   className={`login-auth-input block w-full pl-10 pr-10 border rounded-md py-2 focus:ring-green-500 focus:border-green-500 ${isDark ? 'border-slate-700 bg-slate-900/80 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}
                   placeholder="••••••••"
                 />
@@ -341,23 +331,9 @@ export function LoginPage({ onLogin, onForgotPassword, theme }: LoginPageProps) 
                 className="w-full flex justify-center py-2 px-4 rounded-md text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
               >
                 {loading ? 'Signing in...' : 'Sign in'}
+                {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
               </button>
             </div>
-
-            {/* Forgot Password Link */}
-            {onForgotPassword && (
-              <div className="text-center">
-                <button
-                  type="button"
-                  onClick={onForgotPassword}
-                  className={`text-sm font-medium hover:underline ${
-                    isDark ? 'text-green-400 hover:text-green-300' : 'text-green-600 hover:text-green-700'
-                  }`}
-                >
-                  Forgot Password?
-                </button>
-              </div>
-            )}
 
           </form>
         </div>

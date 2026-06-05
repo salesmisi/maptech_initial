@@ -1,9 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import useConfirm from '../hooks/useConfirm';
 import { safeArray } from '../utils/safe';
 import { LoadingState } from './ui/LoadingState';
-import { Search, ChevronDown } from 'lucide-react';
-import LessonSelectModal from './LessonSelectModal';
 
 interface Question {
   id: number;
@@ -43,12 +41,10 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
 
   const [lessons, setLessons] = useState<LessonOption[]>([]);
   const [lessonId, setLessonId] = useState<number | null>(lessonIdProp ?? null);
-  const [lessonModalOpen, setLessonModalOpen] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [newQuestion, setNewQuestion] = useState('');
   const [replyText, setReplyText] = useState<Record<number,string>>({});
-  const [searchQuery, setSearchQuery] = useState('');
 
   const confirm = useConfirm();
   const { showConfirm } = confirm;
@@ -121,72 +117,27 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
     });
   };
 
-  const filteredQuestions = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return questions;
-
-    return safeArray(questions).filter((q) => {
-      const matchesQuestion =
-        q.question.toLowerCase().includes(query) ||
-        q.user.fullname.toLowerCase().includes(query) ||
-        (q.user.role || '').toLowerCase().includes(query) ||
-        (q.lesson?.title || '').toLowerCase().includes(query) ||
-        (q.course?.title || '').toLowerCase().includes(query);
-
-      if (matchesQuestion) return true;
-
-      return safeArray(q.replies).some((r) => {
-        return (
-          r.message.toLowerCase().includes(query) ||
-          r.user.fullname.toLowerCase().includes(query) ||
-          (r.user.role || '').toLowerCase().includes(query)
-        );
-      });
-    });
-  }, [questions, searchQuery]);
-
   return (
     <div className="space-y-6">
-      {/* Lesson Selector */}
-      <div className="bg-white dark:bg-slate-900/80 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">Select a Lesson</label>
-        <button
-          type="button"
-          onClick={() => setLessonModalOpen(true)}
-          className="w-full flex items-center justify-between border border-slate-300 dark:border-slate-700 rounded-md py-2 px-3 bg-white dark:bg-slate-800 text-left hover:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
-        >
-          <span className={`text-sm ${lessonId ? 'text-slate-900 dark:text-slate-100' : 'text-slate-400'}`}>
-            {lessonId
-              ? (() => { const l = lessons.find(x => x.id === lessonId); return l ? `${l.course_title} › ${l.module_title} › ${l.title}` : 'Select a lesson'; })()
-              : scope === 'employee' ? '-- Select a lesson to ask or view questions --' : '-- All Lessons (show all questions) --'
-            }
-          </span>
-          <ChevronDown className="h-4 w-4 text-slate-400 shrink-0 ml-2" />
-        </button>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Lesson Q&A</h1>
       </div>
 
-      <LessonSelectModal
-        open={lessonModalOpen}
-        lessons={safeArray(lessons)}
-        selectedId={lessonId}
-        scope={scope}
-        onConfirm={(id) => { setLessonId(id); setLessonModalOpen(false); }}
-        onCancel={() => setLessonModalOpen(false)}
-      />
-
+      {/* Lesson Selector */}
       <div className="bg-white dark:bg-slate-900/80 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-        <label htmlFor="qa-search" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">Search in Q&A</label>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            id="qa-search"
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search questions, replies, users, or lesson title"
-            className="w-full rounded-md border border-slate-300 dark:border-slate-700 py-2 pl-10 pr-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-green-500 focus:border-green-500"
-          />
-        </div>
+        <label htmlFor="select-lesson" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">Select a Lesson</label>
+        <select
+          id="select-lesson"
+          name="lessonId"
+          value={lessonId ?? ''}
+          onChange={(e) => setLessonId(e.target.value ? Number(e.target.value) : null)}
+          className="w-full border border-slate-300 dark:border-slate-700 rounded-md py-2 px-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-green-500 focus:border-green-500"
+        >
+          <option value="">{scope === 'employee' ? '-- Select a lesson to ask or view questions --' : '-- All Lessons (show all questions) --'}</option>
+            {safeArray(lessons).map(l => (
+            <option key={l.id} value={l.id}>{l.course_title} &rsaquo; {l.module_title} &rsaquo; {l.title}</option>
+          ))}
+        </select>
       </div>
 
       {loading ? (
@@ -201,11 +152,11 @@ export default function LessonQnA({ scope = 'employee', lessonIdProp, userId }: 
             </form>
           )}
 
-          {filteredQuestions.length === 0 ? (
+          {questions.length === 0 ? (
             <div className="text-slate-500 dark:text-slate-400 text-center py-8">No questions {lessonId ? 'for this lesson' : 'found'}.</div>
           ) : (
             <div className="space-y-4">
-              {filteredQuestions.map(q => (
+              {questions.map(q => (
                 <div key={q.id} className="bg-white dark:bg-slate-900/80 rounded-lg p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">

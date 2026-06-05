@@ -18,13 +18,11 @@ class FeedbackReplyController extends Controller
         $fb = LessonFeedback::find($feedbackId);
         if ($fb) {
             $replies = LessonFeedbackReply::with('user:id,fullname,department')->where('lesson_feedback_id', $fb->id)->orderBy('created_at')->get();
-
             return response()->json($replies);
         }
 
         $qfb = QuizFeedback::findOrFail($feedbackId);
         $replies = QuizFeedbackReply::with('user:id,fullname,department')->where('quiz_feedback_id', $qfb->id)->orderBy('created_at')->get();
-
         return response()->json($replies);
     }
 
@@ -40,7 +38,6 @@ class FeedbackReplyController extends Controller
                 'user_id' => $request->user()->id,
                 'comment' => $request->comment,
             ]);
-
             return response()->json($reply->load('user:id,fullname,department'), 201);
         }
 
@@ -58,14 +55,9 @@ class FeedbackReplyController extends Controller
     {
         // Try deleting from lesson replies, then quiz replies
         $r = LessonFeedbackReply::find($id);
-        if ($r) {
-            $r->delete();
-
-            return response()->json(['message' => 'Reply deleted']);
-        }
+        if ($r) { $r->delete(); return response()->json(['message' => 'Reply deleted']); }
         $r2 = QuizFeedbackReply::findOrFail($id);
         $r2->delete();
-
         return response()->json(['message' => 'Reply deleted']);
     }
 }

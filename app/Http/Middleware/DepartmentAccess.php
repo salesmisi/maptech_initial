@@ -21,9 +21,9 @@ class DepartmentAccess
     {
         $user = $request->user();
 
-        if (! $user) {
+        if (!$user) {
             return response()->json([
-                'message' => 'Unauthenticated',
+                'message' => 'Unauthenticated'
             ], 401);
         }
 
@@ -37,9 +37,9 @@ class DepartmentAccess
             $userDepartment = $user->department;
 
             // If no department assigned to employee
-            if (! $userDepartment) {
+            if (!$userDepartment) {
                 return response()->json([
-                    'message' => 'No department assigned to your account. Please contact administrator.',
+                    'message' => 'No department assigned to your account. Please contact administrator.'
                 ], 403);
             }
 
@@ -48,7 +48,7 @@ class DepartmentAccess
                 return response()->json([
                     'message' => 'Forbidden. You cannot access resources from another department.',
                     'your_department' => $userDepartment,
-                    'required_department' => $department,
+                    'required_department' => $department
                 ], 403);
             }
 
@@ -58,7 +58,7 @@ class DepartmentAccess
                 return response()->json([
                     'message' => 'Forbidden. You cannot access resources from another department.',
                     'your_department' => $userDepartment,
-                    'requested_department' => $routeDepartment,
+                    'requested_department' => $routeDepartment
                 ], 403);
             }
 

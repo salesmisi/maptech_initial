@@ -9,7 +9,6 @@ class AuditDate
     public static function storageTimezone(): string
     {
         $tz = (string) config('app.timezone', 'UTC');
-
         return $tz !== '' ? $tz : 'UTC';
     }
 
@@ -38,7 +37,7 @@ class AuditDate
 
     public static function modelStorageDateTime($model, string $field): ?Carbon
     {
-        if (! $model) {
+        if (!$model) {
             return null;
         }
 
@@ -57,7 +56,6 @@ class AuditDate
     public static function modelFieldUtcIso($model, string $field): ?string
     {
         $dt = self::modelStorageDateTime($model, $field);
-
         return $dt ? $dt->utc()->toIso8601String() : null;
     }
 }

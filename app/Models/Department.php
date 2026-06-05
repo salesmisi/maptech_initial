@@ -14,7 +14,7 @@ class Department extends Model
         'status',
         'description',
         'employee_count',
-        'course_count',
+        'course_count'
     ];
 
     public function subdepartments()

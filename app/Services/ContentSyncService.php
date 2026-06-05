@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Events\ContentSynced;
 use App\Models\Course;
 use App\Models\CustomModule;
+use App\Models\CustomLesson;
 use App\Models\Enrollment;
 use App\Models\Module;
 use App\Models\Notification;
@@ -68,9 +69,9 @@ class ContentSyncService
     /**
      * Sync a custom module to multiple courses with full notification flow.
      *
-     * @param  CustomModule  $customModule  The custom module to sync
-     * @param  array  $courseIds  Array of course IDs to sync to
-     * @param  User|null  $syncedBy  The admin user performing the sync
+     * @param CustomModule $customModule The custom module to sync
+     * @param array $courseIds Array of course IDs to sync to
+     * @param User|null $syncedBy The admin user performing the sync
      * @return array Results with success/failure counts
      */
     public function syncToMultipleCourses(CustomModule $customModule, array $courseIds, ?User $syncedBy = null): array
@@ -85,10 +86,9 @@ class ContentSyncService
         foreach ($courseIds as $courseId) {
             try {
                 $course = Course::find($courseId);
-                if (! $course) {
+                if (!$course) {
                     $results['errors'][] = "Course {$courseId} not found";
                     $results['failed_count']++;
-
                     continue;
                 }
 
@@ -106,7 +106,7 @@ class ContentSyncService
                     'course_id' => $courseId,
                     'error' => $e->getMessage(),
                 ]);
-                $results['errors'][] = "Failed to sync to course {$courseId}: ".$e->getMessage();
+                $results['errors'][] = "Failed to sync to course {$courseId}: " . $e->getMessage();
                 $results['failed_count']++;
             }
         }
@@ -120,7 +120,7 @@ class ContentSyncService
     public function syncToCourseWithNotifications(CustomModule $customModule, Course $course, ?User $syncedBy = null): Module
     {
         // Check if this is a new sync or update
-        $isNewSync = ! $course->modules()->where('custom_module_id', $customModule->id)->exists();
+        $isNewSync = !$course->modules()->where('custom_module_id', $customModule->id)->exists();
 
         // Perform the sync
         $module = $this->moduleSyncService->syncToCourse($customModule, $course);
@@ -158,9 +158,7 @@ class ContentSyncService
             ->get();
 
         foreach ($linkedModules as $module) {
-            if (! $module->course) {
-                continue;
-            }
+            if (!$module->course) continue;
 
             try {
                 // Sync the content
@@ -189,7 +187,7 @@ class ContentSyncService
         DB::transaction(function () use ($customModule, $course) {
             $module = $course->modules()->where('custom_module_id', $customModule->id)->first();
 
-            if (! $module) {
+            if (!$module) {
                 return;
             }
 

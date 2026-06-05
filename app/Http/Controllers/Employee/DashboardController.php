@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
+use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
 use App\Models\Subdepartment;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -27,7 +28,6 @@ class DashboardController extends Controller
                 return $sub->department->name;
             }
         }
-
         return $user->department;
     }
 
@@ -49,10 +49,10 @@ class DashboardController extends Controller
             ->where('module_user.unlocked', true)
             ->where(function ($q) {
                 $q->whereNull('module_user.unlocked_until')
-                    ->orWhere('module_user.unlocked_until', '>', now());
+                  ->orWhere('module_user.unlocked_until', '>', now());
             })
             ->pluck('modules.course_id')
-            ->map(fn ($id) => (string) $id)
+            ->map(fn($id) => (string) $id)
             ->toArray();
 
         // flip to use as a quick lookup set
@@ -85,7 +85,7 @@ class DashboardController extends Controller
                 // OR department-wide courses (no subdepartment, matching department name)
                 $q->orWhere(function ($inner) use ($departmentName) {
                     $inner->whereNull('subdepartment_id')
-                        ->where('department', $departmentName);
+                          ->where('department', $departmentName);
                 });
             } else {
                 // User has no subdepartment — match by department name only
@@ -108,7 +108,6 @@ class DashboardController extends Controller
         if ($enrollment->progress > 0) {
             return 'In Progress';
         }
-
         return 'Not Started';
     }
 
@@ -127,43 +126,20 @@ class DashboardController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $courseIds = $courses->pluck('id');
-
-        // Use canonical enrollments table for real user enrollment state.
-        $enrollments = Enrollment::where('user_id', $user->id)
-            ->whereIn('course_id', $courseIds)
-            ->get();
-
-        // Recalculate progress/status from latest quiz attempts before responding.
-        foreach ($enrollments as $enrollment) {
-            Enrollment::recalculateProgress($user->id, (string) $enrollment->course_id);
-        }
-
-        $enrollmentByCourse = Enrollment::where('user_id', $user->id)
-            ->whereIn('course_id', $courseIds)
-            ->get()
-            ->keyBy('course_id');
-
         $manuallyUnlockedCourseIds = $this->getManuallyUnlockedCourseIdsForUser(
             $user->id,
             $courses->pluck('id')
         );
 
         // Attach enrollment progress to each course
-        $enrollments = Enrollment::where('user_id', $user->id)
+        $enrollments = CourseEnrollment::where('user_id', $user->id)
             ->whereIn('course_id', $courses->pluck('id'))
             ->get()
             ->keyBy('course_id');
 
-        // Recalculate progress for all enrollments from quiz attempts
-        foreach ($enrollments as $enrollment) {
-            Enrollment::recalculateProgress($user->id, $enrollment->course_id);
-            $enrollment->refresh();
-        }
-
         $coursesWithProgress = $courses->map(function (Course $course) use ($enrollments, $manuallyUnlockedCourseIds) {
             $enrollment = $enrollments->get($course->id);
-            $locked = (bool) ($enrollment->locked ?? false);
+            $locked     = (bool) ($enrollment->locked ?? false);
 
             // If at least one module is manually unlocked for this user
             // on this course, treat it as unlocked on the dashboard.
@@ -172,33 +148,23 @@ class DashboardController extends Controller
             }
 
             return array_merge($course->toArray(), [
-                'progress' => $enrollment?->progress ?? 0,
-                'enroll_status' => $enrollment?->status ?? null,
-                'last_activity' => $enrollment?->updated_at?->toISOString() ?? null,
-                'locked' => $locked,
+                'progress'       => $enrollment?->progress ?? 0,
+                'enroll_status'  => $enrollment?->status ?? null,
+                'last_activity'  => $enrollment?->updated_at?->toISOString() ?? null,
+                'locked'         => $locked,
                 'has_manual_unlock' => isset($manuallyUnlockedCourseIds[$course->id]),
-                'is_enrolled' => (bool) $enrollment,
             ]);
         });
 
-        $enrolledCourses = $coursesWithProgress
-            ->filter(fn ($course) => (bool) ($course['is_enrolled'] ?? false))
-            ->values();
-
-        $courseOfferings = $coursesWithProgress
-            ->filter(fn ($course) => ! (bool) ($course['is_enrolled'] ?? false))
-            ->values();
-
         return response()->json([
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->fullname,
-                'email' => $user->email,
+            'user'          => [
+                'id'         => $user->id,
+                'name'       => $user->fullname,
+                'email'      => $user->email,
                 'department' => $user->department,
             ],
-            'courses' => $enrolledCourses,
-            'course_offerings' => $courseOfferings,
-            'total_courses' => $enrolledCourses->count(),
+            'courses'       => $coursesWithProgress,
+            'total_courses' => $courses->count(),
         ]);
     }
 
@@ -232,25 +198,25 @@ class DashboardController extends Controller
 
         $result = $courses->map(function (Course $course) use ($enrollments, $manuallyUnlockedCourseIds) {
             $enrollment = $enrollments->get($course->id);
-            $locked = (bool) ($enrollment->locked ?? false);
+            $locked     = (bool) ($enrollment->locked ?? false);
 
             if ($locked && isset($manuallyUnlockedCourseIds[$course->id])) {
                 $locked = false;
             }
 
             return [
-                'id' => $course->id,
-                'title' => $course->title,
-                'description' => $course->description,
-                'department' => $course->department,
-                'status' => $course->status,
-                'deadline' => $course->deadline?->toISOString(),
+                'id'            => $course->id,
+                'title'         => $course->title,
+                'description'   => $course->description,
+                'department'    => $course->department,
+                'status'        => $course->status,
+                'deadline'      => $course->deadline?->toISOString(),
                 'modules_count' => $course->modules->count(),
-                'instructor' => $course->instructor?->fullname,
-                'is_enrolled' => (bool) $enrollment,
-                'my_progress' => $enrollment?->progress ?? 0,
-                'my_status' => $enrollment ? $this->resolveStatus($enrollment, $course) : null,
-                'locked' => $locked,
+                'instructor'    => $course->instructor?->fullname,
+                'is_enrolled'   => (bool) $enrollment,
+                'my_progress'   => $enrollment?->progress ?? 0,
+                'my_status'     => $enrollment ? $this->resolveStatus($enrollment, $course) : null,
+                'locked'        => $locked,
                 'has_manual_unlock' => isset($manuallyUnlockedCourseIds[$course->id]),
             ];
         });
@@ -295,17 +261,17 @@ class DashboardController extends Controller
             }
 
             return [
-                'id' => $course->id,
-                'title' => $course->title,
-                'description' => $course->description,
-                'department' => $course->department,
-                'deadline' => $course->deadline?->toISOString(),
-                'modules_count' => $course->modules->count(),
-                'instructor' => $course->instructor?->fullname,
-                'progress' => $enrollment->progress,
-                'status' => $this->resolveStatus($enrollment, $course),
-                'enrolled_at' => $enrollment->enrolled_at,
-                'locked' => $locked,
+                'id'           => $course->id,
+                'title'        => $course->title,
+                'description'  => $course->description,
+                'department'   => $course->department,
+                'deadline'     => $course->deadline?->toISOString(),
+                'modules_count'=> $course->modules->count(),
+                'instructor'   => $course->instructor?->fullname,
+                'progress'     => $enrollment->progress,
+                'status'       => $this->resolveStatus($enrollment, $course),
+                'enrolled_at'  => $enrollment->enrolled_at,
+                'locked'       => $locked,
                 'has_manual_unlock' => isset($manuallyUnlockedCourseIds[$course->id]),
             ];
         })->values();
@@ -321,7 +287,7 @@ class DashboardController extends Controller
         $user = $request->user();
 
         $course = Course::active()->find($id);
-        if (! $course) {
+        if (!$course) {
             return response()->json(['message' => 'Course not found or not available.'], 404);
         }
 
@@ -332,7 +298,7 @@ class DashboardController extends Controller
         if ($user->subdepartment_id && $course->subdepartment_id) {
             // Both have subdepartment — must match
             $courseBelongsToUser = ($course->subdepartment_id === $user->subdepartment_id);
-        } elseif ($user->subdepartment_id && ! $course->subdepartment_id) {
+        } elseif ($user->subdepartment_id && !$course->subdepartment_id) {
             // Course is department-wide — check department name
             $courseBelongsToUser = ($course->department === $departmentName);
         } else {
@@ -340,7 +306,7 @@ class DashboardController extends Controller
             $courseBelongsToUser = ($course->department === $departmentName);
         }
 
-        if (! $courseBelongsToUser) {
+        if (!$courseBelongsToUser) {
             return response()->json(['message' => 'This course is not available for your department.'], 403);
         }
 
@@ -349,9 +315,9 @@ class DashboardController extends Controller
         }
 
         Enrollment::create([
-            'user_id' => $user->id,
-            'course_id' => $id,
-            'progress' => 0,
+            'user_id'     => $user->id,
+            'course_id'   => $id,
+            'progress'    => 0,
             'enrolled_at' => now(),
         ]);
 
@@ -380,16 +346,16 @@ class DashboardController extends Controller
             ->with([
                 'instructor:id,fullname,email,profile_picture',
                 'subdepartment:id,name,department_id',
-                'modules' => fn ($q) => $q->with('lessons')->orderBy('order')->orderBy('id'),
+                'modules' => fn($q) => $q->with('lessons')->orderBy('order')->orderBy('id'),
             ])
             ->find($id);
 
-        if (! $course) {
+        if (!$course) {
             return response()->json(['message' => 'Course not found or not accessible.'], 404);
         }
 
         // Load module IDs for this course early (used below)
-        $moduleIds = $course->modules->pluck('id');
+        $moduleIds      = $course->modules->pluck('id');
 
         // Load manual module unlocks for this user (if any) early so we can
         // allow access to specific modules even when the instructor has
@@ -400,10 +366,10 @@ class DashboardController extends Controller
             ->where('unlocked', true)
             ->where(function ($q) {
                 $q->whereNull('unlocked_until')
-                    ->orWhere('unlocked_until', '>', now());
+                  ->orWhere('unlocked_until', '>', now());
             })
             ->pluck('module_id')
-            ->map(fn ($id) => (string) $id)
+            ->map(fn($id) => (string)$id)
             ->toArray();
 
         // Prevent access if the instructor locked this enrollment and there
@@ -415,14 +381,14 @@ class DashboardController extends Controller
         if ($enrollmentRecord && ($enrollmentRecord->locked ?? false)) {
             $enrollmentUnlockedUntil = $enrollmentRecord->unlocked_until ?? null;
             $enrollmentCurrentlyUnlocked = $enrollmentUnlockedUntil && \Carbon\Carbon::parse($enrollmentUnlockedUntil)->isFuture();
-            if (empty($manualUnlockedModuleIds) && ! $enrollmentCurrentlyUnlocked) {
+            if (empty($manualUnlockedModuleIds) && !$enrollmentCurrentlyUnlocked) {
                 return response()->json(['message' => 'This course has been locked by the instructor.'], 403);
             }
             // otherwise, continue and show the course with only the unlocked modules available
         }
 
         // Load quizzes for every module in this course (keyed by module_id)
-        $quizByModule = Quiz::whereIn('module_id', $moduleIds)
+        $quizByModule   = Quiz::whereIn('module_id', $moduleIds)
             ->withCount('questions')
             ->get()
             ->keyBy('module_id');
@@ -470,23 +436,23 @@ class DashboardController extends Controller
             $quiz = $quizByModule->get($mod->id);
 
             if ($quiz) {
-                $hasPassed = isset($passedQuizIds[$quiz->id]);
+                $hasPassed       = isset($passedQuizIds[$quiz->id]);
                 $previousUnlocked = $hasPassed; // next module requires passing this quiz
-                $best = $bestAttempts->get($quiz->id);
+                $best             = $bestAttempts->get($quiz->id);
 
                 $quizData = [
-                    'id' => $quiz->id,
-                    'title' => $quiz->title,
-                    'description' => $quiz->description,
+                    'id'              => $quiz->id,
+                    'title'           => $quiz->title,
+                    'description'     => $quiz->description,
                     'pass_percentage' => $quiz->pass_percentage,
-                    'question_count' => $quiz->questions_count,
-                    'has_passed' => $hasPassed,
-                    'best_attempt' => $best ? [
-                        'score' => $best->score,
+                    'question_count'  => $quiz->questions_count,
+                    'has_passed'      => $hasPassed,
+                    'best_attempt'    => $best ? [
+                        'score'           => $best->score,
                         'total_questions' => $best->total_questions,
-                        'percentage' => (float) $best->percentage,
-                        'passed' => $best->passed,
-                        'created_at' => $best->created_at,
+                        'percentage'      => (float) $best->percentage,
+                        'passed'          => $best->passed,
+                        'created_at'      => $best->created_at,
                     ] : null,
                 ];
             } else {
@@ -496,41 +462,40 @@ class DashboardController extends Controller
             }
 
             return [
-                'id' => $mod->id,
-                'title' => $mod->title,
-                'content_path' => $mod->content_path,
+                'id'          => $mod->id,
+                'title'       => $mod->title,
+                'content_path'=> $mod->content_path,
                 'content_url' => $mod->content_url,
-                'file_type' => $mod->file_type,
-                'order' => $mod->order,
-                'created_at' => $mod->created_at,
-                'lessons' => $mod->lessons->map(fn ($l) => [
-                    'id' => $l->id,
-                    'title' => $l->title,
+                'file_type'   => $mod->file_type,
+                'order'       => $mod->order,
+                'created_at'  => $mod->created_at,
+                'lessons'     => $mod->lessons->map(fn($l) => [
+                    'id'           => $l->id,
+                    'title'        => $l->title,
                     'text_content' => $l->text_content,
                     'content_path' => $l->content_path,
-                    'content_full_url' => $l->content_full_url,
-                    'content_url' => $l->content_url,
-                    'file_type' => $l->file_type,
-                    'order' => $l->order,
+                    'content_url'  => $l->content_url,
+                    'file_type'    => $l->file_type,
+                    'order'        => $l->order,
                 ]),
-                'quiz' => $quizData,
+                'quiz'        => $quizData,
                 'is_unlocked' => $isUnlocked,
             ];
         });
 
         return response()->json([
-            'id' => $course->id,
-            'title' => $course->title,
+            'id'          => $course->id,
+            'title'       => $course->title,
             'description' => $course->description,
-            'department' => $course->department,
-            'status' => $course->status,
-            'deadline' => $course->deadline?->toISOString(),
-            'instructor' => $course->instructor ? [
-                'id' => $course->instructor->id,
+            'department'  => $course->department,
+            'status'      => $course->status,
+            'deadline'    => $course->deadline?->toISOString(),
+            'instructor'  => $course->instructor ? [
+                'id'       => $course->instructor->id,
                 'fullName' => $course->instructor->fullname,
-                'email' => $course->instructor->email,
+                'email'    => $course->instructor->email,
             ] : null,
-            'modules' => $modules->values(),
+            'modules'     => $modules->values(),
         ]);
     }
 
@@ -547,23 +512,17 @@ class DashboardController extends Controller
             ->get();
 
         // Course status counts
-        $completed = 0;
+        $completed  = 0;
         $inProgress = 0;
         $notStarted = 0;
 
         /** @var \App\Models\Enrollment $enrollment */
         foreach ($enrollments as $enrollment) {
-            if (! $enrollment->course) {
-                continue;
-            }
+            if (!$enrollment->course) continue;
             $status = $this->resolveStatus($enrollment, $enrollment->course);
-            if ($status === 'Completed') {
-                $completed++;
-            } elseif ($status === 'In Progress' || $status === 'Unfinished') {
-                $inProgress++;
-            } else {
-                $notStarted++;
-            }
+            if ($status === 'Completed') $completed++;
+            elseif ($status === 'In Progress' || $status === 'Unfinished') $inProgress++;
+            else $notStarted++;
         }
 
         // Quiz attempts
@@ -586,7 +545,7 @@ class DashboardController extends Controller
         // Total learning time estimate based on completed modules (approx 30 min each)
         $totalMinutes = $modulesCompleted * 30;
         $hours = intdiv($totalMinutes, 60);
-        $mins = $totalMinutes % 60;
+        $mins  = $totalMinutes % 60;
         $learningTime = $hours > 0 ? "{$hours}h {$mins}m" : "{$mins}m";
 
         // Weekly activity (last 7 days of quiz attempts)
@@ -594,7 +553,7 @@ class DashboardController extends Controller
         for ($i = 6; $i >= 0; $i--) {
             $day = Carbon::now()->subDays($i);
             $weekDays->push([
-                'name' => $day->format('D'),
+                'name'  => $day->format('D'),
                 'count' => $attempts->filter(fn ($a) => $a->created_at->isSameDay($day))->count(),
             ]);
         }
@@ -602,27 +561,26 @@ class DashboardController extends Controller
         // Quiz history (best attempt per quiz)
         $quizHistory = $attempts->groupBy('quiz_id')->map(function ($group) {
             $best = $group->sortByDesc('percentage')->first();
-
             return [
-                'name' => $best->quiz?->title ?? 'Quiz',
+                'name'  => $best->quiz?->title ?? 'Quiz',
                 'score' => round((float) $best->percentage),
-                'date' => $best->created_at->toDateString(),
+                'date'  => $best->created_at->toDateString(),
             ];
         })->values()->take(10);
 
         return response()->json([
             'summary' => [
                 'total_learning_time' => $learningTime,
-                'avg_quiz_score' => $avgScore,
-                'modules_completed' => $modulesCompleted,
+                'avg_quiz_score'      => $avgScore,
+                'modules_completed'   => $modulesCompleted,
             ],
-            'course_status' => [
+            'course_status'   => [
                 ['name' => 'Completed',   'value' => $completed],
                 ['name' => 'In Progress', 'value' => $inProgress],
                 ['name' => 'Not Started', 'value' => $notStarted],
             ],
             'weekly_activity' => $weekDays->toArray(),
-            'quiz_history' => $quizHistory->toArray(),
+            'quiz_history'    => $quizHistory->toArray(),
         ]);
     }
 
@@ -651,7 +609,7 @@ class DashboardController extends Controller
         }
 
         // Collect module ids
-        $moduleIds = $courses->flatMap(fn ($c) => $c->modules->pluck('id'))->unique()->values();
+        $moduleIds = $courses->flatMap(fn($c) => $c->modules->pluck('id'))->unique()->values();
 
         if ($moduleIds->isEmpty()) {
             return response()->json([]);
@@ -669,7 +627,7 @@ class DashboardController extends Controller
         // Quizzes the user already passed
         $passed = QuizAttempt::where('user_id', $user->id)->where('passed', true)->pluck('quiz_id')->toArray();
 
-        $reminders = $quizzes->filter(fn ($q) => ! in_array($q->id, $passed))->map(function ($q) {
+        $reminders = $quizzes->filter(fn($q) => !in_array($q->id, $passed))->map(function ($q) {
             return [
                 'id' => $q->id,
                 'title' => $q->title,

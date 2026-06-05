@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { safeArray } from '../../utils/safe';
 import {
   Users,
@@ -25,68 +25,18 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  Legend,
-} from 'recharts';
+  Legend } from
+'recharts';
 import { LoadingState } from '../../components/ui/LoadingState';
 
 const ANALYTICS_COLORS = ['#34b46c', '#c8a73a', '#7f90ab'];
 const POPULAR_COURSE_COLORS = ['#2ea85f', '#3abf6f', '#60ca88'];
 const CHART_CARD_CLASS = 'rounded-xl border border-slate-200/70 bg-white/95 p-6 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/70';
-const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const MONTH_NAME_TO_INDEX: Record<string, number> = {
-  january: 0,
-  jan: 0,
-  february: 1,
-  feb: 1,
-  march: 2,
-  mar: 2,
-  april: 3,
-  apr: 3,
-  may: 4,
-  june: 5,
-  jun: 5,
-  july: 6,
-  jul: 6,
-  august: 7,
-  aug: 7,
-  september: 8,
-  sep: 8,
-  sept: 8,
-  october: 9,
-  oct: 9,
-  november: 10,
-  nov: 10,
-  december: 11,
-  dec: 11,
-};
 const RANGE_OPTIONS = [
   { label: 'Last 3 Months', months: 3 },
   { label: 'Last 6 Months', months: 6 },
-  { label: 'First 12 Months', months: 12 },
+  { label: 'Last 12 Months', months: 12 },
 ];
-
-function getMonthIndexFromTrend(sortKey?: string, name?: string): number | null {
-  const cleanName = (name ?? '').toLowerCase().trim();
-  if (cleanName in MONTH_NAME_TO_INDEX) {
-    return MONTH_NAME_TO_INDEX[cleanName];
-  }
-
-  const cleanSortKey = (sortKey ?? '').trim();
-  if (cleanSortKey) {
-    const ymdMatch = cleanSortKey.match(/^\d{4}-(\d{1,2})(?:-\d{1,2})?$/);
-    if (ymdMatch) {
-      const monthNum = Number(ymdMatch[1]);
-      if (monthNum >= 1 && monthNum <= 12) return monthNum - 1;
-    }
-
-    const parsedDate = new Date(cleanSortKey);
-    if (!Number.isNaN(parsedDate.getTime())) {
-      return parsedDate.getMonth();
-    }
-  }
-
-  return null;
-}
 
 function getCookie(name: string): string {
   const match = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
@@ -106,7 +56,7 @@ interface DashboardStats {
 
 interface ReportData {
   completion_status: { name: string; value: number }[];
-  monthly_trends: { sort_key?: string; name: string; enrollments: number; completions: number }[];
+  monthly_trends: { name: string; enrollments: number; completions: number }[];
   popular_courses: { name: string; students: number }[];
 }
 
@@ -119,7 +69,7 @@ interface ActivityItem {
 }
 
 interface Props {
-  onNavigate?: (page: string, courseId?: string) => void;
+  onNavigate?: (page: string) => void;
 }
 
 export function AdminDashboard({ onNavigate }: Props) {
@@ -130,104 +80,12 @@ export function AdminDashboard({ onNavigate }: Props) {
   const [reportsLoading, setReportsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState('');
   const [completionHoverIndex, setCompletionHoverIndex] = useState<number | undefined>(undefined);
-  const [analyticsRange, setAnalyticsRange] = useState(12);
+  const [analyticsRange, setAnalyticsRange] = useState(6);
   const [showRangeMenu, setShowRangeMenu] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
-  const [isActivityModalVisible, setIsActivityModalVisible] = useState(false);
   const [allActivity, setAllActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
-  const [activityNavLoadingId, setActivityNavLoadingId] = useState<number | null>(null);
-  const [courseTitleMap, setCourseTitleMap] = useState<Record<string, string>>({});
-  const [showEmployeesModal, setShowEmployeesModal] = useState(false);
-  const [employeeList, setEmployeeList] = useState<{ id: number; fullname: string; email: string; department: string; status: string }[]>([]);
-  const [employeesLoading, setEmployeesLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 640 : false));
-  const activityModalCloseTimeoutRef = useRef<number | null>(null);
-
-  const normalizeActivityTarget = (value: string) =>
-    String(value || '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, ' ')
-      .trim();
-
-  const resolveCourseIdFromTarget = async (target: string): Promise<string | null> => {
-    const normalizedTarget = normalizeActivityTarget(target);
-    if (!normalizedTarget) return null;
-
-    if (courseTitleMap[normalizedTarget]) {
-      return courseTitleMap[normalizedTarget];
-    }
-
-    try {
-      const res = await fetch('/api/admin/courses', {
-        credentials: 'include',
-        headers: {
-          Accept: 'application/json',
-          'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-        },
-      });
-
-      if (!res.ok) return null;
-
-      const payload = await res.json();
-      const list = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
-      const nextMap: Record<string, string> = {};
-
-      safeArray<any>(list).forEach((course) => {
-        const id = String(course?.id ?? '').trim();
-        const title = String(course?.title ?? course?.name ?? '').trim();
-
-        if (!id || !title) return;
-
-        nextMap[normalizeActivityTarget(title)] = id;
-      });
-
-      if (Object.keys(nextMap).length > 0) {
-        setCourseTitleMap((prev) => ({ ...nextMap, ...prev }));
-      }
-
-      return nextMap[normalizedTarget] ?? null;
-    } catch {
-      return null;
-    }
-  };
-
-  const handleActivityNavigation = async (activity: ActivityItem) => {
-    if (!onNavigate) return;
-
-    setActivityNavLoadingId(activity.id);
-
-    try {
-      const courseId = await resolveCourseIdFromTarget(activity.target);
-
-      if (!courseId) {
-        onNavigate('courses');
-        return;
-      }
-
-      const actionText = String(activity.action || '').toLowerCase();
-      const preferredTab = actionText.includes('enroll') || actionText.includes('complete') ? 'students' : 'modules';
-
-      try {
-        localStorage.setItem(
-          'maptech_admin_activity_nav',
-          JSON.stringify({
-            courseId,
-            user: activity.user,
-            action: activity.action,
-            preferredTab,
-            timestamp: Date.now(),
-          })
-        );
-      } catch {
-        // Ignore storage errors.
-      }
-
-      onNavigate('course-detail', courseId);
-    } finally {
-      setActivityNavLoadingId(null);
-    }
-  };
 
   useEffect(() => {
     const root = document.documentElement;
@@ -239,29 +97,8 @@ export function AdminDashboard({ onNavigate }: Props) {
     return () => observer.disconnect();
   }, []);
 
-  const openEmployeesModal = () => {
-    setShowEmployeesModal(true);
-    setEmployeesLoading(true);
-    fetch('/api/admin/users?role=employee', {
-      headers: {
-        'Accept': 'application/json',
-        'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-      },
-      credentials: 'include',
-    })
-      .then((res) => res.json())
-      .then((data) => setEmployeeList(safeArray(data)))
-      .finally(() => setEmployeesLoading(false));
-  };
-
   const openAllActivity = () => {
-    if (activityModalCloseTimeoutRef.current !== null) {
-      window.clearTimeout(activityModalCloseTimeoutRef.current);
-      activityModalCloseTimeoutRef.current = null;
-    }
-
     setShowActivityModal(true);
-    window.requestAnimationFrame(() => setIsActivityModalVisible(true));
     setActivityLoading(true);
     fetch('/api/admin/activity', {
       headers: {
@@ -273,14 +110,6 @@ export function AdminDashboard({ onNavigate }: Props) {
       .then((res) => res.json())
       .then((data: ActivityItem[]) => setAllActivity(safeArray(data)))
       .finally(() => setActivityLoading(false));
-  };
-
-  const closeAllActivity = () => {
-    setIsActivityModalVisible(false);
-    activityModalCloseTimeoutRef.current = window.setTimeout(() => {
-      setShowActivityModal(false);
-      activityModalCloseTimeoutRef.current = null;
-    }, 220);
   };
 
   useEffect(() => {
@@ -356,52 +185,6 @@ export function AdminDashboard({ onNavigate }: Props) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    if (typeof document === 'undefined') return undefined;
-
-    const shouldLockScroll = showActivityModal || showEmployeesModal;
-    if (!shouldLockScroll) return undefined;
-
-    const lockTargets = new Set<HTMLElement>();
-
-    const mainScroll = document.querySelector<HTMLElement>('main.flex-1.overflow-y-auto');
-    const contentPanelScroll = document.querySelector<HTMLElement>('div.flex.w-full.flex-col.transition-\[padding\].duration-300');
-    const sidebarScroll = document.querySelector<HTMLElement>('div.fixed.inset-y-0.left-0 div.flex-1.flex.flex-col.overflow-y-auto.pt-5.pb-4');
-    const docScroll = document.scrollingElement as HTMLElement | null;
-
-    if (mainScroll) lockTargets.add(mainScroll);
-    if (contentPanelScroll) lockTargets.add(contentPanelScroll);
-    if (sidebarScroll) lockTargets.add(sidebarScroll);
-    if (docScroll) lockTargets.add(docScroll);
-
-    if (lockTargets.size === 0) return undefined;
-
-    const originalStates = Array.from(lockTargets).map((el) => ({
-      el,
-      overflow: el.style.overflow,
-      overscrollBehavior: el.style.overscrollBehavior,
-      touchAction: el.style.touchAction,
-      scrollTop: el.scrollTop,
-      scrollLeft: el.scrollLeft,
-    }));
-
-    originalStates.forEach(({ el }) => {
-      el.style.overflow = 'hidden';
-      el.style.overscrollBehavior = 'contain';
-      el.style.touchAction = 'none';
-    });
-
-    return () => {
-      originalStates.forEach(({ el, overflow, overscrollBehavior, touchAction, scrollTop, scrollLeft }) => {
-        el.style.overflow = overflow;
-        el.style.overscrollBehavior = overscrollBehavior;
-        el.style.touchAction = touchAction;
-        el.scrollTop = scrollTop;
-        el.scrollLeft = scrollLeft;
-      });
-    };
-  }, [showActivityModal, showEmployeesModal]);
-
   const completionStatus = reportData?.completion_status ?? [];
   const monthlyTrends = reportData?.monthly_trends ?? [];
   const popularCourses = reportData?.popular_courses ?? [];
@@ -414,9 +197,7 @@ export function AdminDashboard({ onNavigate }: Props) {
       .trim(),
   }));
   const recentActivity = stats?.recent_activity ?? [];
-  const recentActivityArray = safeArray(recentActivity);
-  const recentActivityPreview = recentActivityArray.slice(0, 5);
-  const currentRangeLabel = RANGE_OPTIONS.find((o) => o.months === analyticsRange)?.label ?? 'First 12 Months';
+  const currentRangeLabel = RANGE_OPTIONS.find((o) => o.months === analyticsRange)?.label ?? 'Last 6 Months';
   const chartGridColor = isDarkMode ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.28)';
   const chartAxisTickColor = isDarkMode ? '#a7b0c0' : '#64748b';
   const chartLegendColor = isDarkMode ? '#b8c2d1' : '#475569';
@@ -428,36 +209,6 @@ export function AdminDashboard({ onNavigate }: Props) {
     ? 'rounded-lg border border-slate-700/60 bg-slate-900/88 px-3 py-2 shadow-md backdrop-blur-sm'
     : 'rounded-lg border border-slate-200/90 bg-white/96 px-3 py-2 shadow-sm backdrop-blur-sm';
   const chartTooltipLabelClass = isDarkMode ? 'text-xs font-medium text-slate-300' : 'text-xs font-medium text-slate-600';
-  const monthlyTrendsByMonth = monthlyTrends.reduce<Record<number, { enrollments: number; completions: number }>>((acc, trend) => {
-    const monthIndex = getMonthIndexFromTrend(trend.sort_key, trend.name);
-    if (monthIndex === null) return acc;
-
-    acc[monthIndex] = {
-      enrollments: Number(trend.enrollments ?? 0),
-      completions: Number(trend.completions ?? 0),
-    };
-
-    return acc;
-  }, {});
-  const fullYearMonthlyTrends = MONTH_LABELS.map((label, index) => ({
-    name: label,
-    enrollments: monthlyTrendsByMonth[index]?.enrollments ?? 0,
-    completions: monthlyTrendsByMonth[index]?.completions ?? 0,
-  }));
-
-  const ArrowDot = ({ cx, cy, fill, stroke }: any) => {
-    if (cx == null || cy == null) return null;
-
-    return (
-      <g>
-        <path
-          d={`M ${cx} ${cy - 5} L ${cx + 7} ${cy} L ${cx} ${cy + 5} L ${cx + 2} ${cy}`}
-          fill={stroke || fill}
-          opacity={0.95}
-        />
-      </g>
-    );
-  };
 
   const renderCompletionTooltip = ({ active, payload }: any) => {
     if (!active || !payload || payload.length === 0) return null;
@@ -550,108 +301,92 @@ export function AdminDashboard({ onNavigate }: Props) {
   return (
     <>
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col gap-4 rounded-lg border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 sm:text-2xl">Welcome back, Admin! 👋</h1>
-          <p className="mt-1 text-slate-500 dark:text-slate-400">
-            {lastUpdated ? `Last updated: Today, ${lastUpdated}` : 'Loading…'}
-          </p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
+          Dashboard Overview
+        </h1>
+        <div className="self-start text-xs text-slate-500 sm:self-auto sm:text-sm">
+          {lastUpdated ? `Last updated: Today, ${lastUpdated}` : 'Loading…'}
         </div>
       </div>
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
-        <div
-          className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer hover:shadow-md hover:border-blue-200 dark:hover:border-blue-700 transition-all duration-200"
-          onClick={openEmployeesModal}
-          title="View all employees"
-        >
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              <p className="text-sm font-medium text-slate-500">
                 Total Employees
               </p>
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+              <p className="text-2xl font-bold text-slate-900">
                 {loading ? '—' : stats?.total_employees ?? 0}
               </p>
             </div>
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-full">
-              <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+            <div className="p-3 bg-blue-50 rounded-full">
+              <Users className="h-6 w-6 text-blue-600" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
-            <span className="text-slate-400 dark:text-slate-500">
+            <span className="text-slate-400">
               {loading ? 'Active employees' : `${stats?.active_employees ?? 0} active employees`}
             </span>
           </div>
         </div>
 
-        <div
-          className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer hover:shadow-md hover:border-green-200 dark:hover:border-green-700 transition-all duration-200"
-          onClick={() => onNavigate?.('courses')}
-          title="View all courses"
-        >
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              <p className="text-sm font-medium text-slate-500">
                 Active Courses
               </p>
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+              <p className="text-2xl font-bold text-slate-900">
                 {loading ? '—' : stats?.active_courses ?? 0}
               </p>
             </div>
-            <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-full">
-              <BookOpen className="h-6 w-6 text-green-600 dark:text-green-400" />
+            <div className="p-3 bg-green-50 rounded-full">
+              <BookOpen className="h-6 w-6 text-green-600" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
-            <span className="text-slate-400 dark:text-slate-500">Published &amp; active</span>
+            <span className="text-slate-400">Published &amp; active</span>
           </div>
         </div>
 
-        <div
-          className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer hover:shadow-md hover:border-purple-200 dark:hover:border-purple-700 transition-all duration-200"
-          onClick={() => onNavigate?.('enrollments')}
-          title="View enrollments"
-        >
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              <p className="text-sm font-medium text-slate-500">
                 Completion Rate
               </p>
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+              <p className="text-2xl font-bold text-slate-900">
                 {loading ? '—' : `${stats?.completion_rate ?? 0}%`}
               </p>
             </div>
-            <div className="p-3 bg-purple-50 dark:bg-purple-900/30 rounded-full">
-              <Award className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+            <div className="p-3 bg-purple-50 rounded-full">
+              <Award className="h-6 w-6 text-purple-600" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
-            <span className="text-slate-400 dark:text-slate-500">Across all enrollments</span>
+            <span className="text-slate-400">Across all enrollments</span>
           </div>
         </div>
 
-        <div
-          className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer hover:shadow-md hover:border-orange-200 dark:hover:border-orange-700 transition-all duration-200"
-          onClick={() => onNavigate?.('reports')}
-          title="View reports & analytics"
-        >
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              <p className="text-sm font-medium text-slate-500">
                 Avg Quiz Score
               </p>
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+              <p className="text-2xl font-bold text-slate-900">
                 {loading ? '—' : `${stats?.avg_quiz_score ?? 0}%`}
               </p>
             </div>
-            <div className="p-3 bg-orange-50 dark:bg-orange-900/30 rounded-full">
-              <TrendingUp className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+            <div className="p-3 bg-orange-50 rounded-full">
+              <TrendingUp className="h-6 w-6 text-orange-600" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
-            <span className="text-slate-400 dark:text-slate-500">Average progress score</span>
+            <span className="text-slate-400">Average progress score</span>
           </div>
         </div>
       </div>
@@ -739,32 +474,17 @@ export function AdminDashboard({ onNavigate }: Props) {
               <div className="flex items-center justify-center h-full text-slate-400">No trend data yet</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={fullYearMonthlyTrends} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
-                  <defs>
-                    <marker id="trend-arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
-                      <path d="M 0 0 L 8 4 L 0 8 z" fill="#2db768" />
-                    </marker>
-                    <marker id="trend-arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
-                      <path d="M 0 0 L 8 4 L 0 8 z" fill="#5b8def" />
-                    </marker>
-                  </defs>
+                <LineChart data={monthlyTrends}>
                   <CartesianGrid strokeDasharray="2 6" vertical={false} stroke={chartGridColor} />
-                  <XAxis
-                    dataKey="name"
-                    axisLine={false}
-                    tickLine={false}
-                    interval={0}
-                    padding={{ left: 8, right: 8 }}
-                    tick={{ fill: chartAxisTickColor, fontSize: 12 }}
-                  />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
                   <Tooltip
                     content={renderTrendsTooltip}
                     cursor={false}
                   />
                   <Legend wrapperStyle={{ color: chartLegendColor, fontSize: '12px', paddingTop: '8px' }} />
-                  <Line type="monotone" dataKey="enrollments" stroke="#2db768" strokeWidth={2.5} dot={<ArrowDot />} activeDot={{ r: 6, stroke: trendActiveDotStroke, strokeWidth: 2 }} markerEnd="url(#trend-arrow-green)" />
-                  <Line type="monotone" dataKey="completions" stroke="#5b8def" strokeWidth={2.5} dot={<ArrowDot />} activeDot={{ r: 6, stroke: trendActiveDotStroke, strokeWidth: 2 }} markerEnd="url(#trend-arrow-blue)" />
+                  <Line type="monotone" dataKey="enrollments" stroke="#2db768" strokeWidth={2} dot={{ r: 2.5 }} activeDot={{ r: 5, stroke: trendActiveDotStroke, strokeWidth: 2 }} />
+                  <Line type="monotone" dataKey="completions" stroke="#5b8def" strokeWidth={2} dot={{ r: 2.5 }} activeDot={{ r: 5, stroke: trendActiveDotStroke, strokeWidth: 2 }} />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -783,30 +503,23 @@ export function AdminDashboard({ onNavigate }: Props) {
         ) : (
           <div className="h-72 sm:h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cleanedPopularCourses}>
+              <BarChart data={cleanedPopularCourses} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={chartGridColor} />
-                <XAxis
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
+                <YAxis
                   dataKey="name"
                   type="category"
+                  width={popularCourseLabelWidth}
                   axisLine={false}
                   tickLine={false}
-                  interval={0}
-                  height={56}
                   tick={{ fontSize: 12, fill: chartAxisTickColor }}
-                  tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 16) + '…' : v}
-                />
-                <YAxis
-                  type="number"
-                  axisLine={false}
-                  tickLine={false}
-                  allowDecimals={false}
-                  tick={{ fontSize: 12, fill: chartAxisTickColor }}
+                  tickFormatter={(v: string) => v.length > 22 ? v.slice(0, 22) + '…' : v}
                 />
                 <Tooltip content={renderPopularCoursesTooltip} cursor={{ fill: 'rgba(46, 168, 95, 0.08)' }} />
                 <Bar
                   dataKey="students"
                   fill="#22c55e"
-                  radius={[6, 6, 0, 0]}
+                  radius={[0, 4, 4, 0]}
                   barSize={28}
                   animationDuration={520}
                   activeBar={{
@@ -860,30 +573,17 @@ export function AdminDashboard({ onNavigate }: Props) {
                       <LoadingState message="Loading activity" size="sm" className="py-2" />
                     </td>
                   </tr>
-                ) : recentActivityPreview.length === 0 ? (
+                ) : recentActivity.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-3 py-8 text-center text-sm text-slate-400 dark:text-slate-500 sm:px-6">
                       No activity yet
                     </td>
                   </tr>
                 ) : (
-                  recentActivityPreview.map((activity) =>
+                  safeArray(recentActivity).map((activity) =>
                     <tr
                       key={activity.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => void handleActivityNavigation(activity)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          void handleActivityNavigation(activity);
-                        }
-                      }}
-                      className={`cursor-pointer transition-colors ${
-                        activityNavLoadingId === activity.id
-                          ? 'opacity-60'
-                          : 'hover:bg-slate-50 dark:hover:bg-slate-800/70'
-                      }`}>
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors">
                       <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-slate-900 dark:text-slate-100 sm:px-6">
                         {activity.user}
                       </td>
@@ -905,7 +605,7 @@ export function AdminDashboard({ onNavigate }: Props) {
           <div className="p-4 border-t border-slate-100 dark:border-slate-700 text-center">
             <button
               onClick={openAllActivity}
-              className="text-sm text-green-600 dark:text-green-300 font-medium hover:text-green-700 dark:hover:text-green-200">
+              className="text-sm text-green-600 dark:text-emerald-300 font-medium hover:text-green-700 dark:hover:text-emerald-200">
               View All Activity
             </button>
           </div>
@@ -919,9 +619,9 @@ export function AdminDashboard({ onNavigate }: Props) {
           <div className="space-y-3">
             <button
               onClick={() => onNavigate?.('courses')}
-              className="w-full flex items-center p-3 text-left rounded-lg border border-slate-200 hover:border-green-500 hover:bg-green-50 dark:border-slate-700/70 dark:bg-slate-900/45 dark:hover:border-green-500/55 dark:hover:bg-green-500/10 transition-all group">
-              <div className="p-2 bg-green-100 rounded-md group-hover:bg-green-200 dark:bg-green-500/20 dark:group-hover:bg-green-500/30">
-                <BookOpen className="h-5 w-5 text-green-700 dark:text-green-300" />
+              className="w-full flex items-center p-3 text-left rounded-lg border border-slate-200 hover:border-green-500 hover:bg-green-50 dark:border-slate-700/70 dark:bg-slate-900/45 dark:hover:border-emerald-500/55 dark:hover:bg-emerald-500/10 transition-all group">
+              <div className="p-2 bg-green-100 rounded-md group-hover:bg-green-200 dark:bg-emerald-500/20 dark:group-hover:bg-emerald-500/30">
+                <BookOpen className="h-5 w-5 text-green-700 dark:text-emerald-300" />
               </div>
               <div className="ml-3">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
@@ -965,141 +665,14 @@ export function AdminDashboard({ onNavigate }: Props) {
       </div>
     </div>
 
-      {/* Total Employees Modal */}
-      {showEmployeesModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="mx-2 flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 sm:mx-4">
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 dark:border-slate-700 sm:px-6">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Total Employees</h2>
-                <p className="text-xs text-slate-400 mt-0.5">{employeesLoading ? 'Loading…' : `${employeeList.length} employee${employeeList.length === 1 ? '' : 's'}`}</p>
-              </div>
-              <button
-                onClick={() => setShowEmployeesModal(false)}
-                className={`p-1 rounded-md ${isDarkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}>
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="overflow-y-auto flex-1">
-              <table className={`min-w-full divide-y ${isDarkMode ? 'divide-slate-700' : 'divide-slate-200'}`}>
-                <thead className={`sticky top-0 ${isDarkMode ? 'bg-slate-800/95' : 'bg-slate-50/95 backdrop-blur-sm'}`}>
-                  <tr>
-                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">#</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Name</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Email</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Department</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Status</th>
-                  </tr>
-                </thead>
-                <tbody className={`${isDarkMode ? 'bg-slate-900/75 divide-slate-700' : 'bg-white divide-slate-200'} divide-y`}>
-                  {employeesLoading ? (
-                    <tr><td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400 dark:text-slate-300 sm:px-6">Loading…</td></tr>
-                  ) : employeeList.length === 0 ? (
-                    <tr><td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400 dark:text-slate-300 sm:px-6">No employees found</td></tr>
-                  ) : (
-                    employeeList.map((emp, index) => (
-                      <tr key={emp.id} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/65' : index % 2 === 0 ? 'bg-white hover:bg-blue-50/35' : 'bg-slate-50/45 hover:bg-blue-50/45'}`}>
-                        <td className={`px-3 py-4 text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-400'} sm:px-6`}>{index + 1}</td>
-                        <td className={`px-3 py-4 text-sm font-medium ${isDarkMode ? 'text-slate-100' : 'text-slate-900'} sm:px-6`}>{emp.fullname}</td>
-                        <td className={`px-3 py-4 text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'} sm:px-6`}>{emp.email}</td>
-                        <td className={`px-3 py-4 text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'} sm:px-6`}>{emp.department || '—'}</td>
-                        <td className="px-3 py-4 sm:px-6">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            emp.status === 'active'
-                              ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
-                              : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
-                          }`}>{emp.status || 'unknown'}</span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <div className="border-t border-slate-100 px-4 py-3 flex items-center justify-between dark:border-slate-700 sm:px-6">
-              <span className="text-xs text-slate-400">{employeesLoading ? '' : `${employeeList.filter(e => e.status === 'active').length} active`}</span>
-              <button
-                onClick={() => setShowEmployeesModal(false)}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${isDarkMode ? 'text-slate-200 bg-slate-800 hover:bg-slate-700' : 'text-slate-700 bg-white border border-slate-200 hover:bg-slate-100'}`}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Total Employees Modal */}
-      {showEmployeesModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="mx-2 flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 sm:mx-4">
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 dark:border-slate-700 sm:px-6">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Total Employees</h2>
-                <p className="text-xs text-slate-400 mt-0.5">{employeesLoading ? 'Loading…' : `${employeeList.length} employee${employeeList.length === 1 ? '' : 's'}`}</p>
-              </div>
-              <button
-                onClick={() => setShowEmployeesModal(false)}
-                className={`p-1 rounded-md ${isDarkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}>
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="overflow-y-auto flex-1">
-              <table className={`min-w-full divide-y ${isDarkMode ? 'divide-slate-700' : 'divide-slate-200'}`}>
-                <thead className={`sticky top-0 ${isDarkMode ? 'bg-slate-800/95' : 'bg-slate-50/95 backdrop-blur-sm'}`}>
-                  <tr>
-                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">#</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Name</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Email</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Department</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Status</th>
-                  </tr>
-                </thead>
-                <tbody className={`${isDarkMode ? 'bg-slate-900/75 divide-slate-700' : 'bg-white divide-slate-200'} divide-y`}>
-                  {employeesLoading ? (
-                    <tr><td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400 dark:text-slate-300 sm:px-6">Loading…</td></tr>
-                  ) : employeeList.length === 0 ? (
-                    <tr><td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400 dark:text-slate-300 sm:px-6">No employees found</td></tr>
-                  ) : (
-                    employeeList.map((emp, index) => (
-                      <tr key={emp.id} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/65' : index % 2 === 0 ? 'bg-white hover:bg-blue-50/35' : 'bg-slate-50/45 hover:bg-blue-50/45'}`}>
-                        <td className={`px-3 py-4 text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-400'} sm:px-6`}>{index + 1}</td>
-                        <td className={`px-3 py-4 text-sm font-medium ${isDarkMode ? 'text-slate-100' : 'text-slate-900'} sm:px-6`}>{emp.fullname}</td>
-                        <td className={`px-3 py-4 text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'} sm:px-6`}>{emp.email}</td>
-                        <td className={`px-3 py-4 text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'} sm:px-6`}>{emp.department || '—'}</td>
-                        <td className="px-3 py-4 sm:px-6">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            emp.status === 'active'
-                              ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
-                              : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
-                          }`}>{emp.status || 'unknown'}</span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <div className="border-t border-slate-100 px-4 py-3 flex items-center justify-between dark:border-slate-700 sm:px-6">
-              <span className="text-xs text-slate-400">{employeesLoading ? '' : `${employeeList.filter(e => e.status === 'active').length} active`}</span>
-              <button
-                onClick={() => setShowEmployeesModal(false)}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${isDarkMode ? 'text-slate-200 bg-slate-800 hover:bg-slate-700' : 'text-slate-700 bg-white border border-slate-200 hover:bg-slate-100'}`}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* View All Activity Modal */}
       {showActivityModal && (
-        <div
-          className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 transition-opacity duration-200 ${isActivityModalVisible ? 'opacity-100' : 'opacity-0'}`}>
-          <div className={`mx-2 flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-slate-200 bg-white shadow-xl transition-all duration-200 ease-out dark:border-slate-700 dark:bg-slate-900 sm:mx-4 ${isActivityModalVisible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-2 scale-95 opacity-0'}`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="mx-2 flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 sm:mx-4">
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 dark:border-slate-700 sm:px-6">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">All Activity</h2>
               <button
-                onClick={closeAllActivity}
+                onClick={() => setShowActivityModal(false)}
                 className={`p-1 rounded-md ${isDarkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}>
                 <X className="h-5 w-5" />
               </button>
@@ -1125,27 +698,7 @@ export function AdminDashboard({ onNavigate }: Props) {
                     </tr>
                   ) : (
                     safeArray(allActivity).map((item, index) => (
-                      <tr
-                        key={item.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => void handleActivityNavigation(item)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            void handleActivityNavigation(item);
-                          }
-                        }}
-                        className={`cursor-pointer transition-colors ${
-                          activityNavLoadingId === item.id
-                            ? 'opacity-60'
-                            : isDarkMode
-                              ? 'hover:bg-slate-800/65'
-                              : index % 2 === 0
-                                ? 'bg-white hover:bg-green-50/35'
-                                : 'bg-slate-50/45 hover:bg-green-50/45'
-                        }`}
-                      >
+                      <tr key={item.id} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/65' : index % 2 === 0 ? 'bg-white hover:bg-emerald-50/35' : 'bg-slate-50/45 hover:bg-emerald-50/45'}`}>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>{item.user}</td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{item.action}</td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{item.target}</td>
@@ -1158,7 +711,7 @@ export function AdminDashboard({ onNavigate }: Props) {
             </div>
             <div className="border-t border-slate-100 px-4 py-3 text-right dark:border-slate-700 sm:px-6">
               <button
-                onClick={closeAllActivity}
+                onClick={() => setShowActivityModal(false)}
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${isDarkMode ? 'text-slate-200 bg-slate-800 hover:bg-slate-700' : 'text-slate-700 bg-white border border-slate-200 hover:bg-slate-100'}`}>
                 Close
               </button>

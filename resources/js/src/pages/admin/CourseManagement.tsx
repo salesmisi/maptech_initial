@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { createPortal } from 'react-dom';
 import { safeArray } from '../../utils/safe';
@@ -15,8 +15,6 @@ import {
   Upload,
   Trash } from
 'lucide-react';
-
-const COURSE_HEADER_CLASS = 'bg-gradient-to-r from-green-400 to-green-500 dark:from-green-500 dark:to-green-600';
 
 // Module interface for form handling
 interface ModuleInput {
@@ -139,49 +137,6 @@ const getXsrfToken = async (): Promise<string> => {
   return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
 };
 
-const getMinDateTimeInputValue = (): string => {
-  const now = new Date();
-  now.setSeconds(0, 0);
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
-};
-
-const normalizeApiDateTime = (value?: string | null): string | null => {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-
-  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(trimmed);
-  const normalizedInput = hasTimezone
-    ? trimmed
-    : `${trimmed.replace(' ', 'T').replace(/\.\d+$/, '')}Z`;
-
-  const parsed = new Date(normalizedInput);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString();
-};
-
-const toLocalDatetimeInput = (dateStr: string): string => {
-  const normalized = normalizeApiDateTime(dateStr);
-  if (!normalized) return '';
-  const d = new Date(normalized);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
-
-const isPastDateTimeInput = (value: FormDataEntryValue | null): boolean => {
-  if (typeof value !== 'string') return false;
-  const trimmed = value.trim();
-  if (!trimmed) return false;
-
-  const selected = new Date(trimmed);
-  if (Number.isNaN(selected.getTime())) return false;
-
-  const now = new Date();
-  now.setSeconds(0, 0);
-  return selected.getTime() < now.getTime();
-};
-
 export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, courseId?: string) => void }) {
   const confirm = useConfirm();
   const { showConfirm } = confirm;
@@ -196,22 +151,6 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   const [departments, setDepartments] = useState<DeptWithSubs[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedInstructorId, setSelectedInstructorId] = useState<number | string>('');
-  const minDateTimeInput = getMinDateTimeInputValue();
-
-  useEffect(() => {
-    if (!isModalOpen) return;
-
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-
-    return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousHtmlOverflow;
-    };
-  }, [isModalOpen]);
 
   // Debug: Monitor modules state changes
   useEffect(() => {
@@ -263,8 +202,8 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
           ? `/storage/${course.instructor.profile_picture}`
           : null,
         status: course.status,
-        start_date: normalizeApiDateTime(course.start_date),
-        deadline: normalizeApiDateTime(course.deadline),
+        start_date: course.start_date,
+        deadline: course.deadline,
         enrolledCount: course.enrollments_count || 0,
         modulesCount: course.modules?.length || 0,
         thumbnail: 'bg-green-500',
@@ -376,12 +315,6 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
     const form = e.currentTarget;
     const formData = new FormData(form);
 
-    if (isPastDateTimeInput(formData.get('start_date')) || isPastDateTimeInput(formData.get('deadline'))) {
-      alert('Start Date and End Date must be current or future.');
-      setIsSubmitting(false);
-      return;
-    }
-
     // Attach modules with file uploads
     modules.forEach((module, index) => {
       formData.append(`modules[${index}][title]`, module.title);
@@ -444,19 +377,19 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        {/* Heading removed: redundant in module context */}
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Course Management</h1>
         {/* Create Course removed on admin UI */}
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border border-slate-100 dark:border-slate-600 flex flex-col sm:flex-row gap-4">
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-slate-400 dark:text-slate-500" />
           </div>
           <input
             type="text"
-            className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+            className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
             placeholder="Search courses..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)} />
@@ -468,7 +401,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
               <Filter className="h-4 w-4 text-slate-400 dark:text-slate-500" />
             </div>
             <select
-              className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+              className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md leading-5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}>
 
@@ -490,10 +423,10 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
           return (
         <div
           key={course.id}
-          className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow dark:bg-slate-800 dark:border-slate-600 ${notStarted ? 'bg-white border-green-200' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
+          className={`rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow dark:bg-slate-800 dark:border-slate-600 ${notStarted ? 'bg-gray-200 border-gray-300' : ended ? 'bg-white border-red-200' : 'bg-white border-slate-200'}`}>
 
             <div
-            className={`h-32 ${notStarted ? 'bg-gradient-to-r from-green-400 to-green-500' : COURSE_HEADER_CLASS} flex items-center justify-center`}>
+            className={`h-32 ${notStarted ? 'bg-gray-400' : course.thumbnail} flex items-center justify-center`}>
 
               {course.instructor_profile_picture ? (
                 <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-white/80 shadow-md">
@@ -506,15 +439,15 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   </span>
                 </div>
               ) : (
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-md ring-4 ring-white/25">
-                  <BookOpen className="h-8 w-8 text-green-600" />
+                <div className="w-16 h-16 bg-white/20 rounded-lg flex items-center justify-center">
+                  <BookOpen className="h-12 w-12 text-white opacity-50" />
                 </div>
               )}
             </div>
             <div className="p-6">
               <div className="flex justify-between items-start">
                 <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${notStarted ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-200' : ended ? 'bg-red-100 text-red-800' : course.status === 'Active' ? 'bg-green-100 text-green-800' : course.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-800'}`}>
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${notStarted ? 'bg-gray-100 text-gray-600' : ended ? 'bg-red-100 text-red-800' : course.status === 'Active' ? 'bg-green-100 text-green-800' : course.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-800'}`}>
 
                   {notStarted ? 'Not Started' : ended ? 'Locked' : course.status}
                 </span>
@@ -552,7 +485,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
               </div>
 
               {notStarted && course.start_date && (
-                <p className="mt-2 text-xs text-green-600 dark:text-green-300">
+                <p className="mt-2 text-xs text-gray-500 dark:text-slate-300">
                   Starts on: {new Date(course.start_date).toLocaleDateString()} {new Date(course.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               )}
@@ -623,12 +556,19 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   name="title"
                   defaultValue={editingCourse?.title}
                   required
-                  className="w-full border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
 
-              {/* Description removed - now editable in Manage Content */}
-              <input type="hidden" name="description" value={editingCourse?.description || 'Self Pace'} />
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                <textarea
+                  rows={3}
+                  name="description"
+                  defaultValue={editingCourse?.description || 'Self Pace'}
+                  className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                />
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -638,7 +578,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                     defaultValue={editingCourse?.department || ''}
                     required
                     onChange={(e) => setSelectedDepartment(e.target.value)}
-                    className="w-full border border-slate-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="" disabled>Select Department</option>
                     {safeArray(departments).map(dept => (
@@ -651,7 +591,7 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   <select
                     name="subdepartment_id"
                     defaultValue={editingCourse?.subdepartment_id ?? ''}
-                    className="w-full border border-slate-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="">All (entire department)</option>
                     {safeArray(departments.find(d => d.name === selectedDepartment)?.subdepartments).map(sub => (
@@ -684,9 +624,8 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   <input
                     type="datetime-local"
                     name="start_date"
-                    defaultValue={editingCourse?.start_date ? toLocalDatetimeInput(editingCourse.start_date) : ''}
-                    min={minDateTimeInput}
-                    className="w-full border border-slate-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                    defaultValue={editingCourse?.start_date ? new Date(editingCourse.start_date).toISOString().slice(0, 16) : ''}
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
                   />
                 </div>
                 <div>
@@ -696,9 +635,8 @@ export function CourseManagement({ onNavigate }: { onNavigate?: (page: string, c
                   <input
                     type="datetime-local"
                     name="deadline"
-                    defaultValue={editingCourse?.deadline ? toLocalDatetimeInput(editingCourse.deadline) : ''}
-                    min={minDateTimeInput}
-                    className="w-full border border-slate-300 bg-white text-slate-900 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                    defaultValue={editingCourse?.deadline ? new Date(editingCourse.deadline).toISOString().slice(0, 16) : ''}
+                    className="w-full border border-slate-300 rounded-md py-2 px-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
                   />
                 </div>
               </div>

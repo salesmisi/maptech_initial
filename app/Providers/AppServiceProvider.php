@@ -4,13 +4,10 @@ namespace App\Providers;
 
 use App\Models\CustomModule;
 use App\Policies\CustomModulePolicy;
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Http\Request;
+use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\URL;
-use Illuminate\Support\ServiceProvider;
+
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -27,30 +24,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Always generate HTTPS URLs in production.
-        if (app()->environment('production')) {
-            URL::forceScheme('https');
-        }
-
-        // Shared API auth throttles to reduce brute-force and OTP abuse.
-        RateLimiter::for('api-login', function (Request $request) {
-            $email = strtolower((string) $request->input('email', ''));
-
-            return [
-                Limit::perMinute(10)->by($request->ip().'|'.$email),
-                Limit::perHour(120)->by($request->ip()),
-            ];
-        });
-
-        RateLimiter::for('api-password', function (Request $request) {
-            $email = strtolower((string) $request->input('email', ''));
-
-            return [
-                Limit::perMinute(6)->by($request->ip().'|'.$email),
-                Limit::perHour(60)->by($request->ip()),
-            ];
-        });
-
         // Register policies
         Gate::policy(CustomModule::class, CustomModulePolicy::class);
 
@@ -60,7 +33,7 @@ class AppServiceProvider extends ServiceProvider
         $envDriver = env('BROADCAST_DRIVER');
         $currentDefault = config('broadcasting.default') ?? $envDriver;
 
-        if (strtolower((string) $currentDefault) === 'pusher' && ! class_exists(\Pusher\Pusher::class)) {
+        if (strtolower((string) $currentDefault) === 'pusher' && !class_exists(\Pusher\Pusher::class)) {
             // Set fallback to `log` so the app continues to work without Pusher.
             config(['broadcasting.default' => 'log']);
             Log::warning('Pusher PHP SDK not found; falling back to log broadcaster. Install pusher/pusher-php-server to enable Pusher.');

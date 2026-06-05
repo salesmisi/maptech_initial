@@ -83,7 +83,7 @@ export function MyProgress() {
 
   return (
     <div className="space-y-6">
-      {/* Heading removed: redundant in module context */}
+      <h1 className="text-2xl font-bold text-slate-900">My Learning Progress</h1>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

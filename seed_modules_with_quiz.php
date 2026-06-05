@@ -8,7 +8,7 @@ use App\Models\Course;
 use App\Models\Module;
 
 $course = Course::where('department', 'IT')->first();
-if (! $course) {
+if (!$course) {
     echo "No IT course found.\n";
     exit(0);
 }
@@ -22,15 +22,15 @@ $modules = [
                 'id' => 1,
                 'question' => 'What is the primary goal of cybersecurity?',
                 'options' => ['Protect systems', 'Create vulnerabilities', 'Slow networks', 'Increase costs'],
-                'answer' => 0,
+                'answer' => 0
             ],
             [
                 'id' => 2,
                 'question' => 'Which one is a common attack type?',
                 'options' => ['Phishing', 'Gardening', 'Painting', 'Archiving'],
-                'answer' => 0,
-            ],
-        ],
+                'answer' => 0
+            ]
+        ]
     ],
     [
         'title' => 'Network fundamentals',
@@ -39,11 +39,11 @@ $modules = [
             [
                 'id' => 1,
                 'question' => 'What does LAN stand for?',
-                'options' => ['Local Area Network', 'Long Area Network', 'Large Area Network', 'Linked Access Network'],
-                'answer' => 0,
-            ],
-        ],
-    ],
+                'options' => ['Local Area Network','Long Area Network','Large Area Network','Linked Access Network'],
+                'answer' => 0
+            ]
+        ]
+    ]
 ];
 
 $created = 0;
@@ -51,11 +51,10 @@ foreach ($modules as $mdata) {
     $existing = Module::where('course_id', $course->id)->where('title', $mdata['title'])->first();
     if ($existing) {
         echo "Module already exists: {$mdata['title']}\n";
-
         continue;
     }
 
-    $mod = new Module;
+    $mod = new Module();
     $mod->title = $mdata['title'];
     $mod->content_path = $mdata['content_path'];
     $mod->course_id = $course->id;

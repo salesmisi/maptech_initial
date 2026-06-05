@@ -14,15 +14,15 @@ return new class extends Migration
         Schema::table('subdepartments', function (Blueprint $table) {
             // Subdepartment head (similar to department head)
             $table->foreignId('head_id')
-                ->nullable()
-                ->constrained('users')
-                ->onDelete('set null');
+                  ->nullable()
+                  ->constrained('users')
+                  ->onDelete('set null');
 
             // Subdepartment instructor (separate from head)
             $table->foreignId('instructor_id')
-                ->nullable()
-                ->constrained('users')
-                ->onDelete('set null');
+                  ->nullable()
+                  ->constrained('users')
+                  ->onDelete('set null');
         });
     }
 

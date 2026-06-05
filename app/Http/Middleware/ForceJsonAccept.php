@@ -12,6 +12,8 @@ class ForceJsonAccept
      * If the `Accept` header is missing, set it to `application/json` so
      * API routes will return JSON responses instead of redirects.
      *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \Closure  $next
      * @return mixed
      */
     public function handle(Request $request, Closure $next)

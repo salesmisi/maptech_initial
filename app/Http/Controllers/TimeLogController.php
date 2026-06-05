@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Events\TimeLogUpdated;
 use App\Models\TimeLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 
 class TimeLogController extends Controller
@@ -15,11 +17,11 @@ class TimeLogController extends Controller
     public function userLogs(Request $request, $userId)
     {
         $user = $request->user();
-        if (! $user) {
+        if (!$user) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
         // Only allow Admin or Instructor roles
-        if (! ($user->role === 'Admin' || $user->role === 'Instructor')) {
+        if (!($user->role === 'Admin' || $user->role === 'Instructor')) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
         $logs = \App\Models\TimeLog::where('user_id', $userId)->orderByDesc('time_in')->get();
@@ -33,17 +35,16 @@ class TimeLogController extends Controller
                 'note' => $tl->note,
                 'created_at' => optional($tl->created_at)->setTimezone('UTC')->toIso8601String(),
                 'updated_at' => optional($tl->updated_at)->setTimezone('UTC')->toIso8601String(),
-                'archived' => (bool) $tl->archived,
+                'archived' => (bool)$tl->archived,
             ];
         });
 
         return response()->json($data);
     }
-
     public function punchIn(Request $request)
     {
         $user = $request->user();
-        if (! $user) {
+        if (!$user) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
@@ -62,9 +63,6 @@ class TimeLogController extends Controller
 
         event(new TimeLogUpdated($timeLog->fresh()));
 
-        // Auto-cleanup: if time logs >= 50, delete oldest half
-        TimeLog::enforceTimeLogLimit($user->id);
-
         // Return canonical UTC ISO strings
         $resp = $timeLog->fresh();
         $out = [
@@ -75,7 +73,7 @@ class TimeLogController extends Controller
             'note' => $resp->note,
             'created_at' => optional($resp->created_at)->setTimezone('UTC')->toIso8601String(),
             'updated_at' => optional($resp->updated_at)->setTimezone('UTC')->toIso8601String(),
-            'archived' => (bool) $resp->archived,
+            'archived' => (bool)$resp->archived,
         ];
 
         return response()->json($out, 201);
@@ -84,12 +82,12 @@ class TimeLogController extends Controller
     public function punchOut(Request $request)
     {
         $user = $request->user();
-        if (! $user) {
+        if (!$user) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
         $open = TimeLog::where('user_id', $user->id)->whereNull('time_out')->latest('time_in')->first();
-        if (! $open) {
+        if (!$open) {
             return response()->json(['message' => 'No open time-in found'], 422);
         }
 
@@ -114,7 +112,7 @@ class TimeLogController extends Controller
             'note' => $resp->note,
             'created_at' => optional($resp->created_at)->setTimezone('UTC')->toIso8601String(),
             'updated_at' => optional($resp->updated_at)->setTimezone('UTC')->toIso8601String(),
-            'archived' => (bool) $resp->archived,
+            'archived' => (bool)$resp->archived,
         ];
 
         return response()->json($out);
@@ -123,7 +121,7 @@ class TimeLogController extends Controller
     public function myLogs(Request $request)
     {
         $user = $request->user();
-        if (! $user) {
+        if (!$user) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
@@ -143,9 +141,7 @@ class TimeLogController extends Controller
                         ->where('created_at', '<=', \Carbon\Carbon::parse($tl->time_in)->addMinutes(5))
                         ->orderBy('created_at')
                         ->first();
-                    if ($login) {
-                        $displayIn = $login->created_at;
-                    }
+                    if ($login) $displayIn = $login->created_at;
                 }
 
                 // Find logout audit corresponding to this time log (after time_in and before time_out+5m)
@@ -156,9 +152,7 @@ class TimeLogController extends Controller
                         ->where('created_at', '<=', \Carbon\Carbon::parse($tl->time_out)->addMinutes(5))
                         ->orderBy('created_at')
                         ->first();
-                    if ($logout) {
-                        $displayOut = $logout->created_at;
-                    }
+                    if ($logout) $displayOut = $logout->created_at;
                 }
             } catch (\Exception $e) {
                 // ignore parsing errors
@@ -172,7 +166,6 @@ class TimeLogController extends Controller
             $arr['updated_at'] = optional($tl->updated_at)->setTimezone('UTC')->toIso8601String();
             $arr['display_time_in'] = $displayIn ? optional($displayIn)->toIso8601String() : null;
             $arr['display_time_out'] = $displayOut ? optional($displayOut)->toIso8601String() : null;
-
             return $arr;
         });
 

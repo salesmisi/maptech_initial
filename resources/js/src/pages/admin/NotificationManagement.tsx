@@ -1,12 +1,8 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import useConfirm from '../../hooks/useConfirm';
-import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X, RotateCcw, Archive, ChevronDown, User, Search, Shield } from 'lucide-react';
-import { safeArray, resolveImageUrl } from '../../utils/safe';
+import { Bell, Send, Clock, CheckCircle, Plus, Trash2, Eye, Users, AlertCircle, X } from 'lucide-react';
+import { safeArray } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
-import InfoModal from '../../components/InfoModal';
-import { RichTextEditor } from '../../components/RichTextEditor';
-import { sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
-import { useToast } from '../../components/ToastProvider';
 
 interface Notification {
   id: number;
@@ -19,8 +15,6 @@ interface Notification {
     from_user_id?: number;
     from_user_name?: string;
     from_role?: string;
-    from_user_profile_picture?: string | null;
-    from_department?: string | null;
     course_title?: string;
   } | null;
   read_at: string | null;
@@ -32,132 +26,20 @@ interface SentNotification {
   title: string;
   message: string;
   target: string;
-  announcement_mode?: 'group' | 'one_person';
-  data?: {
-    image_url?: string | null;
-    image_urls?: string[];
-  } | null;
   date: string;
   status: 'Sent';
   recipients_count: number;
-  target_roles?: string[];
-  department_name?: string | null;
-  subdepartment_name?: string | null;
 }
-
-interface RecentlyDeletedNotification {
-  id: number;
-  title: string;
-  message: string;
-  target: string | null;
-  announcement_mode?: 'group' | 'one_person';
-  data?: {
-    from_user_name?: string;
-    from_role?: string;
-    from_department?: string | null;
-    image_url?: string | null;
-    image_urls?: string[];
-  } | null;
-  date: string;
-  deleted_at: string;
-  recipients_count: number | null;
-  item_type: 'sent' | 'received';
-  target_roles?: string[];
-  department_name?: string | null;
-  subdepartment_name?: string | null;
-  type?: string;
-}
-
-interface AnnouncementDetail {
-  source: 'received' | 'sent' | 'deleted';
-  id: number;
-  title: string;
-  message: string;
-  date: string;
-  deleted_at?: string | null;
-  target?: string | null;
-  announcement_mode?: 'group' | 'one_person';
-  target_roles?: string[];
-  department_name?: string | null;
-  subdepartment_name?: string | null;
-  recipients_count?: number | null;
-  type?: string;
-  read_at?: string | null;
-  item_type?: 'sent' | 'received';
-  data?: {
-    from_user_id?: number;
-    from_user_name?: string;
-    from_role?: string;
-    from_user_profile_picture?: string | null;
-    from_department?: string | null;
-    course_title?: string;
-    image_url?: string | null;
-    image_urls?: string[];
-  } | null;
-}
-
-interface DepartmentOption {
-  id: number;
-  name: string;
-  subdepartments?: { id: number; name: string }[];
-}
-
-function extractNotificationItems(payload: any): Notification[] {
-  const candidates = [
-    payload,
-    payload?.data,
-    payload?.notifications,
-    payload?.notifications?.data,
-    payload?.data?.data,
-    payload?.notifications?.data?.data,
-  ];
-
-  for (const candidate of candidates) {
-    if (Array.isArray(candidate)) {
-      return candidate;
-    }
-  }
-
-  return [];
-}
-
-const PENDING_NOTIFICATION_ID_KEY = 'maptech_pending_notification_id';
-const PENDING_NOTIFICATION_ROLE_KEY = 'maptech_pending_notification_role';
-const OPEN_NOTIFICATION_EVENT = 'maptech-open-notification';
-const NOTIFICATION_READ_EVENT = 'maptech-notification-read';
 
 export function NotificationManagement() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [sentHistory, setSentHistory] = useState<SentNotification[]>([]);
-  const [recentlyDeleted, setRecentlyDeleted] = useState<RecentlyDeletedNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isOnePersonModalOpen, setIsOnePersonModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [isSendingOne, setIsSendingOne] = useState(false);
-  const [showSendDropdown, setShowSendDropdown] = useState(false);
-  const sendDropdownRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<'received' | 'sent' | 'deleted'>('received');
-  const [selectedAnnouncementDetail, setSelectedAnnouncementDetail] = useState<AnnouncementDetail | null>(null);
-  const [previewModal, setPreviewModal] = useState<{ open: boolean; recipientCount: number | null; recipients?: { id: number; fullname: string }[]; error?: string }>({ open: false, recipientCount: null });
-  const [isAdminTargetModalOpen, setIsAdminTargetModalOpen] = useState(false);
-  const [adminRecipientMode, setAdminRecipientMode] = useState<'everyone' | 'instructors' | 'employees' | 'specific_employee' | 'specific_instructor'>('employees');
-  const [listSearchQuery, setListSearchQuery] = useState('');
-  const [highlightedNotificationId, setHighlightedNotificationId] = useState<number | null>(null);
-  const notifRowRefs = useRef<Record<number, HTMLDivElement | null>>({});
-
-  // One-person form state
-  const [onePersonForm, setOnePersonForm] = useState({ title: '', message: '' });
-  const [onePersonImages, setOnePersonImages] = useState<File[]>([]);
-  const [onePersonImagePreviewUrls, setOnePersonImagePreviewUrls] = useState<string[]>([]);
-  const [onePersonResults, setOnePersonResults] = useState<{ id: number; fullname: string; role: string }[]>([]);
-  const [onePersonSelected, setOnePersonSelected] = useState<{ id: number; fullname: string; role: string } | null>(null);
-  const [onePersonDept, setOnePersonDept] = useState('');
-  const [onePersonSubdept, setOnePersonSubdept] = useState('');
-  const [onePersonRole, setOnePersonRole] = useState<'instructor' | 'employee'>('instructor');
-  const onePersonSearchTimer = useRef<number | null>(null);
-  const HISTORY_LIMIT = 50;
+  const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -174,29 +56,12 @@ export function NotificationManagement() {
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const userSearchTimer = React.useRef<number | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<{ id: number; fullname: string; role: string }[]>([]);
-  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
-  const [selectedSubdepartment, setSelectedSubdepartment] = useState<string>('');
-  const [announcementImages, setAnnouncementImages] = useState<File[]>([]);
-  const [announcementImagePreviewUrls, setAnnouncementImagePreviewUrls] = useState<string[]>([]);
 
-  const selectedDepartmentOption = departments.find((d) => String(d.id) === selectedDepartment);
-  const availableSubdepartments = safeArray(selectedDepartmentOption?.subdepartments);
-
-  // Close send dropdown on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (sendDropdownRef.current && !sendDropdownRef.current.contains(e.target as Node)) {
-        setShowSendDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
+  const token = localStorage.getItem('token');
   const confirm = useConfirm();
   const { showConfirm } = confirm;
-  const { pushToast } = useToast();
 
   // Helper to read cookie value
   const getCookie = (name: string) => {
@@ -210,24 +75,15 @@ export function NotificationManagement() {
     return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
   };
 
-  const fetchOptions = async (method: 'GET' | 'POST' | 'DELETE', body?: unknown): Promise<RequestInit> => {
-    const headers: Record<string, string> = {
+  const fetchOptions = (method: 'GET' | 'POST', body?: unknown): RequestInit => ({
+    method,
+    credentials: 'include',
+    headers: {
       'Accept': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
       ...(body ? { 'Content-Type': 'application/json' } : {}),
-    };
-
-    if (method !== 'GET') {
-      headers['X-XSRF-TOKEN'] = await getXsrfToken();
-    }
-
-    return {
-      method,
-      credentials: 'include',
-      headers,
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    };
-  };
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
 
   // Load notifications and sent history
   useEffect(() => {
@@ -235,52 +91,12 @@ export function NotificationManagement() {
     fetchNotifications();
     fetchUnreadCount();
     fetchSentAnnouncements();
-    fetchRecentlyDeleted();
-
-    // Subscribe to realtime notifications if Echo is available
-    let cleanup: (() => void) | undefined;
-    (async () => {
-      try {
-        const Echo = (window as any).Echo;
-        if (!Echo || typeof Echo.private !== 'function') return;
-        // Fetch current user id
-        const res = await fetch('/user', { credentials: 'include', headers: { 'Accept': 'application/json' } });
-        if (!res.ok) return;
-        const me = await res.json();
-        if (!me?.id) return;
-        const channel = Echo.private('notifications.' + me.id);
-        const createdHandler = (payload: any) => {
-          const n = payload?.notification || payload;
-          if (!n) return;
-          setNotifications(prev => [n, ...prev.filter(p => p.id !== n.id)]);
-          setUnreadCount(c => c + 1);
-        };
-        const countHandler = (payload: any) => {
-          setUnreadCount(payload?.count ?? 0);
-        };
-        channel.listen('NotificationCreated', createdHandler);
-        channel.listen('NotificationCountUpdated', countHandler);
-
-        cleanup = () => {
-          try {
-            channel.stopListening('NotificationCreated');
-            channel.stopListening('NotificationCountUpdated');
-          } catch (e) {}
-        };
-      } catch (e) {
-        // ignore
-      }
-    })();
-
-    return () => {
-      if (cleanup) cleanup();
-    };
   }, []);
 
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/notifications', await fetchOptions('GET'));
+      const res = await fetch('/api/admin/notifications', fetchOptions('GET'));
       let data: any = null;
       try {
         data = await res.json();
@@ -290,25 +106,11 @@ export function NotificationManagement() {
         data = null;
       }
 
-      // Handle different response formats from the API
-      let list: Notification[] = [];
-      if (Array.isArray(data)) {
-        // Direct array response
-        list = data;
-      } else if (Array.isArray(data?.data)) {
-        // Response with data property
-        list = data.data;
-      } else if (Array.isArray(data?.notifications)) {
-        // Response with notifications property
-        list = data.notifications;
-      } else if (data?.notifications?.data && Array.isArray(data.notifications.data)) {
-        // Paginated response
-        list = data.notifications.data;
-      } else if (data !== null) {
+      const list = safeArray(data?.notifications?.data);
+      if (!Array.isArray(data?.notifications?.data) && data !== null) {
         console.warn('/api/admin/notifications returned unexpected shape', data);
       }
-
-      setNotifications(safeArray(list));
+      setNotifications(list);
     } catch (err) {
       console.error('Failed to load notifications:', err);
     } finally {
@@ -318,7 +120,7 @@ export function NotificationManagement() {
 
   const fetchUnreadCount = async () => {
     try {
-      const res = await fetch('/api/admin/notifications/unread-count', await fetchOptions('GET'));
+      const res = await fetch('/api/admin/notifications/unread-count', fetchOptions('GET'));
       const data = await res.json();
       setUnreadCount(data.count || 0);
     } catch (err) {
@@ -328,7 +130,12 @@ export function NotificationManagement() {
 
   const fetchSentAnnouncements = async () => {
     try {
-      const res = await fetch('/api/admin/notifications/sent-history', await fetchOptions('GET'));
+      const res = await fetch('/api/admin/notifications/sent-history', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
       const data = await res.json();
       setSentHistory(data.sent_announcements || []);
     } catch (err) {
@@ -336,94 +143,21 @@ export function NotificationManagement() {
     }
   };
 
-  const fetchRecentlyDeleted = async () => {
-    try {
-      const res = await fetch('/api/admin/notifications/recently-deleted', await fetchOptions('GET'));
-      const data = await res.json();
-      setRecentlyDeleted(data.recently_deleted || []);
-    } catch (err) {
-      console.error('Failed to load recently deleted:', err);
-    }
-  };
-
-  const deleteSentHistory = async (id: number) => {
-    showConfirm('Move this announcement to recently deleted?', async () => {
-      try {
-        await fetch(`/api/admin/notifications/sent-history/${id}`, await fetchOptions('DELETE'));
-        fetchSentAnnouncements();
-        fetchRecentlyDeleted();
-      } catch (err) {
-        console.error('Failed to delete sent history:', err);
-      }
-    });
-  };
-
-  const restoreFromDeleted = async (id: number) => {
-    try {
-      await fetch(`/api/admin/notifications/sent-history/${id}/restore`, await fetchOptions('POST'));
-      fetchSentAnnouncements();
-      fetchRecentlyDeleted();
-    } catch (err) {
-      console.error('Failed to restore announcement:', err);
-    }
-  };
-
-  const permanentlyDelete = async (id: number) => {
-    showConfirm('Permanently delete this announcement? This cannot be undone.', async () => {
-      try {
-        await fetch(`/api/admin/notifications/sent-history/${id}/permanent`, await fetchOptions('DELETE'));
-        fetchRecentlyDeleted();
-      } catch (err) {
-        console.error('Failed to permanently delete:', err);
-      }
-    });
-  };
-
-  const restoreReceivedNotification = async (id: number) => {
-    try {
-      await fetch(`/api/admin/notifications/${id}/restore`, await fetchOptions('POST'));
-      fetchNotifications();
-      fetchRecentlyDeleted();
-    } catch (err) {
-      console.error('Failed to restore notification:', err);
-    }
-  };
-
-  const permanentlyDeleteReceived = async (id: number) => {
-    showConfirm('Permanently delete this notification? This cannot be undone.', async () => {
-      try {
-        await fetch(`/api/admin/notifications/${id}/permanent`, await fetchOptions('DELETE'));
-        fetchRecentlyDeleted();
-      } catch (err) {
-        console.error('Failed to permanently delete:', err);
-      }
-    });
-  };
-
   const markAsRead = async (id: number) => {
-    const target = notifications.find((item) => item.id === id);
-    if (!target || target.read_at) return;
-
-    setNotifications((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, read_at: new Date().toISOString() } : item))
-    );
-    setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
-
     try {
-      await fetch(`/api/admin/notifications/${id}/read`, await fetchOptions('POST'));
+      await fetch(`/api/admin/notifications/${id}/read`, fetchOptions('POST'));
+      fetchNotifications();
+      fetchUnreadCount();
     } catch (err) {
       console.error('Failed to mark as read:', err);
     }
   };
 
   const markAllAsRead = async () => {
-    setNotifications((prev) =>
-      prev.map((item) => (item.read_at ? item : { ...item, read_at: new Date().toISOString() }))
-    );
-    setUnreadCount(0);
-
     try {
-      await fetch('/api/admin/notifications/read-all', await fetchOptions('POST'));
+      await fetch('/api/admin/notifications/read-all', fetchOptions('POST'));
+      fetchNotifications();
+      fetchUnreadCount();
     } catch (err) {
       console.error('Failed to mark all as read:', err);
     }
@@ -432,9 +166,14 @@ export function NotificationManagement() {
   const deleteNotification = async (id: number) => {
     showConfirm('Delete this notification?', async () => {
       try {
-        await fetch(`/api/admin/notifications/${id}`, await fetchOptions('DELETE'));
+        await fetch(`/api/admin/notifications/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+          },
+        });
         fetchNotifications();
-        fetchRecentlyDeleted();
       } catch (err) {
         console.error('Failed to delete notification:', err);
       }
@@ -479,11 +218,14 @@ export function NotificationManagement() {
     }
     try {
       setIsSearchingUsers(true);
-      const roleParam = adminRecipientMode === 'specific_employee' ? '&role=Employee' : adminRecipientMode === 'specific_instructor' ? '&role=Instructor' : '';
+      const roleParam = formData.roles.length === 1 ? `&role=${encodeURIComponent(formData.roles[0])}` : '';
       const deptParam = selectedDepartment ? `&department_id=${encodeURIComponent(selectedDepartment)}` : '';
-      const deptNameParam = selectedDepartmentOption?.name ? `&department=${encodeURIComponent(selectedDepartmentOption.name)}` : '';
-      const subdeptParam = selectedSubdepartment ? `&subdepartment_id=${encodeURIComponent(selectedSubdepartment)}` : '';
-      const res = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}${roleParam}${deptParam}${deptNameParam}${subdeptParam}`, await fetchOptions('GET'));
+      const res = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}${roleParam}${deptParam}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
       const data = await res.json();
       // normalize: expect array of users
       const users = Array.isArray(data) ? data : (data?.data || []);
@@ -502,187 +244,55 @@ export function NotificationManagement() {
       searchUsers(userQuery);
     }, 300) as unknown as number;
     return () => { if (userSearchTimer.current) window.clearTimeout(userSearchTimer.current); };
-  }, [userQuery, adminRecipientMode, selectedDepartment, selectedSubdepartment]);
+  }, [userQuery, formData.roles, selectedDepartment]);
 
   // load departments for selector
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch('/api/departments', await fetchOptions('GET'));
-        const data = await res.json();
-        setDepartments(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error('Failed to load departments:', err);
-      }
-    })();
+    fetch('/api/departments')
+      .then(res => res.json())
+      .then(data => setDepartments(Array.isArray(data) ? data : []))
+      .catch(err => console.error('Failed to load departments:', err));
   }, []);
-
-  useEffect(() => {
-    setSelectedSubdepartment('');
-  }, [selectedDepartment]);
-
-  useEffect(() => {
-    if (announcementImages.length === 0) {
-      setAnnouncementImagePreviewUrls([]);
-      return;
-    }
-    const objectUrls = announcementImages.map((file) => URL.createObjectURL(file));
-    setAnnouncementImagePreviewUrls(objectUrls);
-    return () => { objectUrls.forEach((url) => URL.revokeObjectURL(url)); };
-  }, [announcementImages]);
-
-  useEffect(() => {
-    if (onePersonImages.length === 0) {
-      setOnePersonImagePreviewUrls([]);
-      return;
-    }
-    const urls = onePersonImages.map((f) => URL.createObjectURL(f));
-    setOnePersonImagePreviewUrls(urls);
-    return () => { urls.forEach((u) => URL.revokeObjectURL(u)); };
-  }, [onePersonImages]);
-
-  // one-person recipient list (reloads when role/dept/subdept changes)
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const params = new URLSearchParams({ role: onePersonRole });
-        if (onePersonDept) {
-          params.set('department_id', onePersonDept);
-          const deptName = departments.find((d) => String(d.id) === onePersonDept)?.name || '';
-          if (deptName) params.set('department', deptName);
-        }
-        if (onePersonSubdept) params.set('subdepartment_id', onePersonSubdept);
-        const res = await fetch(`/api/admin/users?${params.toString()}`, await fetchOptions('GET'));
-        const data = await res.json();
-        const users = Array.isArray(data) ? data : (data?.data || []);
-        setOnePersonResults(users.map((u: any) => ({ id: u.id, fullname: u.fullname || `${u.first_name || ''} ${u.last_name || ''}`.trim(), role: u.role || '' })));
-      } catch {}
-    };
-    fetchUsers();
-    setOnePersonSelected(null);
-  }, [onePersonRole, onePersonDept, onePersonSubdept]);
-
-  const resetOnePersonForm = () => {
-    setOnePersonForm({ title: '', message: '' });
-    setOnePersonImages([]);
-    setOnePersonResults([]);
-    setOnePersonSelected(null);
-    setOnePersonDept('');
-    setOnePersonSubdept('');
-    setOnePersonRole('instructor');
-  };
-
-  const handleSendOnePerson = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!onePersonSelected) {
-      setPreviewModal({ open: true, recipientCount: null, error: 'Please select a recipient first.' });
-      return;
-    }
-    if (isMessageEmpty(onePersonForm.message)) {
-      setPreviewModal({ open: true, recipientCount: null, error: 'Please enter a message.' });
-      return;
-    }
-    setIsSendingOne(true);
-    try {
-      const xsrf = await getXsrfToken();
-      const payload = new FormData();
-      payload.append('title', onePersonForm.title);
-      payload.append('message', onePersonForm.message);
-      payload.append('announcement_mode', 'one_person');
-      payload.append('roles[]', onePersonRole === 'instructor' ? 'Instructor' : 'Employee');
-      if (onePersonDept) payload.append('department_id', String(Number(onePersonDept)));
-      if (onePersonSubdept) payload.append('subdepartment_id', String(Number(onePersonSubdept)));
-      payload.append('target_user_ids[]', String(onePersonSelected.id));
-      onePersonImages.forEach((f) => payload.append('message_images[]', f));
-      const res = await fetch('/api/admin/notifications/announce', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-XSRF-TOKEN': xsrf },
-        body: payload,
-      });
-      const data = await res.json();
-      if (res.ok) {
-        pushToast('Sent Successfully', 'Notification sent to 1 recipient!', 'success');
-        setIsOnePersonModalOpen(false);
-        resetOnePersonForm();
-        fetchSentAnnouncements();
-      } else {
-        setPreviewModal({ open: true, recipientCount: null, error: data?.message || 'Failed to send announcement.' });
-      }
-    } catch {
-      setPreviewModal({ open: true, recipientCount: null, error: 'Failed to send announcement.' });
-    } finally {
-      setIsSendingOne(false);
-    }
-  };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    const rolesArray = adminRecipientMode === 'everyone'
-      ? ['Instructor', 'Employee']
-      : adminRecipientMode === 'instructors'
-        ? ['Instructor']
-        : adminRecipientMode === 'specific_instructor'
-          ? ['Instructor']
-          : ['Employee']; // 'employees' and 'specific_employee'
-    const hasSelectedUsers = (adminRecipientMode === 'specific_employee' || adminRecipientMode === 'specific_instructor') && Array.isArray(formData.target_user_ids) && formData.target_user_ids.length > 0;
-    if (isMessageEmpty(formData.message)) {
-      setPreviewModal({ open: true, recipientCount: null, error: 'Please enter a message.' });
-      return;
-    }
-    if (adminRecipientMode === 'specific_employee' && !hasSelectedUsers) {
-      setPreviewModal({ open: true, recipientCount: null, error: 'Please select a specific employee.' });
-      return;
-    }
-    if (adminRecipientMode === 'specific_instructor' && !hasSelectedUsers) {
-      setPreviewModal({ open: true, recipientCount: null, error: 'Please select a specific instructor.' });
+    const rolesArray = Array.isArray(formData.roles) ? formData.roles : (formData.roles ? [formData.roles] : []);
+    if (rolesArray.length === 0) {
+      alert('Please select at least one target audience');
       return;
     }
 
     setIsSending(true);
     try {
       const xsrf = await getXsrfToken();
-      const payload = new FormData();
-      payload.append('title', formData.title);
-      payload.append('message', formData.message);
-      payload.append('announcement_mode', 'group');
-
-      rolesArray.forEach((role) => payload.append('roles[]', role));
-
-      if (formData.course_id) payload.append('course_id', formData.course_id);
-      if (selectedDepartment) payload.append('department_id', String(Number(selectedDepartment)));
-      if (selectedSubdepartment) payload.append('subdepartment_id', String(Number(selectedSubdepartment)));
-
-      if (formData.target_user_ids && formData.target_user_ids.length > 0) {
-        formData.target_user_ids.forEach((id) => payload.append('target_user_ids[]', String(id)));
-      }
-
-      announcementImages.forEach((file) => {
-        payload.append('message_images[]', file);
-      });
-
       const res = await fetch('/api/admin/notifications/announce', {
         method: 'POST',
         credentials: 'include',
         headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
           'Accept': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
           'X-XSRF-TOKEN': xsrf,
         },
-        body: payload,
+        body: JSON.stringify({
+          title: formData.title,
+          message: formData.message,
+          roles: formData.roles,
+          course_id: formData.course_id || null,
+            department_id: selectedDepartment ? Number(selectedDepartment) : null,
+          target_user_ids: formData.target_user_ids && formData.target_user_ids.length > 0 ? formData.target_user_ids : null,
+        }),
       });
 
       const data = await res.json();
 
       if (res.ok) {
-        pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} recipient${data.recipients_count !== 1 ? 's' : ''}!`, 'success');
+        alert(`Announcement sent to ${data.recipients_count} users!`);
         setIsModalOpen(false);
         setFormData({ title: '', message: '', roles: [], course_id: '', target_user_ids: [] });
         setSelectedUsers([]);
         setSelectedDepartment('');
-        setSelectedSubdepartment('');
-        setAnnouncementImages([]);
-        setAdminRecipientMode('employees');
 
         // Refresh sent history from server
         fetchSentAnnouncements();
@@ -699,42 +309,27 @@ export function NotificationManagement() {
   };
 
   const handlePreview = async () => {
-    const rolesArray = adminRecipientMode === 'everyone'
-      ? ['Instructor', 'Employee']
-      : adminRecipientMode === 'instructors'
-        ? ['Instructor']
-        : adminRecipientMode === 'specific_instructor'
-          ? ['Instructor']
-          : ['Employee'];
-    const hasSelectedUsers = (adminRecipientMode === 'specific_employee' || adminRecipientMode === 'specific_instructor') && Array.isArray(formData.target_user_ids) && formData.target_user_ids.length > 0;
-    if (isMessageEmpty(formData.message)) {
-      setPreviewModal({ open: true, recipientCount: null, error: 'Please enter a message.' });
-      return;
-    }
-    if (adminRecipientMode === 'specific_employee' && !hasSelectedUsers) {
-      setPreviewModal({ open: true, recipientCount: null, error: 'Please select a specific employee.' });
-      return;
-    }
-    if (adminRecipientMode === 'specific_instructor' && !hasSelectedUsers) {
-      setPreviewModal({ open: true, recipientCount: null, error: 'Please select a specific instructor.' });
+    const rolesArray = Array.isArray(formData.roles) ? formData.roles : (formData.roles ? [formData.roles] : []);
+    if (rolesArray.length === 0) {
+      alert('Please select at least one target audience');
       return;
     }
 
     try {
       // Ensure we have a fresh CSRF cookie when not using token fallback
+      if (!token) {
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+      }
       const payload = {
         title: formData.title,
         message: formData.message,
         roles: rolesArray,
         course_id: formData.course_id || null,
-        department_id: selectedDepartment ? Number(selectedDepartment) : null,
-        subdepartment_id: selectedSubdepartment ? Number(selectedSubdepartment) : null,
-        target_user_ids: hasSelectedUsers ? formData.target_user_ids : null,
         preview: true,
       };
       console.debug('Preview announce payload', payload);
 
-      const res = await fetch('/api/admin/notifications/announce', await fetchOptions('POST', payload));
+      const res = await fetch('/api/admin/notifications/announce', fetchOptions('POST', payload));
 
       let data: any = null;
       try {
@@ -745,13 +340,13 @@ export function NotificationManagement() {
       }
 
       if (res.ok) {
-        setPreviewModal({ open: true, recipientCount: data?.recipients_count ?? null, recipients: data?.recipients ?? [] });
+        alert(`Preview: ${data?.recipients_count ?? 'unknown'} recipients`);
       } else {
-        setPreviewModal({ open: true, recipientCount: null, error: data?.message || `Failed to preview recipients (status ${res.status})` });
+        alert(data?.message || `Failed to preview recipients (status ${res.status})`);
       }
     } catch (err) {
       console.error('Preview failed:', err);
-      setPreviewModal({ open: true, recipientCount: null, error: 'Preview failed' });
+      alert('Preview failed');
     }
   };
 
@@ -765,217 +360,13 @@ export function NotificationManagement() {
     });
   };
 
-  const isMessageEmpty = (html: string) => {
-    const text = String(html || '')
-      .replace(/<br\s*\/?\s*>/gi, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/&nbsp;/gi, ' ')
-      .trim();
-    return text.length === 0;
-  };
-
-  const formatRoleList = (roles?: string[]) => {
-    const normalized = safeArray(roles)
-      .map((role) => String(role || '').trim())
-      .filter(Boolean);
-    return normalized.length > 0 ? normalized.join(', ') : 'Not specified';
-  };
-
-  const messagePreviewText = (value: string) => {
-    const html = String(value || '');
-    if (!html) return '';
-
-    const plain = new DOMParser().parseFromString(html, 'text/html').body.textContent || '';
-    return plain.replace(/\s+/g, ' ').trim();
-  };
-
-  const openReceivedDetail = (notification: Notification) => {
-    setSelectedAnnouncementDetail({
-      source: 'received',
-      id: notification.id,
-      title: notification.title,
-      message: notification.message,
-      date: notification.created_at,
-      type: notification.type,
-      read_at: notification.read_at,
-      target: 'You',
-      department_name: notification.data?.from_department ?? null,
-      data: notification.data,
-    });
-  };
-
-  const openSentDetail = (item: SentNotification) => {
-    setSelectedAnnouncementDetail({
-      source: 'sent',
-      id: item.id,
-      title: item.title,
-      message: item.message,
-      date: item.date,
-      target: item.target,
-      announcement_mode: item.announcement_mode,
-      target_roles: item.target_roles,
-      department_name: item.department_name ?? null,
-      subdepartment_name: item.subdepartment_name ?? null,
-      recipients_count: item.recipients_count,
-      type: 'announcement',
-      data: item.data,
-    });
-  };
-
-  const openDeletedDetail = (item: RecentlyDeletedNotification) => {
-    setSelectedAnnouncementDetail({
-      source: 'deleted',
-      id: item.id,
-      title: item.title,
-      message: item.message,
-      date: item.date,
-      deleted_at: item.deleted_at,
-      target: item.target,
-      announcement_mode: item.announcement_mode,
-      target_roles: item.target_roles,
-      department_name: item.department_name ?? item.data?.from_department ?? null,
-      subdepartment_name: item.subdepartment_name ?? null,
-      recipients_count: item.recipients_count,
-      type: item.type,
-      item_type: item.item_type,
-      data: item.data,
-    });
-  };
-
-  const tryOpenPendingNotification = React.useCallback(() => {
-    const pendingIdRaw = localStorage.getItem(PENDING_NOTIFICATION_ID_KEY);
-    const pendingRole = localStorage.getItem(PENDING_NOTIFICATION_ROLE_KEY);
-    if (!pendingIdRaw || pendingRole !== 'Admin') return;
-
-    const pendingId = Number(pendingIdRaw);
-    if (!Number.isFinite(pendingId)) {
-      localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
-      localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
-      return;
-    }
-
-    const target = notifications.find((item) => item.id === pendingId);
-    if (!target) return;
-
-    setActiveTab('received');
-    setHighlightedNotificationId(target.id);
-    openReceivedDetail(target);
-    localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
-    localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
-
-    if (!target.read_at) {
-      markAsRead(target.id);
-    }
-  }, [notifications]);
-
-  useEffect(() => {
-    tryOpenPendingNotification();
-  }, [notifications, tryOpenPendingNotification]);
-
-  useEffect(() => {
-    const handler = () => tryOpenPendingNotification();
-    window.addEventListener(OPEN_NOTIFICATION_EVENT, handler);
-    return () => window.removeEventListener(OPEN_NOTIFICATION_EVENT, handler);
-  }, [tryOpenPendingNotification]);
-
-  // When the bell marks a notification as read, immediately reflect it in the received list.
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const id = (e as CustomEvent<{ id: number }>).detail?.id;
-      if (!id) return;
-      setNotifications((prev) =>
-        prev.map((item) => (item.id === id && !item.read_at ? { ...item, read_at: new Date().toISOString() } : item))
-      );
-      setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
-    };
-    window.addEventListener(NOTIFICATION_READ_EVENT, handler);
-    return () => window.removeEventListener(NOTIFICATION_READ_EVENT, handler);
-  }, []);
-
-  // Scroll to and briefly highlight a notification when opened from the bell.
-  useEffect(() => {
-    if (highlightedNotificationId == null) return;
-    const el = notifRowRefs.current[highlightedNotificationId];
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    const timer = setTimeout(() => setHighlightedNotificationId(null), 2500);
-    return () => clearTimeout(timer);
-  }, [highlightedNotificationId]);
-
-  const normalizedListSearch = listSearchQuery.trim().toLowerCase();
-
-  const filteredNotifications = useMemo(() => {
-    if (!normalizedListSearch) return safeArray(notifications);
-
-    return safeArray(notifications).filter((notification) => {
-      return [
-        notification.title,
-        notification.message,
-        notification.type,
-        notification.data?.from_user_name,
-        notification.data?.from_role,
-        notification.data?.from_department,
-        notification.data?.course_title,
-      ].some((value) => String(value || '').toLowerCase().includes(normalizedListSearch));
-    });
-  }, [notifications, normalizedListSearch]);
-
-  const filteredSentHistory = useMemo(() => {
-    if (!normalizedListSearch) return safeArray(sentHistory);
-
-    return safeArray(sentHistory).filter((item) => {
-      const plainMessage = String(item.message || '')
-        .replace(/<br\s*\/?\s*>/gi, ' ')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&nbsp;/gi, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      const rolesText = safeArray(item.target_roles)
-        .map((role) => String(role || '').trim())
-        .filter(Boolean)
-        .join(', ');
-
-      return [
-        item.title,
-        plainMessage,
-        item.target,
-        item.announcement_mode,
-        rolesText,
-        item.department_name,
-        item.subdepartment_name,
-      ].some((value) => String(value || '').toLowerCase().includes(normalizedListSearch));
-    });
-  }, [sentHistory, normalizedListSearch]);
-
-  const filteredRecentlyDeleted = useMemo(() => {
-    if (!normalizedListSearch) return safeArray(recentlyDeleted);
-
-    return safeArray(recentlyDeleted).filter((item) => {
-      const plainMessage = String(item.message || '')
-        .replace(/<br\s*\/?\s*>/gi, ' ')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&nbsp;/gi, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      return [
-        item.title,
-        plainMessage,
-        item.target,
-        item.item_type,
-        item.type,
-        item.data?.from_user_name,
-        item.data?.from_role,
-        item.data?.from_department,
-        item.department_name,
-        item.subdepartment_name,
-      ].some((value) => String(value || '').toLowerCase().includes(normalizedListSearch));
-    });
-  }, [recentlyDeleted, normalizedListSearch]);
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+            Notification System
+          </h1>
           {unreadCount > 0 && (
             <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">
               You have {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
@@ -986,29 +377,20 @@ export function NotificationManagement() {
           {unreadCount > 0 && (
             <button
               onClick={markAllAsRead}
-              className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
+              className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
             >
               <CheckCircle className="h-4 w-4 mr-2" />
               Mark All Read
             </button>
           )}
           <button
-            onClick={() => {
-              fetchNotifications();
-              fetchUnreadCount();
-            }}
-            className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
-          >
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Refresh
-          </button>
-          <button
             onClick={async () => {
+              if (!token) await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
               setIsModalOpen(true);
             }}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
           >
-            <Send className="h-4 w-4 mr-2" />
+            <Plus className="h-4 w-4 mr-2" />
             Send Announcement
           </button>
         </div>
@@ -1025,7 +407,6 @@ export function NotificationManagement() {
                 : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
             }`}
           >
-            <Bell className="h-4 w-4 inline mr-2" />
             Received ({safeArray(notifications).length})
           </button>
           <button
@@ -1036,109 +417,61 @@ export function NotificationManagement() {
                 : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
             }`}
           >
-            <Send className="h-4 w-4 inline mr-2" />
-            Sent History ({safeArray(sentHistory).length}/{HISTORY_LIMIT})
-          </button>
-          <button
-            onClick={() => setActiveTab('deleted')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'deleted'
-                ? 'border-green-500 text-green-600'
-                : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
-            }`}
-          >
-            <Archive className="h-4 w-4 inline mr-2" />
-            Recently Deleted ({recentlyDeleted.length})
+            Sent History ({sentHistory.length})
           </button>
         </nav>
       </div>
 
-      <div className="max-w-xl">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={listSearchQuery}
-            onChange={(e) => setListSearchQuery(e.target.value)}
-            placeholder={
-              activeTab === 'received'
-                ? 'Search received notifications'
-                : activeTab === 'sent'
-                  ? 'Search sent history'
-                  : 'Search recently deleted notifications'
-            }
-            className="w-full rounded-md border border-slate-300 bg-white py-2 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400"
-          />
-        </div>
-      </div>
-
       {/* Received Notifications */}
       {activeTab === 'received' && (
-        <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
           {loading ? (
             <LoadingState message="Loading notifications" className="p-8" />
           ) : safeArray(notifications).length === 0 ? (
-            <div className="p-8 text-center text-slate-500 dark:text-slate-400">
-              <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
+            <div className="p-8 text-center text-slate-500">
+              <Bell className="h-12 w-12 mx-auto mb-4 text-slate-300" />
               <p>No notifications yet</p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-200 dark:divide-slate-700">{safeArray(notifications).map((notification) => (
+            <div className="divide-y divide-slate-200">
+              {safeArray(notifications).map((notification) => (
                 <div
                   key={notification.id}
-                  ref={el => { notifRowRefs.current[notification.id] = el; }}
-                  onClick={() => openReceivedDetail(notification)}
+                  onClick={() => setSelectedNotification(notification)}
                   className={`p-4 cursor-pointer transition-colors ${
                     !notification.read_at
-                      ? 'bg-green-50 dark:bg-green-950 border-l-4 border-green-500'
+                      ? 'bg-emerald-50 dark:bg-emerald-950 border-l-4 border-emerald-500'
                       : 'bg-white dark:bg-slate-900 border-l-4 border-transparent'
-                  } hover:bg-slate-100 dark:hover:bg-slate-800${notification.id === highlightedNotificationId ? ' ring-2 ring-inset ring-green-400 dark:ring-green-500' : ''}`}
+                  } hover:bg-slate-100 dark:hover:bg-slate-800`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3 flex-1">
-                      {notification.data?.from_user_profile_picture ? (
-                        <img
-                          src={resolveImageUrl(notification.data.from_user_profile_picture)}
-                          alt={notification.data.from_user_name || 'User'}
-                          className="mt-1 h-10 w-10 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600 flex-shrink-0"
-                        />
-                      ) : (
-                        <div className={`mt-1 p-2 rounded-full flex-shrink-0 ${
-                          notification.type === 'announcement' ? 'bg-blue-100 dark:bg-blue-900' :
-                          notification.type === 'employee_message' ? 'bg-yellow-100 dark:bg-yellow-900' :
-                          ['feedback', 'issue', 'suggestion'].includes(notification.type) ? 'bg-purple-100 dark:bg-purple-900' :
-                          'bg-slate-100 dark:bg-slate-700'
-                        }`}>
-                          {notification.type === 'announcement' ? (
-                            <Bell className="h-4 w-4 text-blue-600 dark:text-blue-300" />
-                          ) : notification.type === 'employee_message' ? (
-                            <Users className="h-4 w-4 text-yellow-600 dark:text-yellow-300" />
-                          ) : ['feedback', 'issue', 'suggestion'].includes(notification.type) ? (
-                            <Send className="h-4 w-4 text-purple-600 dark:text-purple-300" />
-                          ) : (
-                            <AlertCircle className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-                          )}
-                        </div>
-                      )}
+                      <div className={`mt-1 p-2 rounded-full flex-shrink-0 ${
+                        notification.type === 'announcement' ? 'bg-blue-100 dark:bg-blue-900' :
+                        notification.type === 'employee_message' ? 'bg-yellow-100 dark:bg-yellow-900' :
+                        'bg-slate-100 dark:bg-slate-700'
+                      }`}>
+                        {notification.type === 'announcement' ? (
+                          <Bell className="h-4 w-4 text-blue-600 dark:text-blue-300" />
+                        ) : notification.type === 'employee_message' ? (
+                          <Users className="h-4 w-4 text-yellow-600 dark:text-yellow-300" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-medium text-slate-900 dark:text-white">
                           {notification.title}
-                          {notification.data?.from_user_name && !notification.title.includes('from ') && (
-                            <span className="font-normal text-slate-600 dark:text-slate-400">
-                              {' '}from {notification.data.from_user_name}
-                              {notification.data.from_department ? ` (${notification.data.from_department})` : ''}
-                            </span>
-                          )}
                           {!notification.read_at && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
                               New
                             </span>
                           )}
                         </h3>
                         <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{notification.message}</p>
-                        {notification.data?.from_role && (
+                        {notification.data?.from_user_name && (
                           <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                            {notification.data.from_role}
+                            From: {notification.data.from_user_name} ({notification.data.from_role})
                           </p>
                         )}
                         <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
@@ -1150,7 +483,7 @@ export function NotificationManagement() {
                       {!notification.read_at && (
                         <button
                           onClick={() => markAsRead(notification.id)}
-                          className="text-slate-400 dark:text-slate-500 hover:text-green-600 dark:hover:text-green-400"
+                          className="text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400"
                           title="Mark as read"
                         >
                           <Eye className="h-5 w-5" />
@@ -1175,7 +508,7 @@ export function NotificationManagement() {
       {/* Sent History */}
       {activeTab === 'sent' && (
         <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-          {filteredSentHistory.length === 0 ? (
+          {sentHistory.length === 0 ? (
             <div className="p-8 text-center text-slate-500 dark:text-slate-300">
               <Send className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
               <p>No announcements sent yet</p>
@@ -1190,131 +523,25 @@ export function NotificationManagement() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Target</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Recipients</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
+                <tbody className="bg-white divide-y divide-slate-200">
                   {safeArray(sentHistory).map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
-                        {item.title}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 truncate max-w-xs">{item.message}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
-                        {item.target}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
-                        {item.recipients_count} users
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{item.date}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteSentHistory(item.id);
-                          }}
-                          className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
-                          title="Move to Recently Deleted"
-                        >
-                          <Trash2 className="h-5 w-5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Recently Deleted */}
-      {activeTab === 'deleted' && (
-        <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-          {filteredRecentlyDeleted.length === 0 ? (
-            <div className="p-8 text-center text-slate-500 dark:text-slate-300">
-              <Archive className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
-              <p>No recently deleted announcements</p>
-              <p className="text-xs mt-2 text-slate-400">When sent history exceeds {HISTORY_LIMIT} items, the oldest half will automatically appear here</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-                <thead className="bg-slate-50 dark:bg-slate-800">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Title</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Message</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">From/Target</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Deleted Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
-                  {filteredRecentlyDeleted.map((item) => (
-                    <tr
-                      key={`${item.item_type}-${item.id}`}
-                      onClick={() => openDeletedDetail(item)}
-                      className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap text-xs">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-medium ${
-                          item.item_type === 'sent'
-                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                            : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                        }`}>
-                          {item.item_type === 'sent' ? 'Sent' : 'Received'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
+                    <tr key={item.id} className="hover:bg-slate-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
                         {item.title}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-200 truncate max-w-xs">
-                        {messagePreviewText(item.message)}
+                        {item.message}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
-                        {item.item_type === 'sent'
-                          ? (item.target || '-')
-                          : (item.data?.from_user_name
-                              ? `${item.data.from_user_name}${item.data.from_department ? ` (${item.data.from_department})` : ''}`
-                              : '-')
-                        }
-                        {item.item_type === 'sent' && item.recipients_count && (
-                          <span className="ml-1 text-xs text-slate-400">({item.recipients_count} users)</span>
-                        )}
+                        {item.target}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
-                        {new Date(item.date).toLocaleDateString()}
+                        {item.recipients_count} users
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-200">
-                        {new Date(item.deleted_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              item.item_type === 'sent' ? restoreFromDeleted(item.id) : restoreReceivedNotification(item.id);
-                            }}
-                            className="text-slate-400 dark:text-slate-500 hover:text-green-600 dark:hover:text-green-400"
-                            title="Restore"
-                          >
-                            <RotateCcw className="h-5 w-5" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              item.item_type === 'sent' ? permanentlyDelete(item.id) : permanentlyDeleteReceived(item.id);
-                            }}
-                            className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
-                            title="Permanently Delete"
-                          >
-                            <Trash2 className="h-5 w-5" />
-                          </button>
-                        </div>
+                        {item.date}
                       </td>
                     </tr>
                   ))}
@@ -1327,180 +554,91 @@ export function NotificationManagement() {
 
       {/* Create Announcement Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-slate-900/70"></div>
+              <div className="absolute inset-0 bg-slate-500 opacity-75"></div>
             </div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="relative inline-block align-bottom bg-white dark:bg-slate-800 rounded-xl text-left overflow-y-auto max-h-[88vh] shadow-2xl transform transition-all sm:my-8 sm:align-middle w-full max-w-2xl">
-              <div className="absolute top-3 right-3 z-10">
-                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="absolute top-4 right-4">
+                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="px-5 pt-5 pb-4">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                  <Send className="h-4 w-4 text-green-600" />
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <h3 className="text-lg leading-6 font-medium text-slate-900 mb-4">
                   Send Announcement
                 </h3>
-                <form onSubmit={handleSend} className="space-y-3">
+                <form onSubmit={handleSend} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Title <span className="text-red-500">*</span>
-                    </label>
+                    <label className="block text-sm font-medium text-slate-700">Title *</label>
                     <input
                       type="text"
                       required
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                       placeholder="Announcement title"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Message <span className="text-red-500">*</span>
-                    </label>
-                    <RichTextEditor
+                    <label className="block text-sm font-medium text-slate-700">Message *</label>
+                    <textarea
+                      rows={4}
+                      required
                       value={formData.message}
-                      onChange={(html) => setFormData({ ...formData, message: html })}
+                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                      className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                       placeholder="Type your announcement here..."
-                      minHeight="120px"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Message Images <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Target Audience *
                     </label>
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
-                      onChange={(e) => setAnnouncementImages(Array.from(e.target.files || []))}
-                      className="mt-1 block w-full text-sm text-slate-700 dark:text-slate-300 file:mr-3 file:py-1.5 file:px-2 file:rounded-md file:border-0 file:bg-slate-100 dark:file:bg-slate-700 file:text-slate-700 dark:file:text-slate-200 hover:file:bg-slate-200 dark:hover:file:bg-slate-600"
-                    />
-                    {announcementImages.length > 0 && (
-                      <div className="mt-2">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs text-slate-500 dark:text-slate-400">
-                            {announcementImages.length} image{announcementImages.length !== 1 ? 's' : ''} selected
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setAnnouncementImages([])}
-                            className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400"
-                          >
-                            Remove all images
-                          </button>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {announcementImagePreviewUrls.map((url, idx) => (
-                            <img
-                              key={url}
-                              src={url}
-                              alt={`Selected announcement image ${idx + 1}`}
-                              className="h-16 w-16 rounded-md border border-slate-200 dark:border-slate-600 object-cover"
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  {/* Send to */}
-                  <div>
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Send to <span className="text-red-500">*</span>
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setIsAdminTargetModalOpen(true)}
-                      className="w-full flex items-center justify-between px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/10 transition-colors text-sm"
-                    >
-                      <span className="flex items-center gap-2">
-                        {adminRecipientMode === 'everyone' && <><Users className="h-4 w-4 text-green-500 flex-shrink-0" /><span>Everyone</span></>}
-                        {adminRecipientMode === 'instructors' && <><User className="h-4 w-4 text-blue-500 flex-shrink-0" /><span>Instructors</span></>}
-                        {adminRecipientMode === 'employees' && <><Users className="h-4 w-4 text-green-500 flex-shrink-0" /><span>Employees</span></>}
-                        {adminRecipientMode === 'specific_instructor' && (
-                          <>
-                            <User className="h-4 w-4 text-blue-400 flex-shrink-0" />
-                            <span className={selectedUsers.length === 0 ? 'text-slate-400 dark:text-slate-500' : ''}>
-                              {selectedUsers.length > 0
-                                ? selectedUsers.map(u => u.fullname).join(', ')
-                                : 'Specific Instructor...'}
-                            </span>
-                          </>
-                        )}
-                        {adminRecipientMode === 'specific_employee' && (
-                          <>
-                            <User className="h-4 w-4 text-orange-500 flex-shrink-0" />
-                            <span className={selectedUsers.length === 0 ? 'text-slate-400 dark:text-slate-500' : ''}>
-                              {selectedUsers.length > 0
-                                ? selectedUsers.map(u => u.fullname).join(', ')
-                                : 'Specific Employee...'}
-                            </span>
-                          </>
-                        )}
-                      </span>
-                      <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                    </button>
-                  </div>
-
-                  {/* Department — hidden when Everyone is selected */}
-                  {adminRecipientMode !== 'everyone' && <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Department <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
-                    </label>
-                    <select
-                      value={selectedDepartment}
-                      onChange={(e) => { setSelectedDepartment(e.target.value); setSelectedSubdepartment(''); }}
-                      className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
-                    >
-                      <option value="">All departments</option>
-                      {departments.map(d => (
-                        <option key={d.id} value={String(d.id)}>{d.name}</option>
+                    <div className="space-y-2">
+                      {['Instructor', 'Employee', 'Admin'].map((role) => (
+                        <label key={role} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={formData.roles.includes(role)}
+                            onChange={() => handleRoleToggle(role)}
+                            className="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300 rounded"
+                          />
+                          <span className="ml-2 text-sm text-slate-700">{role}s</span>
+                        </label>
                       ))}
-                    </select>
-                  </div>}
-
-                  {/* Sub-department */}
-                  {adminRecipientMode !== 'everyone' && selectedDepartment && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                        Sub Department <span className="text-slate-400 dark:text-slate-500 font-normal text-xs">(optional)</span>
-                      </label>
-                      <select
-                        value={selectedSubdepartment}
-                        onChange={(e) => setSelectedSubdepartment(e.target.value)}
-                        className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
-                      >
-                        <option value="">All sub departments</option>
-                        {availableSubdepartments.map((sub) => (
-                          <option key={sub.id} value={String(sub.id)}>{sub.name}</option>
-                        ))}
-                      </select>
                     </div>
-                  )}
-
-                  {/* Search — Specific Instructor or Specific Employee only */}
-                  {(adminRecipientMode === 'specific_employee' || adminRecipientMode === 'specific_instructor') && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                        {adminRecipientMode === 'specific_instructor' ? 'Search Instructor' : 'Search Employee'} <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={userQuery}
-                        onChange={(e) => setUserQuery(e.target.value)}
-                        placeholder={adminRecipientMode === 'specific_instructor' ? 'Type a name to search instructors' : 'Type a name to search employees'}
-                        className="w-full border border-slate-300 dark:border-slate-600 rounded-md py-1.5 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
-                      />
+                    <div className="mt-3 grid grid-cols-1 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700">Department (optional)</label>
+                        <select
+                          value={selectedDepartment}
+                          onChange={(e) => setSelectedDepartment(e.target.value)}
+                          className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                        >
+                          <option value="">All departments</option>
+                          {departments.map(d => (
+                            <option key={d.id} value={String(d.id)}>{d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700">Search Users (by name)</label>
+                        <input
+                          type="text"
+                          value={userQuery}
+                          onChange={(e) => setUserQuery(e.target.value)}
+                          placeholder="Type a name to search instructors or employees"
+                          className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                        />
                       {searchResults.length > 0 && (
-                        <div className="mt-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 max-h-40 overflow-auto divide-y divide-slate-100 dark:divide-slate-800">
+                        <div className="mt-1 border border-slate-200 rounded bg-white max-h-48 overflow-auto">
                           {searchResults.map(u => (
-                            <div key={u.id} className="px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" onClick={() => handleAddUser(u)}>
-                              <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{u.fullname}</div>
-                              <div className="text-xs text-slate-400 dark:text-slate-500">{u.role}</div>
+                            <div key={u.id} className="px-3 py-2 hover:bg-slate-50 cursor-pointer" onClick={() => handleAddUser(u)}>
+                              <div className="text-sm font-medium text-slate-900">{u.fullname}</div>
+                              <div className="text-xs text-slate-400">{u.role}</div>
                             </div>
                           ))}
                         </div>
@@ -1508,38 +646,37 @@ export function NotificationManagement() {
                       {selectedUsers.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {selectedUsers.map(u => (
-                            <span key={u.id} className="inline-flex items-center gap-2 px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-full text-xs">
+                            <span key={u.id} className="inline-flex items-center gap-2 px-2 py-1 bg-slate-100 text-slate-700 rounded-full text-xs">
                               <span>{u.fullname}</span>
                               <button type="button" onClick={() => handleRemoveUser(u.id)} className="text-slate-400 hover:text-red-600">×</button>
                             </span>
                           ))}
                         </div>
                       )}
+                      </div>
                     </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-3">
+                  </div>
+                  <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
                     <button
                       type="button"
                       onClick={() => setIsModalOpen(false)}
-                      className="py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                      className="w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 sm:text-sm"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={handlePreview}
-                      className="py-2 border border-blue-400 dark:border-blue-500 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center justify-center gap-2 transition-colors"
+                      className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 sm:text-sm mr-2"
                     >
-                      <Eye className="h-4 w-4" />
                       Preview Recipients
                     </button>
                     <button
                       type="submit"
                       disabled={isSending}
-                      className="col-span-2 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-medium rounded-lg flex items-center justify-center gap-2 text-sm transition-colors"
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 disabled:opacity-50 sm:text-sm"
                     >
-                      <Send className="h-4 w-4" />
+                      <Send className="h-4 w-4 mr-2" />
                       {isSending ? 'Sending...' : 'Send Announcement'}
                     </button>
                   </div>
@@ -1549,95 +686,16 @@ export function NotificationManagement() {
           </div>
         </div>
       )}
-      {/* Admin Recipient Picker Modal */}
-      {isAdminTargetModalOpen && (
-        <div className="fixed inset-0 z-[60]">
-          <div className="flex items-center justify-center min-h-screen px-4">
-            <div
-              className="fixed inset-0 bg-slate-900/60"
-              onClick={() => setIsAdminTargetModalOpen(false)}
-            />
-            <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md z-10">
-              <div className="px-5 pt-5 pb-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-base font-semibold text-slate-900 dark:text-white">Select Recipient</h4>
-                  <button
-                    type="button"
-                    onClick={() => setIsAdminTargetModalOpen(false)}
-                    className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-
-                {/* Radio options */}
-                <div className="space-y-2 mb-4">
-                  {([
-                    { value: 'everyone',           label: 'Everyone',            icon: <Users className="h-4 w-4 text-green-500" /> },
-                    { value: 'instructors',         label: 'Instructors',         icon: <User className="h-4 w-4 text-blue-500" /> },
-                    { value: 'employees',           label: 'Employees',           icon: <Users className="h-4 w-4 text-green-500" /> },
-                    { value: 'specific_instructor', label: 'Specific Instructor', icon: <User className="h-4 w-4 text-blue-400" /> },
-                    { value: 'specific_employee',   label: 'Specific Employee',   icon: <User className="h-4 w-4 text-orange-500" /> },
-                  ] as const).map(({ value, label, icon }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => {
-                        setAdminRecipientMode(value);
-                        if (value !== 'specific_employee' && value !== 'specific_instructor') {
-                          setSelectedUsers([]);
-                          setFormData(prev => ({ ...prev, target_user_ids: [] }));
-                          setUserQuery('');
-                          setSearchResults([]);
-                        } else {
-                          setSelectedUsers([]);
-                          setFormData(prev => ({ ...prev, target_user_ids: [] }));
-                          setUserQuery('');
-                          setSearchResults([]);
-                        }
-                      }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
-                        adminRecipientMode === value
-                          ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                          : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                      }`}
-                    >
-                      <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
-                        adminRecipientMode === value ? 'border-green-500' : 'border-slate-400 dark:border-slate-500'
-                      }`}>
-                        {adminRecipientMode === value && (
-                          <span className="w-2 h-2 rounded-full bg-green-500 block" />
-                        )}
-                      </span>
-                      {icon}
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsAdminTargetModalOpen(false)}
-                  className="w-full py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg text-sm transition-colors"
-                >
-                  Done
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Announcement Detail Modal */}
-      {selectedAnnouncementDetail && (
-        <div className="fixed inset-0 z-50">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 overflow-y-auto">
+      {/* Notification Detail Modal */}
+      {selectedNotification && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity bg-slate-900 bg-opacity-75 dark:bg-opacity-90" aria-hidden="true"></div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white dark:bg-slate-800 rounded-lg text-left overflow-y-auto max-h-[90vh] shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+            <div className="inline-block align-bottom bg-white dark:bg-slate-800 rounded-lg text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
               <div className="absolute top-4 right-4">
                 <button
-                  onClick={() => setSelectedAnnouncementDetail(null)}
+                  onClick={() => setSelectedNotification(null)}
                   className="text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                 >
                   <X className="h-6 w-6" />
@@ -1647,27 +705,24 @@ export function NotificationManagement() {
                 {/* Icon and Header */}
                 <div className="flex items-start space-x-4 mb-6">
                   <div className={`p-3 rounded-full flex-shrink-0 ${
-                    selectedAnnouncementDetail.type === 'announcement' ? 'bg-blue-100 dark:bg-blue-900' :
-                    selectedAnnouncementDetail.type === 'employee_message' ? 'bg-yellow-100 dark:bg-yellow-900' :
-                    ['feedback', 'issue', 'suggestion'].includes(String(selectedAnnouncementDetail.type || '')) ? 'bg-purple-100 dark:bg-purple-900' :
+                    selectedNotification.type === 'announcement' ? 'bg-blue-100 dark:bg-blue-900' :
+                    selectedNotification.type === 'employee_message' ? 'bg-yellow-100 dark:bg-yellow-900' :
                     'bg-slate-100 dark:bg-slate-700'
                   }`}>
-                    {selectedAnnouncementDetail.type === 'announcement' ? (
+                    {selectedNotification.type === 'announcement' ? (
                       <Bell className="h-6 w-6 text-blue-600 dark:text-blue-300" />
-                    ) : selectedAnnouncementDetail.type === 'employee_message' ? (
+                    ) : selectedNotification.type === 'employee_message' ? (
                       <Users className="h-6 w-6 text-yellow-600 dark:text-yellow-300" />
-                    ) : ['feedback', 'issue', 'suggestion'].includes(String(selectedAnnouncementDetail.type || '')) ? (
-                      <Send className="h-6 w-6 text-purple-600 dark:text-purple-300" />
                     ) : (
                       <AlertCircle className="h-6 w-6 text-slate-600 dark:text-slate-300" />
                     )}
                   </div>
                   <div className="flex-1">
                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                      {selectedAnnouncementDetail.title}
+                      {selectedNotification.title}
                     </h2>
-                    {selectedAnnouncementDetail.source === 'received' && !selectedAnnouncementDetail.read_at && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 mt-2">
+                    {!selectedNotification.read_at && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 mt-2">
                         New
                       </span>
                     )}
@@ -1678,102 +733,33 @@ export function NotificationManagement() {
                 <div className="mb-8">
                   <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">Message</h3>
                   <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
-                    <div
-                      className={RICH_CONTENT_STYLES}
-                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedAnnouncementDetail.message || '') }}
-                    />
-                    {(() => {
-                      const images = selectedAnnouncementDetail.data?.image_urls?.length
-                        ? selectedAnnouncementDetail.data.image_urls
-                        : (selectedAnnouncementDetail.data?.image_url ? [selectedAnnouncementDetail.data.image_url] : []);
-                      if (images.length === 0) return null;
-                      return (
-                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {images.map((imgUrl) => (
-                            <img
-                              key={imgUrl}
-                              src={resolveImageUrl(imgUrl)}
-                              alt="Announcement attachment"
-                              className="max-h-80 w-auto max-w-full rounded-lg border border-slate-200 dark:border-slate-700 object-contain"
-                            />
-                          ))}
-                        </div>
-                      );
-                    })()}
+                    <p className="text-base text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
+                      {selectedNotification.message}
+                    </p>
                   </div>
                 </div>
 
                 {/* Metadata */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+                <div className="grid grid-cols-2 gap-6 mb-8">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Sent On</h3>
-                    <p className="text-slate-900 dark:text-white">{formatDate(selectedAnnouncementDetail.date)}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Sent By</h3>
-                    <p className="text-slate-900 dark:text-white">
-                      {(selectedAnnouncementDetail.source === 'sent' || selectedAnnouncementDetail.item_type === 'sent')
-                        ? 'Admin'
-                        : (selectedAnnouncementDetail.data?.from_role || 'System')}
-                    </p>
+                    <p className="text-slate-900 dark:text-white">{formatDate(selectedNotification.created_at)}</p>
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Type</h3>
-                    <p className="text-slate-900 dark:text-white capitalize">{String(selectedAnnouncementDetail.type || 'announcement').replace('_', ' ')}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Sent To</h3>
-                    <p className="text-slate-900 dark:text-white">{selectedAnnouncementDetail.target || 'Not specified'}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Mode</h3>
-                    <p className="text-slate-900 dark:text-white">{selectedAnnouncementDetail.announcement_mode === 'one_person' ? 'One Person' : 'Group'}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Roles</h3>
-                    <p className="text-slate-900 dark:text-white">{formatRoleList(selectedAnnouncementDetail.target_roles)}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Department</h3>
-                    <p className="text-slate-900 dark:text-white">{selectedAnnouncementDetail.department_name || 'All departments'}</p>
-                  </div>
-                  {(selectedAnnouncementDetail.source === 'sent' || selectedAnnouncementDetail.item_type === 'sent') && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Sub Department</h3>
-                      <p className="text-slate-900 dark:text-white">{selectedAnnouncementDetail.subdepartment_name || 'All sub departments'}</p>
-                    </div>
-                  )}
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Recipients</h3>
-                    <p className="text-slate-900 dark:text-white">
-                      {selectedAnnouncementDetail.recipients_count == null ? 'N/A' : `${selectedAnnouncementDetail.recipients_count} user${selectedAnnouncementDetail.recipients_count === 1 ? '' : 's'}`}
-                    </p>
+                    <p className="text-slate-900 dark:text-white capitalize">{selectedNotification.type.replace('_', ' ')}</p>
                   </div>
                 </div>
 
-                {selectedAnnouncementDetail.deleted_at && (
-                  <div className="mb-8">
-                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">Deleted On</h3>
-                    <p className="text-slate-900 dark:text-white">{formatDate(selectedAnnouncementDetail.deleted_at)}</p>
-                  </div>
-                )}
-
                 {/* Sender Info */}
-                {selectedAnnouncementDetail.data?.from_user_name && (
+                {selectedNotification.data?.from_user_name && (
                   <div className="mb-8 pb-8 border-b border-slate-200 dark:border-slate-700">
                     <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">From</h3>
                     <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                      <p className="font-medium text-slate-900 dark:text-white">{selectedAnnouncementDetail.data.from_user_name}</p>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{selectedAnnouncementDetail.data.from_role}</p>
-                      {selectedAnnouncementDetail.data.from_department && (
-                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
-                            {selectedAnnouncementDetail.data.from_department}
-                          </span>
-                        </p>
-                      )}
-                      {selectedAnnouncementDetail.data.course_title && (
-                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">Course: {selectedAnnouncementDetail.data.course_title}</p>
+                      <p className="font-medium text-slate-900 dark:text-white">{selectedNotification.data.from_user_name}</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{selectedNotification.data.from_role}</p>
+                      {selectedNotification.data.course_title && (
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">Course: {selectedNotification.data.course_title}</p>
                       )}
                     </div>
                   </div>
@@ -1782,68 +768,29 @@ export function NotificationManagement() {
                 {/* Actions */}
                 <div className="flex justify-between">
                   <div className="flex space-x-3">
-                    {selectedAnnouncementDetail.source === 'received' && !selectedAnnouncementDetail.read_at && (
+                    {!selectedNotification.read_at && (
                       <button
                         onClick={() => {
-                          markAsRead(selectedAnnouncementDetail.id);
-                          setSelectedAnnouncementDetail(null);
+                          markAsRead(selectedNotification.id);
+                          setSelectedNotification(null);
                         }}
-                        className="inline-flex items-center px-4 py-2 border border-green-300 dark:border-green-700 rounded-md shadow-sm text-sm font-medium text-green-700 dark:text-green-200 bg-white dark:bg-slate-700 hover:bg-green-50 dark:hover:bg-slate-600">
+                        className="inline-flex items-center px-4 py-2 border border-emerald-300 dark:border-emerald-700 rounded-md shadow-sm text-sm font-medium text-emerald-700 dark:text-emerald-200 bg-white dark:bg-slate-700 hover:bg-emerald-50 dark:hover:bg-slate-600">
                         <CheckCircle className="h-4 w-4 mr-2" />
                         Mark as Read
                       </button>
                     )}
-                    {selectedAnnouncementDetail.source === 'received' && (
-                      <button
-                        onClick={() => {
-                          deleteNotification(selectedAnnouncementDetail.id);
-                          setSelectedAnnouncementDetail(null);
-                        }}
-                        className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-700 rounded-md shadow-sm text-sm font-medium text-red-700 dark:text-red-200 bg-white dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-slate-600">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </button>
-                    )}
-                    {selectedAnnouncementDetail.source === 'sent' && (
-                      <button
-                        onClick={() => {
-                          deleteSentHistory(selectedAnnouncementDetail.id);
-                          setSelectedAnnouncementDetail(null);
-                        }}
-                        className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-700 rounded-md shadow-sm text-sm font-medium text-red-700 dark:text-red-200 bg-white dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-slate-600">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Move to Recently Deleted
-                      </button>
-                    )}
-                    {selectedAnnouncementDetail.source === 'deleted' && (
-                      <>
-                        <button
-                          onClick={() => {
-                            selectedAnnouncementDetail.item_type === 'sent'
-                              ? restoreFromDeleted(selectedAnnouncementDetail.id)
-                              : restoreReceivedNotification(selectedAnnouncementDetail.id);
-                            setSelectedAnnouncementDetail(null);
-                          }}
-                          className="inline-flex items-center px-4 py-2 border border-green-300 dark:border-green-700 rounded-md shadow-sm text-sm font-medium text-green-700 dark:text-green-200 bg-white dark:bg-slate-700 hover:bg-green-50 dark:hover:bg-slate-600">
-                          <RotateCcw className="h-4 w-4 mr-2" />
-                          Restore
-                        </button>
-                        <button
-                          onClick={() => {
-                            selectedAnnouncementDetail.item_type === 'sent'
-                              ? permanentlyDelete(selectedAnnouncementDetail.id)
-                              : permanentlyDeleteReceived(selectedAnnouncementDetail.id);
-                            setSelectedAnnouncementDetail(null);
-                          }}
-                          className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-700 rounded-md shadow-sm text-sm font-medium text-red-700 dark:text-red-200 bg-white dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-slate-600">
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Permanently Delete
-                        </button>
-                      </>
-                    )}
+                    <button
+                      onClick={() => {
+                        deleteNotification(selectedNotification.id);
+                        setSelectedNotification(null);
+                      }}
+                      className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-700 rounded-md shadow-sm text-sm font-medium text-red-700 dark:text-red-200 bg-white dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-slate-600">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </button>
                   </div>
                   <button
-                    onClick={() => setSelectedAnnouncementDetail(null)}
+                    onClick={() => setSelectedNotification(null)}
                     className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600"
                   >
                     Close
@@ -1855,203 +802,7 @@ export function NotificationManagement() {
         </div>
       )}
 
-      {/* One Person Modal */}
-      {isOnePersonModalOpen && (
-        <div className="fixed inset-0 z-50">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 overflow-y-auto">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-slate-500 opacity-75"></div>
-            </div>
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white dark:bg-slate-800 rounded-lg text-left overflow-y-auto max-h-[90vh] shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="absolute top-4 right-4">
-                <button onClick={() => { setIsOnePersonModalOpen(false); resetOnePersonForm(); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="bg-white dark:bg-slate-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="p-2 rounded-full bg-green-100 dark:bg-green-900">
-                    <User className="h-5 w-5 text-green-600 dark:text-green-300" />
-                  </div>
-                  <h3 className="text-lg leading-6 font-medium text-slate-900 dark:text-white">Send to One Person</h3>
-                </div>
-                <form onSubmit={handleSendOnePerson} className="space-y-4">
-                  {/* Department filter */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Department</label>
-                    <select
-                      value={onePersonDept}
-                      onChange={(e) => { setOnePersonDept(e.target.value); setOnePersonSubdept(''); setOnePersonSelected(null); setOnePersonResults([]); }}
-                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    >
-                      <option value="">All Departments</option>
-                      {departments.map((d) => (
-                        <option key={d.id} value={String(d.id)}>{d.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  {/* Sub Department filter */}
-                  {onePersonDept && (() => {
-                    const deptObj = departments.find((d) => String(d.id) === onePersonDept);
-                    const subs = deptObj?.subdepartments || [];
-                    if (subs.length === 0) return null;
-                    return (
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Sub Department</label>
-                        <select
-                          value={onePersonSubdept}
-                          onChange={(e) => { setOnePersonSubdept(e.target.value); setOnePersonSelected(null); setOnePersonResults([]); }}
-                          className="mt-1 block w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                        >
-                          <option value="">All Sub Departments</option>
-                          {subs.map((s) => (
-                            <option key={s.id} value={String(s.id)}>{s.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    );
-                  })()}
-                  {/* Role filter */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Role *</label>
-                    <div className="mt-2 flex items-center gap-6">
-                      {(['instructor', 'employee'] as const).map((val) => (
-                        <label key={val} className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="onePersonRole"
-                            value={val}
-                            checked={onePersonRole === val}
-                            onChange={() => { setOnePersonRole(val); }}
-                            className="accent-green-600 w-4 h-4"
-                          />
-                          <span className="text-sm text-slate-700 dark:text-slate-300 capitalize">{val}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  {/* Recipient dropdown */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Recipient *</label>
-                    <select
-                      value={onePersonSelected ? String(onePersonSelected.id) : ''}
-                      onChange={(e) => {
-                        const found = onePersonResults.find((u) => String(u.id) === e.target.value) || null;
-                        setOnePersonSelected(found);
-                      }}
-                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    >
-                      <option value="">-- Select a recipient --</option>
-                      {onePersonResults.map((u) => (
-                        <option key={u.id} value={String(u.id)}>{u.fullname} ({u.role})</option>
-                      ))}
-                    </select>
-                  </div>
-                  {/* Title */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Title *</label>
-                    <input
-                      type="text"
-                      required
-                      value={onePersonForm.title}
-                      onChange={(e) => setOnePersonForm((p) => ({ ...p, title: e.target.value }))}
-                      placeholder="Announcement title"
-                      className="mt-1 block w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                    />
-                  </div>
-                  {/* Message */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Message *</label>
-                    <div className="mt-1">
-                      <RichTextEditor
-                        value={onePersonForm.message}
-                        onChange={(html) => setOnePersonForm((p) => ({ ...p, message: html }))}
-                        placeholder="Type your message here..."
-                        minHeight="130px"
-                      />
-                    </div>
-                  </div>
-                  {/* Images */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Images (optional)</label>
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
-                      onChange={(e) => setOnePersonImages(Array.from(e.target.files || []))}
-                      className="mt-1 block w-full text-sm text-slate-700 dark:text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 dark:file:bg-slate-700 dark:file:text-slate-300"
-                    />
-                    {onePersonImages.length > 0 && (
-                      <div className="mt-2 space-y-2">
-                        <p className="text-xs text-slate-500">{onePersonImages.length} image{onePersonImages.length === 1 ? '' : 's'} selected</p>
-                        <div className="flex flex-wrap gap-2">
-                          {onePersonImagePreviewUrls.map((url, idx) => (
-                            <img key={url} src={url} alt={`Preview ${idx + 1}`} className="h-20 w-20 rounded-md border border-slate-200 object-cover" />
-                          ))}
-                        </div>
-                        <button type="button" onClick={() => setOnePersonImages([])} className="inline-flex items-center rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
-                          Remove all images
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  {/* Actions */}
-                  <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
-                    <button
-                      type="button"
-                      onClick={() => { setIsOnePersonModalOpen(false); resetOnePersonForm(); }}
-                      className="w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white dark:bg-slate-700 dark:border-slate-600 text-base font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 sm:text-sm"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isSendingOne}
-                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 disabled:opacity-50 sm:text-sm"
-                    >
-                      <Send className="h-4 w-4 mr-2" />
-                      {isSendingOne ? 'Sending...' : 'Send'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {confirm.ConfirmModalRenderer()}
-
-      {/* Preview Recipients Modal */}
-      <InfoModal
-        open={previewModal.open}
-        onClose={() => setPreviewModal({ open: false, recipientCount: null, recipients: [] })}
-        title={previewModal.error ? 'Preview Failed' : `Preview Recipients (${previewModal.recipientCount ?? 0})`}
-        message={
-          previewModal.error
-            ? previewModal.error
-            : previewModal.recipients && previewModal.recipients.length > 0
-              ? (
-                <span>
-                  <span className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">This announcement will be sent to:</span>
-                  <span className="block max-h-48 overflow-y-auto space-y-1 pr-1">
-                    {previewModal.recipients.map((r) => (
-                      <span key={r.id} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0 inline-block" />
-                        {r.fullname}
-                      </span>
-                    ))}
-                  </span>
-                </span>
-              )
-              : 'No recipients found.'
-        }
-        variant={previewModal.error ? 'error' : 'info'}
-        icon={previewModal.error ? undefined : <Users className="w-6 h-6" />}
-      />
-
-
     </div>
   );
 }

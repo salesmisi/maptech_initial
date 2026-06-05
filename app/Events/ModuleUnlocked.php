@@ -2,6 +2,7 @@
 
 namespace App\Events;
 
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -13,9 +14,7 @@ class ModuleUnlocked implements ShouldBroadcastNow
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public int $userId;
-
     public string $moduleId;
-
     public string $courseId;
 
     public function __construct(int $userId, string $courseId, string $moduleId)
@@ -37,6 +36,6 @@ class ModuleUnlocked implements ShouldBroadcastNow
 
     public function broadcastOn()
     {
-        return new PrivateChannel('user.'.$this->userId);
+        return new PrivateChannel('user.' . $this->userId);
     }
 }

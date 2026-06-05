@@ -24,17 +24,10 @@ interface ProfileData {
   email: string;
   role: string;
   company_role: string | null;
-  personal_gmail: string | null;
   department: string | null;
   status: string;
   profile_picture: string | null;
   signature_path: string | null;
-}
-
-interface AuditLogRetentionPolicy {
-  enabled: boolean;
-  retention_value: number;
-  retention_unit: 'days' | 'weeks' | 'months' | 'years';
 }
 
 function getXsrfToken(): string {
@@ -50,7 +43,6 @@ async function getCsrf() {
 export function ProfileSettings() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isPageVisible, setIsPageVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingPic, setUploadingPic] = useState(false);
   const [uploadingSignature, setUploadingSignature] = useState(false);
@@ -59,23 +51,12 @@ export function ProfileSettings() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [companyRole, setCompanyRole] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showPicPreview, setShowPicPreview] = useState(false);
   const [showSignaturePreview, setShowSignaturePreview] = useState(false);
-  const [showRemovePicConfirm, setShowRemovePicConfirm] = useState(false);
-  const [retentionPolicy, setRetentionPolicy] = useState<AuditLogRetentionPolicy>({
-    enabled: false,
-    retention_value: 365,
-    retention_unit: 'days',
-  });
-  const [retentionLoading, setRetentionLoading] = useState(false);
-  const [retentionSaving, setRetentionSaving] = useState(false);
-  const [retentionNotice, setRetentionNotice] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const signatureInputRef = useRef<HTMLInputElement>(null);
@@ -85,45 +66,6 @@ export function ProfileSettings() {
 
   useEffect(() => {
     loadProfile();
-  }, []);
-
-  useEffect(() => {
-    if (profile?.role?.toLowerCase() !== 'admin') {
-      return;
-    }
-
-    const loadRetentionPolicy = async () => {
-      try {
-        setRetentionLoading(true);
-        const res = await fetch(`${API_BASE}/admin/audit-log-retention-policy`, {
-          credentials: 'include',
-          headers: { 'Accept': 'application/json' },
-        });
-
-        if (!res.ok) {
-          return;
-        }
-
-        const data: AuditLogRetentionPolicy = await res.json();
-        setRetentionPolicy(data);
-      } catch (err) {
-        console.error('Failed to load audit log retention policy:', err);
-      } finally {
-        setRetentionLoading(false);
-      }
-    };
-
-    loadRetentionPolicy();
-  }, [profile?.role]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setIsPageVisible(true);
-    }, 90);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
   }, []);
 
   const loadProfile = async () => {
@@ -160,22 +102,6 @@ export function ProfileSettings() {
         body.company_role = companyRole;
       }
       if (password) {
-        if (!currentPassword) {
-          setMessage({ type: 'error', text: 'Current password is required to set a new password.' });
-          setSaving(false);
-          return;
-        }
-        if (password.length < 8) {
-          setMessage({ type: 'error', text: 'Password must be at least 8 characters.' });
-          setSaving(false);
-          return;
-        }
-        if (password !== passwordConfirmation) {
-          setMessage({ type: 'error', text: 'Passwords do not match.' });
-          setSaving(false);
-          return;
-        }
-        body.current_password = currentPassword;
         body.password = password;
         body.password_confirmation = passwordConfirmation;
       }
@@ -211,7 +137,6 @@ export function ProfileSettings() {
           company_role: data.user.company_role ?? prev.company_role,
         } : prev);
         setCompanyRole(data.user.company_role ?? '');
-        setCurrentPassword('');
         setPassword('');
         setPasswordConfirmation('');
       }
@@ -262,43 +187,10 @@ export function ProfileSettings() {
     }
   };
 
-  const handleRemovePicture = async () => {
-    setUploadingPic(true);
-    setMessage(null);
-    try {
-      await getCsrf();
-      const res = await fetch(`${API_BASE}/profile/picture`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'X-XSRF-TOKEN': getXsrfToken(),
-        },
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage({ type: 'error', text: data.message || 'Failed to remove picture.' });
-      } else {
-        setMessage({ type: 'success', text: 'Profile picture removed.' });
-        setProfile((prev) => prev ? { ...prev, profile_picture: null } : prev);
-        window.dispatchEvent(new CustomEvent('profile-picture-updated', { detail: { profile_picture: null } }));
-      }
-    } catch (err) {
-      setMessage({ type: 'error', text: 'Failed to remove picture.' });
-    } finally {
-      setUploadingPic(false);
-    }
-  };
-
-  const handleConfirmRemovePicture = async () => {
-    await handleRemovePicture();
-    setShowRemovePicConfirm(false);
-  };
-
   const uploadSignatureFile = async (file: File): Promise<boolean> => {
-    const allowed = ['image/png'];
+    const allowed = ['image/png', 'image/jpeg', 'image/jpg'];
     if (!allowed.includes(file.type)) {
-      setMessage({ type: 'error', text: 'Signature must be a PNG image.' });
+      setMessage({ type: 'error', text: 'Signature must be a PNG or JPG image.' });
       return false;
     }
 
@@ -332,10 +224,7 @@ export function ProfileSettings() {
         return false;
       } else {
         setMessage({ type: 'success', text: 'Signature uploaded. It will now be used automatically in certificates.' });
-        const signaturePath = data.signature_path
-          ? `${data.signature_path}${data.signature_path.includes('?') ? '&' : '?'}t=${Date.now()}`
-          : null;
-        setProfile((prev) => prev ? { ...prev, signature_path: signaturePath } : prev);
+        setProfile((prev) => prev ? { ...prev, signature_path: data.signature_path } : prev);
         return true;
       }
     } catch (err) {
@@ -462,47 +351,8 @@ export function ProfileSettings() {
   };
 
   const normalizedRole = profile?.role?.toLowerCase() ?? '';
-  const isAdmin = normalizedRole === 'admin';
-  const canChangePassword = ['admin', 'employee'].includes(normalizedRole);
   const canManageSignature = ['admin', 'instructor'].includes(normalizedRole);
   const signatureOwnerLabel = normalizedRole === 'admin' ? 'Admin' : 'Instructor';
-
-  const saveRetentionPolicy = async () => {
-    setRetentionNotice(null);
-    setRetentionSaving(true);
-
-    try {
-      await getCsrf();
-      const res = await fetch(`${API_BASE}/admin/audit-log-retention-policy`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'X-XSRF-TOKEN': getXsrfToken(),
-        },
-        body: JSON.stringify(retentionPolicy),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const errors = data.errors ? Object.values(data.errors).flat().join(' ') : data.message;
-        setRetentionNotice(errors || 'Failed to update audit log retention policy.');
-        return;
-      }
-
-      setRetentionPolicy({
-        enabled: !!data.enabled,
-        retention_value: Number(data.retention_value),
-        retention_unit: data.retention_unit,
-      });
-      setRetentionNotice(data.message || 'Retention policy updated successfully.');
-    } catch (err) {
-      setRetentionNotice('Failed to update audit log retention policy.');
-    } finally {
-      setRetentionSaving(false);
-    }
-  };
 
   useEffect(() => {
     if (!canManageSignature) return;
@@ -530,35 +380,19 @@ export function ProfileSettings() {
   }
 
   return (
-    <div
-      className={`settings-page-enter max-w-3xl mx-auto space-y-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
-    >
+    <div className="max-w-3xl mx-auto space-y-6">
+      <h1 className="text-2xl font-bold text-slate-900">Profile Settings</h1>
 
       {/* Message Banner */}
       {message && (
-        <div className={`flex items-center gap-2 p-4 rounded-lg text-sm font-medium transition-all duration-300 ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+        <div className={`flex items-center gap-2 p-4 rounded-lg text-sm font-medium ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
           {message.type === 'success' ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
           {message.text}
         </div>
       )}
 
-      {isAdmin && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-100">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <div>
-              <div className="font-semibold">Audit log retention is managed here.</div>
-              <div>Any change you save will control when audit logs are soft-deleted automatically.</div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Profile Picture Section */}
-      <div
-        className={`settings-card-enter settings-card-delay-1 bg-white rounded-lg shadow-sm border border-slate-200 p-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
-        style={{ transitionDelay: isPageVisible ? '90ms' : '0ms' }}
-      >
+      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
         <h2 className="text-lg font-semibold text-slate-900 mb-4">Profile Picture</h2>
         <div className="flex items-center gap-6">
           <div className="relative">
@@ -577,7 +411,7 @@ export function ProfileSettings() {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadingPic}
-              className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-green-600 text-white flex items-center justify-center hover:bg-green-700 transition-all duration-200 shadow-md hover:scale-105"
+              className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-green-600 text-white flex items-center justify-center hover:bg-green-700 transition-colors shadow-md"
             >
               <Camera className="h-4 w-4" />
             </button>
@@ -604,52 +438,13 @@ export function ProfileSettings() {
                 Uploading...
               </p>
             )}
-            {profile.profile_picture && (
-              <div className="mt-3 space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setShowRemovePicConfirm(true)}
-                  disabled={uploadingPic}
-                  className="inline-flex items-center rounded-md border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Remove photo
-                </button>
-
-                {showRemovePicConfirm && (
-                  <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                    <div>Remove profile photo?</div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleConfirmRemovePicture}
-                        disabled={uploadingPic}
-                        className="rounded-md bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowRemovePicConfirm(false)}
-                        disabled={uploadingPic}
-                        className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        No
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>
 
       {/* Signature Section */}
       {canManageSignature && (
-        <div
-          className={`settings-card-enter settings-card-delay-2 bg-white rounded-lg shadow-sm border border-slate-200 p-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
-          style={{ transitionDelay: isPageVisible ? '150ms' : '0ms' }}
-        >
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">{signatureOwnerLabel} Signature</h2>
           <div className="flex flex-col sm:flex-row sm:items-center gap-6">
             <div className="w-full sm:w-72">
@@ -677,7 +472,7 @@ export function ProfileSettings() {
                 Upload your signature once or draw it using a mouse, touch input, or pen tablet.
               </p>
               <p className="text-xs text-slate-500 mt-1 dark:text-slate-300">
-                PNG only, max 2MB. Saving a new one replaces the current {signatureOwnerLabel.toLowerCase()} signature.
+                PNG/JPG only, max 2MB. Saving a new one replaces the current {signatureOwnerLabel.toLowerCase()} signature.
               </p>
 
               <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/80">
@@ -699,7 +494,7 @@ export function ProfileSettings() {
                     type="button"
                     onClick={clearSignaturePad}
                     disabled={uploadingSignature}
-                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-500 dark:text-slate-100 dark:hover:bg-slate-700 transition-all duration-200 hover:-translate-y-0.5"
+                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-500 dark:text-slate-100 dark:hover:bg-slate-700"
                   >
                     Clear Drawing
                   </button>
@@ -707,7 +502,7 @@ export function ProfileSettings() {
                     type="button"
                     onClick={uploadDrawnSignature}
                     disabled={uploadingSignature}
-                    className="btn btn-primary btn-xs"
+                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
                   >
                     <Save className="h-3.5 w-3.5 mr-1.5" />
                     Save Drawn Signature
@@ -721,7 +516,7 @@ export function ProfileSettings() {
                   type="button"
                   onClick={() => signatureInputRef.current?.click()}
                   disabled={uploadingSignature}
-                  className="btn btn-primary btn-sm mt-2"
+                  className="mt-2 inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
                 >
                   <Upload className="h-4 w-4 mr-2" />
                   {profile.signature_path ? 'Replace E-Signature' : 'Upload E-Signature'}
@@ -729,7 +524,7 @@ export function ProfileSettings() {
                 <input
                   ref={signatureInputRef}
                   type="file"
-                  accept="image/png"
+                  accept="image/png,image/jpeg,image/jpg"
                   onChange={handleSignatureUpload}
                   className="hidden"
                 />
@@ -746,93 +541,8 @@ export function ProfileSettings() {
         </div>
       )}
 
-      {isAdmin && (
-        <div
-          className={`settings-card-enter settings-card-delay-3 bg-white rounded-lg shadow-sm border border-slate-200 p-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
-          style={{ transitionDelay: isPageVisible ? '210ms' : '0ms' }}
-        >
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Audit Log Retention</h2>
-              <p className="text-sm text-slate-500 mt-1">
-                Configure when audit logs are automatically soft-deleted.
-              </p>
-            </div>
-            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${retentionPolicy.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
-              {retentionPolicy.enabled ? 'Enabled' : 'Disabled'}
-            </span>
-          </div>
-
-          {retentionNotice && (
-            <div className={`mb-4 flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${retentionNotice.toLowerCase().includes('failed') ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
-              <AlertCircle className="h-4 w-4" />
-              <span>{retentionNotice}</span>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-              <input
-                type="checkbox"
-                checked={retentionPolicy.enabled}
-                onChange={(e) => setRetentionPolicy((prev) => ({ ...prev, enabled: e.target.checked }))}
-                className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-500"
-              />
-              <div>
-                <div className="text-sm font-medium text-slate-900">Auto soft delete</div>
-                <div className="text-xs text-slate-500">Turn this on to enforce the retention policy.</div>
-              </div>
-            </label>
-
-            <label className="block">
-              <div className="text-sm font-medium text-slate-700 mb-2">Retention period</div>
-              <input
-                type="number"
-                min={1}
-                max={3650}
-                value={retentionPolicy.retention_value}
-                onChange={(e) => setRetentionPolicy((prev) => ({ ...prev, retention_value: Number(e.target.value) || 1 }))}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-green-500 focus:ring-green-500"
-              />
-            </label>
-
-            <label className="block">
-              <div className="text-sm font-medium text-slate-700 mb-2">Retention unit</div>
-              <select
-                value={retentionPolicy.retention_unit}
-                onChange={(e) => setRetentionPolicy((prev) => ({ ...prev, retention_unit: e.target.value as AuditLogRetentionPolicy['retention_unit'] }))}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-green-500 focus:ring-green-500"
-              >
-                <option value="days">Days</option>
-                <option value="weeks">Weeks</option>
-                <option value="months">Months</option>
-                <option value="years">Years</option>
-              </select>
-            </label>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={saveRetentionPolicy}
-              disabled={retentionLoading || retentionSaving}
-              className="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Save className="mr-2 h-4 w-4" />
-              {retentionSaving ? 'Saving...' : 'Save Retention Policy'}
-            </button>
-            <div className="text-xs text-slate-500">
-              Current schedule: nightly soft delete based on the saved policy.
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Account Information */}
-      <div
-        className={`settings-card-enter settings-card-delay-3 bg-white rounded-lg shadow-sm border border-slate-200 p-6 transition-all duration-500 ${isPageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
-        style={{ transitionDelay: isPageVisible ? '210ms' : '0ms' }}
-      >
+      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
         <h2 className="text-lg font-semibold text-slate-900 mb-4">Account Information</h2>
 
         {/* Read-only fields */}
@@ -912,36 +622,12 @@ export function ProfileSettings() {
             </div>
           </div>
 
-          {canChangePassword && (
+          {profile.role.toLowerCase() === 'admin' && (
           <div className="border-t border-slate-200 pt-4 mt-4">
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Change Password</h3>
-            <p className="text-xs text-slate-500 mb-3">Enter your current password first. Leave the new password blank to keep it unchanged.</p>
+            <p className="text-xs text-slate-500 mb-3">Leave blank to keep your current password.</p>
 
             <div className="space-y-3">
-              <div>
-                <label htmlFor="current_password" className="block text-sm font-medium text-slate-700 mb-1">Current Password</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-4 w-4 text-slate-400" />
-                  </div>
-                  <input
-                    id="current_password"
-                    type={showCurrentPassword ? 'text' : 'password'}
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    placeholder="Enter current password"
-                    className="block w-full pl-10 pr-10 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                  >
-                    {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
                 <div className="relative">
@@ -965,59 +651,6 @@ export function ProfileSettings() {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
-                {/* Password Strength Indicator */}
-                {password && (
-                  <div className="mt-2">
-                    <div className="flex gap-1 mb-1">
-                      {[1, 2, 3, 4].map((level) => {
-                        const strength = (() => {
-                          let score = 0;
-                          if (password.length >= 8) score++;
-                          if (password.length >= 12) score++;
-                          if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
-                          if (/[0-9]/.test(password)) score++;
-                          if (/[^A-Za-z0-9]/.test(password)) score++;
-                          return Math.min(score, 4);
-                        })();
-                        const isActive = level <= strength;
-                        const color = strength <= 1 ? 'bg-red-500' : strength === 2 ? 'bg-orange-500' : strength === 3 ? 'bg-yellow-500' : 'bg-green-500';
-                        return (
-                          <div
-                            key={level}
-                            className={`h-1 flex-1 rounded-full transition-colors ${isActive ? color : 'bg-slate-200'}`}
-                          />
-                        );
-                      })}
-                    </div>
-                    <p className={`text-xs ${
-                      password.length < 8
-                        ? 'text-red-600'
-                        : (() => {
-                            let score = 0;
-                            if (password.length >= 8) score++;
-                            if (password.length >= 12) score++;
-                            if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
-                            if (/[0-9]/.test(password)) score++;
-                            if (/[^A-Za-z0-9]/.test(password)) score++;
-                            const strength = Math.min(score, 4);
-                            return strength <= 1 ? 'Weak password' : strength === 2 ? 'Fair password' : strength === 3 ? 'Good password' : 'Strong password';
-                          })()
-                    }`}>
-                      {password.length < 8
-                        ? `Password is too short (${password.length}/8 characters minimum)`
-                        : (() => {
-                            let score = 0;
-                            if (password.length >= 8) score++;
-                            if (password.length >= 12) score++;
-                            if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
-                            if (/[0-9]/.test(password)) score++;
-                            if (/[^A-Za-z0-9]/.test(password)) score++;
-                            const strength = Math.min(score, 4);
-                            return strength <= 1 ? 'Weak password' : strength === 2 ? 'Fair password' : strength === 3 ? 'Good password' : 'Strong password';
-                          })()}
-                    </p>
-                  </div>
-                )}
               </div>
 
               <div>
@@ -1043,22 +676,16 @@ export function ProfileSettings() {
                     {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
-                {/* Password Match Indicator */}
-                {passwordConfirmation && (
-                  <p className={`mt-1 text-xs ${password === passwordConfirmation ? 'text-green-600' : 'text-red-600'}`}>
-                    {password === passwordConfirmation ? '✓ Passwords match' : '✗ Passwords do not match'}
-                  </p>
-                )}
               </div>
             </div>
           </div>
           )}
 
-          <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-4">
+          <div className="flex justify-end pt-4">
             <button
               type="submit"
               disabled={saving}
-              className="btn btn-primary w-full sm:w-auto"
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
             >
               {saving ? (
                 <>

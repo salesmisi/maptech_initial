@@ -2,17 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\NotificationCountUpdated;
 use App\Models\Notification;
-use App\Models\SentHistory;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
+use App\Events\NotificationCountUpdated;
+use Illuminate\Support\Carbon;
 
 class NotificationController extends Controller
 {
@@ -91,9 +88,7 @@ class NotificationController extends Controller
     public function readAll(Request $request)
     {
         $user = $request->user() ?? Auth::user();
-        if (! $user) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
+        if (! $user) return response()->json(['message' => 'Unauthenticated'], 401);
 
         Notification::where('user_id', $user->id)
             ->whereNull('read_at')
@@ -125,83 +120,18 @@ class NotificationController extends Controller
     }
 
     /**
-     * Delete a notification (soft delete) for the authenticated user
+     * Delete a notification for the authenticated user
      */
     public function destroy(Request $request, $id)
     {
         $user = $request->user() ?? Auth::user();
-        if (! $user) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
+        if (! $user) return response()->json(['message' => 'Unauthenticated'], 401);
 
         $notification = Notification::where('id', $id)->where('user_id', $user->id)->firstOrFail();
         $notification->delete();
 
-        // Auto-cleanup: if recently deleted count >= 50, permanently delete oldest half
-        $permanentlyDeleted = Notification::enforceTrashLimit($user->id);
-
         return response()->json([
             'message' => 'Notification deleted',
-            'permanently_deleted' => $permanentlyDeleted,
-        ]);
-    }
-
-    /**
-     * Get recently deleted notifications for the authenticated user.
-     */
-    public function getRecentlyDeletedNotifications()
-    {
-        $user = Auth::user();
-
-        $deleted = Notification::onlyTrashed()
-            ->where('user_id', $user->id)
-            ->orderByDesc('deleted_at')
-            ->get();
-
-        return response()->json([
-            'recently_deleted' => $deleted,
-        ]);
-    }
-
-    /**
-     * Restore a soft-deleted notification.
-     */
-    public function restoreNotification(int $id)
-    {
-        $user = Auth::user();
-
-        $notification = Notification::onlyTrashed()
-            ->where('id', $id)
-            ->where('user_id', $user->id)
-            ->firstOrFail();
-
-        $notification->restore();
-
-        return response()->json([
-            'message' => 'Notification restored',
-            'notification' => $notification,
-        ]);
-    }
-
-    /**
-     * Permanently delete a notification.
-     */
-    public function permanentlyDeleteNotification(Request $request, int $id)
-    {
-        $user = $request->user() ?? Auth::user();
-        if (! $user) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
-
-        $notification = Notification::onlyTrashed()
-            ->where('id', $id)
-            ->where('user_id', $user->id)
-            ->firstOrFail();
-
-        $notification->forceDelete();
-
-        return response()->json([
-            'message' => 'Notification permanently deleted',
         ]);
     }
 
@@ -213,26 +143,19 @@ class NotificationController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'message' => 'required|string',
-            'announcement_mode' => 'nullable|string|in:group,one_person',
-            'roles' => 'nullable|array',
+            'roles' => 'required|array|min:1',
             'roles.*' => 'string|in:Instructor,Employee,Admin',
             'course_id' => 'nullable|exists:courses,id',
             'department' => 'nullable|string|max:255',
-            'department_id' => 'nullable|integer|exists:departments,id',
-            'subdepartment_id' => 'nullable|integer|exists:subdepartments,id',
             'target_user_ids' => 'nullable|array',
             'target_user_ids.*' => 'integer|exists:users,id',
-            'image' => 'nullable|image|mimes:jpg,jpeg,png,gif,webp|max:4096',
-            'message_images' => 'nullable|array',
-            'message_images.*' => 'image|mimes:jpg,jpeg,png,gif,webp|max:4096',
-            'preview' => 'nullable|boolean',
         ]);
 
         $admin = Auth::user();
 
         // Temporary debug: log incoming payload for troubleshooting
         Log::debug('adminAnnounce payload', $request->all());
-        $roles = $request->input('roles', []);
+        $roles = $request->input('roles');
         // Normalize roles to lowercase to match storage convention in User::setRoleAttribute
         $normalizedRoles = is_array($roles) ? array_map('strtolower', $roles) : [];
         $title = $request->input('title');
@@ -240,51 +163,32 @@ class NotificationController extends Controller
         $courseId = $request->input('course_id');
         $department = $request->input('department');
         $department_id = $request->input('department_id');
-        $subdepartmentId = $request->input('subdepartment_id');
-        $announcementMode = $request->input('announcement_mode', 'group');
-        $imageUrl = null;
-        $imageUrls = [];
         // If department_id provided, resolve to department name
-        if ($department_id && ! $department) {
+        if ($department_id && !$department) {
             $dept = \App\Models\Department::find($department_id);
             if ($dept) {
                 $department = $dept->name;
             }
         }
 
-        if ($subdepartmentId) {
-            $subdepartment = \App\Models\Subdepartment::find($subdepartmentId);
-            if (! $subdepartment) {
-                return response()->json(['message' => 'Selected sub department does not exist.'], 422);
-            }
-
-            if ($department_id && (int) $subdepartment->department_id !== (int) $department_id) {
-                return response()->json(['message' => 'Selected sub department does not belong to the selected department.'], 422);
-            }
-        }
-
-        // Explicit selected users take precedence over role/department filters.
+        // If specific user IDs provided, target those (respecting department/roles)
         $targetIds = $request->input('target_user_ids');
         if (is_array($targetIds) && count($targetIds) > 0) {
-            $targetIds = array_values(array_unique(array_map('intval', $targetIds)));
             $users = User::whereIn('id', $targetIds)
                 ->where('id', '!=', $admin->id)
+                ->when($normalizedRoles, function ($q) use ($normalizedRoles) {
+                    return $q->whereIn('role', $normalizedRoles);
+                })
+                ->when($department, function ($q) use ($department) {
+                    return $q->where('department', $department);
+                })
                 ->get();
         } else {
-            if (count($normalizedRoles) === 0) {
-                return response()->json([
-                    'message' => 'Please select at least one role or choose specific users.',
-                ], 422);
-            }
-
             // Get all users with specified roles
             $users = User::whereIn('role', $normalizedRoles)
                 ->where('id', '!=', $admin->id)
                 ->when($department, function ($q) use ($department) {
                     return $q->where('department', $department);
-                })
-                ->when($subdepartmentId, function ($q) use ($subdepartmentId) {
-                    return $q->where('subdepartment_id', (int) $subdepartmentId);
                 })
                 ->get();
         }
@@ -298,37 +202,6 @@ class NotificationController extends Controller
             'roles_normalized' => $normalizedRoles,
         ]);
 
-        // Preview should only report recipients and never create notifications/history.
-        if ($request->boolean('preview')) {
-            $recipientNames = $users->map(fn ($u) => ['id' => $u->id, 'fullname' => $u->fullname])->values()->all();
-            $payload = [
-                'message' => 'Preview recipients calculated',
-                'recipients_count' => $users->count(),
-                'recipients' => $recipientNames,
-            ];
-            if (config('app.debug')) {
-                $payload['matched_user_ids'] = $users->pluck('id')->values()->all();
-            }
-
-            return response()->json($payload);
-        }
-
-        if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('notification-images', 'public');
-            $imageUrl = Storage::url($path);
-        }
-
-        if ($request->hasFile('message_images')) {
-            foreach ($request->file('message_images') as $imageFile) {
-                $path = $imageFile->store('notification-images', 'public');
-                $imageUrls[] = Storage::url($path);
-            }
-        }
-
-        if ($imageUrl && count($imageUrls) === 0) {
-            $imageUrls[] = $imageUrl;
-        }
-
         $notifications = [];
         foreach ($users as $user) {
             $notifications[] = Notification::create([
@@ -341,43 +214,9 @@ class NotificationController extends Controller
                     'from_user_id' => $admin->id,
                     'from_user_name' => $admin->fullname,
                     'from_role' => 'Admin',
-                    'from_user_profile_picture' => $admin->profile_picture,
-                    'image_url' => $imageUrl,
-                    'image_urls' => $imageUrls,
                 ],
             ]);
         }
-
-        // Create sent history entry
-        $targetDescription = 'Multiple Users';
-        if ($users->count() === 1) {
-            $targetDescription = $users->first()->fullname;
-        } elseif (is_array($targetIds) && count($targetIds) > 0) {
-            $targetDescription = 'Selected Users ('.$users->count().')';
-        } elseif ($department) {
-            $targetDescription = $department.' - '.implode(', ', $roles);
-        } elseif (count($roles) > 0) {
-            $targetDescription = implode(', ', $roles);
-        }
-
-        SentHistory::create([
-            'sender_id' => $admin->id,
-            'title' => $title,
-            'message' => $message,
-            'target' => $targetDescription,
-            'announcement_mode' => $announcementMode,
-            'data' => [
-                'image_url' => $imageUrl,
-                'image_urls' => $imageUrls,
-            ],
-            'target_roles' => $roles,
-            'department_id' => $department_id,
-            'subdepartment_id' => $subdepartmentId,
-            'recipients_count' => count($notifications),
-        ]);
-
-        // Enforce the 50 notification history limit
-        SentHistory::enforceHistoryLimit($admin->id);
 
         $payload = [
             'message' => 'Announcement sent successfully',
@@ -417,7 +256,6 @@ class NotificationController extends Controller
                 'from_user_id' => $admin->id,
                 'from_user_name' => $admin->fullname,
                 'from_role' => 'Admin',
-                'from_user_profile_picture' => $admin->profile_picture,
             ],
         ]);
 
@@ -438,12 +276,7 @@ class NotificationController extends Controller
             'course_id' => 'nullable|exists:courses,id',
             'department' => 'nullable|string|max:255',
             'department_id' => 'nullable|integer|exists:departments,id',
-            'subdepartment_id' => 'nullable|integer|exists:subdepartments,id',
-            'target_user_id' => 'nullable|integer|exists:users,id',
             'type' => 'nullable|string|in:announcement,lesson_update,quiz_reminder',
-            'preview' => 'nullable|boolean',
-            'message_images' => 'nullable|array',
-            'message_images.*' => 'image|mimes:jpg,jpeg,png,gif,webp|max:4096',
         ]);
 
         /** @var User|null $instructor */
@@ -455,65 +288,27 @@ class NotificationController extends Controller
         $courseId = $request->input('course_id');
         $department = $request->input('department');
         $departmentId = $request->input('department_id');
-        $subdepartmentId = $request->input('subdepartment_id');
-        $targetUserId = $request->input('target_user_id');
 
         // If department_id provided, resolve to name
-        if ($departmentId && ! $department) {
+        if ($departmentId && !$department) {
             $dept = \App\Models\Department::find($departmentId);
-            if ($dept) {
-                $department = $dept->name;
-            }
+            if ($dept) $department = $dept->name;
         }
 
         $notifications = [];
         $recipients = collect();
 
-        if ($targetUserId) {
-            // Send to a specific employee
-            $targetUser = User::find($targetUserId);
-            if (! $targetUser || strtolower($targetUser->role) !== 'employee') {
-                return response()->json(['message' => 'Target user must be an employee'], 422);
-            }
-
-            // Process uploaded images
-            $imageUrls = [];
-            if ($request->hasFile('message_images')) {
-                foreach ($request->file('message_images') as $imageFile) {
-                    $path = $imageFile->store('notification-images', 'public');
-                    $imageUrls[] = \Illuminate\Support\Facades\Storage::url($path);
-                }
-            }
-
-            $notifications[] = Notification::create([
-                'user_id' => $targetUserId,
-                'type' => $request->input('type', 'announcement'),
-                'title' => $request->input('title'),
-                'message' => $request->input('message'),
-                'data' => [
-                    'from_user_id' => $instructor->id,
-                    'from_user_name' => $instructor->fullname,
-                    'from_role' => 'Instructor',
-                    'from_user_profile_picture' => $instructor->profile_picture,
-                    'image_urls' => $imageUrls,
-                ],
-            ]);
-
-            return response()->json([
-                'message' => 'Notification sent to employee',
-                'recipients_count' => 1,
-            ]);
-        } elseif ($courseId) {
+        if ($courseId) {
             // Verify instructor has access to the course (ownership or assigned area)
             $course = \App\Models\Course::findOrFail($courseId);
             $assignedSubIds = $instructor->subdepartments()->pluck('subdepartments.id')->toArray();
             $assignedDept = $instructor->department;
 
             $allowed = ($course->instructor_id === $instructor->id)
-                || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+                || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
                 || ($assignedDept && $course->department === $assignedDept);
 
-            if (! $allowed) {
+            if (!$allowed) {
                 return response()->json(['message' => 'Forbidden'], 403);
             }
 
@@ -522,59 +317,35 @@ class NotificationController extends Controller
                 $recipients->push([$enrollment->user_id, $course->title, $course->id]);
             }
         } elseif ($department) {
-            // Send to all employees in the department (by user record), optionally filtered by subdepartment
+            // Send to enrolled employees across courses in the department that the instructor can manage
             $assignedSubIds = $instructor->subdepartments()->pluck('subdepartments.id')->toArray();
             $assignedDept = $instructor->department;
 
-            // Instructor must belong to the department or have assigned subdepartments in it
-            if (! ($assignedDept === $department) && empty($assignedSubIds)) {
+            // Instructor must belong to the department or have assigned subdepartments matching the department
+            if (!($assignedDept === $department) && empty($assignedSubIds)) {
                 return response()->json(['message' => 'Forbidden'], 403);
             }
 
-            $employeeQuery = User::where('role', 'employee')
-                ->where('department', $department);
+            $courses = \App\Models\Course::where('department', $department)
+                ->get()
+                ->filter(function ($c) use ($instructor, $assignedSubIds, $assignedDept) {
+                    return ($c->instructor_id === $instructor->id)
+                        || (!empty($assignedSubIds) && in_array($c->subdepartment_id, $assignedSubIds))
+                        || ($assignedDept && $c->department === $assignedDept);
+                });
 
-            if ($subdepartmentId) {
-                $employeeQuery->where('subdepartment_id', $subdepartmentId);
-            }
-
-            $employeeIds = $employeeQuery->pluck('id');
-
-            foreach ($employeeIds as $uid) {
-                $recipients->push([$uid, null, null]);
+            foreach ($courses as $course) {
+                $enrollments = \App\Models\Enrollment::where('course_id', $course->id)->with('user')->get();
+                foreach ($enrollments as $enrollment) {
+                    $recipients->push([$enrollment->user_id, $course->title, $course->id]);
+                }
             }
         } else {
-            return response()->json(['message' => 'Please provide course_id, department, or target_user_id'], 422);
+            return response()->json(['message' => 'Please provide course_id or department'], 422);
         }
 
         // Deduplicate recipients by user_id
-        $unique = $recipients->unique(function ($item) {
-            return $item[0];
-        });
-
-        // If preview mode, return count without creating notifications
-        if ($request->boolean('preview')) {
-            $recipientNames = User::whereIn('id', $unique->pluck(0)->all())
-                ->select('id', 'fullname')
-                ->get()
-                ->map(fn ($u) => ['id' => $u->id, 'fullname' => $u->fullname])
-                ->values()->all();
-
-            return response()->json([
-                'message' => 'Preview only',
-                'recipients_count' => $unique->count(),
-                'recipients' => $recipientNames,
-            ]);
-        }
-
-        // Process uploaded images
-        $imageUrls = [];
-        if ($request->hasFile('message_images')) {
-            foreach ($request->file('message_images') as $imageFile) {
-                $path = $imageFile->store('notification-images', 'public');
-                $imageUrls[] = \Illuminate\Support\Facades\Storage::url($path);
-            }
-        }
+        $unique = $recipients->unique(function ($item) { return $item[0]; });
 
         foreach ($unique as $item) {
             [$userId, $courseTitle, $courseIdForData] = $item;
@@ -588,69 +359,15 @@ class NotificationController extends Controller
                     'from_user_id' => $instructor->id,
                     'from_user_name' => $instructor->fullname,
                     'from_role' => 'Instructor',
-                    'from_user_profile_picture' => $instructor->profile_picture,
                     'course_title' => $courseTitle,
-                    'image_urls' => $imageUrls,
                 ],
             ]);
         }
 
         return response()->json([
-            'message' => 'Notification sent to employees',
+            'message' => 'Notification sent to enrolled employees',
             'recipients_count' => count($notifications),
         ]);
-    }
-
-    /**
-     * Employee: Get instructors who have courses in the employee's subdepartment.
-     */
-    public function getInstructorsForEmployee(Request $request)
-    {
-        $employee = Auth::user();
-        $instructorIds = collect();
-
-        if ($employee->subdepartment_id) {
-            // Primary: the subdepartment head (head_id on subdepartments table)
-            $subdept = \App\Models\Subdepartment::find($employee->subdepartment_id);
-            if ($subdept && $subdept->head_id) {
-                $instructorIds->push($subdept->head_id);
-            }
-
-            // Also include instructors linked via user_subdepartment pivot
-            $pivotIds = DB::table('user_subdepartment')
-                ->where('subdepartment_id', $employee->subdepartment_id)
-                ->pluck('user_id');
-            $instructorIds = $instructorIds->merge($pivotIds)->unique();
-
-            if ($instructorIds->isNotEmpty()) {
-                $instructors = \App\Models\User::whereIn('id', $instructorIds)
-                    ->where('role', 'instructor')
-                    ->select('id', 'fullname', 'profile_picture')
-                    ->get()
-                    ->map(fn ($i) => ['id' => $i->id, 'fullname' => $i->fullname]);
-
-                return response()->json($instructors->values());
-            }
-
-            // Fallback: all subdepartment heads within the same department
-            $deptId = $subdept->department_id ?? null;
-            if ($deptId) {
-                $instructors = \App\Models\User::where('role', 'instructor')
-                    ->whereIn('id', function ($q) use ($deptId) {
-                        $q->select('head_id')
-                            ->from('subdepartments')
-                            ->where('department_id', $deptId)
-                            ->whereNotNull('head_id');
-                    })
-                    ->select('id', 'fullname', 'profile_picture')
-                    ->get()
-                    ->map(fn ($i) => ['id' => $i->id, 'fullname' => $i->fullname]);
-
-                return response()->json($instructors->values());
-            }
-        }
-
-        return response()->json([]);
     }
 
     /**
@@ -661,17 +378,30 @@ class NotificationController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'message' => 'required|string',
-            'instructor_id' => 'required|exists:users,id',
+            'course_id' => 'required|exists:courses,id',
         ]);
 
         $employee = Auth::user();
-        $instructorId = $request->input('instructor_id');
+        $courseId = $request->input('course_id');
 
-        $instructor = \App\Models\User::findOrFail($instructorId);
+        // Verify employee is enrolled in this course
+        $enrollment = \App\Models\Enrollment::where('course_id', $courseId)
+            ->where('user_id', $employee->id)
+            ->firstOrFail();
+
+        // Get the course and instructor
+        $course = \App\Models\Course::findOrFail($courseId);
+
+        if (!$course->instructor_id) {
+            return response()->json([
+                'message' => 'This course has no assigned instructor',
+            ], 400);
+        }
 
         // Send notification to instructor
         $notification = Notification::create([
-            'user_id' => $instructorId,
+            'user_id' => $course->instructor_id,
+            'course_id' => $courseId,
             'type' => 'employee_message',
             'title' => $request->input('title'),
             'message' => $request->input('message'),
@@ -679,8 +409,7 @@ class NotificationController extends Controller
                 'from_user_id' => $employee->id,
                 'from_user_name' => $employee->fullname,
                 'from_role' => 'Employee',
-                'from_user_profile_picture' => $employee->profile_picture,
-                'from_department' => $employee->department,
+                'course_title' => $course->title,
             ],
         ]);
 
@@ -696,35 +425,28 @@ class NotificationController extends Controller
     public function employeeReportToAdmin(Request $request)
     {
         $request->validate([
-            'title' => 'nullable|string|max:255',
+            'title' => 'required|string|max:255',
             'message' => 'required|string',
             'type' => 'nullable|string|in:feedback,issue,suggestion',
         ]);
 
         $employee = Auth::user();
-        $departmentName = $employee->department;
 
-        $title = $request->input('title')
-            ?: ($departmentName
-                ? "Message from {$employee->fullname} ({$departmentName})"
-                : "Message from {$employee->fullname}");
-
-        // Get all admins (role is stored lowercase in DB due to mutator)
-        $admins = User::where('role', 'admin')->get();
+        // Get all admins
+        $admins = User::where('role', 'Admin')->get();
 
         $notifications = [];
         foreach ($admins as $admin) {
             $notifications[] = Notification::create([
                 'user_id' => $admin->id,
                 'type' => $request->input('type', 'feedback'),
-                'title' => $title,
+                'title' => $request->input('title'),
                 'message' => $request->input('message'),
                 'data' => [
                     'from_user_id' => $employee->id,
                     'from_user_name' => $employee->fullname,
                     'from_role' => 'Employee',
-                    'from_user_profile_picture' => $employee->profile_picture,
-                    'from_department' => $departmentName,
+                    'from_department' => $employee->department,
                 ],
             ]);
         }
@@ -742,217 +464,36 @@ class NotificationController extends Controller
     {
         $admin = Auth::user();
 
-        // Get sent history from the dedicated table (non-deleted entries)
-        $sentAnnouncements = SentHistory::with(['department:id,name', 'subdepartment:id,name'])
-            ->where('sender_id', $admin->id)
-            ->whereNull('deleted_at')
+        // Query announcements sent by this admin, grouped by sent date
+        // Group by title, message, and date to avoid duplicate entries for the same announcement
+        $sentAnnouncements = Notification::where('type', 'announcement')
+            ->whereJsonContains('data->from_user_id', $admin->id)
+            ->select(['id', 'title', 'message', 'created_at', 'data'])
             ->orderByDesc('created_at')
-            ->take(SentHistory::HISTORY_LIMIT)
             ->get()
-            ->map(function ($entry) {
+            ->groupBy(function ($notification) {
+                // Group by title, message, and date (day) to treat same announcement sent on same day as one entry
+                return $notification->title . '|' . $notification->message . '|' . $notification->created_at->toDateString();
+            })
+            ->map(function ($group) {
+                // Get first item from group (to extract title, message, created_at)
+                $first = $group->first();
+
                 return [
-                    'id' => $entry->id,
-                    'title' => $entry->title,
-                    'message' => $entry->message,
-                    'target' => $entry->target,
-                    'announcement_mode' => $entry->announcement_mode ?? 'group',
-                    'data' => $entry->data,
-                    'date' => $entry->created_at->toIso8601String(),
+                    'id' => $first->id,
+                    'title' => $first->title,
+                    'message' => $first->message,
+                    'target' => 'Multiple Users', // Can be enhanced to show actual target (roles, departments, etc.)
+                    'date' => $first->created_at->toIso8601String(),
                     'status' => 'Sent',
-                    'recipients_count' => $entry->recipients_count,
-                    'target_roles' => $entry->target_roles ?? [],
-                    'department_name' => $entry->department?->name,
-                    'subdepartment_name' => $entry->subdepartment?->name,
+                    'recipients_count' => $group->count(),
                 ];
-            });
+            })
+            ->values() // Reset keys to create a proper array
+            ->take(100); // Limit to 100 most recent announcements
 
         return response()->json([
             'sent_announcements' => $sentAnnouncements,
-            'history_limit' => SentHistory::HISTORY_LIMIT,
-        ]);
-    }
-
-    /**
-     * Admin: Get recently deleted sent announcements and received notifications.
-     */
-    public function getRecentlyDeleted(Request $request)
-    {
-        $admin = Auth::user();
-
-        // Get deleted sent announcements
-        $deletedSent = SentHistory::getRecentlyDeleted($admin->id)
-            ->load(['department:id,name', 'subdepartment:id,name'])
-            ->map(function ($entry) {
-                return [
-                    'id' => $entry->id,
-                    'title' => $entry->title,
-                    'message' => $entry->message,
-                    'target' => $entry->target,
-                    'announcement_mode' => $entry->announcement_mode ?? 'group',
-                    'data' => $entry->data,
-                    'date' => $entry->created_at->toIso8601String(),
-                    'deleted_at' => $entry->deleted_at->toIso8601String(),
-                    'recipients_count' => $entry->recipients_count,
-                    'item_type' => 'sent',
-                    'target_roles' => $entry->target_roles ?? [],
-                    'department_name' => $entry->department?->name,
-                    'subdepartment_name' => $entry->subdepartment?->name,
-                ];
-            });
-
-        // Get deleted received notifications
-        $deletedReceived = Notification::onlyTrashed()
-            ->where('user_id', $admin->id)
-            ->orderByDesc('deleted_at')
-            ->get()
-            ->map(function ($notification) {
-                return [
-                    'id' => $notification->id,
-                    'title' => $notification->title,
-                    'message' => $notification->message,
-                    'target' => null,
-                    'date' => $notification->created_at->toIso8601String(),
-                    'deleted_at' => $notification->deleted_at->toIso8601String(),
-                    'recipients_count' => null,
-                    'item_type' => 'received',
-                    'data' => $notification->data,
-                    'type' => $notification->type,
-                ];
-            });
-
-        // Merge and sort by deleted_at descending
-        $recentlyDeleted = $deletedSent->merge($deletedReceived)
-            ->sortByDesc('deleted_at')
-            ->values();
-
-        return response()->json([
-            'recently_deleted' => $recentlyDeleted,
-        ]);
-    }
-
-    /**
-     * Admin: Restore a deleted sent announcement.
-     */
-    public function restoreSentHistory(int $id)
-    {
-        $admin = Auth::user();
-
-        $entry = SentHistory::onlyTrashed()
-            ->where('id', $id)
-            ->where('sender_id', $admin->id)
-            ->firstOrFail();
-
-        $entry->restore();
-
-        // Enforce limit after restoration
-        SentHistory::enforceHistoryLimit($admin->id);
-
-        return response()->json([
-            'message' => 'Announcement restored successfully',
-        ]);
-    }
-
-    /**
-     * Admin: Permanently delete a sent announcement.
-     */
-    public function permanentlyDeleteSentHistory(int $id)
-    {
-        $admin = Auth::user();
-
-        $entry = SentHistory::onlyTrashed()
-            ->where('id', $id)
-            ->where('sender_id', $admin->id)
-            ->firstOrFail();
-
-        $entry->forceDelete();
-
-        return response()->json([
-            'message' => 'Announcement permanently deleted',
-        ]);
-    }
-
-    /**
-     * Admin: Soft delete a sent announcement (move to recently deleted).
-     */
-    public function deleteSentHistory(int $id)
-    {
-        $admin = Auth::user();
-
-        $entry = SentHistory::where('id', $id)
-            ->where('sender_id', $admin->id)
-            ->firstOrFail();
-
-        $entry->delete(); // Soft delete
-
-        // Auto-cleanup: if recently deleted count >= 50, permanently delete oldest half
-        $permanentlyDeleted = SentHistory::enforceTrashLimit($admin->id);
-
-        return response()->json([
-            'message' => 'Announcement moved to recently deleted',
-            'permanently_deleted' => $permanentlyDeleted,
-        ]);
-    }
-
-    /**
-     * Instructor: Send notification/report to all admins.
-     */
-    public function instructorNotifyAdmin(Request $request)
-    {
-        $request->validate([
-            'title' => 'required|string|max:255',
-            'message' => 'required|string',
-            'type' => 'nullable|string|in:feedback,issue,suggestion,report',
-        ]);
-
-        $instructor = Auth::user();
-        if (! $instructor) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
-
-        $type = $request->input('type', 'report');
-
-        // Build dynamic title based on type and instructor's department
-        $typeLabels = [
-            'feedback' => 'Feedback',
-            'issue' => 'Issue Report',
-            'suggestion' => 'Suggestion',
-            'report' => 'Report',
-        ];
-        $typeLabel = $typeLabels[$type] ?? 'Report';
-
-        $departmentName = $instructor->department;
-
-        $title = $request->input('title');
-
-        // Get all admins
-        $admins = User::where('role', 'admin')->get();
-
-        if ($admins->isEmpty()) {
-            return response()->json([
-                'message' => 'No admins found to notify',
-            ], 404);
-        }
-
-        $notifications = [];
-        foreach ($admins as $admin) {
-            $notifications[] = Notification::create([
-                'user_id' => $admin->id,
-                'type' => $type,
-                'title' => $title,
-                'message' => $request->input('message'),
-                'data' => [
-                    'from_user_id' => $instructor->id,
-                    'from_user_name' => $instructor->fullname,
-                    'from_role' => 'Instructor',
-                    'from_user_profile_picture' => $instructor->profile_picture,
-                    'from_department' => $departmentName,
-                ],
-            ]);
-        }
-
-        return response()->json([
-            'message' => 'Notification sent to admin(s)',
-            'recipients_count' => count($notifications),
         ]);
     }
 }

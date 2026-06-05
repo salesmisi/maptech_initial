@@ -6,10 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\CustomModule;
 use App\Models\Notification;
 use App\Models\User;
-use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Exception;
 
 class CustomModuleController extends Controller
 {
@@ -21,7 +21,7 @@ class CustomModuleController extends Controller
         $instructor = $request->user();
 
         // Check if instructor has a department assigned
-        if (! $instructor->department) {
+        if (!$instructor->department) {
             return response()->json([
                 'message' => 'You are not assigned to any department',
                 'success_count' => 0,
@@ -34,7 +34,7 @@ class CustomModuleController extends Controller
             $successCount = 0;
 
             // Get all employees in the instructor's department (both active and inactive)
-            $employees = User::query()->where('role', 'employee') // role is stored lowercase in database
+            $employees = User::where('role', 'employee') // role is stored lowercase in database
                 ->where('department', $instructor->department)
                 ->get();
 
@@ -78,7 +78,7 @@ class CustomModuleController extends Controller
                 }
             });
 
-            $message = "Module pushed to {$successCount} employee".($successCount > 1 ? 's' : '')." in {$instructor->department} department";
+            $message = "Module pushed to {$successCount} employee" . ($successCount > 1 ? 's' : '') . " in {$instructor->department} department";
 
             Log::info('Instructor pushed module to department', [
                 'instructor_id' => $instructor->id,
@@ -114,7 +114,7 @@ class CustomModuleController extends Controller
         $instructor = $request->user();
 
         // Check if instructor has a department assigned
-        if (! $instructor->department) {
+        if (!$instructor->department) {
             return response()->json([
                 'employees' => [],
                 'department' => null,
@@ -126,7 +126,7 @@ class CustomModuleController extends Controller
         $customModule = CustomModule::findOrFail($id);
 
         // Get all employees in the instructor's department (both active and inactive)
-        $employees = User::query()->where('role', 'employee') // role is stored lowercase in database
+        $employees = User::where('role', 'employee') // role is stored lowercase in database
             ->where('department', $instructor->department)
             ->select('id', 'fullname', 'email', 'department', 'status')
             ->orderBy('fullname')

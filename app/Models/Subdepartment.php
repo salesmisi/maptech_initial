@@ -11,7 +11,7 @@ class Subdepartment extends Model
         'name',
         'description',
         'head_id',
-        'employee_id',
+        'employee_id'
     ];
 
     public function department()

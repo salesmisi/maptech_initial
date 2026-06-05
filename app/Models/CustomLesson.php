@@ -55,7 +55,7 @@ class CustomLesson extends Model
             return $this->content_url;
         }
 
-        if (! $this->content_path) {
+        if (!$this->content_path) {
             return null;
         }
 
@@ -64,7 +64,7 @@ class CustomLesson extends Model
             return $this->content_path;
         }
 
-        return url('/lesson-files/custom/'.$this->id);
+        return url('/storage/' . $this->content_path);
     }
 
     /**
@@ -72,7 +72,7 @@ class CustomLesson extends Model
      */
     public function getFormattedDurationAttribute(): ?string
     {
-        if (! $this->duration) {
+        if (!$this->duration) {
             return null;
         }
 
@@ -92,7 +92,7 @@ class CustomLesson extends Model
      */
     public function getFormattedFileSizeAttribute(): ?string
     {
-        if (! $this->file_size) {
+        if (!$this->file_size) {
             return null;
         }
 
@@ -105,7 +105,7 @@ class CustomLesson extends Model
             $i++;
         }
 
-        return round($bytes, 2).' '.$units[$i];
+        return round($bytes, 2) . ' ' . $units[$i];
     }
 
     /**

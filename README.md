@@ -90,22 +90,3 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-
-## CI & Local checks
-
-CI is configured in `.github/workflows/ci.yml` to run static analysis (PHPStan, Psalm), tests, linting, and the frontend build on pushes and PRs to `main`.
-
-Badge (replace `your-org/your-repo` with your GitHub repo):
-
-[![CI](https://github.com/your-org/your-repo/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/your-repo/actions/workflows/ci.yml)
-
-Quick local commands:
-
-- Install PHP deps: `composer install`
-- Install node deps: `npm ci`
-- Run tests: `vendor/bin/phpunit`
-- Run frontend build: `npm run build`
-- Run TypeScript check: `npx tsc --noEmit`
-- Run ESLint fix: `npx eslint "resources/js/src/**/*.{ts,tsx}" --fix`
-
-Note: Psalm requires PHP >= 8.2.27. The CI workflow runs Psalm in a suitable container; to run Psalm locally either upgrade PHP or run it inside a container.

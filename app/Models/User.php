@@ -3,12 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -23,7 +21,7 @@ use Laravel\Sanctum\HasApiTokens;
  */
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
+    use HasFactory, Notifiable, HasApiTokens;
 
     /**
      * The attributes that are mass assignable.
@@ -35,12 +33,9 @@ class User extends Authenticatable
         'fullname',
         'email',
         'password',
-        'recovery_key_hash',
-        'recovery_key',
         'role',
         'department',
         'company_role',
-        'personal_gmail',
         'subdepartment_id',
         'status',
         'profile_picture',
@@ -52,48 +47,8 @@ class User extends Authenticatable
      */
     protected $hidden = [
         'password',
-        'recovery_key_hash',
-        'recovery_key',
         'remember_token',
     ];
-
-    /**
-     * Generate a new recovery key (16 characters, alphanumeric with dashes for readability).
-     * Returns the plain recovery key - store only the hash.
-     */
-    public static function generateRecoveryKey(): string
-    {
-        // Generate 16 random uppercase alphanumeric characters
-        $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed confusing chars: I, O, 0, 1
-        $key = '';
-        for ($i = 0; $i < 16; $i++) {
-            $key .= $chars[random_int(0, strlen($chars) - 1)];
-        }
-
-        // Format as XXXX-XXXX-XXXX-XXXX for readability
-        return implode('-', str_split($key, 4));
-    }
-
-    /**
-     * Set recovery key by storing its hash.
-     */
-    public function setRecoveryKey(string $plainKey): void
-    {
-        $this->recovery_key_hash = hash('sha256', $plainKey);
-        $this->save();
-    }
-
-    /**
-     * Verify a recovery key against the stored hash.
-     */
-    public function verifyRecoveryKey(string $plainKey): bool
-    {
-        if (! $this->recovery_key_hash) {
-            return false;
-        }
-
-        return hash_equals($this->recovery_key_hash, hash('sha256', $plainKey));
-    }
 
     /**
      * Get the attributes that should be cast.
@@ -103,7 +58,6 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'deleted_at' => 'datetime',
         ];
     }
 
@@ -121,25 +75,6 @@ class User extends Authenticatable
     public function setRoleAttribute($value): void
     {
         $this->attributes['role'] = strtolower($value ?? 'employee');
-    }
-
-    /**
-     * Suppress stale stored profile pictures so the UI does not request missing files.
-     */
-    public function getProfilePictureAttribute($value): ?string
-    {
-        if (! is_string($value) || trim($value) === '') {
-            return null;
-        }
-
-        $normalized = str_replace('\\', '/', trim($value));
-        if (preg_match('#^https?://#i', $normalized)) {
-            return $normalized;
-        }
-
-        $normalized = preg_replace('#^(public/)?storage/#i', '', $normalized);
-
-        return Storage::disk('public')->exists($normalized) ? $normalized : null;
     }
 
     /**
@@ -221,7 +156,7 @@ class User extends Authenticatable
      */
     public function availableCourses()
     {
-        if (! $this->department) {
+        if (!$this->department) {
             return Course::query()->whereRaw('1 = 0'); // Return empty
         }
 

@@ -42,7 +42,7 @@ return [
     |
     */
 
-    'expiration' => env('SANCTUM_EXPIRATION', 480),
+    'expiration' => null,
 
     /*
     |--------------------------------------------------------------------------
@@ -57,7 +57,7 @@ return [
     |
     */
 
-    'token_prefix' => env('SANCTUM_TOKEN_PREFIX', 'maptech_'),
+    'token_prefix' => env('SANCTUM_TOKEN_PREFIX', ''),
 
     /*
     |--------------------------------------------------------------------------

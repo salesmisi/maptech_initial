@@ -15,9 +15,6 @@ return Application::configure(basePath: dirname(__DIR__))
         // Enable Sanctum stateful authentication for API routes
         $middleware->statefulApi();
 
-        // Apply baseline security headers to all responses.
-        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
-
         // Register middleware aliases
         $middleware->alias([
             'role' => \App\Http\Middleware\AuthorizeRole::class,

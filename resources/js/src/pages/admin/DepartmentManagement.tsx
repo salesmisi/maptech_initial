@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { safeArray } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { AlertCircle, Building2, BookOpen, Check, ChevronDown, Plus, Search, Trash2, Users, X } from 'lucide-react';
+import { Building2, Plus, Trash2, Users, BookOpen, X } from 'lucide-react';
 
 interface EmployeeRecord {
   id: number;
@@ -30,7 +30,7 @@ interface Department {
   head_id: number | null;
   head_user?: { id: number; fullname: string } | null;
   employee_count: number;
-  instructor_count?: number;
+  course_count: number;
   status: 'Active' | 'Inactive';
   subdepartments: Subdepartment[];
 }
@@ -48,20 +48,8 @@ interface ConfirmDialogState {
   action: null | (() => Promise<void>);
 }
 
-interface InfoDialogState {
-  open: boolean;
-  title: string;
-  message: string;
-}
-
-type HeadPickerTarget =
-  | { type: 'department' }
-  | { type: 'newSubdepartment' }
-  | { type: 'subdepartment'; subdepartmentId: number; subdepartmentName: string };
-
 export default function DepartmentManagement() {
   const API = '/api';
-  const HEAD_PICKER_PAGE_SIZE = 6;
 
   const getCookie = (name: string) => {
     const value = `; ${document.cookie}`;
@@ -88,8 +76,6 @@ export default function DepartmentManagement() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showManageModal, setShowManageModal] = useState(false);
-  const [showHeadPickerModal, setShowHeadPickerModal] = useState(false);
-  const [headPickerTarget, setHeadPickerTarget] = useState<HeadPickerTarget | null>(null);
   const [activeDeptId, setActiveDeptId] = useState<number | null>(null);
 
   const [showMoveModal, setShowMoveModal] = useState(false);
@@ -104,29 +90,14 @@ export default function DepartmentManagement() {
     action: null,
   });
   const [confirmBusy, setConfirmBusy] = useState(false);
-  const [infoDialog, setInfoDialog] = useState<InfoDialogState>({
-    open: false,
-    title: '',
-    message: '',
-  });
 
   const [createForm, setCreateForm] = useState({
     name: '',
     code: '',
     description: '',
   });
-  const [createFormErrors, setCreateFormErrors] = useState({ name: '', code: '' });
-  const [createFormAlert, setCreateFormAlert] = useState<null | {
-    title: string;
-    message: string;
-    fields: string[];
-  }>(null);
-  const [createAttempted, setCreateAttempted] = useState(false);
 
   const [deptHeadId, setDeptHeadId] = useState('');
-  const [headSearchQuery, setHeadSearchQuery] = useState('');
-  const [departmentSearchQuery, setDepartmentSearchQuery] = useState('');
-  const [headPickerPage, setHeadPickerPage] = useState(1);
   const [newSubForm, setNewSubForm] = useState({
     name: '',
     head_id: '',
@@ -138,92 +109,10 @@ export default function DepartmentManagement() {
     [departments, activeDeptId]
   );
 
-  const selectedDepartmentHead = useMemo(
-    () => headCandidates.find((candidate) => String(candidate.id) === deptHeadId) ?? null,
-    [headCandidates, deptHeadId]
-  );
-
-  const getSelectedHeadLabel = (headId: string) => {
-    const selected = headCandidates.find((candidate) => String(candidate.id) === headId);
-    return selected ? `${selected.fullname} (${selected.role})` : '';
-  };
-
-  const filteredHeadCandidates = useMemo(() => {
-    const query = headSearchQuery.trim().toLowerCase();
-
-    return headCandidates.filter((candidate) => {
-      if (!query) return true;
-
-      return candidate.fullname.toLowerCase().includes(query) || candidate.role.toLowerCase().includes(query);
-    });
-  }, [headCandidates, headSearchQuery]);
-
-  const headPickerTotalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredHeadCandidates.length / HEAD_PICKER_PAGE_SIZE)),
-    [filteredHeadCandidates.length]
-  );
-
-  const paginatedHeadCandidates = useMemo(() => {
-    const pageStart = (headPickerPage - 1) * HEAD_PICKER_PAGE_SIZE;
-    return filteredHeadCandidates.slice(pageStart, pageStart + HEAD_PICKER_PAGE_SIZE);
-  }, [filteredHeadCandidates, headPickerPage]);
-
-  useEffect(() => {
-    setHeadPickerPage(1);
-  }, [headSearchQuery, headPickerTarget, showHeadPickerModal]);
-
-  useEffect(() => {
-    if (headPickerPage > headPickerTotalPages) {
-      setHeadPickerPage(headPickerTotalPages);
-    }
-  }, [headPickerPage, headPickerTotalPages]);
-
   const moveDepartmentSubdepartments = useMemo(() => {
     const dept = departments.find((d) => d.name === moveDepartment);
     return dept?.subdepartments ?? [];
   }, [departments, moveDepartment]);
-
-  const hasUnsavedHeadChanges = useMemo(() => {
-    if (!activeDepartment) return false;
-
-    const existingDeptHeadId = activeDepartment.head_id ? String(activeDepartment.head_id) : '';
-    if (deptHeadId !== existingDeptHeadId) {
-      return true;
-    }
-
-    for (const sub of safeArray(activeDepartment.subdepartments)) {
-      const draftSubHeadId = subHeadDrafts[sub.id] ?? '';
-      const existingSubHeadId = sub.head_id ? String(sub.head_id) : '';
-
-      if (draftSubHeadId !== existingSubHeadId) {
-        return true;
-      }
-    }
-
-    return false;
-  }, [activeDepartment, deptHeadId, subHeadDrafts]);
-
-  const filteredDepartments = useMemo(() => {
-    const query = departmentSearchQuery.trim().toLowerCase();
-    if (!query) return departments;
-
-    return departments.filter((dept) => {
-      const matchesDepartment =
-        dept.name.toLowerCase().includes(query) ||
-        dept.code.toLowerCase().includes(query) ||
-        (dept.description || '').toLowerCase().includes(query) ||
-        (dept.head_user?.fullname || '').toLowerCase().includes(query);
-
-      if (matchesDepartment) return true;
-
-      return safeArray(dept.subdepartments).some((sub) => {
-        return (
-          sub.name.toLowerCase().includes(query) ||
-          (sub.head_user?.fullname || '').toLowerCase().includes(query)
-        );
-      });
-    });
-  }, [departments, departmentSearchQuery]);
 
   const loadDepartments = async () => {
     const res = await fetch(`${API}/departments`, {
@@ -283,13 +172,6 @@ export default function DepartmentManagement() {
   }, []);
 
   useEffect(() => {
-    if (showCreateModal) return;
-    setCreateFormErrors({ name: '', code: '' });
-    setCreateFormAlert(null);
-    setCreateAttempted(false);
-  }, [showCreateModal]);
-
-  useEffect(() => {
     if (!activeDepartment) {
       setSubHeadDrafts({});
       return;
@@ -307,38 +189,8 @@ export default function DepartmentManagement() {
   const openManageModal = (dept: Department) => {
     setActiveDeptId(dept.id);
     setDeptHeadId(dept.head_id ? String(dept.head_id) : '');
-    setHeadSearchQuery('');
     setNewSubForm({ name: '', head_id: '' });
     setShowManageModal(true);
-  };
-
-  const closeManageModal = () => {
-    setShowManageModal(false);
-    setShowHeadPickerModal(false);
-    setHeadSearchQuery('');
-  };
-
-  const requestCloseManageModal = () => {
-    if (saving) return;
-
-    if (hasUnsavedHeadChanges) {
-      showInfoDialog('Unsaved Changes', 'You have unsaved changes. Please click Save Changes before closing this window.');
-      return;
-    }
-
-    closeManageModal();
-  };
-
-  const openHeadPicker = (target: HeadPickerTarget) => {
-    setHeadPickerTarget(target);
-    setHeadSearchQuery('');
-    setShowHeadPickerModal(true);
-  };
-
-  const closeHeadPicker = () => {
-    setShowHeadPickerModal(false);
-    setHeadPickerTarget(null);
-    setHeadSearchQuery('');
   };
 
   const reloadAndKeepActive = async () => {
@@ -347,84 +199,6 @@ export default function DepartmentManagement() {
 
   const askConfirm = (title: string, message: string, action: () => Promise<void>) => {
     setConfirmDialog({ open: true, title, message, action });
-  };
-
-  const showInfoDialog = (title: string, message: string) => {
-    setInfoDialog({ open: true, title, message });
-  };
-
-  const getCreateDepartmentValidation = (form: { name: string; code: string; description: string }) => {
-    const missingName = !form.name.trim();
-    const missingCode = !form.code.trim();
-    const isEmpty = missingName && missingCode && !form.description.trim();
-
-    if (!missingName && !missingCode) {
-      return { ok: true, missingName: false, missingCode: false, title: '', message: '', fields: [] as string[] };
-    }
-
-    if (isEmpty) {
-      return {
-        ok: false,
-        missingName,
-        missingCode,
-        title: 'Nothing to submit',
-        message: 'Start by entering the Department Name and Department Code.',
-        fields: ['Department Name', 'Department Code'],
-      };
-    }
-
-    if (missingName && missingCode) {
-      return {
-        ok: false,
-        missingName,
-        missingCode,
-        title: 'Missing required fields',
-        message: 'Department Name and Department Code are required.',
-        fields: ['Department Name', 'Department Code'],
-      };
-    }
-
-    if (missingName) {
-      return {
-        ok: false,
-        missingName,
-        missingCode,
-        title: 'Department Name missing',
-        message: 'Please enter a Department Name to continue.',
-        fields: ['Department Name'],
-      };
-    }
-
-    return {
-      ok: false,
-      missingName,
-      missingCode,
-      title: 'Department Code missing',
-      message: 'Please enter a Department Code to continue.',
-      fields: ['Department Code'],
-    };
-  };
-
-  const updateCreateFormField = (field: 'name' | 'code' | 'description', value: string) => {
-    const nextForm = { ...createForm, [field]: value };
-    setCreateForm(nextForm);
-
-    if (createAttempted) {
-      const validation = getCreateDepartmentValidation(nextForm);
-      setCreateFormErrors({
-        name: validation.missingName ? 'Department Name is required.' : '',
-        code: validation.missingCode ? 'Department Code is required.' : '',
-      });
-      setCreateFormAlert(
-        validation.ok
-          ? null
-          : {
-              title: validation.title,
-              message: validation.message,
-              fields: validation.fields,
-            }
-      );
-    }
   };
 
   const runConfirmAction = async () => {
@@ -442,19 +216,13 @@ export default function DepartmentManagement() {
   };
 
   const handleCreateDepartment = async () => {
-    setCreateAttempted(true);
-    const validation = getCreateDepartmentValidation(createForm);
+    if (!createForm.name.trim()) {
+      alert('Department Name is required.');
+      return;
+    }
 
-    if (!validation.ok) {
-      setCreateFormErrors({
-        name: validation.missingName ? 'Department Name is required.' : '',
-        code: validation.missingCode ? 'Department Code is required.' : '',
-      });
-      setCreateFormAlert({
-        title: validation.title,
-        message: validation.message,
-        fields: validation.fields,
-      });
+    if (!createForm.code.trim()) {
+      alert('Department Code is required.');
       return;
     }
 
@@ -484,9 +252,6 @@ export default function DepartmentManagement() {
       }
 
       setCreateForm({ name: '', code: '', description: '' });
-      setCreateFormErrors({ name: '', code: '' });
-      setCreateFormAlert(null);
-      setCreateAttempted(false);
       setShowCreateModal(false);
       await refreshAll();
     } catch (err: any) {
@@ -501,25 +266,9 @@ export default function DepartmentManagement() {
 
     setSaving(true);
     try {
-      await saveAllHeadChanges();
+      const xsrfToken = await getXsrfToken();
+      const selectedHead = headCandidates.find((h) => String(h.id) === deptHeadId);
 
-      await reloadAndKeepActive();
-      closeManageModal();
-    } catch (err: any) {
-      alert(err.message || 'Failed to update department head.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const saveAllHeadChanges = async () => {
-    if (!activeDepartment) return;
-
-    const xsrfToken = await getXsrfToken();
-    const existingDeptHeadId = activeDepartment.head_id ? String(activeDepartment.head_id) : '';
-    const requestedDeptHead = headCandidates.find((h) => String(h.id) === deptHeadId);
-
-    if (deptHeadId !== existingDeptHeadId) {
       const res = await fetch(`${API}/departments/${activeDepartment.id}`, {
         method: 'PUT',
         credentials: 'include',
@@ -535,7 +284,7 @@ export default function DepartmentManagement() {
           description: activeDepartment.description,
           status: activeDepartment.status,
           head_id: deptHeadId ? Number(deptHeadId) : null,
-          head: requestedDeptHead?.fullname || '',
+          head: selectedHead?.fullname || '',
         }),
       });
 
@@ -543,48 +292,19 @@ export default function DepartmentManagement() {
         const txt = await res.text();
         throw new Error(txt || 'Failed to update department head.');
       }
-    }
 
-    for (const sub of safeArray(activeDepartment.subdepartments)) {
-      const draft = subHeadDrafts[sub.id] ?? '';
-      const existingSubHeadId = sub.head_id ? String(sub.head_id) : '';
-
-      if (draft === existingSubHeadId) {
-        continue;
-      }
-
-      const res = await fetch(`${API}/subdepartments/${sub.id}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-XSRF-TOKEN': xsrfToken,
-        },
-        body: JSON.stringify({
-          name: sub.name,
-          head_id: draft ? Number(draft) : null,
-          employee_id: sub.employee_id,
-        }),
-      });
-
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || 'Failed to update subdepartment head.');
-      }
+      await reloadAndKeepActive();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update department head.');
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleCreateSubdepartment = async () => {
     if (!activeDepartment) return;
     if (!newSubForm.name.trim()) {
-      showInfoDialog('Required Field', 'Subdepartment Name is required.');
-      return;
-    }
-
-    if (!newSubForm.head_id) {
-      showInfoDialog('Required Field', 'Subdepartment Head is required.');
+      alert('Subdepartment Name is required.');
       return;
     }
 
@@ -677,7 +397,6 @@ export default function DepartmentManagement() {
           throw new Error(txt || 'Failed to delete department.');
         }
 
-        setShowHeadPickerModal(false);
         setShowManageModal(false);
         setActiveDeptId(null);
         await refreshAll();
@@ -758,32 +477,21 @@ export default function DepartmentManagement() {
   if (error) return <div className="p-6 text-red-600">{error}</div>;
 
   return (
-    <div className="px-6 pb-6 pt-2 text-slate-900 dark:text-slate-100">
-      <div className="department-toolbar-animate mb-2 flex items-center justify-end">
+    <div className="p-6 text-slate-900 dark:text-slate-100">
+      <div className="department-toolbar-animate mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Department Management</h1>
+
         <button
           onClick={() => setShowCreateModal(true)}
-          className="department-cta-button flex items-center rounded-lg bg-green-500 px-4 py-2 font-semibold text-slate-950 transition-colors hover:bg-green-400"
+          className="department-cta-button flex items-center rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-950 transition-colors hover:bg-emerald-400"
         >
           <Plus className="mr-2 h-4 w-4" />
           Add Department
         </button>
       </div>
 
-      <div className="mb-2 max-w-xl">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={departmentSearchQuery}
-            onChange={(e) => setDepartmentSearchQuery(e.target.value)}
-            placeholder="Search departments, codes, heads, or subdepartments"
-            className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-500 focus:border-green-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400"
-          />
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {filteredDepartments.map((dept, deptIndex) => (
+        {departments.map((dept, deptIndex) => (
           <div
             key={dept.id}
             className="department-card rounded-xl border border-slate-200 bg-white p-5 shadow dark:border-slate-700/80 dark:bg-slate-900/80 dark:shadow-[0_10px_30px_rgba(2,6,23,0.35)]"
@@ -791,8 +499,8 @@ export default function DepartmentManagement() {
           >
             <div className="mb-4 flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="rounded-lg border border-green-500/30 bg-green-500/20 p-3">
-                  <Building2 className="h-5 w-5 text-green-700 dark:text-green-300" />
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/20 p-3">
+                  <Building2 className="h-5 w-5 text-emerald-700 dark:text-emerald-300" />
                 </div>
                 <div>
                   <p className="text-lg font-semibold">{dept.name}</p>
@@ -819,20 +527,20 @@ export default function DepartmentManagement() {
               </div>
               <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
                 <div className="mb-1 flex items-center gap-1 text-slate-500 dark:text-slate-400">
-                  <BookOpen className="h-3.5 w-3.5" /> Instructor
+                  <BookOpen className="h-3.5 w-3.5" /> Courses
                 </div>
-                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{dept.instructor_count ?? 0}</div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{dept.course_count ?? 0}</div>
               </div>
             </div>
 
-            <div className="mb-4 text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Subdepartments: <span className="text-green-600 dark:text-green-400">{safeArray(dept.subdepartments).length}</span>
+            <div className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+              Subdepartments: <span className="font-medium text-slate-700 dark:text-slate-200">{safeArray(dept.subdepartments).length}</span>
             </div>
 
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between">
               <button
                 onClick={() => openManageModal(dept)}
-                className="inline-flex items-center rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-100 dark:border-green-500/40 dark:bg-green-950/40 dark:text-green-300 dark:hover:bg-green-900/40"
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Manage
               </button>
@@ -846,53 +554,31 @@ export default function DepartmentManagement() {
             </div>
           </div>
         ))}
-        {filteredDepartments.length === 0 && (
-          <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
-            No departments matched your search.
-          </div>
-        )}
       </div>
 
       {showCreateModal && (
         <Modal onClose={() => setShowCreateModal(false)}>
           <h2 className="mb-4 text-lg font-semibold">Add Department</h2>
-          {createFormAlert && (
-            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 flex items-center dark:border-red-800 dark:bg-red-950/40">
-              <AlertCircle className="h-4 w-4 text-red-500 mr-2 shrink-0" />
-              <span className="text-sm text-red-700 dark:text-red-300">
-                {createFormAlert.title ? `${createFormAlert.title}. ${createFormAlert.message}` : createFormAlert.message}
-              </span>
-            </div>
-          )}
           <TextInput
-            label="Department Name"
-            required
-            placeholder="e.g. Information Technology"
+            placeholder="Department Name"
             value={createForm.name}
-            onChange={(v) => updateCreateFormField('name', v)}
-            error={createFormErrors.name}
-            showErrorMessage={false}
+            onChange={(v) => setCreateForm((s) => ({ ...s, name: v }))}
           />
           <TextInput
-            label="Department Code"
-            required
-            placeholder="e.g. IT"
+            placeholder="Department Code"
             value={createForm.code}
-            onChange={(v) => updateCreateFormField('code', v)}
-            error={createFormErrors.code}
-            showErrorMessage={false}
+            onChange={(v) => setCreateForm((s) => ({ ...s, code: v }))}
           />
           <TextInput
-            label="Description (optional)"
-            placeholder="Short description"
+            placeholder="Description"
             value={createForm.description}
-            onChange={(v) => updateCreateFormField('description', v)}
+            onChange={(v) => setCreateForm((s) => ({ ...s, description: v }))}
           />
 
           <button
             onClick={handleCreateDepartment}
             disabled={saving}
-            className="mt-3 w-full rounded-md bg-green-500 py-2 font-semibold text-slate-950 transition-colors hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-3 w-full rounded-md bg-emerald-500 py-2 font-semibold text-slate-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? 'Saving...' : 'Create Department'}
           </button>
@@ -900,65 +586,61 @@ export default function DepartmentManagement() {
       )}
 
       {showManageModal && activeDepartment && (
-        <Modal onClose={requestCloseManageModal} maxWidthClass="max-w-4xl" showCloseButton={false}>
-          <div className="mb-4 flex items-start justify-between gap-3 pr-10">
-            <div>
-              <h2 className="text-lg font-semibold">Manage {activeDepartment.name}</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Use the picker controls below, then save once from the top right.</p>
-            </div>
-            <button
-              type="button"
-              onClick={handleSaveDepartmentHead}
-              disabled={saving}
-              className="rounded-md bg-green-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
+        <Modal onClose={() => setShowManageModal(false)} maxWidthClass="max-w-4xl">
+          <h2 className="mb-4 text-lg font-semibold">Manage {activeDepartment.name}</h2>
 
           <div className="mb-6 rounded-lg border border-slate-200 p-4 dark:border-slate-700">
             <p className="mb-2 text-sm font-semibold">Department Head</p>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <button
-                type="button"
-                onClick={() => openHeadPicker({ type: 'department' })}
-                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 transition hover:border-green-500 focus:border-green-500 focus:outline-none sm:w-80 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              <select
+                value={deptHeadId}
+                onChange={(e) => setDeptHeadId(e.target.value)}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none sm:w-80 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
-                <span className={selectedDepartmentHead ? 'truncate' : 'text-slate-500 dark:text-slate-400'}>
-                  {selectedDepartmentHead ? `${selectedDepartmentHead.fullname} (${selectedDepartmentHead.role})` : 'Select Department Head'}
-                </span>
-                <ChevronDown className="ml-3 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
+                <option value="">Select Department Head</option>
+                {headCandidates.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.fullname} ({u.role})
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={handleSaveDepartmentHead}
+                disabled={saving}
+                className="rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Save Head
               </button>
             </div>
           </div>
 
           <div className="mb-6 rounded-lg border border-slate-200 p-4 dark:border-slate-700">
             <p className="mb-2 text-sm font-semibold">Add Subdepartment</p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.4fr)_auto]">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <input
                 value={newSubForm.name}
                 onChange={(e) => setNewSubForm((s) => ({ ...s, name: e.target.value }))}
                 placeholder="Subdepartment name"
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-green-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               />
-              <button
-                type="button"
-                onClick={() => openHeadPicker({ type: 'newSubdepartment' })}
-                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 transition hover:border-green-500 focus:border-green-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              <select
+                value={newSubForm.head_id}
+                onChange={(e) => setNewSubForm((s) => ({ ...s, head_id: e.target.value }))}
+                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
-                <span className={newSubForm.head_id ? 'truncate' : 'text-slate-500 dark:text-slate-400'}>
-                  {newSubForm.head_id ? getSelectedHeadLabel(newSubForm.head_id) : 'Select Head'}
-                </span>
-                <ChevronDown className="ml-3 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
-              </button>
+                <option value="">Select Head</option>
+                {headCandidates.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.fullname}
+                  </option>
+                ))}
+              </select>
               <button
                 onClick={handleCreateSubdepartment}
                 disabled={saving}
-                className="inline-flex w-12 justify-self-end items-center justify-center rounded-md bg-green-500 px-0 py-2 text-lg font-bold leading-none text-slate-950 transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-60"
-                aria-label="Add subdepartment"
-                title="Add subdepartment"
+                className="rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                +
+                Add Subdepartment
               </button>
             </div>
           </div>
@@ -978,23 +660,30 @@ export default function DepartmentManagement() {
                     </div>
 
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <button
-                        type="button"
-                        onClick={() => openHeadPicker({ type: 'subdepartment', subdepartmentId: sub.id, subdepartmentName: sub.name })}
-                        className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 transition hover:border-green-500 focus:border-green-500 focus:outline-none sm:w-72 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                      <select
+                        value={subHeadDrafts[sub.id] ?? ''}
+                        onChange={(e) => setSubHeadDrafts((prev) => ({ ...prev, [sub.id]: e.target.value }))}
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none sm:w-72 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                       >
-                        <span className={subHeadDrafts[sub.id] ? 'truncate' : 'text-slate-500 dark:text-slate-400'}>
-                          {subHeadDrafts[sub.id] ? getSelectedHeadLabel(subHeadDrafts[sub.id]) : 'Select sub head'}
-                        </span>
-                        <ChevronDown className="ml-3 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
+                        <option value="">Select sub head</option>
+                        {headCandidates.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.fullname} ({u.role})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => handleSaveSubHead(sub)}
+                        disabled={saving}
+                        className="rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Save Head
                       </button>
                       <button
                         onClick={() => handleDeleteSubdepartment(sub)}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-rose-300 bg-rose-50 text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40"
-                        aria-label={`Delete ${sub.name}`}
-                        title={`Delete ${sub.name}`}
+                        className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        Delete
                       </button>
                     </div>
                   </div>
@@ -1029,121 +718,6 @@ export default function DepartmentManagement() {
         </Modal>
       )}
 
-      {showHeadPickerModal && activeDepartment && (
-        <Modal onClose={closeHeadPicker} maxWidthClass="max-w-2xl">
-          <h3 className="mb-1 text-lg font-semibold">
-            {headPickerTarget?.type === 'newSubdepartment'
-              ? 'Select Subdepartment Head'
-              : headPickerTarget?.type === 'subdepartment'
-                ? `Select Head for ${headPickerTarget.subdepartmentName}`
-                : 'Select Department Head'}
-          </h3>
-          <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-            {headPickerTarget?.type === 'department'
-              ? `Choose an instructor or admin for ${activeDepartment.name}.`
-              : headPickerTarget?.type === 'newSubdepartment'
-                ? `Choose an instructor or admin for the new subdepartment in ${activeDepartment.name}.`
-                : 'Choose an instructor or admin for this subdepartment.'}
-          </p>
-          <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">Click a selected user again to unselect.</p>
-
-          <div className="relative mb-4">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              autoFocus
-              type="text"
-              value={headSearchQuery}
-              onChange={(e) => setHeadSearchQuery(e.target.value)}
-              placeholder="Search instructors or admins"
-              className="w-full rounded-md border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-500 focus:border-green-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
-            />
-          </div>
-
-          <div className="mb-4 min-h-[20.5rem] space-y-2">
-            {filteredHeadCandidates.length === 0 ? (
-              <div className="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                No matching instructors or admins found.
-              </div>
-            ) : (
-              paginatedHeadCandidates.map((candidate) => {
-                const selectedHeadId =
-                  headPickerTarget?.type === 'department'
-                    ? deptHeadId
-                    : headPickerTarget?.type === 'newSubdepartment'
-                      ? newSubForm.head_id
-                      : headPickerTarget?.type === 'subdepartment'
-                        ? subHeadDrafts[headPickerTarget.subdepartmentId] ?? ''
-                        : '';
-                const isSelected = String(candidate.id) === selectedHeadId;
-
-                return (
-                  <button
-                    key={candidate.id}
-                    type="button"
-                    onClick={() => {
-                      const nextHeadId = isSelected ? '' : String(candidate.id);
-
-                      if (headPickerTarget?.type === 'department') {
-                        setDeptHeadId(nextHeadId);
-                      } else if (headPickerTarget?.type === 'newSubdepartment') {
-                        setNewSubForm((current) => ({ ...current, head_id: nextHeadId }));
-                      } else if (headPickerTarget?.type === 'subdepartment') {
-                        setSubHeadDrafts((current) => ({ ...current, [headPickerTarget.subdepartmentId]: nextHeadId }));
-                      }
-                    }}
-                    className={`flex w-full items-center justify-between rounded-md border px-4 py-3 text-left transition ${
-                      isSelected
-                        ? 'border-green-500 bg-green-50 text-slate-900 dark:border-green-500/60 dark:bg-green-950/40 dark:text-slate-100'
-                        : 'border-slate-200 bg-white text-slate-900 hover:border-green-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-green-500/40 dark:hover:bg-slate-800/70'
-                    }`}
-                  >
-                    <div>
-                      <div className="text-sm font-semibold">{candidate.fullname}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">{candidate.role}</div>
-                    </div>
-                    {isSelected && <Check className="h-4 w-4 text-green-600 dark:text-green-400" />}
-                  </button>
-                );
-              })
-            )}
-          </div>
-
-          {filteredHeadCandidates.length > 0 && (
-            <div className="mb-4 flex items-center justify-between gap-3 text-sm">
-              <button
-                type="button"
-                onClick={() => setHeadPickerPage((page) => Math.max(1, page - 1))}
-                disabled={headPickerPage === 1}
-                className="rounded-md border border-slate-300 px-3 py-2 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                Previous
-              </button>
-              <div className="text-slate-500 dark:text-slate-400">
-                Page {headPickerPage} of {headPickerTotalPages}
-              </div>
-              <button
-                type="button"
-                onClick={() => setHeadPickerPage((page) => Math.min(headPickerTotalPages, page + 1))}
-                disabled={headPickerPage === headPickerTotalPages}
-                className="rounded-md border border-slate-300 px-3 py-2 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                Next
-              </button>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={closeHeadPicker}
-              className="rounded-md bg-green-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-green-400"
-            >
-              Done
-            </button>
-          </div>
-        </Modal>
-      )}
-
       {showMoveModal && employeeToMove && (
         <Modal
           onClose={() => {
@@ -1166,7 +740,7 @@ export default function DepartmentManagement() {
                   setMoveDepartment(e.target.value);
                   setMoveSubdepartmentId('');
                 }}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-green-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
                 <option value="">Select department</option>
                 {departments.map((d) => (
@@ -1182,7 +756,7 @@ export default function DepartmentManagement() {
               <select
                 value={moveSubdepartmentId}
                 onChange={(e) => setMoveSubdepartmentId(e.target.value)}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-green-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
                 <option value="">Select subdepartment</option>
                 {moveDepartmentSubdepartments.map((s) => (
@@ -1206,7 +780,7 @@ export default function DepartmentManagement() {
               <button
                 onClick={handleMoveEmployee}
                 disabled={saving}
-                className="rounded-md bg-green-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? 'Moving...' : 'Move Employee'}
               </button>
@@ -1243,26 +817,6 @@ export default function DepartmentManagement() {
           </div>
         </Modal>
       )}
-
-      {infoDialog.open && (
-        <Modal
-          onClose={() => {
-            setInfoDialog({ open: false, title: '', message: '' });
-          }}
-          maxWidthClass="max-w-md"
-        >
-          <h3 className="mb-2 text-lg font-semibold">{infoDialog.title}</h3>
-          <p className="mb-5 text-sm text-slate-600 dark:text-slate-300">{infoDialog.message}</p>
-          <div className="flex justify-end">
-            <button
-              onClick={() => setInfoDialog({ open: false, title: '', message: '' })}
-              className="rounded-md bg-green-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-green-400"
-            >
-              OK
-            </button>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }
@@ -1271,27 +825,23 @@ function Modal({
   children,
   onClose,
   maxWidthClass = 'max-w-md',
-  showCloseButton = true,
 }: {
   children: React.ReactNode;
   onClose: () => void;
   maxWidthClass?: string;
-  showCloseButton?: boolean;
 }) {
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-sm">
       <div className="flex h-full items-center justify-center px-4 py-4 sm:py-8">
         <div className={`relative max-h-[92dvh] w-full ${maxWidthClass} overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900`}>
-          {showCloseButton && (
-            <button
-              onClick={onClose}
-              className="absolute right-6 top-4 z-20 inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300/70 bg-white/90 text-slate-500 shadow-sm backdrop-blur transition hover:text-slate-800 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-400 dark:hover:text-slate-100"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          )}
+          <button
+            onClick={onClose}
+            className="absolute right-6 top-4 z-20 inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300/70 bg-white/90 text-slate-500 shadow-sm backdrop-blur transition hover:text-slate-800 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-400 dark:hover:text-slate-100"
+          >
+            <X className="h-5 w-5" />
+          </button>
 
-          <div className="modal-scroll-area max-h-[92dvh] overflow-y-auto p-6 pr-5 pt-12">{children}</div>
+          <div className="max-h-[92dvh] overflow-y-auto p-6 pr-5 pt-12">{children}</div>
         </div>
       </div>
     </div>
@@ -1299,48 +849,21 @@ function Modal({
 }
 
 function TextInput({
-  label,
-  required = false,
   placeholder,
   value,
   onChange,
-  error,
-  showErrorMessage = true,
 }: {
-  label: string;
-  required?: boolean;
   placeholder: string;
   value: string;
   onChange: (v: string) => void;
-  error?: string;
-  showErrorMessage?: boolean;
 }) {
-  const showMessage = Boolean(error) && showErrorMessage;
-  const errorId = showMessage ? `${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-error` : undefined;
   return (
-    <div className="mb-3">
-      <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
-        {label}
-        {required && <span className="text-rose-500"> *</span>}
-      </label>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        aria-invalid={Boolean(error)}
-        aria-describedby={errorId}
-        className={`w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 ${
-          error
-            ? 'border-rose-300 focus:border-rose-500 dark:border-rose-700'
-            : 'border-slate-300 focus:border-green-500 dark:border-slate-700'
-        }`}
-      />
-      {showMessage && (
-        <p id={errorId} className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-300">
-          {error}
-        </p>
-      )}
-    </div>
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="mb-3 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
+    />
   );
 }

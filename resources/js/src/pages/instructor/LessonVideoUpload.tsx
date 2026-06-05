@@ -21,10 +21,6 @@ import {
 const API = '/api';
 import { safeArray } from '../../utils/safe';
 
-interface Props {
-  apiPrefix?: string;
-}
-
 // ─── helpers ────────────────────────────────────────────────────────────
 
 function getCookie(name: string) {
@@ -87,13 +83,9 @@ interface CourseOption {
   title: string;
 }
 
-interface Props {
-  apiPrefix?: string;
-}
-
 // ─── component ──────────────────────────────────────────────────────────
 
-export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
+export function LessonVideoUpload() {
   const confirm = useConfirm();
   const { showConfirm } = confirm;
   const [courses, setCourses] = useState<CourseOption[]>([]);
@@ -171,7 +163,12 @@ export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
   useEffect(() => {
     (async () => {
       try {
-        const data = await apiFetch(`/${apiPrefix}/courses`);
+        let data: any[];
+        try {
+          data = await apiFetch('/admin/courses');
+        } catch {
+          data = await apiFetch('/instructor/courses');
+        }
         const list = safeArray(data).map((c: any) => ({ id: c.id, title: c.title }));
         setCourses(list);
         if (list.length > 0) {
@@ -181,7 +178,7 @@ export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
         setError('Failed to load courses');
       }
     })();
-  }, [apiPrefix]);
+  }, []);
 
   // ── fetch modules when course changes ──
   const fetchModules = useCallback(async () => {
@@ -449,7 +446,7 @@ export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          {/* Heading removed: redundant in module context */}
+          <h1 className="text-2xl font-bold text-slate-900">Lessons &amp; Video Upload</h1>
           <p className="text-sm text-slate-500 mt-1">Manage learning content for your courses</p>
         </div>
         <div className="flex gap-3">
@@ -712,10 +709,10 @@ export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
 
       {/* ═══════════════════ ADD MODULE MODAL ═══════════════════ */}
       {showAddModule && (
-        <div className="fixed inset-0 z-50">
-          <div className="flex items-center justify-center min-h-screen px-4 overflow-y-auto">
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4">
             <div className="fixed inset-0 bg-slate-500 opacity-75" onClick={() => setShowAddModule(false)} />
-            <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6 z-10 max-h-[90vh] overflow-y-auto">
+            <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6 z-10">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-slate-900">Add New Module</h3>
                 <button onClick={() => setShowAddModule(false)} className="text-slate-400 hover:text-slate-600">
@@ -761,10 +758,10 @@ export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
 
       {/* ═══════════════════ UPLOAD CONTENT MODAL ═══════════════════ */}
       {showUpload && (
-        <div className="fixed inset-0 z-50">
-          <div className="flex items-center justify-center min-h-screen px-4 overflow-y-auto">
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4">
             <div className="fixed inset-0 bg-slate-500 opacity-75" onClick={() => !uploading && setShowUpload(false)} />
-            <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full p-6 z-10 max-h-[90vh] overflow-y-auto">
+            <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full p-6 z-10">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-slate-900">Upload Learning Content</h3>
                 <button
@@ -967,10 +964,10 @@ export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
 
       {/* ═══════════════════ PREVIEW LESSON MODAL ═══════════════════ */}
       {previewLesson && (
-        <div className="fixed inset-0 z-50">
-          <div className="flex items-center justify-center min-h-screen px-4 overflow-y-auto">
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4">
             <div className="fixed inset-0 bg-slate-500 opacity-75" onClick={() => setPreviewLesson(null)} />
-            <div className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full z-10 max-h-[90vh] overflow-y-auto flex flex-col">
+            <div className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full z-10 max-h-[90vh] flex flex-col">
               <div className="flex justify-between items-center p-6 border-b border-slate-200">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">{previewLesson.title}</h3>

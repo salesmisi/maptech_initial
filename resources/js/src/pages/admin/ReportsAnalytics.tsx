@@ -20,56 +20,6 @@ import { Download, Calendar } from 'lucide-react';
 const COLORS = ['#34b46c', '#c8a73a', '#7f90ab'];
 const POPULAR_COURSE_COLORS = ['#2ea85f', '#3abf6f', '#60ca88'];
 const CHART_CARD_CLASS = 'rounded-xl border border-slate-200/70 bg-white/95 p-6 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/70';
-const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const MONTH_NAME_TO_INDEX: Record<string, number> = {
-  january: 0,
-  jan: 0,
-  february: 1,
-  feb: 1,
-  march: 2,
-  mar: 2,
-  april: 3,
-  apr: 3,
-  may: 4,
-  june: 5,
-  jun: 5,
-  july: 6,
-  jul: 6,
-  august: 7,
-  aug: 7,
-  september: 8,
-  sep: 8,
-  sept: 8,
-  october: 9,
-  oct: 9,
-  november: 10,
-  nov: 10,
-  december: 11,
-  dec: 11,
-};
-
-function getMonthIndexFromTrend(sortKey?: string, name?: string): number | null {
-  const cleanName = (name ?? '').toLowerCase().trim();
-  if (cleanName in MONTH_NAME_TO_INDEX) {
-    return MONTH_NAME_TO_INDEX[cleanName];
-  }
-
-  const cleanSortKey = (sortKey ?? '').trim();
-  if (cleanSortKey) {
-    const ymdMatch = cleanSortKey.match(/^\d{4}-(\d{1,2})(?:-\d{1,2})?$/);
-    if (ymdMatch) {
-      const monthNum = Number(ymdMatch[1]);
-      if (monthNum >= 1 && monthNum <= 12) return monthNum - 1;
-    }
-
-    const parsedDate = new Date(cleanSortKey);
-    if (!Number.isNaN(parsedDate.getTime())) {
-      return parsedDate.getMonth();
-    }
-  }
-
-  return null;
-}
 
 function getCookie(name: string): string {
   const match = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
@@ -78,14 +28,14 @@ function getCookie(name: string): string {
 
 interface ReportData {
   completion_status: { name: string; value: number }[];
-  monthly_trends: { sort_key?: string; name: string; enrollments: number; completions: number }[];
+  monthly_trends: { name: string; enrollments: number; completions: number }[];
   popular_courses: { name: string; students: number }[];
 }
 
 const RANGE_OPTIONS = [
   { label: 'Last 3 Months', months: 3 },
   { label: 'Last 6 Months', months: 6 },
-  { label: 'First 12 Months', months: 12 },
+  { label: 'Last 12 Months', months: 12 },
 ];
 
 export function ReportsAnalytics() {
@@ -93,7 +43,7 @@ export function ReportsAnalytics() {
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [completionHoverIndex, setCompletionHoverIndex] = useState<number | undefined>(undefined);
-  const [range, setRange] = useState(12);
+  const [range, setRange] = useState(6);
   const [showRangeMenu, setShowRangeMenu] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -142,10 +92,7 @@ export function ReportsAnalytics() {
     setExporting(true);
     try {
       const res = await fetch('/api/admin/reports/export', {
-        headers: {
-          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-        },
+        headers: { 'Accept': 'text/csv', 'X-XSRF-TOKEN': getCookie('XSRF-TOKEN') },
         credentials: 'include',
       });
       const blob = await res.blob();
@@ -154,7 +101,7 @@ export function ReportsAnalytics() {
       a.href = url;
       const disposition = res.headers.get('Content-Disposition') ?? '';
       const match = disposition.match(/filename="?([^";\n]+)"?/);
-      a.download = match?.[1] ?? 'report.xlsx';
+      a.download = match?.[1] ?? 'report.csv';
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -162,19 +109,11 @@ export function ReportsAnalytics() {
     }
   };
 
-  const currentRangeLabel = RANGE_OPTIONS.find((o) => o.months === range)?.label ?? 'First 12 Months';
+  const currentRangeLabel = RANGE_OPTIONS.find((o) => o.months === range)?.label ?? 'Last 6 Months';
 
   const completionData = data?.completion_status ?? [];
   const monthlyTrends  = data?.monthly_trends ?? [];
   const popularCourses = data?.popular_courses ?? [];
-  const cleanedPopularCourses = popularCourses.map((course) => ({
-    ...course,
-    name: (course.name ?? '')
-      .replace(/(ΓÇª|Γçª|â€¦|Ã¢â‚¬Â¦|çª|Çª|\u2026)/g, ' ')
-      .replace(/[\u0000-\u001F\u007F\u0080-\u009F\u2028\u2029\uFFFD]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim(),
-  }));
   const chartGridColor = isDarkMode ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.28)';
   const chartAxisTickColor = isDarkMode ? '#a7b0c0' : '#64748b';
   const chartLegendColor = isDarkMode ? '#b8c2d1' : '#475569';
@@ -185,22 +124,6 @@ export function ReportsAnalytics() {
     ? 'rounded-lg border border-slate-700/60 bg-slate-900/88 px-3 py-2 shadow-md backdrop-blur-sm'
     : 'rounded-lg border border-slate-200/90 bg-white/96 px-3 py-2 shadow-sm backdrop-blur-sm';
   const chartTooltipLabelClass = isDarkMode ? 'text-xs font-medium text-slate-300' : 'text-xs font-medium text-slate-600';
-  const monthlyTrendsByMonth = monthlyTrends.reduce<Record<number, { enrollments: number; completions: number }>>((acc, trend) => {
-    const monthIndex = getMonthIndexFromTrend(trend.sort_key, trend.name);
-    if (monthIndex === null) return acc;
-
-    acc[monthIndex] = {
-      enrollments: Number(trend.enrollments ?? 0),
-      completions: Number(trend.completions ?? 0),
-    };
-
-    return acc;
-  }, {});
-  const fullYearMonthlyTrends = MONTH_LABELS.map((label, index) => ({
-    name: label,
-    enrollments: monthlyTrendsByMonth[index]?.enrollments ?? 0,
-    completions: monthlyTrendsByMonth[index]?.completions ?? 0,
-  }));
 
   const renderCompletionTooltip = ({ active, payload }: any) => {
     if (!active || !payload || payload.length === 0) return null;
@@ -292,7 +215,13 @@ export function ReportsAnalytics() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end items-center">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-slate-900">
+          Reports &amp; Analytics
+        </h1>
+        <div className="text-xs text-slate-500 mr-auto ml-4 hidden sm:block">
+          Live refresh every 20s{lastUpdated ? ` • Updated ${lastUpdated.toLocaleTimeString()}` : ''}
+        </div>
         <div className="flex space-x-3">
           {/* Range picker */}
           <div className="relative">
@@ -394,9 +323,9 @@ export function ReportsAnalytics() {
               <div className="flex items-center justify-center h-full text-slate-400">No trend data yet</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={fullYearMonthlyTrends} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                <LineChart data={monthlyTrends}>
                   <CartesianGrid strokeDasharray="2 6" vertical={false} stroke={chartGridColor} />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} interval={0} padding={{ left: 8, right: 8 }} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
                   <Tooltip
                     content={renderTrendsTooltip}
@@ -423,30 +352,23 @@ export function ReportsAnalytics() {
           ) : (
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={cleanedPopularCourses}>
+                <BarChart data={popularCourses} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={chartGridColor} />
-                  <XAxis
+                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
+                  <YAxis
                     dataKey="name"
                     type="category"
+                    width={160}
                     axisLine={false}
                     tickLine={false}
-                    interval={0}
-                    height={56}
                     tick={{ fontSize: 12, fill: chartAxisTickColor }}
-                    tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 16) + '…' : v}
-                  />
-                  <YAxis
-                    type="number"
-                    axisLine={false}
-                    tickLine={false}
-                    allowDecimals={false}
-                    tick={{ fontSize: 12, fill: chartAxisTickColor }}
+                    tickFormatter={(v: string) => v.length > 22 ? v.slice(0, 22) + '...' : v}
                   />
                   <Tooltip content={renderPopularCoursesTooltip} cursor={{ fill: 'rgba(46, 168, 95, 0.08)' }} />
                   <Bar
                     dataKey="students"
                     fill="#22c55e"
-                    radius={[6, 6, 0, 0]}
+                    radius={[0, 4, 4, 0]}
                     barSize={28}
                     animationDuration={520}
                     activeBar={{
@@ -456,7 +378,7 @@ export function ReportsAnalytics() {
                       filter: 'drop-shadow(0 0 8px rgba(46, 168, 95, 0.28))',
                     }}
                   >
-                    {cleanedPopularCourses.map((_, i) => (
+                    {popularCourses.map((_, i) => (
                       <Cell key={i} fill={POPULAR_COURSE_COLORS[i % POPULAR_COURSE_COLORS.length]} />
                     ))}
                   </Bar>
