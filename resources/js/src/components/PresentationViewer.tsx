@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
-import { init as initPptxPreview } from 'pptx-preview';
-import PDFViewer from './PDFViewer';
+import { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+
+const PDFViewer = lazy(() => import('./PDFViewer'));
 import {
   Presentation,
   Download,
@@ -163,7 +163,10 @@ export default function PresentationViewer({ url, title, fileName, className = '
 
     host.innerHTML = '';
 
-    const previewer = initPptxPreview(host, {
+    // Dynamically import pptx-preview to avoid bundling it into the initial chunk
+    const { init } = await import('pptx-preview');
+
+    const previewer = init(host, {
       width,
       height,
       mode: 'slide',
@@ -250,7 +253,7 @@ export default function PresentationViewer({ url, title, fileName, className = '
     return () => {
       cancelled = true;
     };
-  }, [url]); // eslint-disable-line
+  }, [url]);  
 
   const nextSlide = useCallback(() => {
     pptxPreviewerRef.current?.renderNextSlide?.();
