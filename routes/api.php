@@ -25,19 +25,19 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('password')->group(function () {
     // Send OTP to email for password reset
-    Route::post('/forgot', [PasswordResetController::class, 'sendResetOTP']);
+    Route::post('/forgot', [PasswordResetController::class, 'sendResetOTP'])->middleware('throttle:api-password');
 
     // Verify the OTP code
-    Route::post('/verify-otp', [PasswordResetController::class, 'verifyOTP']);
+    Route::post('/verify-otp', [PasswordResetController::class, 'verifyOTP'])->middleware('throttle:api-password');
 
     // Reset password with verified token
-    Route::post('/reset', [PasswordResetController::class, 'resetPassword']);
+    Route::post('/reset', [PasswordResetController::class, 'resetPassword'])->middleware('throttle:api-password');
 
     // Resend OTP (same as forgot, but semantically different)
-    Route::post('/resend-otp', [PasswordResetController::class, 'resendOTP']);
+    Route::post('/resend-otp', [PasswordResetController::class, 'resendOTP'])->middleware('throttle:api-password');
 
     // Reset password using recovery key (no email required)
-    Route::post('/reset-with-recovery-key', [PasswordResetController::class, 'resetPasswordWithRecoveryKey']);
+    Route::post('/reset-with-recovery-key', [PasswordResetController::class, 'resetPasswordWithRecoveryKey'])->middleware('throttle:api-password');
 });
 
 /*
@@ -243,7 +243,7 @@ Route::delete('/subdepartments/{id}', function ($id) {
 */
 
 // API Token Login (JWT-like)
-Route::post('/login', [LoginController::class, 'apiLogin']);
+Route::post('/login', [LoginController::class, 'apiLogin'])->middleware('throttle:api-login');
 
 // Get authenticated user
 Route::get('/user', [LoginController::class, 'user'])
