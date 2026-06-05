@@ -27,7 +27,7 @@ import { safeArray } from '../../utils/safe';
 import { CustomModuleViewer } from './CustomModuleViewer';
 import { lazy, Suspense } from 'react';
 const PDFViewer = lazy(() => import('../../components/PDFViewer'));
-import PresentationViewer from '../../components/PresentationViewer';
+const PresentationViewer = lazy(() => import('../../components/PresentationViewer'));
 
 const API_BASE = '/api';
 

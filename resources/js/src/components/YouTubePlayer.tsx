@@ -96,7 +96,7 @@ export default function YouTubePlayer({ contentUrl, lessonId }: { contentUrl: st
           } catch (err) {}
         }, 5000) as unknown as number;
       } catch (err) {
-        // eslint-disable-next-line no-console
+         
         console.error('YouTube player init failed', err);
       }
     };

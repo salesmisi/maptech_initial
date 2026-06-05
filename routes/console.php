@@ -7,10 +7,12 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
+    /** @var \Illuminate\Console\Command $this */
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
 Artisan::command('certificates:backfill-logo-path {--dry-run : Preview changes without writing to database} {--only-missing : Update only certificates with empty logo_path}', function () {
+    /** @var \Illuminate\Console\Command $this */
     $dryRun = (bool) $this->option('dry-run');
     $onlyMissing = (bool) $this->option('only-missing');
 

@@ -202,7 +202,7 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
         setItems(list);
       }
     } catch (error) {
-      // eslint-disable-next-line no-console
+       
       console.error('NotificationBell fetchRecent failed:', error);
     } finally {
       if (!isCancelledRef.current && !silent) {

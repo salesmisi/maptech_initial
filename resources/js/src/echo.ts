@@ -37,7 +37,7 @@ if (key && key !== '' && key !== 'your-pusher-app-key') {
       }
     });
   } catch (e) {
-    // eslint-disable-next-line no-console
+     
     console.warn('Failed to initialize Echo:', e);
   }
 } else {

@@ -16,6 +16,7 @@ export default defineConfig({
                         if (/node_modules[\\/](jszip|pptxgenjs)/.test(id)) return 'vendor-pptx';
                         if (/node_modules[\\/](pusher-js|laravel-echo)/.test(id)) return 'vendor-realtime';
                         if (/node_modules[\\/](lucide-react|@heroicons|@headlessui)/.test(id)) return 'vendor-ui';
+                            if (id.includes('PresentationViewer')) return 'presentation-viewer';
                         // For all other node_modules, return undefined so Rollup can auto-chunk them
                         return undefined;
                     }
