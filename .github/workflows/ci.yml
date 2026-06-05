@@ -16,14 +16,14 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.2.27'
           extensions: mbstring, zip
 
       - name: Validate composer
         run: composer --version
 
       - name: Install composer dependencies
-        run: composer install --no-progress --no-suggest --prefer-dist
+        run: composer install --no-interaction --no-progress --prefer-dist
 
       - name: Run PHPStan
         run: vendor/bin/phpstan analyse app --no-progress
