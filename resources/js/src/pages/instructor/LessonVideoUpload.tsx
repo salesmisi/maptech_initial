@@ -124,7 +124,6 @@ export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadDuration, setUploadDuration] = useState('');
-  const [uploadToYouTube, setUploadToYouTube] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Helper to extract actual video duration from file
@@ -303,80 +302,36 @@ export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
         return;
       }
 
-      let lesson: LessonData;
+      const lesson: LessonData = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${API}/modules/${uploadModuleId}/lessons`);
+        xhr.withCredentials = true;
 
-      if (uploadToYouTube && uploadType === 'Video') {
-        // Upload file to YouTube first, then create lesson with returned embed URL
+        xhr.setRequestHeader('Accept', 'application/json');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
         const xsrf = getCookie('XSRF-TOKEN');
-        const ytForm = new FormData();
-        ytForm.append('video', uploadFile as File);
-        ytForm.append('title', uploadTitle.trim());
-        ytForm.append('description', uploadText || '');
-        ytForm.append('privacy_status', uploadStatus === 'Published' ? 'unlisted' : 'unlisted');
-
-        const ytRes = await fetch(`${API}/instructor/youtube/videos/upload`, {
-          method: 'POST',
-          credentials: 'include',
-          body: ytForm,
-          headers: {
-            ...(xsrf ? { 'X-XSRF-TOKEN': decodeURIComponent(xsrf) } : {}),
-          } as any,
-        });
-
-        if (!ytRes.ok) {
-          const err = await ytRes.json().catch(() => ({}));
-          throw new Error(err.message || `YouTube upload failed (${ytRes.status})`);
+        if (xsrf) {
+          xhr.setRequestHeader('X-XSRF-TOKEN', decodeURIComponent(xsrf));
         }
 
-        const ytJson = await ytRes.json();
-        const embed = ytJson.video?.embed_url;
-        if (!embed) throw new Error('YouTube upload did not return embed URL');
-
-        const created = await apiFetch(`/modules/${uploadModuleId}/lessons`, {
-          method: 'POST',
-          body: JSON.stringify({
-            title: uploadTitle.trim(),
-            status: uploadStatus,
-            content_url: embed,
-            duration: uploadDuration,
-            type: 'Video',
-          }),
-        });
-
-        lesson = created.lesson || created;
-      } else {
-        // Use XMLHttpRequest for upload progress
-        lesson = await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('POST', `${API}/modules/${uploadModuleId}/lessons`);
-          xhr.withCredentials = true;
-
-          xhr.setRequestHeader('Accept', 'application/json');
-          xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-          const xsrf = getCookie('XSRF-TOKEN');
-          if (xsrf) {
-            xhr.setRequestHeader('X-XSRF-TOKEN', decodeURIComponent(xsrf));
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            setUploadProgress(Math.round((e.loaded / e.total) * 100));
           }
+        };
 
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-              setUploadProgress(Math.round((e.loaded / e.total) * 100));
-            }
-          };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(JSON.parse(xhr.responseText));
+          } else {
+            const err = JSON.parse(xhr.responseText || '{}');
+            reject(new Error(err.message || `Upload failed (${xhr.status})`));
+          }
+        };
 
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve(JSON.parse(xhr.responseText));
-            } else {
-              const err = JSON.parse(xhr.responseText || '{}');
-              reject(new Error(err.message || `Upload failed (${xhr.status})`));
-            }
-          };
-
-          xhr.onerror = () => reject(new Error('Network error'));
-          xhr.send(formData);
-        });
-      }
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.send(formData);
+      });
 
       setModules((prev) =>
         prev.map((m) =>
@@ -900,22 +855,6 @@ export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
                       className="block w-full border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                       placeholder="Write your lesson content here..."
                     />
-                  </div>
-                )}
-
-                {/* YouTube option for video uploads */}
-                {uploadType === 'Video' && (
-                  <div className="flex items-center gap-3 mt-3">
-                    <input
-                      id="upload-to-youtube"
-                      type="checkbox"
-                      checked={uploadToYouTube}
-                      onChange={(e) => setUploadToYouTube(e.target.checked)}
-                      className="h-4 w-4"
-                    />
-                    <label htmlFor="upload-to-youtube" className="text-sm text-slate-600">
-                      Upload to YouTube (embed video and save link)
-                    </label>
                   </div>
                 )}
 

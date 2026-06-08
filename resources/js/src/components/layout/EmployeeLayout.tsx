@@ -347,7 +347,7 @@ export function EmployeeLayout({
           </div>
         </div>
 
-        <main className={`flex-1 min-w-0 overflow-x-auto overflow-y-auto p-4 sm:p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50 dark:bg-slate-900'}`}>
+        <main className={`flex-1 min-w-0 overflow-x-auto p-4 sm:p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50 dark:bg-slate-900'}`}>
           {children}
         </main>
       </div>

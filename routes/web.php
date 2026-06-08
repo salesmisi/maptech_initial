@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\LoginController;
-use App\Http\Controllers\YouTubeController;
 use App\Models\CustomLesson;
 use App\Models\Lesson;
 use Illuminate\Support\Facades\Auth;
@@ -105,13 +104,3 @@ Route::prefix('api/time-logs')->middleware('auth')->group(function () {
     Route::post('/punch-out', [\App\Http\Controllers\TimeLogController::class, 'punchOut']);
 });
 
-// =====================
-// YOUTUBE API INTEGRATION
-// =====================
-Route::get('/youtube', [YouTubeController::class, 'index'])->name('youtube.index');
-Route::get('/youtube/callback', [YouTubeController::class, 'callback'])->name('youtube.callback');
-Route::post('/youtube/logout', [YouTubeController::class, 'logout'])->name('youtube.logout');
-// Upload route for instructors/admins (uses session auth)
-Route::post('/youtube/upload', [YouTubeController::class, 'uploadVideo'])->middleware('auth');
-
-// (debug route removed)

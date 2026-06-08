@@ -1140,7 +1140,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               Sidebar Navigation
                             </span>
                             {module.route_path && (
-                              <span className="text-sm text-slate-500 dark:text-slate-400">• /{module.route_path}</span>
+                              <span className="text-sm text-slate-500 dark:text-slate-400">ï¿½ /{module.route_path}</span>
                             )}
                           </>
                         ) : (
@@ -1149,11 +1149,11 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               {module.lessons_count} lesson{module.lessons_count !== 1 ? 's' : ''}
                             </span>
                             {module.category && (
-                              <span className="text-sm text-slate-500 dark:text-slate-400">• {module.category}</span>
+                              <span className="text-sm text-slate-500 dark:text-slate-400">ï¿½ {module.category}</span>
                             )}
                           </>
                         )}
-                        <span className="text-sm text-slate-500 dark:text-slate-400">• v{module.version}</span>
+                        <span className="text-sm text-slate-500 dark:text-slate-400">ï¿½ v{module.version}</span>
                       </div>
                       {module.tags && module.tags.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">
@@ -1260,8 +1260,8 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               <p className="font-medium text-slate-900 dark:text-white truncate">{lesson.title}</p>
                               <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                                 <span className="capitalize">{lesson.content_type}</span>
-                                {lesson.formatted_duration && <span>• {lesson.formatted_duration}</span>}
-                                {lesson.formatted_file_size && <span>• {lesson.formatted_file_size}</span>}
+                                {lesson.formatted_duration && <span>ï¿½ {lesson.formatted_duration}</span>}
+                                {lesson.formatted_file_size && <span>ï¿½ {lesson.formatted_file_size}</span>}
                               </div>
                             </div>
                             <StatusBadge status={lesson.status} />
@@ -2059,11 +2059,11 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                       value={lessonForm.content_url}
                       onChange={(e) => setLessonForm((prev) => ({ ...prev, content_url: e.target.value }))}
                       className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
-                      placeholder={lessonForm.content_type === 'video' ? 'https://youtube.com/... or upload below' : 'https://...'}
+                      placeholder={lessonForm.content_type === 'video' ? 'https://video.example.com/... or upload below' : 'https://...'}
                     />
                     {lessonForm.content_type === 'video' && (
                       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        Provide a video URL (YouTube, Vimeo, etc.) or upload a video file below
+                        Provide a video URL or upload a video file below
                       </p>
                     )}
                   </div>

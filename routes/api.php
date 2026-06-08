@@ -1462,17 +1462,6 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::delete('/questions/{questionId}/replies/{replyId}', [\App\Http\Controllers\QAController::class, 'destroyReply']);
     Route::post('/questions/{questionId}/replies/{replyId}/reactions', [\App\Http\Controllers\QAController::class, 'toggleReaction']);
 
-    // YouTube Video Management (Instructor)
-    Route::prefix('youtube')->group(function () {
-        Route::get('/auth-check', [\App\Http\Controllers\YouTubeController::class, 'checkAuth']);
-        Route::get('/videos', [\App\Http\Controllers\YouTubeController::class, 'listVideos']);
-        Route::get('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'getVideo']);
-        Route::put('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'updateVideo']);
-        Route::post('/videos/tags', [\App\Http\Controllers\YouTubeController::class, 'updateVideoTags']);
-        Route::post('/videos/upload', [\App\Http\Controllers\YouTubeController::class, 'uploadVideo']);
-        Route::delete('/videos/{videoId}', [\App\Http\Controllers\YouTubeController::class, 'deleteVideo']);
-    });
-
     // Notification Management (Instructor)
     Route::prefix('notifications')->group(function () {
         Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index']);

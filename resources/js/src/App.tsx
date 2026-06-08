@@ -60,8 +60,6 @@ const MyFeedback = lazy(() => import('./pages/employee/MyFeedback').then((module
 const EmployeeNotifications = lazy(() => import('./pages/employee/EmployeeNotifications').then((module) => ({ default: module.EmployeeNotifications })));
 
 const ProfileSettings = lazy(() => import('./pages/shared/ProfileSettings').then((module) => ({ default: module.ProfileSettings })));
-const YTDebug = lazy(() => import('./pages/debug/YTDebug').then((module) => ({ default: module.YTDebug })));
-
 export function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') return 'light';
@@ -583,18 +581,6 @@ export function App() {
             </div>
           </div>
         </div>
-        {renderThemeToggle()}
-        {logoutOverlay}
-        {logoutConfirmModal}
-      </>
-    );
-  }
-
-  // Unauthenticated debug route for YouTube player preview
-  if (typeof window !== 'undefined' && window.location.pathname === '/yt-debug') {
-    return (
-      <>
-        <YTDebug />
         {renderThemeToggle()}
         {logoutOverlay}
         {logoutConfirmModal}
