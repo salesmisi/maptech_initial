@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { useToast } from '../../components/ToastProvider';
 import {
@@ -1054,12 +1054,12 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
         {/* Create Buttons */}
         <div className="flex gap-2">
           <button
-            onClick={() => openCreateModule('learning')}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-medium transition-colors"
-            title="Create a learning module with lessons (visible to instructors and employees when published)"
+            onClick={() => openCreateModule('ui_component')}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md font-medium transition-colors"
+            title="Create a custom sidebar navigation item (admin-only, not visible to instructors or employees)"
           >
             <PlusIcon className="w-5 h-5" />
-            New Learning Module
+            New UI Component
           </button>
         </div>
       </div>
@@ -1075,17 +1075,10 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
           <h3 className="mt-4 text-lg font-medium text-slate-900 dark:text-white">No modules yet</h3>
           <p className="mt-2 text-slate-500 dark:text-slate-400">Get started by creating your first custom module.</p>
           <div className="mt-4 flex gap-2 justify-center">
-            <button
-              onClick={() => openCreateModule('learning')}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-medium transition-colors"
-              title="Create a learning module with lessons (visible to instructors and employees when published)"
-            >
-              <PlusIcon className="w-5 h-5" />
-              Learning Module
-            </button>
+
             <button
               onClick={() => openCreateModule('ui_component')}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md font-medium transition-colors"
               title="Create a custom sidebar navigation item (admin-only, not visible to instructors or employees)"
             >
               <PlusIcon className="w-5 h-5" />
@@ -1956,7 +1949,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                     (moduleForm.module_type === 'learning' && !moduleForm.title.trim()) ||
                     (moduleForm.module_type === 'ui_component' && !moduleForm.icon_name.trim())
                   }
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-md font-medium transition-colors"
                 >
                   {savingModule ? 'Saving...' : editingModule ? 'Update' : 'Create'}
                 </button>
@@ -2177,7 +2170,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                   <button
                     onClick={() => saveLesson(true)}
                     disabled={savingLesson || !lessonForm.title.trim()}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg font-medium transition-colors"
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-md font-medium transition-colors"
                   >
                     {savingLesson ? 'Saving...' : 'Save & Add Another'}
                   </button>
@@ -2185,7 +2178,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                 <button
                   onClick={() => saveLesson(false)}
                   disabled={savingLesson || !lessonForm.title.trim()}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-md font-medium transition-colors"
                 >
                   {savingLesson ? 'Saving...' : editingLesson ? 'Update' : 'Save'}
                 </button>
@@ -2277,7 +2270,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                     <button
                       onClick={pushToUsers}
                       disabled={pushing || selectedUserIds.length === 0}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-md font-medium transition-colors"
                     >
                       {pushing ? 'Pushing...' : `Push to ${selectedUserIds.length > 0 ? selectedUserIds.length : ''} Instructor${selectedUserIds.length !== 1 ? 's' : ''}`}
                     </button>
