@@ -17,13 +17,23 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2.27'
-          extensions: mbstring, zip
+          extensions: mbstring, zip, intl
 
       - name: Validate composer
         run: composer --version
 
       - name: Install composer dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Prepare Laravel environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+          touch database/database.sqlite
+          php artisan migrate --force --ansi
+
+      - name: Readiness check
+        run: php artisan system:readiness-check
 
       - name: Run PHPStan
         run: vendor/bin/phpstan analyse app --no-progress
@@ -40,13 +50,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
+          cache: npm
 
       - name: Install Node deps
         run: npm ci
 
       - name: Run ESLint
-        run: npx eslint "resources/js/src/**/*.{ts,tsx}" --max-warnings=0
+        run: npx eslint . --max-warnings=0
 
       - name: NPM security audit
         run: npm audit --audit-level=high
