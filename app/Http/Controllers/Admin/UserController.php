@@ -12,24 +12,15 @@ use App\Models\Enrollment;
 use App\Models\QuizAttempt;
 use App\Models\Department;
 use App\Models\Subdepartment;
-use App\Models\Department;
-use App\Models\Enrollment;
-use App\Models\QuizAttempt;
-use App\Models\Subdepartment;
 use App\Models\User;
 use App\Rules\MaptechEmail;
 use App\Rules\StrongPassword;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
-use App\Rules\MaptechEmail;
-use App\Rules\StrongPassword;
 
 class UserController extends Controller
 {

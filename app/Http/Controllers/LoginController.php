@@ -13,13 +13,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Carbon;
-use App\Models\User;
-use App\Models\AuditLog;
-use App\Models\TimeLog;
-use App\Events\AuditLogCreated;
-use App\Events\TimeLogUpdated;
-use App\Rules\MaptechEmail;
 
 class LoginController extends Controller
 {

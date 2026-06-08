@@ -8,13 +8,8 @@ use App\Models\Enrollment;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
 use App\Models\Subdepartment;
-use App\Models\Enrollment;
-use App\Models\Quiz;
-use App\Models\QuizAttempt;
-use App\Models\Subdepartment;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
