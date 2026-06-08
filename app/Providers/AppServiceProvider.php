@@ -27,8 +27,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Always generate HTTPS URLs in production.
-        if (app()->environment('production')) {
+        // Force HTTPS in production-like environments, but never for localhost.
+        $forceHttps = filter_var(env('FORCE_HTTPS', app()->environment('production')), FILTER_VALIDATE_BOOLEAN);
+        $host = request()->getHost();
+        $isLocalHost = in_array($host, ['localhost', '127.0.0.1', '::1'], true);
+
+        if ($forceHttps && ! $isLocalHost) {
             URL::forceScheme('https');
         }
 

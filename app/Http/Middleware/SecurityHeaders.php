@@ -16,12 +16,16 @@ class SecurityHeaders
         /** @var Response $response */
         $response = $next($request);
 
+        $forceHttps = filter_var(env('FORCE_HTTPS', app()->environment('production')), FILTER_VALIDATE_BOOLEAN);
+        $host = $request->getHost();
+        $isLocalHost = in_array($host, ['localhost', '127.0.0.1', '::1'], true);
+
         $response->headers->set('X-Frame-Options', 'DENY');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
-        if ($request->isSecure() || app()->environment('production')) {
+        if ($request->isSecure() && $forceHttps && ! $isLocalHost) {
             $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
         }
 
