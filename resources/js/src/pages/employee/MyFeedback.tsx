@@ -260,10 +260,10 @@ export function MyFeedback() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        {/* Heading removed: redundant in module context */}
+        <h1 className="text-2xl font-bold text-slate-900">My Feedback</h1>
         <button
           onClick={openAdd}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700"
         >
           <Plus className="h-4 w-4 mr-2" />
           Give Feedback
@@ -399,7 +399,7 @@ export function MyFeedback() {
                   <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
                     <button
                       type="submit"
-                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:col-start-2 sm:text-sm"
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:col-start-2 sm:text-sm"
                     >
                       {editing ? 'Update Feedback' : 'Submit Feedback'}
                     </button>

@@ -2,9 +2,10 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\Channel;
-use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PresenceChannel;
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -26,7 +27,7 @@ class AuditLogCreated implements ShouldBroadcastNow
         // and also to an admin audit logs channel so admins/instructors
         // can receive realtime updates for all users.
         return [
-            new PrivateChannel('user.'.$this->auditLog->user_id),
+            new PrivateChannel('user.' . $this->auditLog->user_id),
             new PrivateChannel('audit-logs.admin'),
         ];
     }

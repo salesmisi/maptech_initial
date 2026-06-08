@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
-use App\Models\Course;
-use App\Models\Lesson;
-use App\Models\Module;
 use Illuminate\Database\Seeder;
+use App\Models\Course;
+use App\Models\Module;
+use App\Models\Lesson;
 
 class YouTubeLessonSeeder extends Seeder
 {
@@ -16,17 +16,17 @@ class YouTubeLessonSeeder extends Seeder
     {
         // Create or find a sample course
         $course = Course::firstOrCreate([
-            'title' => 'Cyber Threats (YouTube Test)',
+            'title' => 'Cyber Threats (YouTube Test)'
         ], [
             'description' => 'Sample course to test YouTube embedding',
             'department' => 'IT',
-            'status' => 'Active',
+            'status' => 'Active'
         ]);
 
         // Create a module
         $module = Module::firstOrCreate([
             'course_id' => $course->id,
-            'title' => 'Introduction to Cyber Threats',
+            'title' => 'Introduction to Cyber Threats'
         ], [
             'description' => 'Module for testing YouTube video lesson',
             'order' => 1,
@@ -39,7 +39,7 @@ class YouTubeLessonSeeder extends Seeder
         // Build attributes/values conditionally in case the DB schema differs
         $attrs = [
             'module_id' => $module->id,
-            'title' => 'Types of Cyber Threats (YouTube)',
+            'title' => 'Types of Cyber Threats (YouTube)'
         ];
 
         $candidateValues = [

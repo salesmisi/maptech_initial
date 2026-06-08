@@ -1,11 +1,57 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Moon, Sun } from 'lucide-react';
-import { LoadingState } from './components/ui/LoadingState';
-import { FullscreenLoader } from './components/ui/FullscreenLoader';
 import { LoginPage } from './pages/LoginPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { VerifyOTPPage } from './pages/VerifyOTPPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { QADiscussion as InstructorQADiscussion } from './pages/instructor/QADiscussion';
+import { QADiscussion as AdminQADiscussion } from './pages/admin/QADiscussion';
+import { AdminLayout } from './components/layout/AdminLayout';
+import { InstructorLayout } from './components/layout/InstructorLayout';
+import { EmployeeLayout } from './components/layout/EmployeeLayout';
+
+// Admin Pages
+import { AdminDashboard } from './pages/admin/AdminDashboard';
+import DepartmentManagement from './pages/admin/DepartmentManagement.tsx';
+import { UserManagement } from './pages/admin/UserManagement';
+import { CoursesAndContent } from './pages/admin/CoursesAndContent';
+import { CourseContentEditor } from './pages/admin/CourseContentEditor';
+import { EnrollmentManagement } from './pages/admin/EnrollmentManagement';
+import { ReportsAnalytics } from './pages/admin/ReportsAnalytics';
+import { NotificationManagement } from './pages/admin/NotificationManagement';
+import { AuditLogs } from './pages/admin/AuditLogs';
+import { AdminFeedback } from './pages/admin/AdminFeedback';
+import { BusinessDetails } from './pages/admin/BusinessDetails';
+import { ProductLogoManager } from './pages/admin/ProductLogoManager';
+import { CustomFieldBuilder } from './pages/admin/CustomFieldBuilder';
+import { CustomModulePage } from './pages/admin/CustomModulePage';
+
+// Instructor Pages
+import { InstructorDashboard } from './pages/instructor/InstructorDashboard';
+import { InstructorCourseManagement } from './pages/instructor/CourseManagement';
+import { InstructorCourseDetail } from './pages/instructor/CourseDetail';
+// InstructorQuizBuilder was unused and removed to fix TS warning
+import { QuizAssessmentManagement } from './pages/instructor/QuizAssessmentManagement';
+import { LessonVideoUpload } from './pages/instructor/LessonVideoUpload';
+import { QuizEvaluation } from './pages/instructor/QuizEvaluation';
+import { InstructorNotifications } from './pages/instructor/InstructorNotifications';
+import { InstructorFeedback } from './pages/instructor/InstructorFeedback';
+
+// Employee Pages
+import { EmployeeDashboard } from './pages/employee/EmployeeDashboard';
+import { MyCourses } from './pages/employee/MyCourses';
+import { CourseEnrollDetail } from './pages/employee/CourseEnrollDetail';
+import { CourseViewer } from './pages/employee/CourseViewer';
+import { CustomModuleViewer } from './pages/employee/CustomModuleViewer';
+import { MyProgress } from './pages/employee/MyProgress';
+import { MyCertificates } from './pages/employee/MyCertificates';
+import { QAModule } from './pages/employee/QAModule';
+import { MyFeedback } from './pages/employee/MyFeedback';
+import { EmployeeNotifications } from './pages/employee/EmployeeNotifications';
+
+// Shared Pages
+import { ProfileSettings } from './pages/shared/ProfileSettings';
+import { YTDebug } from './pages/debug/YTDebug';
 import { resolveImageUrl } from './utils/safe';
 
 interface User {
@@ -18,50 +64,6 @@ interface User {
   department?: string;
   profile_picture?: string | null;
 }
-
-const AdminLayout = lazy(() => import('./components/layout/AdminLayout').then((module) => ({ default: module.AdminLayout })));
-const InstructorLayout = lazy(() => import('./components/layout/InstructorLayout').then((module) => ({ default: module.InstructorLayout })));
-const EmployeeLayout = lazy(() => import('./components/layout/EmployeeLayout').then((module) => ({ default: module.EmployeeLayout })));
-
-const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard').then((module) => ({ default: module.AdminDashboard })));
-const DepartmentManagement = lazy(() => import('./pages/admin/DepartmentManagement.tsx'));
-const UserManagement = lazy(() => import('./pages/admin/UserManagement').then((module) => ({ default: module.UserManagement })));
-const CoursesAndContent = lazy(() => import('./pages/admin/CoursesAndContent').then((module) => ({ default: module.CoursesAndContent })));
-const EnrollmentManagement = lazy(() => import('./pages/admin/EnrollmentManagement').then((module) => ({ default: module.EnrollmentManagement })));
-const ReportsAnalytics = lazy(() => import('./pages/admin/ReportsAnalytics').then((module) => ({ default: module.ReportsAnalytics })));
-const NotificationManagement = lazy(() => import('./pages/admin/NotificationManagement').then((module) => ({ default: module.NotificationManagement })));
-const AuditLogs = lazy(() => import('./pages/admin/AuditLogs').then((module) => ({ default: module.AuditLogs })));
-const AdminFeedback = lazy(() => import('./pages/admin/AdminFeedback').then((module) => ({ default: module.AdminFeedback })));
-const ArchivesPage = lazy(() => import('./pages/admin/ArchivesPage'));
-const BusinessDetails = lazy(() => import('./pages/admin/BusinessDetails').then((module) => ({ default: module.BusinessDetails })));
-const ProductLogoManager = lazy(() => import('./pages/admin/ProductLogoManager').then((module) => ({ default: module.ProductLogoManager })));
-const CustomFieldBuilder = lazy(() => import('./pages/admin/CustomFieldBuilder').then((module) => ({ default: module.CustomFieldBuilder })));
-const CustomModulePage = lazy(() => import('./pages/admin/CustomModulePage').then((module) => ({ default: module.CustomModulePage })));
-const AdminQADiscussion = lazy(() => import('./pages/admin/QADiscussion').then((module) => ({ default: module.QADiscussion })));
-
-const InstructorDashboard = lazy(() => import('./pages/instructor/InstructorDashboard').then((module) => ({ default: module.InstructorDashboard })));
-const InstructorCourseManagement = lazy(() => import('./pages/instructor/CourseManagement').then((module) => ({ default: module.InstructorCourseManagement })));
-const InstructorCourseDetail = lazy(() => import('./pages/instructor/CourseDetail').then((module) => ({ default: module.InstructorCourseDetail })));
-const LessonVideoUpload = lazy(() => import('./pages/instructor/LessonVideoUpload').then((module) => ({ default: module.LessonVideoUpload })));
-const QuizAssessmentManagement = lazy(() => import('./pages/instructor/QuizAssessmentManagement').then((module) => ({ default: module.QuizAssessmentManagement })));
-const QuizEvaluation = lazy(() => import('./pages/instructor/QuizEvaluation').then((module) => ({ default: module.QuizEvaluation })));
-const InstructorNotifications = lazy(() => import('./pages/instructor/InstructorNotifications').then((module) => ({ default: module.InstructorNotifications })));
-const InstructorFeedback = lazy(() => import('./pages/instructor/InstructorFeedback').then((module) => ({ default: module.InstructorFeedback })));
-const InstructorQADiscussion = lazy(() => import('./pages/instructor/QADiscussion').then((module) => ({ default: module.QADiscussion })));
-
-const EmployeeDashboard = lazy(() => import('./pages/employee/EmployeeDashboard').then((module) => ({ default: module.EmployeeDashboard })));
-const MyCourses = lazy(() => import('./pages/employee/MyCourses').then((module) => ({ default: module.MyCourses })));
-const CourseEnrollDetail = lazy(() => import('./pages/employee/CourseEnrollDetail').then((module) => ({ default: module.CourseEnrollDetail })));
-const CourseViewer = lazy(() => import('./pages/employee/CourseViewer').then((module) => ({ default: module.CourseViewer })));
-const CustomModuleViewer = lazy(() => import('./pages/employee/CustomModuleViewer').then((module) => ({ default: module.CustomModuleViewer })));
-const MyProgress = lazy(() => import('./pages/employee/MyProgress').then((module) => ({ default: module.MyProgress })));
-const MyCertificates = lazy(() => import('./pages/employee/MyCertificates').then((module) => ({ default: module.MyCertificates })));
-const QAModule = lazy(() => import('./pages/employee/QAModule').then((module) => ({ default: module.QAModule })));
-const MyFeedback = lazy(() => import('./pages/employee/MyFeedback').then((module) => ({ default: module.MyFeedback })));
-const EmployeeNotifications = lazy(() => import('./pages/employee/EmployeeNotifications').then((module) => ({ default: module.EmployeeNotifications })));
-
-const ProfileSettings = lazy(() => import('./pages/shared/ProfileSettings').then((module) => ({ default: module.ProfileSettings })));
-const YTDebug = lazy(() => import('./pages/debug/YTDebug').then((module) => ({ default: module.YTDebug })));
 
 export function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -156,7 +158,8 @@ export function App() {
     if (user.role === 'instructor') {
       const page = findPageByKeywords(query, [
         { page: 'dashboard', keywords: ['dashboard', 'home'] },
-        { page: 'courses', keywords: ['course', 'courses', 'module', 'lesson', 'content', 'quiz'] },
+        { page: 'courses', keywords: ['course', 'courses', 'module', 'lesson', 'content'] },
+        { page: 'quiz-management', keywords: ['quiz', 'assessment', 'question'] },
         { page: 'notifications', keywords: ['notification', 'notifications', 'alert'] },
         { page: 'qa-discussion', keywords: ['q&a', 'qa', 'discussion'] },
         { page: 'feedbacks', keywords: ['feedback', 'review'] },
@@ -676,7 +679,6 @@ export function App() {
 
     return (
       <>
-        <Suspense fallback={<FullscreenLoader message="Loading admin..." />}>
         <AdminLayout
           currentPage={currentPage}
           onNavigate={handleNavigate}
@@ -688,10 +690,10 @@ export function App() {
           <div key={transitionKey} className="page-open-transition">
             {currentPage === 'dashboard' && <AdminDashboard onNavigate={handleNavigate} />}
             {currentPage === 'departments' && <DepartmentManagement />}
-            {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={async () => handleLogout()} onNavigate={handleNavigate} />}
-            {currentPage === 'archives' && <ArchivesPage currentUserEmail={user?.email} onLogout={async () => handleLogout()} onNavigate={handleNavigate} />}
+            {currentPage === 'users' && <UserManagement currentUserEmail={user?.email} onLogout={async () => handleLogout()} />}
             {currentPage === 'courses' && <CoursesAndContent onNavigate={handleNavigate} />}
-            {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('course-detail', courseId, quizId); }} apiPrefix="admin" />}
+            {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} apiPrefix="admin" />}
+            {currentPage === 'quiz-management' && <QuizAssessmentManagement apiPrefix="admin" />}
             {currentPage === 'evaluation' && <QuizEvaluation apiPrefix="admin" />}
             {currentPage === 'lessons' && <LessonVideoUpload apiPrefix="admin" />}
             {currentPage === 'enrollments' && <EnrollmentManagement />}
@@ -700,7 +702,7 @@ export function App() {
             {currentPage === 'qa' && <AdminQADiscussion userId={user.id} />}
             {currentPage === 'audit-logs' && <AuditLogs />}
             {currentPage === 'business-details' && <BusinessDetails />}
-            {currentPage === 'feedbacks' && <AdminFeedback onNavigate={handleNavigate} />}
+            {currentPage === 'feedbacks' && <AdminFeedback />}
             {currentPage === 'product-logos' && <ProductLogoManager />}
             {currentPage === 'custom-field' && (
               <CustomFieldBuilder
@@ -710,12 +712,11 @@ export function App() {
             )}
             {currentPage === 'settings' && <ProfileSettings />}
           {/* Fallback to custom module page for any unmatched route */}
-          {!['dashboard', 'departments', 'users', 'archives', 'courses', 'custom-field', 'course-detail', 'evaluation', 'lessons', 'course-content-editor', 'enrollments', 'reports', 'notifications', 'qa', 'audit-logs', 'business-details', 'feedbacks', 'product-logos', 'settings'].includes(currentPage) && (
+          {!['dashboard', 'departments', 'users', 'courses', 'custom-field', 'course-detail', 'quiz-management', 'evaluation', 'lessons', 'course-content-editor', 'enrollments', 'reports', 'notifications', 'qa', 'audit-logs', 'business-details', 'feedbacks', 'product-logos', 'settings'].includes(currentPage) && (
             <CustomModulePage routePath={currentPage} />
           )}
           </div>
         </AdminLayout>
-        </Suspense>
         {logoutOverlay}
         {logoutConfirmModal}
       </>
@@ -730,7 +731,6 @@ export function App() {
 
     return (
       <>
-        <Suspense fallback={<FullscreenLoader message="Loading instructor..." />}>
         <InstructorLayout
           currentPage={currentPage}
           onNavigate={handleNavigate}
@@ -745,8 +745,9 @@ export function App() {
           <div key={transitionKey} className="page-open-transition">
             {currentPage === 'dashboard' && <InstructorDashboard onNavigate={handleNavigate} />}
             {currentPage === 'courses' && <InstructorCourseManagement onNavigate={handleNavigate} />}
-            {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('course-detail', courseId, quizId); }} />}
+            {currentPage === 'course-detail' && <InstructorCourseDetail courseId={selectedCourseId || ''} onBack={() => handleNavigate('courses')} onManageQuiz={(quizId, courseId) => { setSelectedCourseId(courseId); handleNavigate('quiz-management', courseId, quizId); }} />}
             {currentPage === 'custom-module-detail' && selectedCustomModuleId && <CustomModuleViewer moduleId={selectedCustomModuleId} apiPath="instructor/custom-modules" editApiPath="instructor/custom-modules" allowEdit={true} onBack={() => handleNavigate('courses')} />}
+            {currentPage === 'quiz-management' && <QuizAssessmentManagement />}
             {currentPage === 'lessons' && <LessonVideoUpload />}
             {currentPage === 'quizzes' && <QuizAssessmentManagement />}
             {currentPage === 'evaluation' && <QuizEvaluation />}
@@ -756,7 +757,6 @@ export function App() {
             {currentPage === 'settings' && <ProfileSettings />}
           </div>
         </InstructorLayout>
-        </Suspense>
         {logoutOverlay}
         {logoutConfirmModal}
       </>
@@ -771,7 +771,6 @@ export function App() {
 
     return (
       <>
-        <Suspense fallback={<FullscreenLoader message="Loading learner..." />}>
         <EmployeeLayout
           currentPage={currentPage}
           onNavigate={handleNavigate}
@@ -815,7 +814,6 @@ export function App() {
             {currentPage === 'settings' && <ProfileSettings />}
           </div>
         </EmployeeLayout>
-        </Suspense>
         {logoutOverlay}
         {logoutConfirmModal}
       </>

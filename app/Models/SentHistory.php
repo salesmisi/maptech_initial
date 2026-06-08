@@ -64,7 +64,7 @@ class SentHistory extends Model
      * Check if the sent history limit has been exceeded and auto-delete oldest entries.
      * This should be called after creating a new sent history entry.
      *
-     * @param  int  $senderId  The sender's user ID
+     * @param int $senderId The sender's user ID
      */
     public static function enforceHistoryLimit(int $senderId): void
     {
@@ -95,7 +95,7 @@ class SentHistory extends Model
      * Permanently delete entries older than a certain number of days from recently deleted.
      * Default is 30 days.
      *
-     * @param  int  $days  Number of days after which to permanently delete
+     * @param int $days Number of days after which to permanently delete
      */
     public static function cleanupRecentlyDeleted(int $days = 30): int
     {
@@ -119,7 +119,7 @@ class SentHistory extends Model
     /**
      * Enforce trash limit: if recently deleted count >= 50, permanently delete oldest half.
      *
-     * @param  int  $senderId  The sender's user ID
+     * @param int $senderId The sender's user ID
      * @return int Number of permanently deleted entries
      */
     public static function enforceTrashLimit(int $senderId): int

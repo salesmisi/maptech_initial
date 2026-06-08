@@ -31,8 +31,8 @@ class PasswordResetOTPMail extends Mailable
     /**
      * Create a new message instance.
      *
-     * @param  string  $otp  The 6-digit OTP code
-     * @param  string  $userName  The user's display name
+     * @param string $otp The 6-digit OTP code
+     * @param string $userName The user's display name
      */
     public function __construct(string $otp, string $userName)
     {

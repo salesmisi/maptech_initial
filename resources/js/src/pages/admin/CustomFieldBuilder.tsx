@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import useConfirm from '../../hooks/useConfirm';
 import { useToast } from '../../components/ToastProvider';
 import {
@@ -22,11 +22,6 @@ import {
   Folder as FolderIcon,
   Eye as EyeIcon,
 } from 'lucide-react';
-import { NoCodePageBuilder, iconChoices } from '../../components/admin-dashboard/custom-builder/NoCodePageBuilder';
-import { createDefaultBuilderConfig, normalizeBuilderConfig } from '../../components/admin-dashboard/custom-builder/builderSchema';
-
-// Icons available for sidebar navigation (subset of iconChoices, readable name labels)
-const iconChoicesForSidebar = iconChoices;
 
 // Types
 interface CustomLesson {
@@ -319,16 +314,17 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   // Open create module modal
   const openCreateModule = (type: 'learning' | 'ui_component' = 'learning') => {
     setEditingModule(null);
+    setIsCustomModule(false);
     setModuleForm({
       title: '',
       module_type: type,
       route_path: '',
       icon_name: '',
-      component_config: type === 'ui_component' ? createDefaultBuilderConfig() : {},
+      component_config: {},
       description: '',
       category: '',
       tags: [],
-      status: type === 'ui_component' ? 'published' : 'draft',
+      status: 'draft',
     });
     setThumbnailFile(null);
     setThumbnailPreview(null);
@@ -339,14 +335,17 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   const openEditModule = (module: CustomModule) => {
     setEditingModule(module);
 
+    // Check if it's a custom UI component (not matching any template)
+    const isCustom = module.module_type === 'ui_component' &&
+                     !['ClipboardCheck', 'BarChart3', 'Calendar', 'Bell'].includes(module.icon_name || '');
+    setIsCustomModule(isCustom);
+
     setModuleForm({
       title: module.title,
       module_type: module.module_type || 'learning',
       route_path: module.route_path || '',
       icon_name: module.icon_name || '',
-      component_config: module.module_type === 'ui_component'
-        ? normalizeBuilderConfig(module.component_config || {}, module.title, module.description || '')
-        : (module.component_config || {}),
+      component_config: module.component_config || {},
       description: module.description || '',
       category: module.category || '',
       tags: module.tags || [],
@@ -447,7 +446,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
       'Map': ['map', 'direction', 'route', 'navigation'],
 
       // Food & Breaks
-      'Coffee': ['break', 'coffee', '??', 'lunch', 'snack'],
+      'Coffee': ['break', 'coffee', '休憩', 'lunch', 'snack'],
       'Utensils': ['food', 'meal', 'lunch', 'canteen', 'cafeteria', 'dining'],
 
       // Security & Access
@@ -510,6 +509,52 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
   };
 
   // Save module
+  // Auto-generate page content HTML for custom UI components
+  const generatePageContent = (title: string, description: string, iconName: string) => {
+    const safeTitle = title || 'Custom Module';
+    const safeDescription = description || 'This is your custom module page.';
+
+    return `<div class="space-y-6">
+  <div class="bg-gradient-to-r from-purple-500 to-indigo-600 p-6 rounded-lg text-white">
+    <h2 class="text-2xl font-bold mb-2">${safeTitle}</h2>
+    <p class="text-purple-100">${safeDescription}</p>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Quick Stats</h3>
+        <span class="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300 px-3 py-1 rounded-full text-sm font-medium">New</span>
+      </div>
+      <p class="text-gray-600 dark:text-gray-400">View your module statistics here</p>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Recent Activity</h3>
+        <span class="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 px-3 py-1 rounded-full text-sm font-medium">Live</span>
+      </div>
+      <p class="text-gray-600 dark:text-gray-400">Track recent activities and updates</p>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Actions</h3>
+        <span class="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 px-3 py-1 rounded-full text-sm font-medium">Ready</span>
+      </div>
+      <p class="text-gray-600 dark:text-gray-400">Perform quick actions from here</p>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
+    <h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">${safeTitle} Content</h3>
+    <p class="text-gray-600 dark:text-gray-400 mb-4">
+      Welcome to your custom ${safeTitle.toLowerCase()} module. You can customize this page by editing the module in the Custom Field Builder.
+    </p>
+    <!-- BUTTONS_PLACEHOLDER -->
+  </div>
+</div>`;
+  };
 
   const saveModule = async () => {
     // Validation based on module type
@@ -520,22 +565,23 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
 
     // Validation for UI component modules
     if (moduleForm.module_type === 'ui_component') {
-      if (!moduleForm.title || !moduleForm.title.trim()) {
-        pushToast('Error', 'Title is required for page builder modules', 'error');
+      // For custom modules, require both title and icon_name
+      if (isCustomModule) {
+        if (!moduleForm.title || !moduleForm.title.trim()) {
+          pushToast('Error', 'Title is required for custom UI components', 'error');
+          return;
+        }
+        if (!moduleForm.icon_name || !moduleForm.icon_name.trim()) {
+          pushToast('Error', 'Icon name is required for custom UI components', 'error');
+          return;
+        }
+      } else if (!moduleForm.icon_name || !moduleForm.icon_name.trim()) {
+        pushToast('Error', 'Please select a module type or enter an icon name', 'error');
         return;
       }
 
       // Create a mutable copy of the form data for submission
       const submissionData = { ...moduleForm };
-
-      if (!submissionData.icon_name || !submissionData.icon_name.trim()) {
-        submissionData.icon_name = suggestIconFromTitle(submissionData.title);
-      }
-
-      if (!submissionData.icon_name || !submissionData.icon_name.trim()) {
-        pushToast('Error', 'Icon name is required for page builder modules', 'error');
-        return;
-      }
 
       // Auto-generate route_path from icon_name (convert to kebab-case)
       const autoRoutePath = submissionData.icon_name
@@ -543,11 +589,33 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
         .toLowerCase();
       submissionData.route_path = `custom-${autoRoutePath}`;
 
-      submissionData.component_config = normalizeBuilderConfig(
-        submissionData.component_config,
-        submissionData.title,
-        submissionData.description
-      );
+      // Auto-generate title from icon_name if title is empty
+      if (!submissionData.title || !submissionData.title.trim()) {
+        submissionData.title = submissionData.icon_name
+          .replace(/([a-z])([A-Z])/g, '$1 $2')
+          .trim();
+      }
+
+      // Final validation to ensure title is not empty after auto-generation
+      if (!submissionData.title || !submissionData.title.trim()) {
+        pushToast('Error', 'Title is required. Please provide a valid icon name or title.', 'error');
+        return;
+      }
+
+      // Auto-generate page content if it's a custom module (isCustomModule) and no content exists
+      if (isCustomModule && (!submissionData.component_config.pageContent || !submissionData.component_config.pageContent.trim())) {
+        // Set default buttons if not already set
+        if (!submissionData.component_config.buttons) {
+          submissionData.component_config.buttons = [
+            { label: 'Get Started', url: '', style: 'primary', visible: true },
+            { label: 'Learn More', url: '', style: 'secondary', visible: true }
+          ];
+        }
+        submissionData.component_config = {
+          ...submissionData.component_config,
+          pageContent: generatePageContent(submissionData.title, submissionData.description, submissionData.icon_name)
+        };
+      }
 
       // Use submission data for the rest of the function
       return await submitModuleData(submissionData);
@@ -922,6 +990,14 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <ConfirmModalRenderer />
 
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Custom Field Builder</h1>
+        <p className="mt-2 text-slate-600 dark:text-slate-400">
+          Create and manage custom learning modules. All published modules are automatically synced to Courses and Content.
+        </p>
+      </div>
+
       {/* Toolbar */}
       <div className="mb-6 flex flex-col sm:flex-row gap-4">
         {/* Search */}
@@ -978,12 +1054,12 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
         {/* Create Buttons */}
         <div className="flex gap-2">
           <button
-            onClick={() => openCreateModule('ui_component')}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md font-medium transition-colors"
-            title="Create a custom sidebar navigation item (admin-only, not visible to instructors or employees)"
+            onClick={() => openCreateModule('learning')}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-medium transition-colors"
+            title="Create a learning module with lessons (visible to instructors and employees when published)"
           >
             <PlusIcon className="w-5 h-5" />
-            New UI Component
+            New Learning Module
           </button>
         </div>
       </div>
@@ -1000,8 +1076,16 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
           <p className="mt-2 text-slate-500 dark:text-slate-400">Get started by creating your first custom module.</p>
           <div className="mt-4 flex gap-2 justify-center">
             <button
+              onClick={() => openCreateModule('learning')}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-medium transition-colors"
+              title="Create a learning module with lessons (visible to instructors and employees when published)"
+            >
+              <PlusIcon className="w-5 h-5" />
+              Learning Module
+            </button>
+            <button
               onClick={() => openCreateModule('ui_component')}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
               title="Create a custom sidebar navigation item (admin-only, not visible to instructors or employees)"
             >
               <PlusIcon className="w-5 h-5" />
@@ -1064,7 +1148,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               Sidebar Navigation
                             </span>
                             {module.route_path && (
-                              <span className="text-sm text-slate-500 dark:text-slate-400">� /{module.route_path}</span>
+                              <span className="text-sm text-slate-500 dark:text-slate-400">• /{module.route_path}</span>
                             )}
                           </>
                         ) : (
@@ -1073,11 +1157,11 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               {module.lessons_count} lesson{module.lessons_count !== 1 ? 's' : ''}
                             </span>
                             {module.category && (
-                              <span className="text-sm text-slate-500 dark:text-slate-400">� {module.category}</span>
+                              <span className="text-sm text-slate-500 dark:text-slate-400">• {module.category}</span>
                             )}
                           </>
                         )}
-                        <span className="text-sm text-slate-500 dark:text-slate-400">� v{module.version}</span>
+                        <span className="text-sm text-slate-500 dark:text-slate-400">• v{module.version}</span>
                       </div>
                       {module.tags && module.tags.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">
@@ -1098,7 +1182,11 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => togglePublish(module)}
-                        className={`btn-icon um-icon-btn ${module.status === 'published' ? 'btn-icon-close' : 'btn-icon-green'}`}
+                        className={`p-2 rounded-lg transition-colors ${
+                          module.status === 'published'
+                            ? 'text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
+                            : 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
+                        }`}
                         title={module.status === 'published' ? 'Unpublish' : 'Publish'}
                       >
                         {module.status === 'published' ? (
@@ -1111,7 +1199,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                       {module.module_type === 'learning' && (
                         <button
                           onClick={() => openPushToUsers(module)}
-                          className="btn-icon btn-icon-view um-icon-btn"
+                          className="p-2 rounded-lg text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
                           title="Push to Instructor"
                         >
                           <ArrowsUpDownIcon className="w-5 h-5" />
@@ -1119,14 +1207,14 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                       )}
                       <button
                         onClick={() => openEditModule(module)}
-                        className="btn-icon btn-icon-edit um-icon-btn"
+                        className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                         title="Edit Module"
                       >
                         <PencilIcon className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => deleteModule(module)}
-                        className="btn-icon btn-icon-delete um-icon-btn"
+                        className="p-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                         title="Delete Module"
                       >
                         <TrashIcon className="w-5 h-5" />
@@ -1180,21 +1268,21 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                               <p className="font-medium text-slate-900 dark:text-white truncate">{lesson.title}</p>
                               <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                                 <span className="capitalize">{lesson.content_type}</span>
-                                {lesson.formatted_duration && <span>| {lesson.formatted_duration}</span>}
-                                {lesson.formatted_file_size && <span>| {lesson.formatted_file_size}</span>}
+                                {lesson.formatted_duration && <span>• {lesson.formatted_duration}</span>}
+                                {lesson.formatted_file_size && <span>• {lesson.formatted_file_size}</span>}
                               </div>
                             </div>
                             <StatusBadge status={lesson.status} />
                             <div className="flex items-center gap-1">
                               <button
                                 onClick={() => openEditLesson(module.id, lesson)}
-                                className="btn-icon btn-icon-edit um-icon-btn"
+                                className="p-1.5 rounded text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                               >
                                 <PencilIcon className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => deleteLesson(module.id, lesson)}
-                                className="btn-icon btn-icon-delete um-icon-btn"
+                                className="p-1.5 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                               >
                                 <TrashIcon className="w-4 h-4" />
                               </button>
@@ -1241,7 +1329,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                       </div>
                     </div>
                     <p className="mt-4 text-xs text-purple-600 dark:text-purple-400">
-                      When published, this module will appear in the sidebar navigation for all admins.
+                      ✓ When published, this module will appear in the sidebar navigation for all admins.
                     </p>
                   </div>
                 </div>
@@ -1253,8 +1341,8 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
 
       {/* Module Modal */}
       {showModuleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full mx-auto max-h-[90vh] overflow-y-auto ${moduleForm.module_type === 'ui_component' ? 'max-w-5xl' : 'max-w-lg'}`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
@@ -1272,8 +1360,8 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
               </div>
 
               <div className="space-y-4">
-                {/* Title */}
-                {(moduleForm.module_type === 'learning' || moduleForm.module_type === 'ui_component') && (
+                {/* Title - For learning modules OR editing UI components */}
+                {(moduleForm.module_type === 'learning' || (moduleForm.module_type === 'ui_component' && editingModule)) && (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Title *
@@ -1293,35 +1381,113 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                   </div>
                 )}
 
-                {/* Icon Name — visual picker */}
-                {moduleForm.module_type === 'ui_component' && (
+                {/* Icon Name - Only for editing UI components */}
+                {moduleForm.module_type === 'ui_component' && editingModule && (
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      Sidebar Icon *
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Icon Name *
                     </label>
-                    <div className="grid grid-cols-8 gap-1.5 p-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900/40">
-                      {iconChoicesForSidebar.map((choice) => (
-                        <button
-                          key={choice.name}
-                          type="button"
-                          title={choice.name}
-                          onClick={() => setModuleForm((prev) => ({ ...prev, icon_name: choice.name }))}
-                          className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${
-                            moduleForm.icon_name === choice.name
-                              ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 ring-2 ring-purple-400'
-                              : 'hover:bg-white dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400'
-                          }`}
-                        >
-                          <choice.Icon className="h-5 w-5" />
-                          <span className="text-[9px] leading-tight text-center truncate w-full">{choice.name}</span>
-                        </button>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={moduleForm.icon_name}
+                        onChange={(e) => setModuleForm((prev) => ({ ...prev, icon_name: e.target.value }))}
+                        className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500"
+                        placeholder="e.g., Cake, Gift, Calendar, Bell"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const suggested = suggestIconFromTitle(moduleForm.title);
+                          setModuleForm((prev) => ({ ...prev, icon_name: suggested }));
+                        }}
+                        className="px-3 py-2 bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-lg text-sm font-medium transition-colors"
+                        title="Auto-suggest icon from title"
+                      >
+                        Auto
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Click "Auto" to suggest an icon based on the title, or enter manually (e.g., Cake, Gift, Calendar)
+                    </p>
+                  </div>
+                )}
+
+                {/* Button Configuration - Only for editing UI components */}
+                {moduleForm.module_type === 'ui_component' && editingModule && (
+                  <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                      Page Buttons
+                    </label>
+                    <div className="space-y-3">
+                      {(moduleForm.component_config?.buttons || [
+                        { label: 'Get Started', url: '', style: 'primary', visible: true },
+                        { label: 'Learn More', url: '', style: 'secondary', visible: true }
+                      ]).map((btn: any, idx: number) => (
+                        <div key={idx} className="bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
+                          <div className="flex items-center gap-2 mb-2">
+                            <input
+                              type="checkbox"
+                              checked={btn.visible !== false}
+                              onChange={(e) => {
+                                const buttons = [...(moduleForm.component_config?.buttons || [
+                                  { label: 'Get Started', url: '', style: 'primary', visible: true },
+                                  { label: 'Learn More', url: '', style: 'secondary', visible: true }
+                                ])];
+                                buttons[idx] = { ...buttons[idx], visible: e.target.checked };
+                                setModuleForm((prev) => ({
+                                  ...prev,
+                                  component_config: { ...prev.component_config, buttons }
+                                }));
+                              }}
+                              className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                            />
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                              Button {idx + 1} {idx === 0 ? '(Primary)' : '(Secondary)'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              value={btn.label || ''}
+                              onChange={(e) => {
+                                const buttons = [...(moduleForm.component_config?.buttons || [
+                                  { label: 'Get Started', url: '', style: 'primary', visible: true },
+                                  { label: 'Learn More', url: '', style: 'secondary', visible: true }
+                                ])];
+                                buttons[idx] = { ...buttons[idx], label: e.target.value };
+                                setModuleForm((prev) => ({
+                                  ...prev,
+                                  component_config: { ...prev.component_config, buttons }
+                                }));
+                              }}
+                              className="px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                              placeholder="Button text"
+                            />
+                            <input
+                              type="text"
+                              value={btn.url || ''}
+                              onChange={(e) => {
+                                const buttons = [...(moduleForm.component_config?.buttons || [
+                                  { label: 'Get Started', url: '', style: 'primary', visible: true },
+                                  { label: 'Learn More', url: '', style: 'secondary', visible: true }
+                                ])];
+                                buttons[idx] = { ...buttons[idx], url: e.target.value };
+                                setModuleForm((prev) => ({
+                                  ...prev,
+                                  component_config: { ...prev.component_config, buttons }
+                                }));
+                              }}
+                              className="px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                              placeholder="URL (optional)"
+                            />
+                          </div>
+                        </div>
                       ))}
                     </div>
-                    {moduleForm.icon_name && (
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        Selected: <span className="font-medium text-purple-600 dark:text-purple-400">{moduleForm.icon_name}</span>
-                      </p>
-                    )}
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                      Customize the buttons shown on the module page. Uncheck to hide a button.
+                    </p>
                   </div>
                 )}
 
@@ -1433,22 +1599,22 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
     <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Total Users</p>
       <p class="text-3xl font-bold text-slate-900 dark:text-white">1,234</p>
-      <p class="text-sm text-green-600 mt-2">? 12% from last month</p>
+      <p class="text-sm text-green-600 mt-2">↑ 12% from last month</p>
     </div>
     <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Active Courses</p>
       <p class="text-3xl font-bold text-slate-900 dark:text-white">48</p>
-      <p class="text-sm text-green-600 mt-2">? 8% from last month</p>
+      <p class="text-sm text-green-600 mt-2">↑ 8% from last month</p>
     </div>
     <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Completion Rate</p>
       <p class="text-3xl font-bold text-slate-900 dark:text-white">87%</p>
-      <p class="text-sm text-green-600 mt-2">? 5% from last month</p>
+      <p class="text-sm text-green-600 mt-2">↑ 5% from last month</p>
     </div>
     <div class="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
       <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Avg. Score</p>
       <p class="text-3xl font-bold text-slate-900 dark:text-white">92%</p>
-      <p class="text-sm text-green-600 mt-2">? 3% from last month</p>
+      <p class="text-sm text-green-600 mt-2">↑ 3% from last month</p>
     </div>
   </div>
 
@@ -1518,7 +1684,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
     <div class="space-y-4">
       <div class="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <div class="flex items-start gap-3">
-          <span class="bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 p-2 rounded-lg">??</span>
+          <span class="bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 p-2 rounded-lg">⚠️</span>
           <div class="flex-1">
             <p class="font-semibold text-slate-900 dark:text-white">System Maintenance</p>
             <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Scheduled maintenance on April 15, 2026 from 2:00 AM - 4:00 AM</p>
@@ -1528,7 +1694,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
       </div>
       <div class="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
         <div class="flex items-start gap-3">
-          <span class="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 p-2 rounded-lg">??</span>
+          <span class="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 p-2 rounded-lg">ℹ️</span>
           <div class="flex-1">
             <p class="font-semibold text-slate-900 dark:text-white">New Course Available</p>
             <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Advanced Safety Training is now available for enrollment</p>
@@ -1631,7 +1797,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                         {/* Auto-generated page content preview */}
                         <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
                           <p className="text-sm text-purple-800 dark:text-purple-200">
-                            <span className="font-medium">Page content will be auto-generated</span>
+                            <span className="font-medium">✓ Page content will be auto-generated</span>
                             <br />
                             <span className="text-xs text-purple-600 dark:text-purple-400">
                               A professional page layout will be created based on your title and description.
@@ -1788,7 +1954,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
                   disabled={
                     savingModule ||
                     (moduleForm.module_type === 'learning' && !moduleForm.title.trim()) ||
-                    (moduleForm.module_type === 'ui_component' && (!moduleForm.title.trim() || !moduleForm.icon_name.trim()))
+                    (moduleForm.module_type === 'ui_component' && !moduleForm.icon_name.trim())
                   }
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
                 >
@@ -1819,7 +1985,7 @@ export function CustomFieldBuilder({ onNavigate, initialExpandedModuleId }: Cust
 
               {!editingLesson && (
                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                  ?? You can add multiple lessons to this module. Click "Save & Add Another" to add more lessons quickly.
+                  💡 You can add multiple lessons to this module. Click "Save & Add Another" to add more lessons quickly.
                 </p>
               )}
 

@@ -4,6 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Course;
+use App\Models\Lesson;
+use App\Models\LessonEvent;
+use App\Models\Module;
+use App\Models\ProductLogo;
+use App\Models\Quiz;
+use App\Models\QuizAttempt;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -50,14 +57,10 @@ class Enrollment extends Model
             ->where('course_id', $courseId)
             ->first();
 
-        if (! $enrollment) {
-            return;
-        }
+        if (!$enrollment) return;
 
         $course = Course::with('modules')->find($courseId);
-        if (! $course) {
-            return;
-        }
+        if (!$course) return;
 
         $moduleIds = $course->modules->pluck('id');
 
@@ -65,7 +68,6 @@ class Enrollment extends Model
 
         if ($quizzes->isEmpty()) {
             $enrollment->update(['progress' => 100, 'status' => 'Completed']);
-
             return;
         }
 
@@ -91,7 +93,7 @@ class Enrollment extends Model
 
         $enrollment->update([
             'progress' => $progress,
-            'status' => $status,
+            'status'   => $status,
         ]);
 
         // Auto-generate certificate when course is completed
@@ -127,12 +129,12 @@ class Enrollment extends Model
         }
 
         Certificate::create([
-            'user_id' => $userId,
-            'course_id' => $courseId,
+            'user_id'          => $userId,
+            'course_id'        => $courseId,
             'certificate_code' => $code,
-            'completed_at' => $now,
-            'score' => round($avgScore, 2),
-            'logo_path' => static::resolveLogoPath($userId, $course, $quizzes),
+            'completed_at'     => $now,
+            'score'            => round($avgScore, 2),
+            'logo_path'        => static::resolveLogoPath($userId, $course, $quizzes),
         ]);
     }
 
@@ -143,7 +145,7 @@ class Enrollment extends Model
     public static function resolveCertificateLogoPathForUserCourse(int $userId, string $courseId): ?string
     {
         $course = Course::find($courseId);
-        if (! $course) {
+        if (!$course) {
             return null;
         }
 
@@ -162,7 +164,7 @@ class Enrollment extends Model
         $moduleHasLogoPath = Schema::hasColumn('modules', 'logo_path');
 
         // Primary source for collaborator branding: one logo per course.
-        if (! empty($course->logo_path)) {
+        if (!empty($course->logo_path)) {
             return $course->logo_path;
         }
 
@@ -178,12 +180,12 @@ class Enrollment extends Model
             ->first();
 
         $completedModuleId = $latestPassed?->quiz?->module_id;
-        if ($moduleHasLogoPath && ! empty($completedModuleId)) {
+        if ($moduleHasLogoPath && !empty($completedModuleId)) {
             $completedModuleLogo = Module::where('id', $completedModuleId)
                 ->whereNotNull('logo_path')
                 ->value('logo_path');
 
-            if (! empty($completedModuleLogo)) {
+            if (!empty($completedModuleLogo)) {
                 return $completedModuleLogo;
             }
         }
@@ -193,19 +195,19 @@ class Enrollment extends Model
             $query->select('id')->from('modules')->where('course_id', $course->id);
         })->pluck('id')->all();
 
-        if (! empty($lessonIdsInCourse)) {
+        if (!empty($lessonIdsInCourse)) {
             $latestLessonEvent = LessonEvent::where('user_id', $userId)
                 ->whereIn('lesson_id', $lessonIdsInCourse)
                 ->whereIn('event_type', ['lesson_completed', 'lesson_complete', 'completed', 'yt_end'])
                 ->orderByDesc('created_at')
                 ->first();
 
-            if (! empty($latestLessonEvent?->lesson_id)) {
+            if (!empty($latestLessonEvent?->lesson_id)) {
                 $lessonLogo = ProductLogo::where('lesson_id', $latestLessonEvent->lesson_id)
                     ->orderByDesc('id')
                     ->value('file_path');
 
-                if (! empty($lessonLogo)) {
+                if (!empty($lessonLogo)) {
                     return $lessonLogo;
                 }
 
@@ -216,20 +218,20 @@ class Enrollment extends Model
                     })->whereNotNull('logo_path')->value('logo_path');
                 }
 
-                if (! empty($lessonModuleLogo)) {
+                if (!empty($lessonModuleLogo)) {
                     return $lessonModuleLogo;
                 }
             }
         }
 
         // Primary source: direct logo assignment on modules table.
-        if ($moduleHasLogoPath && ! empty($moduleIds)) {
+        if ($moduleHasLogoPath && !empty($moduleIds)) {
             $module = Module::whereIn('id', $moduleIds)
                 ->whereNotNull('logo_path')
                 ->orderBy('id')
                 ->first();
 
-            if (! empty($module?->logo_path)) {
+            if (!empty($module?->logo_path)) {
                 return $module->logo_path;
             }
         }
@@ -243,7 +245,7 @@ class Enrollment extends Model
                 ->value('logo_path');
         }
 
-        if (! empty($courseModuleLogo)) {
+        if (!empty($courseModuleLogo)) {
             return $courseModuleLogo;
         }
 
@@ -258,7 +260,7 @@ class Enrollment extends Model
             }
         }
 
-        if (! empty($moduleIds)) {
+        if (!empty($moduleIds)) {
             $lessonLogo = ProductLogo::whereIn('lesson_id', function ($query) use ($moduleIds) {
                 $query->select('id')
                     ->from('lessons')

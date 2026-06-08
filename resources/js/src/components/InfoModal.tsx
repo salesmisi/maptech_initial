@@ -1,7 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { XMarkIcon, InformationCircleIcon, CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/outline';
-import { actionButtonClasses } from '../utils/uiPalette';
 
 interface InfoModalProps {
   open: boolean;
@@ -28,12 +27,12 @@ export default function InfoModal({
   const variantStyles = {
     info: {
       iconBg: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-      button: `${actionButtonClasses.info} focus:ring-blue-500`,
+      button: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500',
       Icon: InformationCircleIcon,
     },
     success: {
       iconBg: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
-      button: `${actionButtonClasses.success} focus:ring-green-500`,
+      button: 'bg-green-600 hover:bg-green-700 focus:ring-green-500',
       Icon: CheckCircleIcon,
     },
     warning: {

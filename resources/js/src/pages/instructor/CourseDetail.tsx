@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ArrowLeft,
   BookOpen,
@@ -22,16 +22,13 @@ import {
   GripVertical,
   Users,
   UserMinus,
-  Award,
 } from 'lucide-react';
 import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
-const PresentationViewer = lazy(() => import('../../components/PresentationViewer'));
 import YouTubePlayer from '../../components/YouTubePlayer';
 import UnlockModuleModal from '../../components/UnlockModuleModal';
 import DepartmentSelectModal from '../../components/DepartmentSelectModal';
 import useConfirm from '../../hooks/useConfirm';
 import { safeArray } from '../../utils/safe';
-import { QuizAssessmentManagement } from './QuizAssessmentManagement';
 
 const API_BASE = '/api';
 
@@ -39,32 +36,13 @@ const getCookie = (name: string) => {
   const value = `; ${document.cookie}`;
   const parts = value.split(`; ${name}=`);
   if (parts.length === 2) return parts.pop()?.split(';').shift();
-}
+};
 
 const getXsrfToken = async (): Promise<string> => {
   await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
   return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
 };
 
-const LESSON_QUIZ_MAP_KEY = 'maptech_lesson_quiz_map';
-
-const loadLessonQuizMap = (): Record<string, number> => {
-  try {
-    const raw = localStorage.getItem(LESSON_QUIZ_MAP_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-};
-
-const saveLessonQuizMap = (quizId: number, lessonId: number) => {
-  try {
-    const next = { ...loadLessonQuizMap(), [String(quizId)]: lessonId };
-    localStorage.setItem(LESSON_QUIZ_MAP_KEY, JSON.stringify(next));
-  } catch {
-    // ignore storage errors
-  }
-};
 interface Lesson {
   id: number;
   title: string;
@@ -90,18 +68,15 @@ interface QuizSummary {
   id: number;
   title: string;
   description: string | null;
-  quiz_type?: 'pre-test' | 'post-test' | 'regular' | 'final-assessment' | null;
   pass_percentage: number;
   module_id: number | null;
-  lesson_id: number | null;
   question_count: number;
   created_at: string;
 }
 
-// Inline form for attaching a quiz to a module
+// ── Inline form for attaching a quiz to a module ──────────────────────────────
 interface AddQuizFormProps {
   moduleId: number;
-  lessonId?: number | null;
   courseId: string;
   onCreated: (quiz: QuizSummary) => void;
   onCancel: () => void;
@@ -110,64 +85,27 @@ interface AddQuizFormProps {
   quizType?: 'pre-test' | 'post-test' | 'regular';
 }
 
-function AddQuizForm({ moduleId, lessonId = null, courseId, onCreated, onCancel, onManageQuiz, apiPrefix, quizType = 'regular' }: AddQuizFormProps) {
+function AddQuizForm({ moduleId, courseId, onCreated, onCancel, onManageQuiz, apiPrefix, quizType = 'regular' }: AddQuizFormProps) {
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   const [passPercent, setPassPercent] = useState(70);
-  const [selectedQuizType, setSelectedQuizType] = useState<'pre-test' | 'post-test' | 'regular'>(quizType);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const handleSave = async () => {
-    if (!title.trim()) {
-      setErr('Quiz title is required.');
-      return;
-    }
-
-    setSaving(true);
-    setErr(null);
-
+    if (!title.trim()) { setErr('Quiz title is required.'); return; }
+    setSaving(true); setErr(null);
     try {
       const xsrf = await getXsrfToken();
       const res = await fetch(`${API_BASE}/${apiPrefix}/modules/${moduleId}/quizzes`, {
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': xsrf },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: desc.trim() || null,
-          pass_percentage: passPercent,
-          quiz_type: quizType,
-          lesson_id: lessonId,
-        }),
+        body: JSON.stringify({ title: title.trim(), description: desc.trim() || null, pass_percentage: passPercent, quiz_type: quizType }),
       });
-
       const data = await res.json();
-      if (!res.ok) {
-        const serverMsg = data?.message || (data?.errors ? JSON.stringify(data.errors) : null) || 'Failed to create quiz.';
-        throw new Error(serverMsg);
-      }
-
-      if (lessonId != null) {
-        saveLessonQuizMap(data.id, lessonId);
-        try {
-          await fetch(`${API_BASE}/${apiPrefix}/quizzes/${data.id}`, {
-            method: 'PUT',
-            credentials: 'include',
-            headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': xsrf },
-            body: JSON.stringify({ lesson_id: lessonId }),
-          });
-        } catch {
-          // Non-blocking: local mapping already keeps UI in place.
-        }
-      }
-
-      onCreated({
-        ...data,
-        lesson_id: lessonId ?? data.lesson_id ?? null,
-        module_id: moduleId,
-        quiz_type: data.quiz_type || quizType,
-      });
+      if (!res.ok) throw new Error(data.message || 'Failed to create quiz.');
+      onCreated(data);
       onManageQuiz(data.id, courseId);
     } catch (e: any) {
       setErr(e.message);
@@ -177,39 +115,36 @@ function AddQuizForm({ moduleId, lessonId = null, courseId, onCreated, onCancel,
   };
 
   const quizTypeLabel = quizType === 'pre-test' ? 'Pre-Test' : quizType === 'post-test' ? 'Post-Test' : 'Quiz';
-  const bgColor = quizType === 'pre-test' ? 'bg-blue-50 dark:bg-blue-900/20' : quizType === 'post-test' ? 'bg-purple-50 dark:bg-purple-900/20' : 'bg-blue-50 dark:bg-blue-900/20';
-  const borderColor = quizType === 'pre-test' ? 'border-blue-200 dark:border-blue-700/50' : quizType === 'post-test' ? 'border-purple-200 dark:border-purple-700/50' : 'border-blue-200 dark:border-blue-700/50';
-  const textColor = quizType === 'pre-test' ? 'text-blue-700 dark:text-blue-300' : quizType === 'post-test' ? 'text-purple-700 dark:text-purple-300' : 'text-blue-700 dark:text-blue-300';
+  const bgColor = quizType === 'pre-test' ? 'bg-blue-50 dark:bg-blue-900/20' : quizType === 'post-test' ? 'bg-purple-50 dark:bg-purple-900/20' : 'bg-indigo-50 dark:bg-indigo-900/20';
+  const borderColor = quizType === 'pre-test' ? 'border-blue-200 dark:border-blue-700/50' : quizType === 'post-test' ? 'border-purple-200 dark:border-purple-700/50' : 'border-indigo-200 dark:border-indigo-700/50';
+  const textColor = quizType === 'pre-test' ? 'text-blue-700 dark:text-blue-300' : quizType === 'post-test' ? 'text-purple-700 dark:text-purple-300' : 'text-indigo-700 dark:text-indigo-300';
 
   return (
     <div className={`mt-3 p-4 ${bgColor} border ${borderColor} rounded-lg space-y-3`}>
-      <p className={`text-xs font-semibold ${textColor} uppercase tracking-wide`}>
-        Attach {quizTypeLabel} to this {lessonId ? 'Lesson' : 'Module'}
-      </p>
+      <p className={`text-xs font-semibold ${textColor} uppercase tracking-wide`}>Attach {quizTypeLabel} to this Module</p>
       {err && <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{err}</p>}
       <input
         type="text"
         placeholder="Quiz title (e.g. Module 1 Assessment)"
         value={title}
         onChange={e => setTitle(e.target.value)}
-        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500"
+        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500"
       />
       <textarea
         rows={2}
         placeholder="Description (optional)"
         value={desc}
         onChange={e => setDesc(e.target.value)}
-        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 resize-none"
+        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 resize-none"
       />
       <div className="flex items-center gap-3">
         <label className="text-xs font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">Pass Percentage</label>
         <input
           type="number"
-          min={1}
-          max={100}
+          min={1} max={100}
           value={passPercent}
           onChange={e => setPassPercent(Number(e.target.value))}
-          className="w-20 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          className="w-20 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
         />
         <span className="text-xs text-slate-500 dark:text-slate-400">% to unlock next module</span>
       </div>
@@ -226,69 +161,6 @@ function AddQuizForm({ moduleId, lessonId = null, courseId, onCreated, onCancel,
           onClick={onCancel}
           className="px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-md hover:bg-red-50 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-900/20"
         >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function FinalAssessmentForm({ onCreated, onCancel }: {
-  onCreated: (title: string, description: string, passPercent: number) => Promise<void>;
-  onCancel: () => void;
-}) {
-  const [title, setTitle] = useState('Final Assessment');
-  const [desc, setDesc] = useState('');
-  const [passPercent, setPassPercent] = useState(70);
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const handleSave = async () => {
-    if (!title.trim()) { setErr('Title is required.'); return; }
-    setSaving(true);
-    setErr(null);
-    try {
-      await onCreated(title.trim(), desc.trim(), passPercent);
-    } catch (e: any) {
-      setErr(e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg space-y-3">
-      <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide">New Final Assessment</p>
-      {err && <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{err}</p>}
-      <input
-        type="text"
-        value={title}
-        onChange={e => setTitle(e.target.value)}
-        placeholder="Assessment title"
-        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400"
-      />
-      <input
-        type="text"
-        value={desc}
-        onChange={e => setDesc(e.target.value)}
-        placeholder="Description (optional)"
-        className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400"
-      />
-      <div className="flex items-center gap-3">
-        <label className="text-xs font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">Pass Percentage</label>
-        <input
-          type="number" min={1} max={100} value={passPercent}
-          onChange={e => setPassPercent(Number(e.target.value))}
-          className="w-20 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-amber-500"
-        />
-        <span className="text-xs text-slate-500 dark:text-slate-400">% to complete course</span>
-      </div>
-      <div className="flex gap-2">
-        <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm">
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-          {saving ? 'Creating...' : 'Create Final Assessment'}
-        </button>
-        <button onClick={onCancel} className="px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-md hover:bg-red-50 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-900/20">
           Cancel
         </button>
       </div>
@@ -488,26 +360,12 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
   // Quiz state — keyed by module_id (now supports multiple quizzes per module)
   const [quizByModule, setQuizByModule] = useState<Record<number, QuizSummary[]>>({});
-  const [finalAssessmentQuizzes, setFinalAssessmentQuizzes] = useState<QuizSummary[]>([]);
-  const [addingFinalAssessment, setAddingFinalAssessment] = useState(false);
   const [quizzesLoading, setQuizzesLoading] = useState(false);
-  const [courseQuizCount, setCourseQuizCount] = useState<number>(0);
-  const [addingQuizForModule, setAddingQuizForModule] = useState<string | number | null>(null);
-  const [focusedQuizId, setFocusedQuizId] = useState<number | null>(null);
+  const [addingQuizForModule, setAddingQuizForModule] = useState<number | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
   const [deletingQuizId, setDeletingQuizId] = useState<number | null>(null);
   const confirm = useConfirm();
   const { showConfirm } = confirm;
-  const inferQuizType = (quiz: QuizSummary) => {
-    const title = (quiz.title || '').toLowerCase();
-    const description = (quiz.description || '').toLowerCase();
-    const typed = (quiz.quiz_type || '').toLowerCase();
-    if (typed === 'pre-test' || title.includes('pre-test') || description.includes('pre-test')) return 'pre-test';
-    if (typed === 'post-test' || title.includes('post-test') || description.includes('post-test')) return 'post-test';
-    if (typed === 'final-assessment' || title.includes('final assessment') || description.includes('final assessment')) return 'final-assessment';
-    return quiz.lesson_id ? 'regular' : 'regular';
-  };
-
   const [unenrollConfirm, setUnenrollConfirm] = useState<{ userId: number; name: string } | null>(null);
   const [unlockModalAction, setUnlockModalAction] = useState<'unlock' | 'lock'>('unlock');
   const [unlockModalOpen, setUnlockModalOpen] = useState(false);
@@ -515,17 +373,11 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   const [deptModalOpen, setDeptModalOpen] = useState(false);
   const [deptModalModuleId, setDeptModalModuleId] = useState<number | null>(null);
   const [deptModalAction, setDeptModalAction] = useState<'unlock' | 'lock'>('unlock');
-  const persistedLessonQuizIdsRef = useRef<Set<number>>(new Set());
   // Simple "unlock for all enrolled users" modal state
   const [moduleUnlockAllOpen, setModuleUnlockAllOpen] = useState(false);
   const [moduleUnlockAllModuleId, setModuleUnlockAllModuleId] = useState<number | null>(null);
   const [moduleUnlockDuration, setModuleUnlockDuration] = useState<number>(1440);
   const [moduleUnlockPermanent, setModuleUnlockPermanent] = useState(false);
-
-  const openQuizInManager = (quizId: number) => {
-    setFocusedQuizId(quizId);
-    setActiveTab('quizzes');
-  };
 
   // Edit module state
   const [editingModuleId, setEditingModuleId] = useState<number | null>(null);
@@ -549,7 +401,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
   const editLessonFileRef = useRef<HTMLInputElement>(null);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'modules' | 'quizzes' | 'students'>('modules');
+  const [activeTab, setActiveTab] = useState<'modules' | 'students'>('modules');
   const [highlightUserName, setHighlightUserName] = useState<string | null>(null);
 
   // Enrollment state
@@ -865,20 +717,6 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
     });
   };
 
-  const persistLessonQuizMapping = useCallback(async (quizId: number, lessonId: number) => {
-    try {
-      const token = await getXsrfToken();
-      await fetch(`${API_BASE}/${apiPrefix}/quizzes/${quizId}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token },
-        body: JSON.stringify({ lesson_id: lessonId }),
-      });
-    } catch {
-      // ignore persistence errors; UI still uses local mapping
-    }
-  }, [apiPrefix]);
-
   const loadQuizzes = async () => {
     setQuizzesLoading(true);
     try {
@@ -888,39 +726,14 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       });
       if (res.ok) {
         const quizzes: QuizSummary[] = await res.json();
-        const lessonQuizMap = loadLessonQuizMap();
-        const pendingLessonAssignments: Array<{ quizId: number; lessonId: number }> = [];
-        const normalizedQuizzes = quizzes.map((quiz) => {
-          if (quiz.lesson_id != null) return quiz;
-          const mappedLessonId = lessonQuizMap[String(quiz.id)];
-          if (mappedLessonId) {
-            pendingLessonAssignments.push({ quizId: quiz.id, lessonId: mappedLessonId });
-            return { ...quiz, lesson_id: mappedLessonId };
-          }
-          return quiz;
-        });
-        // Total quizzes in this course (including course-level quizzes)
-        setCourseQuizCount(normalizedQuizzes.length);
         const byModule: Record<number, QuizSummary[]> = {};
-        const courseLevelQuizzes: QuizSummary[] = [];
-        normalizedQuizzes.forEach((quiz) => {
-          const q = { ...quiz, quiz_type: inferQuizType(quiz) };
-          if (q.module_id !== null && q.module_id !== undefined) {
+        quizzes.forEach(q => {
+          if (q.module_id !== null) {
             if (!byModule[q.module_id]) byModule[q.module_id] = [];
             byModule[q.module_id].push(q);
-          } else {
-            // Course-level quiz (no module) — treated as final assessment
-            courseLevelQuizzes.push({ ...q, quiz_type: 'final-assessment' });
           }
         });
         setQuizByModule(byModule);
-        setFinalAssessmentQuizzes(courseLevelQuizzes);
-
-        pendingLessonAssignments.forEach(({ quizId, lessonId }) => {
-          if (persistedLessonQuizIdsRef.current.has(quizId)) return;
-          persistedLessonQuizIdsRef.current.add(quizId);
-          persistLessonQuizMapping(quizId, lessonId);
-        });
       }
     } catch (_) {
       // non-critical
@@ -1070,14 +883,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       const combinedText = composeLessonContent(lessonInfo, lessonTextContent, {});
       if (combinedText.trim()) fd.append('text_content', combinedText);
       if (lessonLink.trim()) fd.append('content_url', lessonLink.trim());
-      if (lessonFile) {
-        fd.append('content', lessonFile);
-        const ext = lessonFile.name.split('.').pop()?.toLowerCase() || '';
-        const videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'flv'];
-        fd.append('type', videoExts.includes(ext) ? 'Video' : 'Document');
-      } else {
-        fd.append('type', 'Text');
-      }
+      if (lessonFile) fd.append('content', lessonFile);
 
       const res = await fetch(`${API_BASE}/${apiPrefix}/modules/${moduleId}/lessons`, {
         method: 'POST',
@@ -1379,31 +1185,6 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
     });
   };
 
-  const handleCreateFinalAssessment = async (title: string, description: string, passPercent: number) => {
-    try {
-      const token = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/${apiPrefix}/courses/${courseId}/quizzes`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || null,
-          pass_percentage: passPercent,
-          quiz_type: 'final-assessment',
-          module_id: null,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || 'Failed to create final assessment.');
-      setAddingFinalAssessment(false);
-      await loadQuizzes();
-      if (onManageQuiz) onManageQuiz(data.id, courseId);
-    } catch (e: any) {
-      alert(e.message);
-    }
-  };
-
   // ─── ENROLLMENT HANDLERS ──────────────────────────────────────────────────
   const enrolledIds = new Set(course?.enrolled_users.map(u => u.id) ?? []);
 
@@ -1536,8 +1317,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       </button>
 
       {/* Course Header */}
-      <div className={`${headerColor} rounded-2xl p-6 text-white shadow-sm`}>
-        <div className="flex items-start justify-between gap-4">
+      <div className={`${headerColor} rounded-xl p-6 text-white`}>
+        <div className="flex items-start justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2">
               <span className="text-xs font-semibold bg-white/20 px-2 py-0.5 rounded-full inline-block">
@@ -1575,13 +1356,13 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
               </>
             )}
           </div>
-          <div className="flex flex-col items-end gap-3">
+          <div className="flex flex-col items-end gap-2">
             {editingCourseMeta ? (
-              <div className="flex items-center gap-2 rounded-full bg-white/10 p-1 backdrop-blur-sm">
+              <div className="flex items-center gap-2">
                 <button
                   onClick={handleSaveCourseMeta}
                   disabled={savingCourseMeta || !courseTitleDraft.trim()}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/35 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-md border border-white/40 px-2.5 py-1 text-xs font-semibold text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {savingCourseMeta ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
                   {savingCourseMeta ? 'Saving' : 'Save'}
@@ -1589,7 +1370,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                 <button
                   onClick={cancelEditCourseMeta}
                   disabled={savingCourseMeta}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/20 px-3 py-1.5 text-xs font-semibold text-white/90 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-md border border-white/40 px-2.5 py-1 text-xs font-semibold text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <X className="h-3 w-3" />
                   Cancel
@@ -1600,7 +1381,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                 onClick={startEditCourseMeta}
                 aria-label="Edit course details"
                 title="Edit course details"
-                className="inline-flex items-center justify-center rounded-full p-2 text-white/90 hover:text-white hover:bg-white/10"
+                className="inline-flex items-center justify-center p-1.5 rounded-md text-white/90 hover:text-white hover:bg-white/10"
               >
                 <Pencil className="h-3 w-3" />
               </button>
@@ -1622,13 +1403,13 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
+      <div className="flex gap-1 border-b border-slate-200">
         <button
           onClick={() => setActiveTab('modules')}
-          className={`inline-flex items-center gap-2 whitespace-nowrap rounded-t-xl px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'modules'
               ? 'border-green-600 text-green-700'
-              : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
           <span className="flex items-center gap-1.5">
@@ -1638,25 +1419,11 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
           </span>
         </button>
         <button
-          onClick={() => setActiveTab('quizzes')}
-          className={`inline-flex items-center gap-2 whitespace-nowrap rounded-t-xl px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'quizzes'
-              ? 'border-green-600 text-green-700'
-              : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-          }`}
-        >
-          <span className="flex items-center gap-1.5">
-            <HelpCircle className="h-4 w-4" />
-            Quizzes
-            <span className="text-xs bg-slate-100 text-slate-600 rounded-full px-1.5 py-0.5">{courseQuizCount}</span>
-          </span>
-        </button>
-        <button
           onClick={() => setActiveTab('students')}
-          className={`inline-flex items-center gap-2 whitespace-nowrap rounded-t-xl px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'students'
               ? 'border-green-600 text-green-700'
-              : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
           <span className="flex items-center gap-1.5">
@@ -1669,8 +1436,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
       {/* Modules Panel */}
       {activeTab === 'modules' && (
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center gap-3">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <BookOpen className="h-5 w-5 text-slate-600" />
             <h2 className="text-base font-semibold text-slate-900">
@@ -1689,22 +1456,22 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
         {/* Add module form */}
         {addingModule && (
-          <div className="mx-6 mt-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">New Module</h3>
+          <div className="mx-6 mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <h3 className="text-sm font-medium text-slate-700 mb-3">New Module</h3>
             <div className="space-y-3">
               <input
                 type="text"
                 placeholder="Module title"
                 value={moduleTitle}
                 onChange={(e) => setModuleTitle(e.target.value)}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-green-500 focus:ring-green-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-green-500 focus:border-green-500"
               />
               <textarea
                 rows={6}
                 placeholder="Lesson content — e.g. Introduction, What to learn, Where to start, What to know..."
                 value={moduleDescription}
                 onChange={(e) => setModuleDescription(e.target.value)}
-                className="w-full resize-y rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-green-500 focus:ring-green-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-green-500 focus:border-green-500 resize-y"
               />
               {moduleError && (
                 <p className="text-xs text-red-600 flex items-center gap-1">
@@ -1746,6 +1513,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
           ) : (
             safeArray(course.modules).map((mod, idx) => {
               const quizzes = quizByModule[mod.id] || [];
+              const quiz = quizzes[0]; // First quiz for backward compatibility
               const hasQuiz = quizzes.length > 0;
               const isExpanded = expandedModules.has(mod.id);
               const isEditingMod = editingModuleId === mod.id;
@@ -1798,7 +1566,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                           <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{mod.title}</p>
                           <p className="text-xs text-slate-400 dark:text-slate-300 mt-0.5">
                             {mod.lessons?.length || 0} lesson{(mod.lessons?.length || 0) !== 1 ? 's' : ''}
-                            {hasQuiz ? ` · ${quizzes.length} quiz${quizzes.length !== 1 ? 'zes' : ''}` : ''}
+                            {quiz ? ` · Quiz: ${quiz.pass_percentage}% to pass` : ''}
                           </p>
                         </>
                       )}
@@ -1806,10 +1574,10 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
 
                     {quizzesLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin text-slate-400 flex-shrink-0" />
-                    ) : hasQuiz ? (
-                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-medium flex-shrink-0">
+                    ) : quiz ? (
+                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium flex-shrink-0">
                         <HelpCircle className="h-3.5 w-3.5" />
-                        {quizzes.length} Quiz{quizzes.length !== 1 ? 'zes' : ''}
+                        Quiz
                       </span>
                     ) : null}
 
@@ -1818,7 +1586,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                     {!isEditingMod && (
                       <button
                         onClick={(e) => { e.stopPropagation(); startEditModule(mod); }}
-                        className="p-1.5 text-slate-400 dark:text-slate-300 hover:text-green-600 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 rounded flex-shrink-0"
+                        className="p-1.5 text-slate-400 dark:text-slate-300 hover:text-green-600 dark:hover:text-emerald-300 hover:bg-green-50 dark:hover:bg-emerald-900/30 rounded flex-shrink-0"
                         title="Edit module"
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -1846,68 +1614,30 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                           <HelpCircle className="h-3.5 w-3.5" />
                           Pre-Test (Before Lessons)
                         </p>
-                        {(() => {
-                          const quizzes = quizByModule[mod.id] || [];
-
-                          if (addingQuizForModule === `pre-test-${mod.id}`) {
-                            return (
-                              <AddQuizForm
-                                moduleId={mod.id}
-                                courseId={courseId}
-                                quizType="pre-test"
-                                onCreated={(q) => {
-                                  setQuizByModule(prev => ({
-                                    ...prev,
-                                    [mod.id]: [...(prev[mod.id] || []), q]
-                                  }));
-                                  setAddingQuizForModule(null);
-                                }}
-                                onCancel={() => setAddingQuizForModule(null)}
-                                onManageQuiz={onManageQuiz}
-                                apiPrefix={apiPrefix}
-                              />
-                            );
-                          }
-
-                          // List all pre-test quizzes for this module
-                          const preTests = quizzes.filter((q: any) => inferQuizType(q) === 'pre-test');
-
-                          return (
-                            <div>
-                              {preTests.length > 0 ? (
-                                <div className="space-y-2 mb-2">
-                                  {preTests.map(pt => (
-                                    <div key={pt.id} className="flex items-center justify-between gap-3">
-                                      <div className="flex items-center gap-3">
-                                        <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-                                          <HelpCircle className="h-4 w-4 text-blue-600" />
-                                        </div>
-                                        <div>
-                                          <p className="text-sm font-semibold text-slate-900">{pt.title}</p>
-                                          {pt.description && <p className="text-xs text-slate-500 mt-0.5">{pt.description}</p>}
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <button onClick={() => openQuizInManager(pt.id)} className="p-1.5 text-green-500 hover:text-green-700 hover:bg-green-100 dark:hover:bg-green-900/25 rounded" title="Edit quiz">
-                                          <Pencil className="h-4 w-4" />
-                                        </button>
-                                        <button onClick={() => handleDeleteQuiz(pt.id)} disabled={deletingQuizId === pt.id} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-100 rounded disabled:opacity-40">
-                                          {deletingQuizId === pt.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : null}
-
-                              {preTests.length === 0 && (
-                                <button onClick={() => setAddingQuizForModule(`pre-test-${mod.id}`)} className="btn btn-primary btn-sm">
-                                  <Plus className="h-4 w-4" /> Add Pre-Test
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })()}
+                        {addingQuizForModule === `pre-test-${mod.id}` ? (
+                          <AddQuizForm
+                            moduleId={mod.id}
+                            courseId={courseId}
+                            quizType="pre-test"
+                            onCreated={(q) => {
+                              setQuizByModule(prev => ({
+                                ...prev,
+                                [mod.id]: [...(prev[mod.id] || []), q]
+                              }));
+                              setAddingQuizForModule(null);
+                            }}
+                            onCancel={() => setAddingQuizForModule(null)}
+                            onManageQuiz={onManageQuiz}
+                            apiPrefix={apiPrefix}
+                          />
+                        ) : (
+                          <button
+                            onClick={() => setAddingQuizForModule(`pre-test-${mod.id}`)}
+                            className="btn btn-primary btn-sm"
+                          >
+                            <Plus className="h-4 w-4" /> Add Pre-Test
+                          </button>
+                        )}
                       </div>
 
                       {/* Lessons list */}
@@ -1982,7 +1712,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                             className="inline-flex items-center px-3 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded border border-blue-200 dark:border-blue-700 flex-shrink-0">View file</a>
                                         )}
                                         <button onClick={() => startEditLesson(lesson)}
-                                          className="p-1 text-slate-400 dark:text-slate-300 hover:text-green-600 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 rounded flex-shrink-0" title="Edit lesson">
+                                          className="p-1 text-slate-400 dark:text-slate-300 hover:text-green-600 dark:hover:text-emerald-300 hover:bg-green-50 dark:hover:bg-emerald-900/30 rounded flex-shrink-0" title="Edit lesson">
                                           <Pencil className="h-3.5 w-3.5" />
                                         </button>
                                         <button onClick={() => handleDeleteLesson(mod.id, lesson.id)}
@@ -1991,14 +1721,14 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                         </button>
                                       </div>
                                       {lesson.text_content && (
-                                        <div className="px-4 pb-3 pt-1 border-t border-slate-200 dark:border-slate-700">
+                                        <div className="px-4 pb-3 pt-1 border-t border-slate-200">
                                           {quickEditLessonId === lesson.id ? (
                                             <div className="space-y-2">
                                               <textarea
                                                 value={quickEditInfo}
                                                 onChange={(e) => setQuickEditInfo(e.target.value)}
                                                 rows={3}
-                                                className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+                                                className="w-full border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
                                                 placeholder="Enter lesson text information or definition"
                                               />
                                               <div className="flex items-center gap-2">
@@ -2028,7 +1758,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                         </div>
                                       )}
                                       {lesson.content_url && lesson.file_type === 'video' && (
-                                        <div className="px-4 pb-3 pt-1 border-t border-slate-200 dark:border-slate-700">
+                                        <div className="px-4 pb-3 pt-1 border-t border-slate-200">
                                           {/(youtube\.com|youtu\.be)/.test(lesson.content_url) ? (
                                             <div className="w-full max-h-80 rounded-md overflow-hidden">
                                               <YouTubePlayer contentUrl={lesson.content_url} lessonId={lesson.id} />
@@ -2041,19 +1771,8 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                         </div>
                                       )}
                                       {lesson.content_url && lesson.file_type === 'pdf' && (
-                                        <div className="px-4 pb-3 pt-1 border-t border-slate-200 dark:border-slate-700">
-                                          <iframe src={lesson.content_url} className="w-full h-96 rounded-md border border-slate-300 dark:border-slate-600" title={lesson.title} />
-                                        </div>
-                                      )}
-                                      {lesson.content_url && lesson.file_type === 'presentation' && (
                                         <div className="px-4 pb-3 pt-1 border-t border-slate-200">
-                                          <Suspense fallback={<div className="p-3 text-sm text-slate-500">Loading presentation...</div>}>
-                                            <PresentationViewer
-                                              url={lesson.content_url}
-                                              title={lesson.title}
-                                              compact
-                                            />
-                                          </Suspense>
+                                          <iframe src={lesson.content_url} className="w-full h-96 rounded-md border border-slate-300" title={lesson.title} />
                                         </div>
                                       )}
                                     </>
@@ -2061,47 +1780,11 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                 </div>
                                 {/* End Lesson Display */}
 
-                                  {/* Quizzes attached to this lesson */}
-                                  {(() => {
-                                    const lessonQuizzes = (quizByModule[mod.id] || []).filter((q: any) => Number(q.lesson_id) === Number(lesson.id));
-                                    return lessonQuizzes.length > 0 ? (
-                                      <div className="mt-2 ml-6 space-y-2">
-                                        {lessonQuizzes.map((lq: any) => (
-                                          <div key={lq.id} className="bg-blue-50 dark:bg-slate-700/50 border border-blue-100 dark:border-slate-600 rounded-lg p-3">
-                                            <div className="flex items-start justify-between gap-4">
-                                              <div className="flex items-start gap-3">
-                                                <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
-                                                  <HelpCircle className="h-4 w-4 text-blue-600 dark:text-blue-300" />
-                                                </div>
-                                                <div>
-                                                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{lq.title}</p>
-                                                  {lq.description && <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5">{lq.description}</p>}
-                                                  <div className="flex gap-3 mt-1 text-xs text-slate-500 dark:text-slate-300">
-                                                    <span>{lq.question_count} question{lq.question_count !== 1 ? 's' : ''}</span>
-                                                  </div>
-                                                </div>
-                                              </div>
-                                              <div className="flex items-center gap-2 flex-shrink-0">
-                                                <button onClick={() => openQuizInManager(lq.id)} className="p-1.5 text-green-500 hover:text-green-700 hover:bg-green-100 dark:hover:bg-green-900/25 rounded" title="Edit quiz">
-                                                  <Pencil className="h-4 w-4" />
-                                                </button>
-                                                <button onClick={() => handleDeleteQuiz(lq.id)} disabled={deletingQuizId === lq.id} className="p-1.5 text-red-400 dark:text-rose-300 hover:text-red-600 dark:hover:text-rose-200 hover:bg-red-100 dark:hover:bg-rose-900/25 rounded disabled:opacity-40">
-                                                  {deletingQuizId === lq.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                                </button>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : null;
-                                  })()}
-
                                 {/* Add Quiz After This Lesson */}
                                 {addingQuizForModule === `after-lesson-${lesson.id}` ? (
                                   <div className="mt-2 ml-6">
                                     <AddQuizForm
                                       moduleId={mod.id}
-                                      lessonId={lesson.id}
                                       courseId={courseId}
                                       onCreated={(q) => {
                                         setQuizByModule(prev => ({
@@ -2121,7 +1804,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                                       onClick={() => setAddingQuizForModule(`after-lesson-${lesson.id}`)}
                                       className="btn btn-primary btn-xs"
                                     >
-                                      <Plus className="h-3.5 w-3.5" /> Add Quiz Here
+                                      <Plus className="h-3.5 w-3.5" /> Add Quiz After This Lesson
                                     </button>
                                   </div>
                                 )}
@@ -2130,51 +1813,6 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                             })}
                           </div>
                         )}
-
-                        {/* Quizzes that belong directly to the module */}
-                        {(() => {
-                          const moduleQuizzes = quizzes.filter((q: any) => inferQuizType(q) === 'regular' && !q.lesson_id);
-                          return moduleQuizzes.length > 0 ? (
-                            <div className="mt-3 space-y-2">
-                              {moduleQuizzes.map((quiz: any) => (
-                                <div key={quiz.id} className="bg-blue-50 dark:bg-slate-700/50 border border-blue-100 dark:border-slate-600 rounded-lg p-3">
-                                  <div className="flex items-start justify-between gap-4">
-                                    <div className="flex items-start gap-3">
-                                      <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
-                                        <HelpCircle className="h-4 w-4 text-blue-600 dark:text-blue-300" />
-                                      </div>
-                                      <div>
-                                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{quiz.title}</p>
-                                        {quiz.description && <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5">{quiz.description}</p>}
-                                        <div className="flex gap-3 mt-1 text-xs text-slate-500 dark:text-slate-300">
-                                          <span>{quiz.question_count} question{quiz.question_count !== 1 ? 's' : ''}</span>
-                                          <span>·</span>
-                                          <span className="flex items-center gap-1">
-                                            <Lock className="h-3 w-3 text-amber-500" />
-                                            Must score <strong className="text-amber-700 dark:text-amber-300 mx-0.5">{quiz.pass_percentage}%</strong> to unlock next module
-                                          </span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                      <button
-                                        onClick={() => handleDeleteQuiz(quiz.id)}
-                                        disabled={deletingQuizId === quiz.id}
-                                        className="p-1.5 text-red-400 dark:text-rose-300 hover:text-red-600 dark:hover:text-rose-200 hover:bg-red-100 dark:hover:bg-rose-900/25 rounded disabled:opacity-40"
-                                      >
-                                        {deletingQuizId === quiz.id
-                                          ? <Loader2 className="h-4 w-4 animate-spin" />
-                                          : <Trash2 className="h-4 w-4" />}
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : null;
-                        })()}
-
-                        {/* Module-level add removed; use per-lesson "Add Quiz Here" only */}
 
                         {/* Add Lesson form */}
                         {addingLessonForModule === mod.id ? (
@@ -2261,7 +1899,81 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                         )}
                       </div>
 
+                      {/* Quiz section - Support multiple quizzes */}
+                      <div className="border-t border-slate-100 dark:border-slate-700 px-6 py-3">
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wide mb-2">Quizzes</p>
 
+                        {/* Display all quizzes for this module */}
+                        {quizzes.length > 0 && (
+                          <div className="space-y-2 mb-3">
+                            {quizzes.map((quiz) => (
+                              <div key={quiz.id} className="bg-indigo-50 dark:bg-slate-700/50 border border-indigo-100 dark:border-slate-600 rounded-lg p-3">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex items-start gap-3">
+                                    <div className="h-8 w-8 rounded-full bg-indigo-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
+                                      <HelpCircle className="h-4 w-4 text-indigo-600 dark:text-indigo-300" />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{quiz.title}</p>
+                                      {quiz.description && <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5">{quiz.description}</p>}
+                                      <div className="flex gap-3 mt-1 text-xs text-slate-500 dark:text-slate-300">
+                                        <span>{quiz.question_count} question{quiz.question_count !== 1 ? 's' : ''}</span>
+                                        <span>·</span>
+                                        <span className="flex items-center gap-1">
+                                          <Lock className="h-3 w-3 text-amber-500" />
+                                          Must score <strong className="text-amber-700 dark:text-amber-300 mx-0.5">{quiz.pass_percentage}%</strong> to unlock next module
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <button
+                                      onClick={() => onManageQuiz(quiz.id, courseId)}
+                                      className="btn btn-primary btn-sm"
+                                    >
+                                      Manage Quiz
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteQuiz(quiz.id)}
+                                      disabled={deletingQuizId === quiz.id}
+                                      className="p-1.5 text-red-400 dark:text-rose-300 hover:text-red-600 dark:hover:text-rose-200 hover:bg-red-100 dark:hover:bg-rose-900/25 rounded disabled:opacity-40"
+                                    >
+                                      {deletingQuizId === quiz.id
+                                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                                        : <Trash2 className="h-4 w-4" />}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Add Quiz form or button */}
+                        {addingQuizForModule === mod.id ? (
+                          <AddQuizForm
+                            moduleId={mod.id}
+                            courseId={courseId}
+                            onCreated={(q) => {
+                              setQuizByModule(prev => ({
+                                ...prev,
+                                [mod.id]: [...(prev[mod.id] || []), q]
+                              }));
+                              setAddingQuizForModule(null);
+                            }}
+                            onCancel={() => setAddingQuizForModule(null)}
+                            onManageQuiz={onManageQuiz}
+                            apiPrefix={apiPrefix}
+                          />
+                        ) : (
+                          <button
+                            onClick={() => setAddingQuizForModule(mod.id)}
+                            className="btn btn-primary btn-sm"
+                          >
+                            <Plus className="h-4 w-4" /> Add Quiz
+                          </button>
+                        )}
+                      </div>
 
                       {/* Post-Test Section */}
                       <div className="px-6 py-3 bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200 dark:border-slate-700">
@@ -2269,68 +1981,30 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                           <HelpCircle className="h-3.5 w-3.5" />
                           Post-Test (After All Content)
                         </p>
-                        {(() => {
-                          const quizzes = quizByModule[mod.id] || [];
-
-                          if (addingQuizForModule === `post-test-${mod.id}`) {
-                            return (
-                              <AddQuizForm
-                                moduleId={mod.id}
-                                courseId={courseId}
-                                quizType="post-test"
-                                onCreated={(q) => {
-                                  setQuizByModule(prev => ({
-                                    ...prev,
-                                    [mod.id]: [...(prev[mod.id] || []), q]
-                                  }));
-                                  setAddingQuizForModule(null);
-                                }}
-                                onCancel={() => setAddingQuizForModule(null)}
-                                onManageQuiz={onManageQuiz}
-                                apiPrefix={apiPrefix}
-                              />
-                            );
-                          }
-
-                          // List all post-test quizzes for this module
-                          const postTests = quizzes.filter((q: any) => inferQuizType(q) === 'post-test');
-
-                          return (
-                            <div>
-                              {postTests.length > 0 ? (
-                                <div className="space-y-2 mb-2">
-                                  {postTests.map(pt => (
-                                    <div key={pt.id} className="flex items-center justify-between gap-3">
-                                      <div className="flex items-center gap-3">
-                                        <div className="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center">
-                                          <HelpCircle className="h-4 w-4 text-purple-600" />
-                                        </div>
-                                        <div>
-                                          <p className="text-sm font-semibold text-slate-900">{pt.title}</p>
-                                          {pt.description && <p className="text-xs text-slate-500 mt-0.5">{pt.description}</p>}
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <button onClick={() => openQuizInManager(pt.id)} className="p-1.5 text-green-500 hover:text-green-700 hover:bg-green-100 dark:hover:bg-green-900/25 rounded" title="Edit quiz">
-                                          <Pencil className="h-4 w-4" />
-                                        </button>
-                                        <button onClick={() => handleDeleteQuiz(pt.id)} disabled={deletingQuizId === pt.id} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-100 rounded disabled:opacity-40">
-                                          {deletingQuizId === pt.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : null}
-
-                              {postTests.length === 0 && (
-                                <button onClick={() => setAddingQuizForModule(`post-test-${mod.id}`)} className="btn btn-primary btn-sm">
-                                  <Plus className="h-4 w-4" /> Add Post-Test
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })()}
+                        {addingQuizForModule === `post-test-${mod.id}` ? (
+                          <AddQuizForm
+                            moduleId={mod.id}
+                            courseId={courseId}
+                            quizType="post-test"
+                            onCreated={(q) => {
+                              setQuizByModule(prev => ({
+                                ...prev,
+                                [mod.id]: [...(prev[mod.id] || []), q]
+                              }));
+                              setAddingQuizForModule(null);
+                            }}
+                            onCancel={() => setAddingQuizForModule(null)}
+                            onManageQuiz={onManageQuiz}
+                            apiPrefix={apiPrefix}
+                          />
+                        ) : (
+                          <button
+                            onClick={() => setAddingQuizForModule(`post-test-${mod.id}`)}
+                            className="btn btn-primary btn-sm"
+                          >
+                            <Plus className="h-4 w-4" /> Add Post-Test
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -2346,79 +2020,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
             Modules with a quiz gate the next module — employees must pass before proceeding.
           </div>
         )}
-
-        {/* ── Final Assessment Section ── */}
-        <div className="mx-6 mb-6 mt-2">
-          <div className="rounded-xl border-2 border-dashed border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/10 p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="h-8 w-8 rounded-full bg-amber-100 dark:bg-amber-800/50 flex items-center justify-center flex-shrink-0">
-                <Award className="h-4 w-4 text-amber-600 dark:text-amber-300" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-amber-900 dark:text-amber-200">Final Assessment</p>
-                <p className="text-xs text-amber-700 dark:text-amber-400">Taken after all modules — determines if the employee passes the course</p>
-              </div>
-            </div>
-
-            {finalAssessmentQuizzes.length > 0 ? (
-              <div className="space-y-2">
-                {finalAssessmentQuizzes.map((fa) => (
-                  <div key={fa.id} className="bg-white dark:bg-slate-800 rounded-lg border border-amber-200 dark:border-amber-700 p-3 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <Award className="h-5 w-5 text-amber-500 flex-shrink-0" />
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{fa.title}</p>
-                        {fa.description && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{fa.description}</p>}
-                        <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{fa.question_count} question{fa.question_count !== 1 ? 's' : ''} &middot; Pass {fa.pass_percentage}% to complete course</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button onClick={() => openQuizInManager(fa.id)} className="p-1.5 text-green-500 hover:text-green-700 hover:bg-green-100 dark:hover:bg-green-900/25 rounded" title="Add/edit questions">
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => handleDeleteQuiz(fa.id)} disabled={deletingQuizId === fa.id} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-100 rounded disabled:opacity-40">
-                        {deletingQuizId === fa.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : addingFinalAssessment ? (
-              <FinalAssessmentForm
-                onCreated={handleCreateFinalAssessment}
-                onCancel={() => setAddingFinalAssessment(false)}
-              />
-            ) : (
-              <button
-                onClick={() => setAddingFinalAssessment(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-amber-300 dark:border-amber-600 rounded-lg text-sm font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-800/30 transition-colors"
-              >
-                <Plus className="h-4 w-4" /> Add Final Assessment
-              </button>
-            )}
-          </div>
-        </div>
       </div>
-      )}
-
-      {/* Quizzes Panel */}
-      {activeTab === 'quizzes' && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <HelpCircle className="h-5 w-5 text-slate-600" />
-              <h2 className="text-base font-semibold text-slate-900">Quiz Management</h2>
-            </div>
-          </div>
-          <div className="p-6">
-            <QuizAssessmentManagement
-              apiPrefix={apiPrefix}
-              courseId={courseId}
-              focusQuizId={focusedQuizId}
-              onOpenQuiz={(quizId: number) => { if (onManageQuiz) onManageQuiz(quizId, courseId); }}
-            />
-          </div>
-        </div>
       )}
 
       {/* Enrolled Students Tab */}
@@ -2427,7 +2029,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
           {/* Enroll User Form */}
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm p-5">
             <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
-              <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <Users className="h-4 w-4 text-green-600 dark:text-emerald-400" />
               Enroll an Employee
             </h3>
             {enrollError && (
@@ -2522,7 +2124,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                       key={user.id}
                       className={`transition-colors ${
                         isFromActivity
-                          ? 'bg-green-50/70 dark:bg-green-900/20 ring-1 ring-inset ring-green-300/70 dark:ring-green-600/40'
+                          ? 'bg-emerald-50/70 dark:bg-emerald-900/20 ring-1 ring-inset ring-emerald-300/70 dark:ring-emerald-600/40'
                           : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
                       }`}
                     >
@@ -2535,7 +2137,7 @@ export function InstructorCourseDetail({ courseId, onBack, onManageQuiz, apiPref
                             <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                               {user.fullname}
                               {isFromActivity && (
-                                <span className="ml-2 inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-700 dark:bg-green-900/60 dark:text-green-300">
+                                <span className="ml-2 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
                                   Recent Activity
                                 </span>
                               )}

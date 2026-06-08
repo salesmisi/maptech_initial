@@ -1,14 +1,13 @@
 <?php
 
-use App\Http\Controllers\Admin\AuditLogRetentionPolicyController;
-use App\Http\Controllers\LoginController;
-use App\Http\Controllers\PasswordResetController;
 use App\Models\AuditLog;
 use App\Models\Department;
 use App\Models\Subdepartment;
 use App\Models\TimeLog;
 use App\Models\User;
 use App\Support\AuditDate;
+use App\Http\Controllers\LoginController;
+use App\Http\Controllers\PasswordResetController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -93,10 +92,10 @@ Route::post('/departments', function (Request $request) {
     if ($request->filled('head_id')) {
         $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
         $headRole = strtolower((string) ($headUser?->role ?? ''));
-        if (! $headUser || ! in_array($headRole, ['admin', 'instructor'], true)) {
+        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
             return response()->json([
                 'message' => 'Department head must be an Admin or Instructor.',
-                'errors' => ['head_id' => ['Department head must be an Admin or Instructor.']],
+                'errors' => ['head_id' => ['Department head must be an Admin or Instructor.']]
             ], 422);
         }
     }
@@ -127,10 +126,10 @@ Route::put('/departments/{id}', function (Request $request, $id) {
     if ($request->filled('head_id')) {
         $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
         $headRole = strtolower((string) ($headUser?->role ?? ''));
-        if (! $headUser || ! in_array($headRole, ['admin', 'instructor'], true)) {
+        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
             return response()->json([
                 'message' => 'Department head must be an Admin or Instructor.',
-                'errors' => ['head_id' => ['Department head must be an Admin or Instructor.']],
+                'errors' => ['head_id' => ['Department head must be an Admin or Instructor.']]
             ], 422);
         }
     }
@@ -175,10 +174,10 @@ Route::post('/departments/{id}/subdepartments', function (Request $request, $id)
     if ($request->filled('head_id')) {
         $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
         $headRole = strtolower((string) ($headUser?->role ?? ''));
-        if (! $headUser || ! in_array($headRole, ['admin', 'instructor'], true)) {
+        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
             return response()->json([
                 'message' => 'Subdepartment head must be an Admin or Instructor.',
-                'errors' => ['head_id' => ['Subdepartment head must be an Admin or Instructor.']],
+                'errors' => ['head_id' => ['Subdepartment head must be an Admin or Instructor.']]
             ], 422);
         }
     }
@@ -208,10 +207,10 @@ Route::put('/subdepartments/{id}', function (Request $request, $id) {
     if ($request->filled('head_id')) {
         $headUser = \App\Models\User::select('id', 'role')->find((int) $request->head_id);
         $headRole = strtolower((string) ($headUser?->role ?? ''));
-        if (! $headUser || ! in_array($headRole, ['admin', 'instructor'], true)) {
+        if (!$headUser || !in_array($headRole, ['admin', 'instructor'], true)) {
             return response()->json([
                 'message' => 'Subdepartment head must be an Admin or Instructor.',
-                'errors' => ['head_id' => ['Subdepartment head must be an Admin or Instructor.']],
+                'errors' => ['head_id' => ['Subdepartment head must be an Admin or Instructor.']]
             ], 422);
         }
     }
@@ -277,7 +276,7 @@ Route::get('/me/audit-logs', function (Request $request) {
 
         // Legacy fallback: match by user + tight time window.
         $logAt = AuditDate::modelStorageDateTime($log, 'created_at');
-        if (! $timeLog && $logAt) {
+        if (!$timeLog && $logAt) {
             $start = $logAt->copy()->subMinutes(2)->toDateTimeString();
             $end = $logAt->copy()->addMinutes(2)->toDateTimeString();
             if ($log->action === 'login') {
@@ -497,57 +496,11 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
             $data = collect($paginator->items())->map(function ($row) {
                 $createdAt = null;
-                if (! empty($row->created_at)) {
+                if (!empty($row->created_at)) {
                     try {
                         $createdAt = Carbon::parse($row->created_at)->setTimezone('UTC')->toIso8601String();
                     } catch (\Throwable $e) {
                         $createdAt = (string) $row->created_at;
-                    }
-                }
-
-                // Attempt to attach the associated TimeLog record (if any). Prefer explicit linkage
-                // via login_audit_log_id / logout_audit_log_id so the frontend can display Actual Time In/Out.
-                $timeLog = null;
-                try {
-                    $timeLog = \App\Models\TimeLog::where('login_audit_log_id', $row->id)
-                        ->orWhere('logout_audit_log_id', $row->id)
-                        ->first();
-                } catch (\Throwable $e) {
-                    // ignore lookup failures; time_log will remain null
-                }
-
-                // Legacy fallback: when explicit audit log linkage is missing, try matching by user_id
-                // within a ±2 minute window of the audit event. This helps for older records.
-                if (! $timeLog && ! empty($row->user_id) && ! empty($row->created_at)) {
-                    try {
-                        $logAt = Carbon::parse($row->created_at);
-                        $start = $logAt->copy()->subMinutes(2)->toDateTimeString();
-                        $end = $logAt->copy()->addMinutes(2)->toDateTimeString();
-                        if ($row->action === 'login') {
-                            $candidates = \App\Models\TimeLog::where('user_id', $row->user_id)
-                                ->whereBetween('time_in', [$start, $end])
-                                ->get();
-                            $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
-                                if (! $tl->time_in) {
-                                    return PHP_INT_MAX;
-                                }
-
-                                return abs(Carbon::parse($tl->time_in)->diffInSeconds($logAt, false));
-                            })->first();
-                        } elseif ($row->action === 'logout') {
-                            $candidates = \App\Models\TimeLog::where('user_id', $row->user_id)
-                                ->whereBetween('time_out', [$start, $end])
-                                ->get();
-                            $timeLog = $candidates->sortBy(function ($tl) use ($logAt) {
-                                if (! $tl->time_out) {
-                                    return PHP_INT_MAX;
-                                }
-
-                                return abs(Carbon::parse($tl->time_out)->diffInSeconds($logAt, false));
-                            })->first();
-                        }
-                    } catch (\Throwable $e) {
-                        // ignore fallback errors
                     }
                 }
 
@@ -563,11 +516,6 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                         'email' => $row->user_email,
                         'role' => $row->user_role,
                         'department' => $row->user_department,
-                    ] : null,
-                    'time_log' => $timeLog ? [
-                        'id' => $timeLog->id,
-                        'time_in' => \App\Support\AuditDate::modelFieldUtcIso($timeLog, 'time_in'),
-                        'time_out' => \App\Support\AuditDate::modelFieldUtcIso($timeLog, 'time_out'),
                     ] : null,
                 ];
             })->values();
@@ -602,10 +550,6 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         }
     });
 
-    // Audit log retention policy
-    Route::get('/audit-log-retention-policy', [AuditLogRetentionPolicyController::class, 'show']);
-    Route::put('/audit-log-retention-policy', [AuditLogRetentionPolicyController::class, 'update']);
-
     // Export Audit Logs to CSV
     Route::get('/audit-logs/export', function (Request $request) {
         $roleFilter = null;
@@ -617,14 +561,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
         }
 
         $format = $request->input('format', 'csv'); // csv, excel, or pdf
-        if (! in_array($format, ['csv', 'excel', 'pdf'])) {
+        if (!in_array($format, ['csv', 'excel', 'pdf'])) {
             $format = 'csv';
-        }
-
-        // Period filter: weekly, monthly, yearly (optional)
-        $period = $request->input('period');
-        if ($period !== null && ! in_array($period, ['weekly', 'monthly', 'yearly'])) {
-            return response()->json(['message' => 'Invalid period filter'], 422);
         }
 
         try {
@@ -647,30 +585,14 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 $query->where(\Illuminate\Support\Facades\DB::raw('LOWER(u.role)'), $roleFilter);
             }
 
-            // Apply period filter if provided
-            if ($period) {
-                $now = \Carbon\Carbon::now();
-                if ($period === 'weekly') {
-                    $start = $now->copy()->startOfWeek();
-                } elseif ($period === 'monthly') {
-                    $start = $now->copy()->startOfMonth();
-                } else { // yearly
-                    $start = $now->copy()->startOfYear();
-                }
-                $query->where('a.created_at', '>=', $start->toDateTimeString());
-            }
-
             $logs = $query->orderByDesc('a.created_at')->limit(10000)->get();
-            $logs = $logs->reject(function ($log) {
-                return preg_match('/_exported$/i', (string) ($log->action ?? ''));
-            })->values();
             $timestamp = date('Y-m-d_His');
 
             // CSV Export
             if ($format === 'csv') {
-                $filename = 'audit_logs_'.$timestamp.'.csv';
+                $filename = 'audit_logs_' . $timestamp . '.csv';
 
-                $callback = function () use ($logs) {
+                $callback = function() use ($logs) {
                     $file = fopen('php://output', 'w');
 
                     // Add BOM for Excel UTF-8 compatibility
@@ -698,55 +620,39 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
                 return response()->stream($callback, 200, [
                     'Content-Type' => 'text/csv',
-                    'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
                 ]);
             }
 
             // Excel Export — real XLSX (OpenXML / ZIP) so Excel opens it without warnings
             if ($format === 'excel') {
-                if (! class_exists('ZipArchive')) {
+                if (!class_exists('ZipArchive')) {
                     return response()->json(['message' => 'Server is missing the PHP zip extension. Please contact the administrator.'], 500);
                 }
-                $filename = 'audit_logs_'.$timestamp.'.xlsx';
-                $roleLabel = $roleFilter ? ucfirst($roleFilter).' ' : '';
-                $logoPath = public_path('assets/Maptech-Official-Logo.png');
-                $hasLogo = file_exists($logoPath);
-                $genInfo = 'Generated: '.date('F j, Y g:i A').'  |  Total Records: '.count($logs);
-                $logoCx = null;
-                $logoCy = null;
-                if ($hasLogo) {
-                    $logoDims = @getimagesize($logoPath);
-                    $logoWidthPx = (int) ($logoDims[0] ?? 0);
-                    $logoHeightPx = (int) ($logoDims[1] ?? 0);
-                    $maxWidthPx = 200;
-                    $maxHeightPx = 40;
-                    if ($logoWidthPx > 0 && $logoHeightPx > 0) {
-                        $scale = min($maxWidthPx / $logoWidthPx, $maxHeightPx / $logoHeightPx, 1);
-                        $scaledWidth = (int) round($logoWidthPx * $scale);
-                        $scaledHeight = (int) round($logoHeightPx * $scale);
-                        $logoCx = $scaledWidth * 9525;
-                        $logoCy = $scaledHeight * 9525;
-                    }
-                }
+                $filename  = 'audit_logs_' . $timestamp . '.xlsx';
+                $roleLabel = $roleFilter ? ucfirst($roleFilter) . ' ' : '';
+                $logoPath  = public_path('assets/Maptech-Official-Logo.png');
+                $hasLogo   = file_exists($logoPath);
+                $genInfo   = 'Generated: ' . date('F j, Y g:i A') . '  |  Total Records: ' . count($logs);
 
                 // XML-escape helper
-                $xe = fn ($s) => htmlspecialchars((string) $s, ENT_XML1, 'UTF-8');
+                $xe = fn($s) => htmlspecialchars((string) $s, ENT_XML1, 'UTF-8');
 
                 // Column definitions
-                $headers = ['ID', 'User ID', 'Full Name', 'Email', 'Role', 'Department', 'Action', 'IP Address', 'Date & Time'];
-                $colLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
-                $colWidths = [8, 8, 20, 28, 12, 22, 15, 14, 22];
+                $headers    = ['ID','User ID','Full Name','Email','Role','Department','Action','IP Address','Date & Time'];
+                $colLetters = ['A','B','C','D','E','F','G','H','I'];
+                $colWidths  = [8, 8, 20, 28, 12, 22, 15, 14, 22];
 
                 // ── Worksheet XML ─────────────────────────────────────────────────────
                 // Layout: Row 1 = logo area (tall), Row 2 = title, Row 3 = meta,
                 //         Row 4 = column headers, Row 5+ = data
-                $sw = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+                $sw  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
                 $sw .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"';
                 $sw .= ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
                 $sw .= '<sheetFormatPr defaultRowHeight="15"/>';
                 $sw .= '<cols>';
                 foreach ($colWidths as $i => $w) {
-                    $sw .= '<col min="'.($i + 1).'" max="'.($i + 1).'" width="'.$w.'" customWidth="1"/>';
+                    $sw .= '<col min="'.($i+1).'" max="'.($i+1).'" width="'.$w.'" customWidth="1"/>';
                 }
                 $sw .= '</cols>';
                 $sw .= '<sheetData>';
@@ -769,18 +675,18 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 // Data rows
                 $rowNum = 5;
                 foreach ($logs as $log) {
-                    $s = ($rowNum % 2 === 0) ? 5 : 4; // alternate row shading
+                    $s  = ($rowNum % 2 === 0) ? 5 : 4; // alternate row shading
                     $sw .= '<row r="'.$rowNum.'">';
                     $vals = [
                         (string) $log->id,
                         (string) $log->user_id,
-                        $log->user_fullname ?? '',
-                        $log->user_email ?? '',
-                        $log->user_role ?? '',
+                        $log->user_fullname   ?? '',
+                        $log->user_email      ?? '',
+                        $log->user_role       ?? '',
                         $log->user_department ?? '',
-                        $log->action ?? '',
-                        $log->ip_address ?? '',
-                        $log->created_at ?? '',
+                        $log->action          ?? '',
+                        $log->ip_address      ?? '',
+                        $log->created_at      ?? '',
                     ];
                     foreach ($colLetters as $i => $letter) {
                         $sw .= '<c r="'.$letter.$rowNum.'" s="'.$s.'" t="inlineStr"><is><t>'.$xe($vals[$i]).'</t></is></c>';
@@ -791,33 +697,31 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 $sw .= '</sheetData>';
                 // Merge title and meta rows across all 9 columns
                 $sw .= '<mergeCells count="2"><mergeCell ref="A2:I2"/><mergeCell ref="A3:I3"/></mergeCells>';
-                if ($hasLogo) {
-                    $sw .= '<drawing r:id="rId1"/>';
-                }
+                if ($hasLogo) { $sw .= '<drawing r:id="rId1"/>'; }
                 $sw .= '</worksheet>';
 
                 // ── Styles XML ────────────────────────────────────────────────────────
-                $sx = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+                $sx  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
                 $sx .= '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
-                // Fonts: 0=default, 1=title bold green, 2=meta grey, 3=header white bold, 4=data
+                // Fonts: 0=default, 1=title bold navy, 2=meta grey, 3=header white bold, 4=data
                 $sx .= '<fonts count="5">';
                 $sx .= '<font><sz val="11"/><name val="Calibri"/></font>';
-                $sx .= '<font><b/><sz val="14"/><color rgb="FF0B5F2A"/><name val="Calibri"/></font>';
+                $sx .= '<font><b/><sz val="14"/><color rgb="FF1A237E"/><name val="Calibri"/></font>';
                 $sx .= '<font><sz val="10"/><color rgb="FF555555"/><name val="Calibri"/></font>';
                 $sx .= '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>';
                 $sx .= '<font><sz val="11"/><name val="Calibri"/></font>';
                 $sx .= '</fonts>';
-                // Fills: 0=none(req), 1=gray125(req), 2=brand header, 3=light green striped row
+                // Fills: 0=none(req), 1=gray125(req), 2=navy header, 3=light blue striped row
                 $sx .= '<fills count="4">';
                 $sx .= '<fill><patternFill patternType="none"/></fill>';
                 $sx .= '<fill><patternFill patternType="gray125"/></fill>';
-                $sx .= '<fill><patternFill patternType="solid"><fgColor rgb="FF1B8F3A"/></patternFill></fill>';
-                $sx .= '<fill><patternFill patternType="solid"><fgColor rgb="FFE8F6ED"/></patternFill></fill>';
+                $sx .= '<fill><patternFill patternType="solid"><fgColor rgb="FF1A237E"/></patternFill></fill>';
+                $sx .= '<fill><patternFill patternType="solid"><fgColor rgb="FFEEF2FF"/></patternFill></fill>';
                 $sx .= '</fills>';
                 // Borders: 0=none, 1=thin light grey all sides
                 $sx .= '<borders count="2">';
                 $sx .= '<border><left/><right/><top/><bottom/><diagonal/></border>';
-                $sx .= '<border><left style="thin"><color rgb="FFCCE5D4"/></left><right style="thin"><color rgb="FFCCE5D4"/></right><top style="thin"><color rgb="FFCCE5D4"/></top><bottom style="thin"><color rgb="FFCCE5D4"/></bottom><diagonal/></border>';
+                $sx .= '<border><left style="thin"><color rgb="FFCCCCCC"/></left><right style="thin"><color rgb="FFCCCCCC"/></right><top style="thin"><color rgb="FFCCCCCC"/></top><bottom style="thin"><color rgb="FFCCCCCC"/></bottom><diagonal/></border>';
                 $sx .= '</borders>';
                 $sx .= '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
                 // cellXfs: 0=default,1=title,2=meta,3=col header,4=data odd,5=data even
@@ -832,18 +736,18 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 $sx .= '</styleSheet>';
 
                 // ── Drawing XML (logo image anchored to cell A1) ──────────────────────
-                $dx = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+                $dx  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
                 $dx .= '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"';
                 $dx .= ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
                 $dx .= ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
                 $dx .= '<xdr:oneCellAnchor>';
                 $dx .= '<xdr:from><xdr:col>0</xdr:col><xdr:colOff>38100</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>38100</xdr:rowOff></xdr:from>';
-                $dx .= '<xdr:ext cx="'.($logoCx ?? 1828800).'" cy="'.($logoCy ?? 495300).'"/>';
+                $dx .= '<xdr:ext cx="1828800" cy="495300"/>'; // ~2 in wide × 0.54 in tall
                 $dx .= '<xdr:pic>';
                 $dx .= '<xdr:nvPicPr><xdr:cNvPr id="2" name="MaptechLogo"/>';
                 $dx .= '<xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>';
                 $dx .= '<xdr:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>';
-                $dx .= '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'.($logoCx ?? 1828800).'" cy="'.($logoCy ?? 495300).'"/></a:xfrm>';
+                $dx .= '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1828800" cy="495300"/></a:xfrm>';
                 $dx .= '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>';
                 $dx .= '</xdr:pic><xdr:clientData/>';
                 $dx .= '</xdr:oneCellAnchor>';
@@ -851,23 +755,19 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
 
                 // ── Assemble XLSX ZIP ─────────────────────────────────────────────────
                 $tmpFile = tempnam(sys_get_temp_dir(), 'audit_xlsx_');
-                $zip = new \ZipArchive;
+                $zip = new \ZipArchive();
                 $zip->open($tmpFile, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
 
                 // [Content_Types].xml
-                $ct = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+                $ct  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
                 $ct .= '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">';
                 $ct .= '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>';
                 $ct .= '<Default Extension="xml" ContentType="application/xml"/>';
-                if ($hasLogo) {
-                    $ct .= '<Default Extension="png" ContentType="image/png"/>';
-                }
+                if ($hasLogo) { $ct .= '<Default Extension="png" ContentType="image/png"/>'; }
                 $ct .= '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>';
                 $ct .= '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
                 $ct .= '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>';
-                if ($hasLogo) {
-                    $ct .= '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>';
-                }
+                if ($hasLogo) { $ct .= '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>'; }
                 $ct .= '</Types>';
                 $zip->addFromString('[Content_Types].xml', $ct);
 
@@ -922,281 +822,77 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
                 @unlink($tmpFile);
 
                 return response($xlsxContent, 200, [
-                    'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    'Content-Disposition' => 'attachment; filename="'.$filename.'"',
-                    'Content-Length' => strlen($xlsxContent),
+                    'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                    'Content-Length'      => strlen($xlsxContent),
                 ]);
             }
 
-            // PDF Export (render the report layout directly so it matches the reference PDF)
+            // PDF Export (HTML page ready for printing)
             if ($format === 'pdf') {
-                $filename = 'audit_logs_'.$timestamp.'.pdf';
+                $filename = 'audit_logs_' . $timestamp . '.html';
+                $roleText = $roleFilter ? ucfirst($roleFilter) . ' ' : '';
+
                 $logoPath = public_path('assets/Maptech-Official-Logo.png');
                 $logoBase64 = file_exists($logoPath)
-                    ? 'data:image/png;base64,'.base64_encode(file_get_contents($logoPath))
+                    ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
                     : null;
 
-                $appTimezone = (string) config('app.timezone', 'UTC');
-                $appTimezone = $appTimezone !== '' ? $appTimezone : 'UTC';
-
-                $formatDate = function ($value) use ($appTimezone) {
-                    if (empty($value)) {
-                        return '';
-                    }
-
-                    try {
-                        return \Carbon\Carbon::parse($value, $appTimezone)->setTimezone($appTimezone)->format('M j, Y h:i A');
-                    } catch (\Throwable $e) {
-                        return (string) $value;
-                    }
-                };
-
-                $actionToEntity = function ($action) {
-                    $action = strtolower((string) $action);
-                    if ($action === '') {
-                        return 'audit';
-                    }
-
-                    $parts = preg_split('/[._]/', $action, 2);
-
-                    return $parts[0] ?: 'audit';
-                };
-
-                $displayActor = function ($log) {
-                    $action = strtolower((string) ($log->action ?? ''));
-                    if (empty($log->user_id) || str_starts_with($action, 'auth.login_failed')) {
-                        return 'System';
-                    }
-
-                    return 'User #'.$log->user_id;
-                };
-
-                $displayActivity = function ($log) use ($actionToEntity) {
-                    $entity = $actionToEntity($log->action ?? '');
-                    $suffix = ! empty($log->user_id) && ! str_starts_with(strtolower((string) ($log->action ?? '')), 'budget_report')
-                        ? $log->user_id
-                        : 0;
-
-                    return $entity.' #'.$suffix;
-                };
-
-                $displayDetails = function ($log) {
-                    $context = [];
-
-                    if (! empty($log->user_email)) {
-                        $context['email'] = $log->user_email;
-                    }
-
-                    if (! empty($log->user_department)) {
-                        $context['department'] = $log->user_department;
-                    }
-
-                    if (! empty($log->ip_address)) {
-                        $context['ip'] = $log->ip_address;
-                    }
-
-                    if (! empty($log->session_key)) {
-                        $context['session_key'] = $log->session_key;
-                    }
-
-                    if (empty($context)) {
-                        return 'context={}';
-                    }
-
-                    return 'context='.json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-                };
-
-                $totalLogs = count($logs);
-                $sensitiveLogs = 0;
-                $actions = [];
-                $userIds = [];
-
-                foreach ($logs as $log) {
-                    $actions[] = (string) ($log->action ?? '');
-                    if (! empty($log->user_id)) {
-                        $userIds[] = (string) $log->user_id;
-                    }
-                    if (preg_match('/failed|export|delete|password|reset|permission/i', (string) ($log->action ?? ''))) {
-                        $sensitiveLogs++;
-                    }
-                }
-
-                $uniqueActions = count(array_unique(array_filter($actions, fn ($action) => $action !== '')));
-                $usersInvolved = count(array_unique(array_filter($userIds, fn ($userId) => $userId !== '')));
-                $reportTitle = $period === 'weekly'
-                    ? 'Weekly Audit Logs Report'
-                    : ($period === 'monthly'
-                        ? 'Monthly Audit Logs Report'
-                        : ($period === 'yearly' ? 'Yearly Audit Logs Report' : 'Audit Logs Report'));
-                $headerRange = $totalLogs > 0
-                    ? $formatDate($logs->last()->created_at).' - '.$formatDate($logs->first()->created_at)
-                    : 'No records available';
-                $generatedAt = \Carbon\Carbon::now($appTimezone)->format('M j, Y h:i A');
-                $searchValue = 'None';
-                $actionValue = 'All';
-                $entityValue = 'All';
-                $projectValue = 'All';
-
-                $escape = fn ($value) => htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
-
                 $html = '<!DOCTYPE html><html><head><meta charset="UTF-8">';
-                $html .= '<title>Audit Logs Report</title>';
+                $html .= '<title>Audit Logs Export</title>';
                 $html .= '<style>';
-                $html .= '@page { size: A4 portrait; margin: 12mm 10mm 16mm 10mm; }';
-                $html .= 'body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: #24302a; background: #ffffff; }';
-                $html .= '.header { position: fixed; top: 0; left: 0; right: 0; height: 34mm; background: #fff; z-index: 10; padding: 6mm 10mm 0 10mm; box-sizing: border-box; }';
-                $html .= '.header-table { width: 100%; border-collapse: collapse; table-layout: fixed; }';
-                $html .= '.header-table td { vertical-align: middle; }';
-                $html .= '.header-left { width: 22%; text-align: left; }';
-                $html .= '.header-center { width: 56%; text-align: center; }';
-                $html .= '.header-right { width: 22%; text-align: right; font-size: 10px; color: #66756d; line-height: 1.35; }';
-                $html .= '.brand img { max-width: 105px; max-height: 38px; display: block; }';
-                $html .= '.title { margin: 0; font-size: 22px; line-height: 1.05; color: #1f5540; font-weight: 700; }';
-                $html .= '.subtitle { margin: 3px 0 0 0; font-size: 12px; color: #1f5540; font-weight: 700; }';
-                $html .= '.range { margin-top: 2px; font-size: 10px; color: #7a8b81; }';
-                $html .= '.header-rule { border-bottom: 2px solid #215a3e; margin-top: 4mm; }';
-                $html .= '.footer { position: fixed; bottom: 0; left: 0; right: 0; height: 10mm; background: #fff; z-index: 10; padding: 2mm 10mm 0 10mm; box-sizing: border-box; border-top: 1px solid #d9e1dc; font-size: 10px; color: #66756d; }';
-                $html .= '.footer-table { width: 100%; border-collapse: collapse; table-layout: fixed; }';
-                $html .= '.footer-table td { width: 33.333%; vertical-align: middle; }';
-                $html .= '.footer-left { text-align: left; }';
-                $html .= '.footer-center { text-align: center; }';
-                $html .= '.footer-right { text-align: right; }';
-                $html .= '.content { margin: 40mm 0 14mm 0; padding: 0 10mm; }';
-                $html .= '.stats, .filters { width: 100%; border-collapse: collapse; table-layout: fixed; }';
-                $html .= '.stats th { background: #1f5a43; color: #fff; font-size: 11px; letter-spacing: .2px; text-transform: uppercase; padding: 9px 10px; text-align: left; }';
-                $html .= '.stats td { background: #fff; padding: 10px 10px 12px 10px; }';
-                $html .= '.pill { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; border-radius: 999px; padding: 0 6px; font-size: 11px; font-weight: 700; }';
-                $html .= '.pill-green { background: #e8f8eb; color: #25a06a; }';
-                $html .= '.pill-red { background: #fdeaea; color: #d95a5a; }';
-                $html .= '.pill-yellow { background: #fff5d6; color: #ca9d1d; }';
-                $html .= '.pill-blue { background: #e8f0fe; color: #4680d4; }';
-                $html .= '.filters th { background: #1f5a43; color: #fff; font-size: 11px; text-transform: uppercase; padding: 8px 10px; text-align: left; }';
-                $html .= '.filters td { padding: 11px 10px 12px 10px; font-size: 11px; color: #36443d; border-bottom: 1px solid #e6ece8; }';
-                $html .= '.filters .value { display: block; margin-top: 7px; color: #557164; font-size: 12px; }';
-                $html .= '.section-title { margin: 14px 0 6px 0; padding: 0 0 6px 0; font-size: 17px; color: #263630; font-weight: 700; border-bottom: 1px solid #d6ddd9; }';
-                $html .= '.entries { width: 100%; border-collapse: collapse; table-layout: fixed; }';
-                $html .= '.entries th { background: #1f5a43; color: #fff; font-size: 10px; text-transform: uppercase; padding: 7px 6px; text-align: left; }';
-                $html .= '.entries td { padding: 8px 6px; font-size: 9px; line-height: 1.25; color: #34433c; border-bottom: 1px solid #e6ece8; vertical-align: top; word-break: break-word; overflow-wrap: anywhere; white-space: normal; }';
-                $html .= '.entries tr:nth-child(even) td { background: #f7fbf8; }';
-                $html .= '.muted { color: #6d7d75; }';
-                $html .= '.nowrap { white-space: nowrap; }';
-                $html .= '.col-date { width: 11%; }';
-                $html .= '.col-entity { width: 10%; }';
-                $html .= '.col-activity { width: 13%; }';
-                $html .= '.col-action { width: 13%; }';
-                $html .= '.col-actor { width: 11%; }';
-                $html .= '.col-project { width: 8%; }';
-                $html .= '.col-details { width: 34%; }';
-                $html .= '.page-break { page-break-after: always; }';
+                $html .= 'body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }';
+                $html .= '.header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #1a237e; padding-bottom: 12px; margin-bottom: 8px; }';
+                $html .= '.header img { height: 56px; width: auto; }';
+                $html .= '.header-text h1 { margin: 0 0 4px; font-size: 18px; color: #1a237e; }';
+                $html .= '.header-text .meta { margin: 0; color: #555; font-size: 11px; }';
+                $html .= 'table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 11px; }';
+                $html .= 'th { background-color: #1a237e; color: white; padding: 8px 6px; text-align: left; font-weight: bold; }';
+                $html .= 'td { padding: 6px; border-bottom: 1px solid #ddd; }';
+                $html .= 'tr:nth-child(even) td { background-color: #f5f5f5; }';
+                $html .= '@media print { body { margin: 0; } @page { margin: 1cm; } }';
                 $html .= '</style></head><body>';
+
                 $html .= '<div class="header">';
-                $html .= '<table class="header-table"><tr>';
-                $html .= '<td class="header-left">';
                 if ($logoBase64) {
-                    $html .= '<div class="brand"><img src="'.$logoBase64.'" alt="Maptech Logo"></div>';
+                    $html .= '<img src="' . $logoBase64 . '" alt="Maptech Logo" />';
                 }
-                $html .= '</td>';
-                $html .= '<td class="header-center">';
-                $html .= '<h1 class="title">Audit Logs Report</h1>';
-                $html .= '<div class="subtitle">'.$escape($reportTitle).'</div>';
-                $html .= '<div class="range">'.$escape($headerRange).' &mdash; Generated on '.$escape($generatedAt).'</div>';
-                $html .= '</td>';
-                $html .= '<td class="header-right">';
-                $html .= '<div>Generated: '.$escape($generatedAt).'</div>';
-                $html .= '<div>Total Records: '.$escape($totalLogs).'</div>';
-                $html .= '</td>';
-                $html .= '</tr></table>';
-                $html .= '<div class="header-rule"></div>';
-                $html .= '</div>';
+                $html .= '<div class="header-text">';
+                $html .= '<h1>' . $roleText . 'Audit Logs Report</h1>';
+                $html .= '<p class="meta">Generated: ' . date('F j, Y g:i A') . ' &nbsp;|&nbsp; Total Records: ' . count($logs) . '</p>';
+                $html .= '</div></div>';
 
-                $html .= '<div class="footer">';
-                $html .= '<table class="footer-table"><tr>';
-                $html .= '<td class="footer-left">Audit Logs</td>';
-                $html .= '<td class="footer-center">Generated by Maptech</td>';
-                $html .= '<td class="footer-right">Page <span class="page-number"></span></td>';
-                $html .= '</tr></table>';
-                $html .= '</div>';
-
-                $html .= '<div class="content">';
-
-                $html .= '<table class="stats"><tr>';
-                $html .= '<th>Total Logs</th><th>Sensitive Logs</th><th>Unique Actions</th><th>Users Involved</th>';
-                $html .= '</tr><tr>';
-                $html .= '<td><span class="pill pill-green">'.$escape($totalLogs).'</span></td>';
-                $html .= '<td><span class="pill pill-red">'.$escape($sensitiveLogs).'</span></td>';
-                $html .= '<td><span class="pill pill-yellow">'.$escape($uniqueActions).'</span></td>';
-                $html .= '<td><span class="pill pill-blue">'.$escape($usersInvolved).'</span></td>';
-                $html .= '</tr></table>';
-
-                $html .= '<table class="filters"><tr>';
-                $html .= '<th>Search</th><th>Action</th><th>Entity</th><th>Project</th>';
-                $html .= '</tr><tr>';
-                $html .= '<td><span class="value">'.$escape($searchValue).'</span></td>';
-                $html .= '<td><span class="value">'.$escape($actionValue).'</span></td>';
-                $html .= '<td><span class="value">'.$escape($entityValue).'</span></td>';
-                $html .= '<td><span class="value">'.$escape($projectValue).'</span></td>';
-                $html .= '</tr></table>';
-
-                $html .= '<div class="section-title">Audit Entries</div>';
-                $html .= '<table class="entries">';
-                $html .= '<tr>';
-                $html .= '<th class="col-date">Date</th>';
-                $html .= '<th class="col-entity">Entity</th>';
-                $html .= '<th class="col-activity">Activity</th>';
-                $html .= '<th class="col-action">Action</th>';
-                $html .= '<th class="col-actor">Actor</th>';
-                $html .= '<th class="col-project">Project</th>';
-                $html .= '<th class="col-details">Details</th>';
-                $html .= '</tr>';
+                $html .= '<table><thead><tr>';
+                $html .= '<th>ID</th><th>User ID</th><th>Full Name</th><th>Email</th>';
+                $html .= '<th>Role</th><th>Department</th><th>Action</th><th>IP Address</th><th>Date &amp; Time</th>';
+                $html .= '</tr></thead><tbody>';
 
                 foreach ($logs as $log) {
                     $html .= '<tr>';
-                    $html .= '<td class="nowrap">'.$escape($formatDate($log->created_at)).'</td>';
-                    $html .= '<td>'.$escape($actionToEntity($log->action ?? '')).'</td>';
-                    $html .= '<td>'.$escape($displayActivity($log)).'</td>';
-                    $html .= '<td>'.$escape($log->action ?? '').'</td>';
-                    $html .= '<td>'.$escape($displayActor($log)).'</td>';
-                    $html .= '<td>Global</td>';
-                    $html .= '<td>'.$escape($displayDetails($log)).'</td>';
+                    $html .= '<td>' . htmlspecialchars($log->id) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->user_id) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->user_fullname ?? '') . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->user_email ?? '') . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->user_role ?? '') . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->user_department ?? '') . '</td>';
+                    $html .= '<td style="text-transform: capitalize;">' . htmlspecialchars($log->action) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->ip_address ?? '') . '</td>';
+                    $html .= '<td>' . htmlspecialchars($log->created_at ?? '') . '</td>';
                     $html .= '</tr>';
                 }
 
-                $html .= '</table>';
-                $html .= '</div>';
-                $html .= '<script type="text/php">';
-                $html .= 'if (isset($pdf)) {';
-                $html .= '    $font = $fontMetrics->get_font("Helvetica", "normal");';
-                $html .= '    $pdf->page_text(520, 810, "Page {PAGE_NUM} of {PAGE_COUNT}", $font, 8, array(102, 117, 109));';
-                $html .= '}';
-                $html .= '</script>';
+                $html .= '</tbody></table>';
+                $html .= '<script>window.onload = function() { window.print(); }</script>';
                 $html .= '</body></html>';
-
-                if (class_exists('\\Dompdf\\Dompdf')) {
-                    try {
-                        $dompdf = new \Dompdf\Dompdf;
-                        $dompdf->setPaper('A4', 'portrait');
-                        $dompdf->loadHtml($html);
-                        $dompdf->render();
-                        $pdfOutput = $dompdf->output();
-
-                        return response($pdfOutput, 200, [
-                            'Content-Type' => 'application/pdf',
-                            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
-                            'Content-Length' => strlen($pdfOutput),
-                        ]);
-                    } catch (\Throwable $e) {
-                        // Fall back to HTML if the PDF renderer is unavailable.
-                    }
-                }
 
                 return response($html, 200, [
                     'Content-Type' => 'text/html',
-                    'Content-Disposition' => 'inline; filename="'.$filename.'"',
+                    'Content-Disposition' => 'inline; filename="' . $filename . '"',
                 ]);
             }
 
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Export failed: '.$e->getMessage()], 500);
+            return response()->json(['message' => 'Export failed: ' . $e->getMessage()], 500);
         }
     });
 
@@ -1232,7 +928,6 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'status', 'role:Admin'])->gr
     // Admin: view lesson feedbacks by department/course/lesson
     Route::get('/feedbacks', [\App\Http\Controllers\Admin\FeedbackController::class, 'index']);
     Route::delete('/feedbacks/{id}', [\App\Http\Controllers\Admin\FeedbackController::class, 'destroy']);
-    Route::post('/feedbacks/{id}/archive', [\App\Http\Controllers\Admin\FeedbackController::class, 'archive']);
     Route::post('/feedbacks/bulk-delete', [\App\Http\Controllers\Admin\FeedbackController::class, 'bulkDelete']);
     // Replies to feedback (admin)
     Route::get('/feedbacks/{id}/replies', [\App\Http\Controllers\Admin\FeedbackReplyController::class, 'index']);
@@ -1474,30 +1169,22 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::get('/feedbacks', function (Request $request) {
         $instructorId = $request->user()->id;
         $type = $request->get('type', 'lesson');
-        $archived = filter_var($request->query('archived'), FILTER_VALIDATE_BOOLEAN);
 
         if ($type === 'quiz') {
             $query = \App\Models\QuizFeedback::with([
                 'user:id,fullname,department,role',
                 'quiz.module.course:id,title,department,instructor_id',
             ])
-                ->whereHas('quiz.module.course', function ($q) use ($instructorId) {
-                    $q->where('instructor_id', $instructorId);
-                })
-                ->orderByDesc('created_at');
-
-            if ($archived) {
-                $query->whereNotNull('archived_at');
-            } else {
-                $query->whereNull('archived_at');
-            }
+            ->whereHas('quiz.module.course', function ($q) use ($instructorId) {
+                $q->where('instructor_id', $instructorId);
+            })
+            ->orderByDesc('created_at');
 
             $perPage = max(10, min(200, (int) $request->get('per_page', 50)));
             $page = $query->paginate($perPage);
 
             return response()->json($page->through(function ($fb) {
                 return [
-                    'type' => 'quiz',
                     'id' => $fb->id,
                     'user' => [
                         'id' => $fb->user?->id,
@@ -1514,7 +1201,6 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
                     'rating' => $fb->rating,
                     'comment' => $fb->comment,
                     'created_at' => $fb->created_at?->toISOString(),
-                    'archived' => (bool) $fb->archived_at,
                 ];
             }));
         }
@@ -1523,16 +1209,10 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
             'user:id,fullname,department,role',
             'lesson.module.course:id,title,department,instructor_id',
         ])
-            ->whereHas('lesson.module.course', function ($q) use ($instructorId) {
-                $q->where('instructor_id', $instructorId);
-            })
-            ->orderByDesc('created_at');
-
-        if ($archived) {
-            $query->whereNotNull('archived_at');
-        } else {
-            $query->whereNull('archived_at');
-        }
+        ->whereHas('lesson.module.course', function ($q) use ($instructorId) {
+            $q->where('instructor_id', $instructorId);
+        })
+        ->orderByDesc('created_at');
 
         if ($request->has('course_id')) {
             $query->whereHas('lesson.module', function ($q) use ($request) {
@@ -1549,7 +1229,6 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
 
         return response()->json($page->through(function ($fb) {
             return [
-                'type' => 'lesson',
                 'id' => $fb->id,
                 'user' => [
                     'id' => $fb->user?->id,
@@ -1566,7 +1245,6 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
                 'rating' => $fb->rating,
                 'comment' => $fb->comment,
                 'created_at' => $fb->created_at?->toISOString(),
-                'archived' => (bool) $fb->archived_at,
             ];
         }));
     });
@@ -1595,6 +1273,7 @@ Route::prefix('instructor')->middleware(['auth:sanctum', 'status', 'role:Instruc
     Route::post('/custom-modules/{id}/push-to-department', [\App\Http\Controllers\Instructor\CustomModuleController::class, 'pushToDepartment']);
     Route::get('/custom-modules/{id}/department-employees', [\App\Http\Controllers\Instructor\CustomModuleController::class, 'getDepartmentEmployees']);
 });
+
 
 /*
 |--------------------------------------------------------------------------
@@ -1839,13 +1518,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
             \Illuminate\Support\Facades\Storage::disk('public')->delete($user->profile_picture);
         }
         $user->update(['profile_picture' => null]);
-
         return response()->json(['message' => 'Profile picture removed.']);
     });
 
     Route::post('/profile/signature', function (Request $request) {
         $user = $request->user();
-        if (! $user || ! ($user->isInstructor() || $user->isAdmin())) {
+        if (!$user || !($user->isInstructor() || $user->isAdmin())) {
             return response()->json(['message' => 'Only admins and instructors can upload a certificate signature.'], 403);
         }
 
@@ -1856,24 +1534,23 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         $file = $request->file('signature');
         $realPath = $file?->getRealPath();
-        if (! is_string($realPath) || ! is_file($realPath)) {
+        if (!is_string($realPath) || !is_file($realPath)) {
             return response()->json(['message' => 'Invalid signature upload. Please try again.'], 422);
         }
 
         $signatureInfo = @getimagesize($realPath);
-        if (! $signatureInfo || (int) ($signatureInfo[2] ?? 0) !== IMAGETYPE_PNG) {
+        if (!$signatureInfo || (int) ($signatureInfo[2] ?? 0) !== IMAGETYPE_PNG) {
             return response()->json(['message' => 'Signature must be a PNG image.'], 422);
         }
 
         $isSignatureLike = function (string $path): bool {
-            if (! extension_loaded('gd')) {
+            if (!extension_loaded('gd')) {
                 \Illuminate\Support\Facades\Log::warning('Signature validation skipped: GD extension not available.');
-
                 return true;
             }
 
             $info = @getimagesize($path);
-            if (! $info || empty($info[0]) || empty($info[1])) {
+            if (!$info || empty($info[0]) || empty($info[1])) {
                 return false;
             }
 
@@ -1890,7 +1567,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
                 $img = @imagecreatefrompng($path);
             }
 
-            if (! $img) {
+            if (!$img) {
                 return false;
             }
 
@@ -1917,30 +1594,20 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
                     if ($alpha >= 100) {
                         $transparent++;
-
                         continue;
                     }
 
                     if ($lum >= 230) {
                         $nearWhite++;
-
                         continue;
                     }
 
                     if ($lum <= 90) {
                         $ink++;
-                        if ($x < $minX) {
-                            $minX = $x;
-                        }
-                        if ($y < $minY) {
-                            $minY = $y;
-                        }
-                        if ($x > $maxX) {
-                            $maxX = $x;
-                        }
-                        if ($y > $maxY) {
-                            $maxY = $y;
-                        }
+                        if ($x < $minX) $minX = $x;
+                        if ($y < $minY) $minY = $y;
+                        if ($x > $maxX) $maxX = $x;
+                        if ($y > $maxY) $maxY = $y;
                     }
                 }
             }
@@ -1977,9 +1644,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
             return true;
         };
 
-        if (! $isSignatureLike($realPath)) {
+        if (!$isSignatureLike($realPath)) {
             return response()->json([
-                'message' => 'Signature image must look like a real signature (transparent or white background with minimal ink).',
+                'message' => 'Signature image must look like a real signature (transparent or white background with minimal ink).'
             ], 422);
         }
 

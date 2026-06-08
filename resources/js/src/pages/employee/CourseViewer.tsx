@@ -24,11 +24,8 @@ import {
 import { sanitizeHtml } from '../../components/RichTextEditor';
 import YouTubePlayer from '../../components/YouTubePlayer';
 import { safeArray } from '../../utils/safe';
-import { CustomModuleViewer } from './CustomModuleViewer';
-import { lazy, Suspense } from 'react';
-const PDFViewer = lazy(() => import('../../components/PDFViewer'));
+import PDFViewer from '../../components/PDFViewer';
 import PresentationViewer from '../../components/PresentationViewer';
-import { actionButtonClasses } from '../../utils/uiPalette';
 
 const API_BASE = '/api';
 
@@ -82,7 +79,6 @@ interface LessonData {
   title: string;
   text_content: string | null;
   content_path: string | null;
-  content_full_url: string | null;
   content_url: string | null;
   file_type: string | null;
   order: number;
@@ -138,7 +134,6 @@ interface CourseData {
     email: string;
   } | null;
   modules: ModuleData[];
-  final_assessment_quiz: QuizData | null;
 }
 
 interface CourseViewerProps {
@@ -169,15 +164,6 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
   const [selectedSentence, setSelectedSentence] = useState('');
   const [selectedSentenceDefinition, setSelectedSentenceDefinition] = useState('');
   const [showSentenceModal, setShowSentenceModal] = useState(false);
-
-  // Final assessment state
-  const [finalAssessmentQuiz, setFinalAssessmentQuiz] = useState<QuizData | null>(null);
-  const [finalAssessmentState, setFinalAssessmentState] = useState<null | 'loading' | 'taking' | 'submitted'>(null);
-  const [finalAssessmentQuestions, setFinalAssessmentQuestions] = useState<QuizQuestion[]>([]);
-  const [finalAssessmentAnswers, setFinalAssessmentAnswers] = useState<Record<number, number>>({});
-  const [finalAssessmentResult, setFinalAssessmentResult] = useState<QuizResult | null>(null);
-  const [finalAssessmentSubmitting, setFinalAssessmentSubmitting] = useState(false);
-  const [showCongratulatoryModal, setShowCongratulatoryModal] = useState(false);
   const [, setViewedLessons] = useState<Set<number>>(new Set());
   const [, setViewedModules] = useState<Set<number>>(new Set());
   const [showCompletionPopup, setShowCompletionPopup] = useState(false);
@@ -256,7 +242,6 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       if (!res.ok) throw new Error('Failed to load course');
       const data = await res.json();
       setCourse(data);
-      setFinalAssessmentQuiz(data.final_assessment_quiz ?? null);
       const mods: ModuleData[] = safeArray<ModuleData>(data.modules);
       setModules(mods);
       setCurrentModule(prev => {
@@ -550,16 +535,16 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
   };
 
   // Helper to get file extension from URL
-  const getFileExtension = (urlOrPath: string | null): string => {
-    if (!urlOrPath) return '';
-    const match = urlOrPath.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+  const getFileExtension = (url: string | null): string => {
+    if (!url) return '';
+    const match = url.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
     return match ? match[1].toLowerCase() : '';
   };
 
-  // Helper to get file name from URL or stored path
-  const getFileName = (urlOrPath: string | null): string => {
-    if (!urlOrPath) return 'File';
-    const match = urlOrPath.match(/([^/]+)(?:\?|$)/);
+  // Helper to get file name from URL
+  const getFileName = (url: string | null): string => {
+    if (!url) return 'File';
+    const match = url.match(/([^/]+)(?:\?|$)/);
     return match ? decodeURIComponent(match[1]) : 'File';
   };
 
@@ -589,9 +574,8 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       );
     }
 
-    const lessonFileUrl = currentLesson.content_full_url || currentLesson.content_url;
     const hasText = !!currentLesson.text_content;
-    const hasFile = !!lessonFileUrl;
+    const hasFile = !!currentLesson.content_url;
 
     if (!hasText && !hasFile) {
       return (
@@ -623,16 +607,16 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             />
             {selectedSentence && (
               <div
-                className="mt-4 rounded-md border border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/30 p-3 space-y-2 cursor-pointer hover:bg-green-100 dark:hover:bg-green-800/40 transition-colors group"
+                className="mt-4 rounded-md border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 p-3 space-y-2 cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-800/40 transition-colors group"
                 onClick={() => setShowSentenceModal(true)}
                 title="Click to view larger"
               >
                 <div className="flex items-center justify-between">
-                  <p className="text-xs text-green-800 dark:text-green-200"><strong>Sentence:</strong> {selectedSentence}</p>
-                  <Eye className="h-4 w-4 text-green-500 dark:text-green-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <p className="text-xs text-emerald-800 dark:text-emerald-200"><strong>Sentence:</strong> {selectedSentence}</p>
+                  <Eye className="h-4 w-4 text-emerald-500 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
-                <p className="text-sm text-green-900 dark:text-green-100">{selectedSentenceDefinition}</p>
-                <p className="text-xs text-green-500 dark:text-green-400 text-center mt-2 opacity-70">Click to read more clearly</p>
+                <p className="text-sm text-emerald-900 dark:text-emerald-100">{selectedSentenceDefinition}</p>
+                <p className="text-xs text-emerald-500 dark:text-emerald-400 text-center mt-2 opacity-70">Click to read more clearly</p>
               </div>
             )}
           </div>
@@ -640,9 +624,8 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       );
     }
 
-    const { file_type, title } = currentLesson;
-    const lessonContentUrl = lessonFileUrl ?? undefined;
-    const lessonSourcePath = currentLesson.content_path || lessonFileUrl;
+    const { file_type, content_url, title } = currentLesson;
+    const lessonContentUrl = content_url ?? undefined;
 
     const textBlock = hasText ? (
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden mb-4">
@@ -661,16 +644,16 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
           />
           {selectedSentence && (
             <div
-              className="mt-4 rounded-md border border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/30 p-3 space-y-2 cursor-pointer hover:bg-green-100 dark:hover:bg-green-800/40 transition-colors group"
+              className="mt-4 rounded-md border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 p-3 space-y-2 cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-800/40 transition-colors group"
               onClick={() => setShowSentenceModal(true)}
               title="Click to view larger"
             >
               <div className="flex items-center justify-between">
-                <p className="text-xs text-green-800 dark:text-green-200"><strong>Sentence:</strong> {selectedSentence}</p>
-                <Eye className="h-4 w-4 text-green-500 dark:text-green-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <p className="text-xs text-emerald-800 dark:text-emerald-200"><strong>Sentence:</strong> {selectedSentence}</p>
+                <Eye className="h-4 w-4 text-emerald-500 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
-              <p className="text-sm text-green-900 dark:text-green-100">{selectedSentenceDefinition}</p>
-              <p className="text-xs text-green-500 dark:text-green-400 text-center mt-2 opacity-70">Click to read more clearly</p>
+              <p className="text-sm text-emerald-900 dark:text-emerald-100">{selectedSentenceDefinition}</p>
+              <p className="text-xs text-emerald-500 dark:text-emerald-400 text-center mt-2 opacity-70">Click to read more clearly</p>
             </div>
           )}
         </div>
@@ -678,8 +661,8 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     ) : null;
 
     if (file_type === 'video') {
-      // Check if the file URL is a YouTube link
-      const isYouTube = lessonFileUrl && (/youtube\.com|youtu\.be/.test(lessonFileUrl));
+      // Check if content_url is a YouTube link
+      const isYouTube = content_url && (/youtube\.com|youtu\.be/.test(content_url));
       return (
         <div className="space-y-4">
           {textBlock}
@@ -688,7 +671,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
               // YouTube player container; we'll initialize the YT player via JS API
               <YouTubePlayer contentUrl={lessonContentUrl || ''} lessonId={currentLesson!.id} />
             ) : (
-              <video controls className="w-full h-full" src={lessonFileUrl || undefined}>
+              <video controls className="w-full h-full" src={content_url || undefined}>
                 Your browser does not support the video tag.
               </video>
             )}
@@ -705,7 +688,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             <Music className="h-20 w-20 text-slate-400 dark:text-slate-500 mb-4" />
             <h3 className="text-lg font-medium text-slate-700 dark:text-slate-100 mb-4">{title}</h3>
             <audio controls className="w-full max-w-md">
-              <source src={lessonFileUrl || undefined} />
+              <source src={content_url || undefined} />
               Your browser does not support the audio element.
             </audio>
           </div>
@@ -717,47 +700,43 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       return (
         <div className="space-y-4">
           {textBlock}
-          <Suspense fallback={<div className="p-4">Loading document...</div>}>
-            <PDFViewer
-              url={lessonFileUrl || ''}
-              title={title}
-              fileName={getFileName(lessonSourcePath)}
-              lessonId={currentLesson.id}
-              moduleId={currentModule?.id}
-              showConvertButton={false}
-            />
-          </Suspense>
+          <PDFViewer
+            url={content_url || ''}
+            title={title}
+            fileName={getFileName(content_url)}
+            lessonId={currentLesson.id}
+            moduleId={currentModule?.id}
+            showConvertButton={false}
+          />
         </div>
       );
     }
 
     // Handle presentations (PPTX, PPT) with interactive PresentationViewer
     if (file_type === 'presentation') {
-      const ext = getFileExtension(lessonSourcePath);
+      const ext = getFileExtension(content_url);
       const isPptx = ext === 'pptx' || ext === 'ppt';
 
       if (isPptx) {
         return (
-            <div className="space-y-4">
+          <div className="space-y-4">
             {textBlock}
-            <Suspense fallback={<div className="p-4">Loading presentation...</div>}>
-              <PresentationViewer
-                url={lessonFileUrl || ''}
-                title={title}
-                fileName={getFileName(lessonSourcePath)}
-              />
-            </Suspense>
+            <PresentationViewer
+              url={content_url || ''}
+              title={title}
+              fileName={getFileName(content_url)}
+            />
           </div>
         );
       }
 
       // Fallback to Office Online viewer for other presentation formats
-      const absoluteUrl = lessonFileUrl?.startsWith('http')
-        ? lessonFileUrl
-        : `${window.location.origin}${lessonFileUrl}`;
+      const absoluteUrl = content_url?.startsWith('http')
+        ? content_url
+        : `${window.location.origin}${content_url}`;
       const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absoluteUrl || '')}`;
-      const fileName = getFileName(lessonSourcePath);
-      const fileTypeDisplay = getFileTypeDisplay(file_type, lessonSourcePath);
+      const fileName = getFileName(content_url);
+      const fileTypeDisplay = getFileTypeDisplay(file_type, content_url);
 
       return (
         <div className="space-y-4">
@@ -779,12 +758,12 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                 href={officeViewerUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`inline-flex items-center px-5 py-2.5 rounded-lg font-medium transition-colors shadow-md ${actionButtonClasses.info}`}
+                className="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-md"
               >
                 <Eye className="h-5 w-5 mr-2" />View / Study
               </a>
               <a
-                href={lessonFileUrl || undefined}
+                href={content_url || undefined}
                 download
                 className="inline-flex items-center px-5 py-2.5 border border-green-600 text-green-600 dark:text-green-400 rounded-lg font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
               >
@@ -802,12 +781,12 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     // Handle documents (DOCX, DOC) with Office Online viewer
     if (file_type === 'document') {
       // Get absolute URL for Office Online viewer
-      const absoluteUrl = lessonFileUrl?.startsWith('http')
-        ? lessonFileUrl
-        : `${window.location.origin}${lessonFileUrl}`;
+      const absoluteUrl = content_url?.startsWith('http')
+        ? content_url
+        : `${window.location.origin}${content_url}`;
       const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absoluteUrl || '')}`;
-      const fileName = getFileName(lessonSourcePath);
-      const fileTypeDisplay = getFileTypeDisplay(file_type, lessonSourcePath);
+      const fileName = getFileName(content_url);
+      const fileTypeDisplay = getFileTypeDisplay(file_type, content_url);
 
       return (
         <div className="space-y-4">
@@ -835,7 +814,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                 href={officeViewerUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`inline-flex items-center px-5 py-2.5 rounded-lg font-medium transition-colors shadow-md ${actionButtonClasses.info}`}
+                className="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-md"
               >
                 <Eye className="h-5 w-5 mr-2" />
                 View / Study
@@ -843,7 +822,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
               {/* Secondary: Open in new tab (direct file) */}
               <a
-                href={lessonFileUrl || undefined}
+                href={content_url || undefined}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center px-5 py-2.5 bg-slate-600 text-white rounded-lg font-medium hover:bg-slate-700 transition-colors"
@@ -854,7 +833,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
               {/* Optional: Download button */}
               <a
-                href={lessonFileUrl || undefined}
+                href={content_url || undefined}
                 download
                 className="inline-flex items-center px-5 py-2.5 border border-green-600 text-green-600 dark:text-green-400 dark:border-green-500 rounded-lg font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
               >
@@ -892,19 +871,19 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
               {getLargeFileIcon(file_type)}
             </div>
             <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-1">{title}</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">{getFileName(lessonSourcePath)}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">{getFileName(content_url)}</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mb-6">
-              {getFileTypeDisplay(file_type, lessonSourcePath)}
+              {getFileTypeDisplay(file_type, content_url)}
             </p>
 
             {/* Action buttons */}
             <div className="flex flex-wrap items-center justify-center gap-3">
               {/* Primary: Open/View in new tab */}
               <a
-                href={lessonFileUrl || undefined}
+                href={content_url || undefined}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`inline-flex items-center px-6 py-3 rounded-lg font-medium transition-colors shadow-md ${actionButtonClasses.info}`}
+                className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-md"
               >
                 <ExternalLink className="h-5 w-5 mr-2" />
                 Open / View File
@@ -912,7 +891,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
               {/* Optional: Download button */}
               <a
-                href={lessonFileUrl || undefined}
+                href={content_url || undefined}
                 download
                 className="inline-flex items-center px-6 py-3 border border-green-600 text-green-600 dark:text-green-400 dark:border-green-500 rounded-lg font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
               >
@@ -932,9 +911,9 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
     if (quizState === 'loading') {
       return (
-        <div className="rounded-xl border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 p-6 flex items-center justify-center gap-2">
-          <Loader className="h-5 w-5 animate-spin text-blue-600" />
-          <span className="text-blue-700 dark:text-blue-200">Loading quiz...</span>
+        <div className="rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 p-6 flex items-center justify-center gap-2">
+          <Loader className="h-5 w-5 animate-spin text-indigo-600" />
+          <span className="text-indigo-700 dark:text-indigo-200">Loading quiz...</span>
         </div>
       );
     }
@@ -942,10 +921,10 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     if (quizState === 'taking') {
       const allAnswered = quizQuestions.length > 0 && quizQuestions.every(q => quizAnswers[q.id] !== undefined);
       return (
-        <div className="rounded-xl border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 p-6 space-y-6">
+        <div className="rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 p-6 space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100">{quiz.title}</h3>
-            <span className="text-xs text-blue-600 dark:text-blue-200 px-2.5 py-1 bg-blue-100 dark:bg-blue-800/60 rounded-full">
+            <h3 className="text-lg font-bold text-indigo-900 dark:text-indigo-100">{quiz.title}</h3>
+            <span className="text-xs text-indigo-600 dark:text-indigo-200 px-2.5 py-1 bg-indigo-100 dark:bg-indigo-800/60 rounded-full">
               Pass: {quiz.pass_percentage}%
             </span>
           </div>
@@ -956,7 +935,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                 {safeArray(q.options).map(opt => (
                   <label key={opt.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                     quizAnswers[q.id] === opt.id
-                      ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-400 dark:border-blue-500 text-blue-900 dark:text-blue-100'
+                      ? 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-400 dark:border-indigo-500 text-indigo-900 dark:text-indigo-100'
                       : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
                   }`}>
                     <input
@@ -965,7 +944,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                       value={opt.id}
                       checked={quizAnswers[q.id] === opt.id}
                       onChange={() => setQuizAnswers(prev => ({ ...prev, [q.id]: opt.id }))}
-                      className="text-blue-600"
+                      className="text-indigo-600"
                     />
                     <span className="text-sm">{opt.option_text}</span>
                   </label>
@@ -976,7 +955,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
           <button
             onClick={submitQuiz}
             disabled={!allAnswered || quizSubmitting}
-            className={`w-full py-3 font-semibold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 ${actionButtonClasses.primary}`}
+            className="w-full py-3 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white font-semibold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {quizSubmitting ? <><Loader className="h-4 w-4 animate-spin" /> Submitting...</> : 'Submit Quiz'}
           </button>
@@ -988,19 +967,19 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
       // Step 1: Ask if user wants to see result
       if (!showResultRevealed) {
         return (
-          <div className="rounded-xl border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 p-8 text-center space-y-5">
+          <div className="rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 p-8 text-center space-y-5">
             <div className="flex justify-center">
-              <div className="h-16 w-16 rounded-full bg-blue-100 dark:bg-blue-800/70 flex items-center justify-center">
-                <HelpCircle className="h-8 w-8 text-blue-600" />
+              <div className="h-16 w-16 rounded-full bg-indigo-100 dark:bg-indigo-800/70 flex items-center justify-center">
+                <HelpCircle className="h-8 w-8 text-indigo-600" />
               </div>
             </div>
             <div>
-              <h3 className="text-xl font-bold text-blue-900 dark:text-blue-100">Quiz Submitted!</h3>
-              <p className="text-sm text-blue-700 dark:text-blue-200 mt-2">Your answers have been recorded. Would you like to see your result?</p>
+              <h3 className="text-xl font-bold text-indigo-900 dark:text-indigo-100">Quiz Submitted!</h3>
+              <p className="text-sm text-indigo-700 dark:text-indigo-200 mt-2">Your answers have been recorded. Would you like to see your result?</p>
             </div>
             <button
               onClick={() => setShowResultRevealed(true)}
-              className={`px-8 py-3 font-semibold rounded-lg text-base transition-colors ${actionButtonClasses.info}`}
+              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-semibold rounded-lg text-base transition-colors"
             >
               See Quiz Result
             </button>
@@ -1046,7 +1025,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                       {currentModuleIndex < modules.length - 1 && modules[currentModuleIndex + 1]?.is_unlocked && (
                         <button
                           onClick={() => selectModule(modules[currentModuleIndex + 1])}
-                          className={`mt-3 px-6 py-2.5 font-semibold rounded-lg flex items-center gap-2 transition-colors ${actionButtonClasses.success}`}
+                          className="mt-3 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg flex items-center gap-2 transition-colors"
                         >
                           Proceed to Next Module <ArrowRight className="h-4 w-4" />
                         </button>
@@ -1075,14 +1054,14 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
     // Idle — show quiz info + start button
     return (
-      <div className="rounded-xl border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 p-6">
+      <div className="rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 p-6">
         <div className="flex items-start gap-4">
-          <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-800/70 flex items-center justify-center flex-shrink-0">
-            <HelpCircle className="h-5 w-5 text-blue-600" />
+          <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-800/70 flex items-center justify-center flex-shrink-0">
+            <HelpCircle className="h-5 w-5 text-indigo-600" />
           </div>
           <div className="flex-1">
-            <h3 className="text-base font-bold text-blue-900 dark:text-blue-100">{quiz.title}</h3>
-            <p className="text-sm text-blue-700 dark:text-blue-200 mt-1">
+            <h3 className="text-base font-bold text-indigo-900 dark:text-indigo-100">{quiz.title}</h3>
+            <p className="text-sm text-indigo-700 dark:text-indigo-200 mt-1">
               {quiz.question_count} question{quiz.question_count !== 1 ? 's' : ''} · Pass {quiz.pass_percentage}% to unlock next module
             </p>
             {quiz.has_passed ? (
@@ -1109,8 +1088,8 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
         </div>
 
         {quizAttempts.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-700">
-            <p className="text-xs font-semibold text-blue-700 dark:text-blue-200 mb-2">Your Recent Attempts</p>
+          <div className="mt-4 pt-4 border-t border-indigo-200 dark:border-indigo-700">
+            <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-200 mb-2">Your Recent Attempts</p>
             <div className="space-y-1.5">
               {quizAttempts.slice(0, 5).map((attempt) => (
                 <div key={attempt.id} className="flex items-center justify-between text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2.5 py-2">
@@ -1196,60 +1175,6 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
     }
   };
 
-  const startFinalAssessment = async () => {
-    if (!finalAssessmentQuiz) return;
-    setFinalAssessmentState('loading');
-    setFinalAssessmentAnswers({});
-    setFinalAssessmentResult(null);
-    try {
-      const xsrf = await getXsrfToken();
-      const res = await fetch(`${API_BASE}/employee/quizzes/${finalAssessmentQuiz.id}/questions`, {
-        credentials: 'include',
-        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': xsrf },
-      });
-      if (!res.ok) throw new Error('Failed to load final assessment questions.');
-      const data = await res.json();
-      setFinalAssessmentQuestions(safeArray<QuizQuestion>(data.questions ?? data));
-      setFinalAssessmentState('taking');
-    } catch (e: any) {
-      setFinalAssessmentState(null);
-      alert(e.message);
-    }
-  };
-
-  const submitFinalAssessment = async () => {
-    if (!finalAssessmentQuiz) return;
-    setFinalAssessmentSubmitting(true);
-    try {
-      const xsrf = await getXsrfToken();
-      const answers = Object.entries(finalAssessmentAnswers).map(([qId, aId]) => ({
-        question_id: Number(qId),
-        answer_id: aId,
-      }));
-      const res = await fetch(`${API_BASE}/employee/quizzes/${finalAssessmentQuiz.id}/submit`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': xsrf },
-        body: JSON.stringify({ answers }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || 'Failed to submit final assessment.');
-      setFinalAssessmentResult(data);
-      setFinalAssessmentState('submitted');
-      if (data.passed) {
-        setShowCongratulatoryModal(true);
-        if (congratulatedStorageKey) {
-          try { localStorage.setItem(congratulatedStorageKey, '1'); } catch { /* ignore */ }
-        }
-      }
-      await loadCourse();
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setFinalAssessmentSubmitting(false);
-    }
-  };
-
   const canGoPrevious = showQuiz || currentLessonIndex > 0 || currentModuleIndex > 0;
   const canGoNext = (() => {
     if (currentLesson && currentLessonIndex < moduleLessons.length - 1) return true;
@@ -1307,7 +1232,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             onClick={() => setShowCompletionPopup(false)}
             aria-hidden="true"
           />
-          <div className="relative w-full max-w-md rounded-2xl border border-green-300/30 bg-slate-900/95 p-6 text-slate-100 shadow-2xl">
+          <div className="relative w-full max-w-md rounded-2xl border border-emerald-300/30 bg-slate-900/95 p-6 text-slate-100 shadow-2xl">
             <button
               type="button"
               onClick={() => setShowCompletionPopup(false)}
@@ -1317,13 +1242,13 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
               <X className="h-5 w-5" />
             </button>
 
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-500/20 ring-1 ring-green-300/40">
-              <Trophy className="h-7 w-7 text-green-300" />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/20 ring-1 ring-emerald-300/40">
+              <Trophy className="h-7 w-7 text-emerald-300" />
             </div>
 
             <h3 className="text-center text-2xl font-bold text-white">Congratulations!</h3>
             <p className="mt-3 text-center text-sm text-slate-200">
-              You successfully completed <span className="font-semibold text-green-300">{course.title}</span>.
+              You successfully completed <span className="font-semibold text-emerald-300">{course.title}</span>.
             </p>
             <p className="mt-2 text-center text-xs text-slate-400">
               You can now view and download your certificate from the certificates page.
@@ -1340,57 +1265,9 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                   }
                   window.location.assign(`${window.location.pathname}?page=certificates`);
                 }}
-                className={`rounded-lg px-5 py-2.5 text-sm font-semibold ${actionButtonClasses.info}`}
+                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700"
               >
                 View Certificates
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Final Assessment Congratulatory Modal */}
-      {showCongratulatoryModal && (
-        <div className="fixed inset-0 z-[145] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" aria-hidden="true" />
-          <div className="relative w-full max-w-lg rounded-2xl border border-amber-300/30 bg-slate-900/97 p-8 text-slate-100 shadow-2xl text-center">
-            <button
-              type="button"
-              onClick={() => setShowCongratulatoryModal(false)}
-              className="absolute right-3 top-3 rounded-md p-1 text-slate-300 hover:bg-white/10 hover:text-white"
-              aria-label="Close"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-amber-500/20 ring-2 ring-amber-400/40">
-              <Trophy className="h-10 w-10 text-amber-400" />
-            </div>
-            <h2 className="text-3xl font-extrabold text-white mb-2">🎉 Congratulations!</h2>
-            <p className="text-base text-slate-200 mb-1">
-              You've successfully completed
-            </p>
-            <p className="text-lg font-bold text-amber-300 mb-4">{course?.title}</p>
-            <p className="text-sm text-slate-400 mb-8">
-              Your certificate is ready. You can preview or download it from the Certificates page.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCongratulatoryModal(false);
-                  if (onViewCertificates) onViewCertificates();
-                  else window.location.assign(`${window.location.pathname}?page=certificates`);
-                }}
-                className="rounded-xl bg-amber-500 hover:bg-amber-600 px-6 py-3 text-sm font-bold text-white shadow-lg"
-              >
-                View Certificate
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowCongratulatoryModal(false)}
-                className="rounded-xl border border-slate-600 px-6 py-3 text-sm font-medium text-slate-300 hover:bg-white/10"
-              >
-                Continue Learning
               </button>
             </div>
           </div>
@@ -1424,10 +1301,10 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
             <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
               {/* Sentence */}
               <div className="mb-6">
-                <p className="text-sm font-semibold text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">
+                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-2">
                   Sentence
                 </p>
-                <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-5 border border-green-200 dark:border-green-700">
+                <div className="bg-emerald-50 dark:bg-emerald-900/30 rounded-xl p-5 border border-emerald-200 dark:border-emerald-700">
                   <p className="text-lg text-slate-800 dark:text-slate-100 leading-relaxed font-medium">
                     {selectedSentence}
                   </p>
@@ -1436,10 +1313,10 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
               {/* Definition / Information */}
               <div>
-                <p className="text-sm font-semibold text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">
+                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-2">
                   Information
                 </p>
-                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-5 border-l-4 border-green-500 dark:border-green-400">
+                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-5 border-l-4 border-emerald-500 dark:border-emerald-400">
                   <p className="text-base text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
                     {selectedSentenceDefinition}
                   </p>
@@ -1451,7 +1328,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
               <button
                 type="button"
                 onClick={() => setShowSentenceModal(false)}
-                className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors ${actionButtonClasses.info}`}
+                className="rounded-lg bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors"
               >
                 Close
               </button>
@@ -1520,7 +1397,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                         disabled={isLocked}
                         className={`w-full px-3 py-2.5 flex items-center text-left rounded-lg transition-colors ${
                           isActiveModule
-                            ? 'bg-green-50 dark:bg-green-900/30 text-green-900 dark:text-green-200'
+                            ? 'bg-green-50 dark:bg-emerald-900/30 text-green-900 dark:text-emerald-200'
                             : isLocked
                             ? 'text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-60'
                             : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
@@ -1561,7 +1438,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                                 onClick={() => selectLesson(module, lesson)}
                                 className={`w-full px-3 py-1.5 flex items-center gap-2 text-left rounded-md transition-colors text-sm ${
                                   isActiveLesson
-                                    ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200 font-medium'
+                                    ? 'bg-green-100 dark:bg-emerald-900/40 text-green-800 dark:text-emerald-200 font-medium'
                                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                                 }`}
                               >
@@ -1575,11 +1452,11 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                               onClick={() => selectQuiz(module)}
                               className={`w-full px-3 py-1.5 flex items-center gap-2 text-left rounded-md transition-colors text-sm ${
                                 showQuiz && isActiveModule
-                                  ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 font-medium'
+                                  ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-200 font-medium'
                                   : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                               }`}
                             >
-                              <HelpCircle className={`h-3.5 w-3.5 ${module.quiz.has_passed ? 'text-green-500' : 'text-blue-400'}`} />
+                              <HelpCircle className={`h-3.5 w-3.5 ${module.quiz.has_passed ? 'text-green-500' : 'text-indigo-400'}`} />
                               <span className="truncate">Quiz</span>
                               {module.quiz.has_passed && <CheckCircle className="h-3 w-3 text-green-500 ml-auto flex-shrink-0" />}
                             </button>
@@ -1617,12 +1494,12 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
             {/* Quiz prompt at bottom of lesson content */}
             {!showQuiz && currentLesson && currentModule?.quiz && currentLessonIndex === moduleLessons.length - 1 && (
-              <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-xl flex items-center justify-between">
+              <div className="mt-4 p-4 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-xl flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <HelpCircle className="h-5 w-5 text-blue-600" />
+                  <HelpCircle className="h-5 w-5 text-indigo-600" />
                   <div>
-                    <p className="text-sm font-medium text-blue-900 dark:text-blue-100">Ready for the quiz?</p>
-                    <p className="text-xs text-blue-600 dark:text-blue-200">
+                    <p className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Ready for the quiz?</p>
+                    <p className="text-xs text-indigo-600 dark:text-indigo-200">
                       Pass with {currentModule.quiz.pass_percentage}% to unlock the next module
                     </p>
                   </div>
@@ -1634,7 +1511,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                 ) : (
                   <button
                     onClick={() => selectQuiz(currentModule)}
-                    className={`px-4 py-2 text-sm font-semibold rounded-lg ${actionButtonClasses.success}`}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white text-sm font-semibold rounded-lg"
                   >
                     Take Quiz
                   </button>
@@ -1654,95 +1531,6 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                 )}
               </div>
             )}
-
-            {/* Final Assessment Section */}
-            {!currentLesson && !showQuiz && finalAssessmentQuiz && (() => {
-              const allModulesPassed = modules.length > 0 && modules.every(m => !m.quiz || m.quiz.has_passed);
-              if (!allModulesPassed) return null;
-              return (
-                <div className="mt-10 border-t-2 border-amber-300 dark:border-amber-600 pt-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-800/50 flex items-center justify-center flex-shrink-0">
-                      <Trophy className="h-5 w-5 text-amber-600 dark:text-amber-300" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Final Assessment</h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">Complete this assessment to finish the course</p>
-                    </div>
-                  </div>
-
-                  {finalAssessmentState === null && (
-                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-5">
-                      <p className="text-sm text-amber-900 dark:text-amber-200 mb-1 font-semibold">{finalAssessmentQuiz.title}</p>
-                      {finalAssessmentQuiz.description && <p className="text-xs text-amber-700 dark:text-amber-400 mb-3">{finalAssessmentQuiz.description}</p>}
-                      <p className="text-xs text-slate-600 dark:text-slate-400 mb-4">{finalAssessmentQuiz.question_count} question{finalAssessmentQuiz.question_count !== 1 ? 's' : ''} · Pass {finalAssessmentQuiz.pass_percentage}% to complete the course</p>
-                      {finalAssessmentQuiz.has_passed ? (
-                        <div className="flex items-center gap-2 text-green-700 dark:text-green-300 font-semibold text-sm">
-                          <CheckCircle className="h-5 w-5" /> You passed! Course completed.
-                        </div>
-                      ) : (
-                        <button onClick={startFinalAssessment} className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-lg">
-                          Start Final Assessment
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {finalAssessmentState === 'loading' && (
-                    <div className="flex items-center gap-2 text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /> Loading questions...</div>
-                  )}
-
-                  {finalAssessmentState === 'taking' && (
-                    <div className="space-y-6">
-                      {finalAssessmentQuestions.map((q, qi) => (
-                        <div key={q.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5">
-                          <p className="font-semibold text-slate-900 dark:text-slate-100 mb-3">{qi + 1}. {q.question}</p>
-                          <div className="space-y-2">
-                            {safeArray(q.answers).map((ans: any) => (
-                              <label key={ans.id} className="flex items-center gap-3 p-2.5 rounded-lg border border-transparent hover:border-amber-300 dark:hover:border-amber-600 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name={`fa-q-${q.id}`}
-                                  value={ans.id}
-                                  checked={finalAssessmentAnswers[q.id] === ans.id}
-                                  onChange={() => setFinalAssessmentAnswers(prev => ({ ...prev, [q.id]: ans.id }))}
-                                  className="accent-amber-600"
-                                />
-                                <span className="text-sm text-slate-800 dark:text-slate-200">{ans.answer}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                      <button
-                        onClick={submitFinalAssessment}
-                        disabled={finalAssessmentSubmitting || Object.keys(finalAssessmentAnswers).length < finalAssessmentQuestions.length}
-                        className="w-full py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl"
-                      >
-                        {finalAssessmentSubmitting ? <><Loader2 className="h-4 w-4 animate-spin inline mr-2" />Submitting...</> : 'Submit Final Assessment'}
-                      </button>
-                    </div>
-                  )}
-
-                  {finalAssessmentState === 'submitted' && finalAssessmentResult && (
-                    <div className={`rounded-xl p-6 border ${finalAssessmentResult.passed ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'}`}>
-                      <div className="flex items-center gap-3 mb-2">
-                        {finalAssessmentResult.passed
-                          ? <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
-                          : <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />}
-                        <p className="text-lg font-bold">{finalAssessmentResult.passed ? 'Congratulations! You passed!' : 'Not quite — keep trying!'}</p>
-                      </div>
-                      <p className="text-sm mb-4">Score: {finalAssessmentResult.score}/{finalAssessmentResult.total_questions} ({Math.round(finalAssessmentResult.percentage)}%) · Pass mark: {finalAssessmentResult.pass_percentage}%</p>
-                      {!finalAssessmentResult.passed && (
-                        <button onClick={startFinalAssessment} className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-lg">
-                          Retry Assessment
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
 
             {/* Navigation Buttons */}
             {(currentLesson || showQuiz) && (
@@ -1764,7 +1552,7 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
                   <button
                     onClick={goToNext}
                     disabled={!canGoNext}
-                    className={`flex items-center px-4 py-2 rounded-md font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${actionButtonClasses.success}`}
+                    className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Next
                     <ArrowRight className="h-4 w-4 ml-2" />
@@ -1854,14 +1642,14 @@ export function CourseViewer({ courseId, onBack, onViewCertificates }: CourseVie
 
                   {!quizResult ? (
                     <div className="flex items-center space-x-3">
-                      <button onClick={submitQuiz} className={`px-4 py-2 rounded ${actionButtonClasses.success}`}>Submit Assessment</button>
+                      <button onClick={submitQuiz} className="px-4 py-2 bg-green-600 text-white rounded">Submit Assessment</button>
                       <button onClick={() => { setShowQuiz(false); setQuizAnswers({}); }} className="px-4 py-2 border rounded">Close</button>
                     </div>
                   ) : (
                     <div className="mt-4">
                       <p className="font-semibold">Result: {quizResult.score} / {quizResult.total}</p>
                       <button onClick={() => { setQuizResult(null); setQuizAnswers({}); }} className="mt-2 px-3 py-1 border rounded">Retry</button>
-                      <button onClick={() => setShowQuiz(false)} className={`mt-2 ml-2 px-3 py-1 rounded ${actionButtonClasses.success}`}>Close</button>
+                      <button onClick={() => setShowQuiz(false)} className="mt-2 ml-2 px-3 py-1 bg-green-600 text-white rounded">Close</button>
                     </div>
                   )}
                 </div>

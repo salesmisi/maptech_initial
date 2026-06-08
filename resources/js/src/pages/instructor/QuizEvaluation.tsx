@@ -90,12 +90,12 @@ export function QuizEvaluation({ apiPrefix = 'instructor' }: Props) {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          {/* Heading removed: redundant in module context */}
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Quiz Evaluation</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">Live employee quiz results from your assigned courses.</p>
         </div>
         <button
           onClick={loadResults}
-          className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-md shadow-sm transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 rounded-md shadow-sm transition-colors"
         >
           <RefreshCw className="h-4 w-4" />
           Refresh
@@ -115,9 +115,9 @@ export function QuizEvaluation({ apiPrefix = 'instructor' }: Props) {
           <div className="text-xs text-red-700 dark:text-red-300">Failed</div>
           <div className="text-xl font-bold text-red-800 dark:text-red-200">{stats.failed}</div>
         </div>
-        <div className="rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 p-3 sm:p-4">
-          <div className="text-xs text-blue-700 dark:text-blue-300">Average</div>
-          <div className="text-xl font-bold text-blue-800 dark:text-blue-200">{stats.avg.toFixed(1)}%</div>
+        <div className="rounded-lg border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 p-3 sm:p-4">
+          <div className="text-xs text-indigo-700 dark:text-indigo-300">Average</div>
+          <div className="text-xl font-bold text-indigo-800 dark:text-indigo-200">{stats.avg.toFixed(1)}%</div>
         </div>
       </div>
 

@@ -3,16 +3,7 @@ import { useToast } from '../../components/ToastProvider';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { MessageSquare, BookOpen, Users, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
-import {
-  DarkChartTooltip,
-  darkTooltipStyle,
-  darkTooltipLabelStyle,
-  darkTooltipItemStyle,
-  darkTooltipWrapperStyle,
-  darkTooltipCursor,
-} from '../../utils/chartTooltip';
 import { UserTimeLog } from '../../components/UserTimeLog';
-import { actionButtonClasses, statIconContainerClasses, statIconGlyphClasses } from '../../utils/uiPalette';
 
 interface CourseStat { name: string; enrolled: number; completed: number }
 interface PerformancePoint { name: string; avgScore: number; submissions: number }
@@ -81,7 +72,18 @@ export function InstructorDashboard({ onNavigate }: InstructorDashboardProps) {
               } catch (e) {
                 // ignore toast errors
               }
-              void loadDashboard(false);
+              fetch('/api/instructor/dashboard', { credentials: 'include' })
+                .then(r => r.ok ? r.json() : null)
+                .then((d) => {
+                  if (!d) return;
+                  setCourseStats(d.course_stats || []);
+                  setPerformanceData(d.performance_trend || []);
+                  setRecentQuestions(d.recent_questions || []);
+                  setStudentCount(d.stats?.total_students || 0);
+                  setAvgPassRate(d.stats?.avg_pass_rate || 0);
+                  setNewStudentsMonth(d.stats?.new_students_month || 0);
+                  setPassRateDelta(d.stats?.pass_rate_delta || 0);
+                });
             });
           } catch (err) {
             console.warn('Failed to attach Echo listener', err);
@@ -104,8 +106,8 @@ export function InstructorDashboard({ onNavigate }: InstructorDashboardProps) {
   }, []);
 
   return (
-    <div className="space-y-6">
-      {loading && <div className="py-6"><LoadingState message="Loading dashboard" /></div>}
+    <div className="space-y-4 sm:space-y-6">
+      {loading && <div className="text-center py-8 text-slate-400">Loading dashboard...</div>}
       {!loading && (
         <>
         {/* Page Header */}
@@ -175,23 +177,15 @@ export function InstructorDashboard({ onNavigate }: InstructorDashboardProps) {
         {/* Trends and Course Stats */}
         <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2 sm:gap-6">
           {/* Student Performance Trends */}
-          <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Student Performance Trends</h3>
+          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Student Performance Trends</h3>
             <div className="h-72 sm:h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={performanceData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} />
                   <YAxis axisLine={false} tickLine={false} />
-                  <Tooltip
-                    content={<DarkChartTooltip />}
-                    cursor={{ stroke: 'rgba(148, 163, 184, 0.35)', strokeWidth: 1 }}
-                    wrapperStyle={darkTooltipWrapperStyle}
-                    contentStyle={darkTooltipStyle}
-                    labelStyle={darkTooltipLabelStyle}
-                    itemStyle={darkTooltipItemStyle}
-                    separator=" : "
-                  />
+                  <Tooltip />
                   <Legend />
                   <Line type="monotone" dataKey="avgScore" stroke="#22c55e" strokeWidth={2} name="Avg Score (%)" />
                   <Line type="monotone" dataKey="submissions" stroke="#3b82f6" strokeWidth={2} name="Submissions" />
@@ -200,40 +194,18 @@ export function InstructorDashboard({ onNavigate }: InstructorDashboardProps) {
             </div>
           </div>
           {/* Course Enrollment vs Completion */}
-          <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+          <div className="bg-white dark:bg-slate-900/80 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 p-4 sm:p-6">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Course Enrollment vs Completion</h3>
             <div className="h-72 sm:h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={courseStats} margin={{ top: 10, right: 30, left: 40, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" strokeOpacity={0.25} />
-                  <XAxis
-                    dataKey="name"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#cbd5e1', fontSize: 13 }}
-                    height={40}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#cbd5e1', fontSize: 13 }}
-                    allowDecimals={false}
-                    width={50}
-                  />
-                  <Tooltip
-                    content={<DarkChartTooltip />}
-                    cursor={darkTooltipCursor}
-                    wrapperStyle={darkTooltipWrapperStyle}
-                    contentStyle={darkTooltipStyle}
-                    labelStyle={darkTooltipLabelStyle}
-                    itemStyle={darkTooltipItemStyle}
-                    separator=" : "
-                  />
-                  <Legend
-                    wrapperStyle={{ paddingTop: 16, fontSize: 14, color: '#cbd5e1' }}
-                  />
-                  <Bar dataKey="enrolled" fill="#10b981" name="Enrolled" radius={[6, 6, 0, 0]} maxBarSize={80} />
-                  <Bar dataKey="completed" fill="#0084ff" name="Completed" radius={[6, 6, 0, 0]} maxBarSize={80} />
+                <BarChart data={courseStats}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                  <YAxis axisLine={false} tickLine={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="enrolled" fill="#22c55e" name="Enrolled" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="completed" fill="#3b82f6" name="Completed" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -241,52 +213,30 @@ export function InstructorDashboard({ onNavigate }: InstructorDashboardProps) {
         </div>
 
         {/* Recent Student Questions */}
-        <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
-          <div className="border-b border-slate-100 p-4 dark:border-slate-700 sm:p-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="rounded-lg bg-white dark:bg-slate-900/80 border border-slate-100 dark:border-slate-700 p-4 sm:p-6 shadow-sm">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Recent Student Questions</h3>
             <button
               onClick={() => onNavigate?.('qa-discussion')}
-              className={`inline-flex items-center px-5 py-2.5 text-sm font-semibold rounded-md shadow-sm transition-colors ${actionButtonClasses.primary}`}
+              className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 rounded-md shadow-sm transition-colors"
             >
               View All Q&A
             </button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50 dark:bg-slate-800/80">
-                <tr>
-                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Student</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Question</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Course</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300 sm:px-6">Time</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-slate-900/40 divide-y divide-slate-200 dark:divide-slate-700">
-                {loading ? (
-                  <tr>
-                    <td colSpan={4} className="px-3 py-8 text-center text-sm text-slate-400 dark:text-slate-500 sm:px-6">
-                      <LoadingState message="Loading questions" size="sm" className="py-2" />
-                    </td>
-                  </tr>
-                ) : recentQuestions.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-3 py-8 text-center text-sm text-slate-400 dark:text-slate-500 sm:px-6">
-                      No questions yet
-                    </td>
-                  </tr>
-                ) : (
-                  recentQuestions.map((q) => (
-                    <tr key={q.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors">
-                      <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-slate-900 dark:text-slate-100 sm:px-6">{q.student || 'Unknown'}</td>
-                      <td className="px-3 py-4 text-sm text-slate-500 dark:text-slate-300 sm:px-6">{q.question}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500 dark:text-slate-300 sm:px-6">{q.course}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-400 dark:text-slate-400 sm:px-6">{q.time}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <ul>
+            {recentQuestions.map((q) => (
+              <li key={q.id} className="flex flex-col gap-2 border-b border-slate-200 dark:border-slate-700 py-3 last:border-b-0 sm:flex-row sm:items-center">
+                <span className="bg-slate-200 dark:bg-slate-700 rounded-full w-8 h-8 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 mr-3">
+                  {q.student?.[0] || '?'}
+                </span>
+                <div className="flex-1">
+                  <span className="font-medium text-slate-900 dark:text-slate-100">{q.student}</span> <span className="text-slate-500 dark:text-slate-400">in</span> <span className="text-slate-500 dark:text-slate-400">{q.course}</span>
+                  <div className="text-slate-600 dark:text-slate-300 text-sm mt-0.5">{q.question}</div>
+                </div>
+                <span className="text-xs text-slate-400 dark:text-slate-500 sm:ml-2">{q.time}</span>
+              </li>
+            ))}
+          </ul>
         </div>
         </>
       )}

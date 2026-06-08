@@ -4,7 +4,6 @@ import { Bell, Send, Eye, Trash2, Users, User, AlertCircle, X, MessageCircle, Ro
 import { safeArray, resolveImageUrl } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ToastProvider';
-import { actionButtonClasses } from '../../utils/uiPalette';
 import { RichTextEditor, sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
 import InfoModal from '../../components/InfoModal';
 
@@ -110,8 +109,6 @@ export function InstructorNotifications() {
   const [announcementImages, setAnnouncementImages] = useState<File[]>([]);
   const [announcementImagePreviewUrls, setAnnouncementImagePreviewUrls] = useState<string[]>([]);
   const [previewModal, setPreviewModal] = useState<{open:boolean;recipientCount:number|null;recipients?:{id:number;fullname:string}[];error?:string}>({open:false,recipientCount:null});
-  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
-  const [adminFormData, setAdminFormData] = useState({ message: '', type: 'report' });
   const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
   const [listSearchQuery, setListSearchQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(5);
@@ -576,13 +573,11 @@ export function InstructorNotifications() {
       quiz_reminder: 'Quiz Reminder',
     };
 
-    showConfirm('Send this announcement now?', async () => {
-      setIsSending(true);
-      try {
+    setIsSending(true);
+    try {
+      if (announcementTarget === 'admin') {
         await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
         const xsrfToken = getCookie('XSRF-TOKEN');
-
-      if (announcementTarget === 'admin') {
         const title = adminTypeLabels[announcementType] || 'Report';
 
         const res = await fetch('/api/instructor/notifications/notify-admin', {
@@ -596,9 +591,7 @@ export function InstructorNotifications() {
           },
           body: JSON.stringify({ message: announcementMessage, type: announcementType, title }),
         });
-
         const data = await res.json();
-
         if (res.ok) {
           pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} admin(s)!`, 'success');
           closeAnnouncementModal();
@@ -609,8 +602,11 @@ export function InstructorNotifications() {
       } else if (announcementTarget === 'specific_employee') {
         if (!selectedEmployee) {
           pushToast('Missing Selection', 'Please select an employee', 'warning');
+          setIsSending(false);
           return;
         }
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const xsrfToken = getCookie('XSRF-TOKEN');
         const title = announcementTitle.trim() || employeeTypeLabels[announcementType] || 'Announcement';
         const res = await fetch('/api/instructor/notifications/notify-employees', {
           method: 'POST',
@@ -635,8 +631,11 @@ export function InstructorNotifications() {
         // employees by department
         if (!selectedDeptId) {
           pushToast('Missing Selection', 'Please select a department', 'warning');
+          setIsSending(false);
           return;
         }
+        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+        const xsrfToken = getCookie('XSRF-TOKEN');
         const title = announcementTitle.trim() || employeeTypeLabels[announcementType] || 'Announcement';
         const payload: any = { title, message: announcementMessage, type: announcementType, department_id: Number(selectedDeptId) };
         if (selectedSubdeptId) payload.subdepartment_id = Number(selectedSubdeptId);
@@ -667,58 +666,6 @@ export function InstructorNotifications() {
     } finally {
       setIsSending(false);
     }
-    });
-  };
-
-  const handleSendToAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!adminFormData.message.trim()) {
-      pushToast('Missing Message', 'Please write a message', 'warning');
-      return;
-    }
-
-    showConfirm('Send this message to admin now?', async () => {
-      setIsSending(true);
-      try {
-        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-        const xsrfToken = getCookie('XSRF-TOKEN');
-        const adminTypeLabels: Record<string, string> = {
-          report: 'Report',
-          feedback: 'Feedback',
-          issue: 'Issue',
-          suggestion: 'Suggestion',
-        };
-        const title = adminTypeLabels[adminFormData.type] || 'Report';
-
-        const res = await fetch('/api/instructor/notifications/notify-admin', {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
-          },
-          body: JSON.stringify({ ...adminFormData, title }),
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-          pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} admin(s)!`, 'success');
-          setIsAdminModalOpen(false);
-          setAdminFormData({ message: '', type: 'report' });
-          fetchSentHistory();
-        } else {
-          pushToast('Failed', data.message || 'Failed to send notification', 'error');
-        }
-      } catch (err) {
-        console.error('Failed to send to admin:', err);
-        pushToast('Error', 'Failed to send notification', 'error');
-      } finally {
-        setIsSending(false);
-      }
-    });
   };
 
   const formatDate = (dateStr: string) => {
@@ -949,8 +896,8 @@ export function InstructorNotifications() {
                   ref={el => { notifRowRefs.current[notification.id] = el; }}
                   onClick={() => setSelectedNotification(notification)}
                   className={`p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
-                    !notification.read_at ? 'bg-green-50 dark:bg-green-950/35' : 'bg-white dark:bg-slate-900'
-                  }${notification.id === highlightedNotificationId ? ' ring-2 ring-inset ring-green-400 dark:ring-green-500' : ''}`}
+                    !notification.read_at ? 'bg-emerald-50 dark:bg-emerald-950/35' : 'bg-white dark:bg-slate-900'
+                  }${notification.id === highlightedNotificationId ? ' ring-2 ring-inset ring-emerald-400 dark:ring-emerald-500' : ''}`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3">
@@ -975,7 +922,7 @@ export function InstructorNotifications() {
                             </span>
                           )}
                           {!notification.read_at && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/60 text-green-800 dark:text-green-200">
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
                               New
                             </span>
                           )}
@@ -1007,7 +954,7 @@ export function InstructorNotifications() {
                       {!notification.read_at && (
                         <button
                           onClick={() => markAsRead(notification.id)}
-                          className="text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-300"
+                          className="text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-300"
                           title="Mark as read"
                         >
                           <Eye className="h-5 w-5" />
@@ -1015,10 +962,10 @@ export function InstructorNotifications() {
                       )}
                       <button
                         onClick={() => deleteNotification(notification.id)}
-                        className="btn-icon btn-icon-delete um-icon-btn"
+                        className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"
                         title="Delete"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-5 w-5" />
                       </button>
                     </div>
                   </div>
@@ -1065,7 +1012,7 @@ export function InstructorNotifications() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
                         <div className="flex items-center gap-2">
                           <span>{item.title}</span>
-                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${item.announcement_mode === 'one_person' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'}`}>
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${item.announcement_mode === 'one_person' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'}`}>
                             {item.announcement_mode === 'one_person' ? 'One Person' : 'Group'}
                           </span>
                         </div>
@@ -1088,10 +1035,10 @@ export function InstructorNotifications() {
                             e.stopPropagation();
                             deleteSentHistory(item.id);
                           }}
-                          className="btn-icon btn-icon-delete um-icon-btn"
+                          className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
                           title="Move to Recently Deleted"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-5 w-5" />
                         </button>
                       </td>
                     </tr>
@@ -1169,17 +1116,17 @@ export function InstructorNotifications() {
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={(e) => { e.stopPropagation(); restoreNotification(notification.id); }}
-                        className="btn-icon btn-icon-view um-icon-btn"
+                        className="text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-300"
                         title="Restore"
                       >
-                        <RotateCcw className="h-4 w-4" />
+                        <RotateCcw className="h-5 w-5" />
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); permanentlyDeleteNotification(notification.id); }}
-                        className="btn-icon btn-icon-delete um-icon-btn"
+                        className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"
                         title="Delete permanently"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-5 w-5" />
                       </button>
                     </div>
                   </div>
@@ -1291,7 +1238,7 @@ export function InstructorNotifications() {
                       className="w-full flex items-center justify-between px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/10 transition-colors text-sm"
                     >
                       <span className="flex items-center gap-2">
-                        {announcementTarget === 'employees' && (<><Users className="h-4 w-4 text-green-500" /><span>Employees</span></>)}
+                        {announcementTarget === 'employees' && (<><Users className="h-4 w-4 text-emerald-500" /><span>Employees</span></>)}
                         {announcementTarget === 'specific_employee' && (<><User className="h-4 w-4 text-orange-500" /><span>Specific Employee</span></>)}
                         {announcementTarget === 'admin' && (<><Shield className="h-4 w-4 text-purple-500" /><span>Admin</span></>)}
                       </span>
@@ -1415,66 +1362,6 @@ export function InstructorNotifications() {
         </div>
       )}
 
-      {/* Send to Admin Modal */}
-      {isAdminModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setIsAdminModalOpen(false)}></div>
-          <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md p-6">
-            <button
-              onClick={() => setIsAdminModalOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-green-100 dark:bg-green-900/50 rounded-lg">
-                <Shield className="h-6 w-6 text-green-600 dark:text-green-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-slate-900 dark:text-white">Contact Admin</h3>
-            </div>
-
-            <form onSubmit={handleSendToAdmin} className="space-y-4">
-              <div className="grid grid-cols-2 gap-2">
-                {['report', 'feedback', 'issue', 'suggestion'].map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setAdminFormData({ ...adminFormData, type })}
-                    className={`py-2 px-3 rounded-lg text-sm font-medium capitalize transition-colors ${
-                      adminFormData.type === type
-                        ? 'bg-green-600 text-white'
-                        : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
-                    }`}
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
-
-              <textarea
-                name="message"
-                rows={4}
-                required
-                value={adminFormData.message}
-                onChange={(e) => setAdminFormData({ ...adminFormData, message: e.target.value })}
-                className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
-                placeholder="Write your message to admin..."
-              />
-
-              <button
-                type="submit"
-                disabled={isSending || !adminFormData.message.trim()}
-                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors"
-              >
-                <Send className="h-4 w-4" />
-                {isSending ? 'Sending...' : 'Send to Admin'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* Target Audience Picker Modal */}
       {isTargetModalOpen && (
         <div className="fixed inset-0 z-[60]">
@@ -1497,7 +1384,7 @@ export function InstructorNotifications() {
                 <div className="space-y-2">
                   {[
                     { value: 'admin', label: 'Admin', icon: <Shield className="h-4 w-4 text-purple-500" /> },
-                    { value: 'employees', label: 'Employees', icon: <Users className="h-4 w-4 text-green-500" /> },
+                    { value: 'employees', label: 'Employees', icon: <Users className="h-4 w-4 text-emerald-500" /> },
                     { value: 'specific_employee', label: 'Specific Employee', icon: <User className="h-4 w-4 text-orange-500" /> },
                   ].map(({ value, label, icon }) => (
                     <button
@@ -1599,7 +1486,7 @@ export function InstructorNotifications() {
                       {selectedNotification.title}
                     </h2>
                     {!selectedNotification.read_at && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 mt-2">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 mt-2">
                         New
                       </span>
                     )}
@@ -1692,7 +1579,7 @@ export function InstructorNotifications() {
                           markAsRead(selectedNotification.id);
                           setSelectedNotification({ ...selectedNotification, read_at: new Date().toISOString() });
                         }}
-                        className="inline-flex items-center px-4 py-2 border border-green-300 dark:border-green-700 rounded-md shadow-sm text-sm font-medium text-green-700 dark:text-green-200 bg-white dark:bg-slate-700 hover:bg-green-50 dark:hover:bg-slate-600"
+                        className="inline-flex items-center px-4 py-2 border border-emerald-300 dark:border-emerald-700 rounded-md shadow-sm text-sm font-medium text-emerald-700 dark:text-emerald-200 bg-white dark:bg-slate-700 hover:bg-emerald-50 dark:hover:bg-slate-600"
                       >
                         <CheckCircle className="h-4 w-4 mr-2" />
                         Mark as Read

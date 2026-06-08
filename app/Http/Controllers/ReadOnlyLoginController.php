@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
+use App\Models\User;
 
 class ReadOnlyLoginController extends Controller
 {
@@ -54,7 +54,7 @@ class ReadOnlyLoginController extends Controller
             'role' => $user->role,
             'department' => $user->department ?? null,
             'status' => $user->status ?? null,
-            'profile_picture' => $user->profile_picture ? asset('storage/'.$user->profile_picture) : null,
+            'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
             'token' => $token,
         ]);
     }
@@ -89,7 +89,7 @@ class ReadOnlyLoginController extends Controller
             'role' => $user->role,
             'department' => $user->department ?? null,
             'status' => $user->status ?? null,
-            'profile_picture' => $user->profile_picture ? asset('storage/'.$user->profile_picture) : null,
+            'profile_picture' => $user->profile_picture ? asset('storage/' . $user->profile_picture) : null,
         ]);
     }
 }

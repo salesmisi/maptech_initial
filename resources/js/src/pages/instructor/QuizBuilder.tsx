@@ -113,14 +113,14 @@ function QuestionForm({
   const confirm = useConfirm();
   const { showConfirm } = confirm;
   return (
-    <div className="p-5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
-      <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+    <div className="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+      <h3 className="text-sm font-semibold text-slate-700">
         {editId ? 'Edit Question' : 'New Question'}
       </h3>
 
       {/* Question text */}
       <div>
-        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+        <label className="block text-xs font-medium text-slate-600 mb-1">
           Question Text <span className="text-red-500">*</span>
         </label>
         <textarea
@@ -128,32 +128,32 @@ function QuestionForm({
           value={qText}
           onChange={(e) => setQText(e.target.value)}
           placeholder="Type the question here..."
-          className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-md py-2 px-3 text-sm focus:ring-green-500 focus:border-green-500 resize-none"
+          className="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-green-500 focus:border-green-500 resize-none"
         />
       </div>
 
       {/* Media upload */}
       <div>
-        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">Attach Media (optional)</label>
+        <label className="block text-xs font-medium text-slate-600 mb-2">Attach Media (optional)</label>
         <div className="flex gap-2 mb-2">
           <button
             type="button"
             onClick={() => { setMediaType('none'); setMediaFile(null); }}
-            className={`px-3 py-1.5 text-xs rounded-md border font-medium transition-colors ${mediaType === 'none' ? 'bg-slate-700 text-white border-slate-700' : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+            className={`px-3 py-1.5 text-xs rounded-md border font-medium transition-colors ${mediaType === 'none' ? 'bg-slate-700 text-white border-slate-700' : 'border-slate-300 text-slate-600 hover:bg-slate-100'}`}
           >None</button>
           <button
             type="button"
             onClick={() => setMediaType('image')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border font-medium transition-colors ${mediaType === 'image' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border font-medium transition-colors ${mediaType === 'image' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-300 text-slate-600 hover:bg-slate-100'}`}
           ><Image className="h-3.5 w-3.5" />Image</button>
           <button
             type="button"
             onClick={() => setMediaType('video')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border font-medium transition-colors ${mediaType === 'video' ? 'bg-purple-600 text-white border-purple-600' : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border font-medium transition-colors ${mediaType === 'video' ? 'bg-purple-600 text-white border-purple-600' : 'border-slate-300 text-slate-600 hover:bg-slate-100'}`}
           ><Video className="h-3.5 w-3.5" />Video</button>
         </div>
         {mediaType !== 'none' && (
-          <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 dark:border-slate-600 rounded-md cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-600 dark:text-slate-300 w-fit">
+          <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 rounded-md cursor-pointer hover:bg-slate-100 text-sm text-slate-600 w-fit">
             <Upload className="h-4 w-4" />
             {mediaFile ? mediaFile.name : `Upload ${mediaType}...`}
             <input
@@ -170,11 +170,11 @@ function QuestionForm({
       {/* Options */}
       <div>
         <div className="flex justify-between items-center mb-2">
-          <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+          <label className="text-xs font-medium text-slate-600">
             Answer Options (select correct one) <span className="text-red-500">*</span>
           </label>
           {draftOptions.length < 6 && (
-            <button type="button" onClick={onAddOption} className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-md shadow-sm transition-colors">
+            <button type="button" onClick={onAddOption} className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 rounded-md shadow-sm transition-colors">
               <Plus className="h-3 w-3" /> Add option
             </button>
           )}
@@ -186,7 +186,7 @@ function QuestionForm({
                 type="button"
                 onClick={() => onMarkCorrect(idx)}
                 title="Mark as correct answer"
-                className={`flex-shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors ${opt.is_correct ? 'bg-green-600 border-green-600' : 'border-slate-300 dark:border-slate-500 hover:border-green-500'}`}
+                className={`flex-shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors ${opt.is_correct ? 'bg-green-600 border-green-600' : 'border-slate-300 hover:border-green-500'}`}
               >
                 {opt.is_correct && <Check className="h-3 w-3 text-white" />}
               </button>
@@ -195,13 +195,13 @@ function QuestionForm({
                 value={opt.text}
                 onChange={(e) => onOptionTextChange(idx, e.target.value)}
                 placeholder={`Option ${String.fromCharCode(65 + idx)}`}
-                className="flex-1 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-md py-1.5 px-3 text-sm focus:ring-green-500 focus:border-green-500"
+                className="flex-1 border border-slate-300 rounded-md py-1.5 px-3 text-sm focus:ring-green-500 focus:border-green-500"
               />
               {draftOptions.length > 2 && (
                 <button
                   type="button"
                   onClick={() => onRemoveOption(idx)}
-                  className="p-1 text-slate-400 dark:text-slate-500 hover:text-red-500"
+                  className="p-1 text-slate-400 hover:text-red-500"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -209,7 +209,7 @@ function QuestionForm({
             </div>
           ))}
         </div>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">Click the circle next to an option to mark it as the correct answer.</p>
+        <p className="text-xs text-slate-400 mt-1.5">Click the circle next to an option to mark it as the correct answer.</p>
       </div>
 
       {questionError && (
@@ -223,7 +223,7 @@ function QuestionForm({
           type="button"
           onClick={() => onSave(editId)}
           disabled={savingQuestion}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white text-sm font-semibold rounded-md shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+          className="px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
         >
           {savingQuestion ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           {savingQuestion ? 'Saving...' : (editId ? 'Update Question' : 'Save Question')}
@@ -231,7 +231,7 @@ function QuestionForm({
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-sm font-medium rounded-md bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700"
+          className="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50"
         >Cancel</button>
       </div>
       {confirm.ConfirmModalRenderer()}
@@ -474,7 +474,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
     return (
       <div className="flex justify-center items-center py-24">
         <Loader2 className="h-8 w-8 animate-spin text-green-600" />
-        <span className="ml-3 text-slate-600 dark:text-slate-300">Loading quiz...</span>
+        <span className="ml-3 text-slate-600">Loading quiz...</span>
       </div>
     );
   }
@@ -483,8 +483,8 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
     return (
       <div className="text-center py-16">
         <AlertCircle className="mx-auto h-12 w-12 text-red-400" />
-        <p className="mt-3 text-slate-600 dark:text-slate-300">{error || 'Quiz not found.'}</p>
-        <button onClick={onBack} className="inline-flex items-center gap-1.5 px-5 py-2.5 mt-4 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-md shadow-sm transition-colors">
+        <p className="mt-3 text-slate-600">{error || 'Quiz not found.'}</p>
+        <button onClick={onBack} className="inline-flex items-center gap-1.5 px-4 py-2 mt-4 text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 rounded-md shadow-sm transition-colors">
           <ArrowLeft className="h-4 w-4" />
           &larr; Back
         </button>
@@ -497,65 +497,65 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
       {/* Back */}
       <button
         onClick={onBack}
-        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to Course
       </button>
 
       {/* Quiz header */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         {editingMeta ? (
           <div className="space-y-3">
             <input
               type="text"
               value={metaTitle}
               onChange={(e) => setMetaTitle(e.target.value)}
-              className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-2 px-3 text-sm font-semibold focus:ring-green-500 focus:border-green-500"
+              className="w-full border border-slate-300 rounded-md py-2 px-3 text-sm font-semibold focus:ring-green-500 focus:border-green-500"
             />
             <textarea
               rows={2}
               value={metaDesc}
               onChange={(e) => setMetaDesc(e.target.value)}
               placeholder="Description (optional)"
-              className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-md py-2 px-3 text-sm focus:ring-green-500 focus:border-green-500 resize-none"
+              className="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-green-500 focus:border-green-500 resize-none"
             />
             <div className="flex items-center gap-3">
-              <label className="text-xs font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">Pass Percentage (%)</label>
+              <label className="text-xs font-medium text-slate-600 whitespace-nowrap">Pass Percentage (%)</label>
               <input
                 type="number"
                 min={1} max={100}
                 value={metaPassPct}
                 onChange={(e) => setMetaPassPct(Number(e.target.value))}
-                className="w-20 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-green-500"
+                className="w-20 border border-slate-300 rounded-md py-1.5 px-2 text-sm text-center focus:ring-2 focus:ring-green-500"
               />
-              <span className="text-xs text-slate-500 dark:text-slate-400">employees must reach this score to unlock the next lesson</span>
+              <span className="text-xs text-slate-500">employees must reach this score to unlock the next lesson</span>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={handleSaveMeta}
                 disabled={savingMeta}
-                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white text-sm font-semibold rounded-md shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white text-sm font-medium rounded-md disabled:opacity-50 flex items-center gap-1.5"
               >
                 {savingMeta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 {savingMeta ? 'Saving...' : 'Save'}
               </button>
               <button
                 onClick={() => { setEditingMeta(false); setMetaTitle(quiz.title); setMetaDesc(quiz.description || ''); setMetaPassPct(quiz.pass_percentage || 70); }}
-                className="px-4 py-2 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-sm font-medium rounded-md bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700"
+                className="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50"
               >Cancel</button>
             </div>
           </div>
         ) : (
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0">
+              <div className="h-10 w-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0">
                 <ClipboardList className="h-5 w-5" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{quiz.title}</h1>
-                {quiz.description && <p className="text-sm text-slate-500 dark:text-slate-300 mt-0.5">{quiz.description}</p>}
-                <div className="flex flex-wrap gap-3 mt-1 text-xs text-slate-400 dark:text-slate-400">
+                <h1 className="text-xl font-bold text-slate-900">{quiz.title}</h1>
+                {quiz.description && <p className="text-sm text-slate-500 mt-0.5">{quiz.description}</p>}
+                <div className="flex flex-wrap gap-3 mt-1 text-xs text-slate-400">
                   <span>Course: {quiz.course_title}</span>
                   <span>·</span>
                   <span>{quiz.questions.length} question{quiz.questions.length !== 1 ? 's' : ''}</span>
@@ -566,7 +566,7 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
             </div>
             <button
               onClick={() => setEditingMeta(true)}
-              className="p-2 text-slate-400 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md"
+              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md"
             >
               <Edit2 className="h-4 w-4" />
             </button>
@@ -582,15 +582,15 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
       )}
 
       {/* Questions list */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-            Questions <span className="text-sm font-normal text-slate-400 dark:text-slate-400">({quiz.questions.length})</span>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+          <h2 className="text-base font-semibold text-slate-900">
+            Questions <span className="text-sm font-normal text-slate-400">({quiz.questions.length})</span>
           </h2>
           {!addingQuestion && editingQuestionId === null && (
             <button
               onClick={() => { setAddingQuestion(true); resetAddForm(); setEditingQuestionId(null); }}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white text-sm font-semibold rounded-md shadow-sm transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors"
             >
               <Plus className="h-4 w-4" />
               Add Question
@@ -603,26 +603,26 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
           {addingQuestion && <QuestionForm {...sharedFormProps} />}
 
           {quiz.questions.length === 0 && !addingQuestion && (
-            <div className="text-center py-10 text-slate-500 dark:text-slate-400 text-sm">
+            <div className="text-center py-10 text-slate-500 text-sm">
               No questions yet. Click <strong>Add Question</strong> to start building this quiz.
             </div>
           )}
 
           {quiz.questions.map((q, idx) => (
-            <div key={q.id} className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+            <div key={q.id} className="border border-slate-200 rounded-xl overflow-hidden">
               {/* Question header */}
-              <div className="bg-slate-50 dark:bg-slate-800 px-5 py-3 flex items-start justify-between gap-4">
+              <div className="bg-slate-50 px-5 py-3 flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3 min-w-0">
-                  <span className="flex-shrink-0 h-6 w-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold mt-0.5">
+                  <span className="flex-shrink-0 h-6 w-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold mt-0.5">
                     {idx + 1}
                   </span>
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100 leading-relaxed">{q.question_text}</p>
+                  <p className="text-sm font-medium text-slate-900 leading-relaxed">{q.question_text}</p>
                 </div>
                 <div className="flex gap-1 flex-shrink-0">
                   {editingQuestionId !== q.id && (
                     <button
                       onClick={() => startEditQuestion(q)}
-                      className="p-1.5 text-slate-400 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-100 hover:bg-white dark:hover:bg-slate-700 rounded"
+                      className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-white rounded"
                     >
                       <Edit2 className="h-4 w-4" />
                     </button>
@@ -653,14 +653,14 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
                     <img
                       src={q.image_url}
                       alt="question media"
-                      className="max-h-48 rounded-lg object-contain border border-slate-200 dark:border-slate-700"
+                      className="max-h-48 rounded-lg object-contain border border-slate-200"
                     />
                   )}
                   {q.video_url && (
                     <video
                       src={q.video_url}
                       controls
-                      className="max-h-48 w-full rounded-lg border border-slate-200 dark:border-slate-700"
+                      className="max-h-48 w-full rounded-lg border border-slate-200"
                     />
                   )}
                 </div>
@@ -674,11 +674,11 @@ export function InstructorQuizBuilder({ quizId, onBack, apiPrefix = 'instructor'
                       key={oi}
                       className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg border text-sm ${
                         opt.is_correct
-                          ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 font-medium'
-                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200'
+                          ? 'border-green-300 bg-green-50 text-green-800 font-medium'
+                          : 'border-slate-200 bg-white text-slate-700'
                       }`}
                     >
-                      <span className={`flex-shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center ${opt.is_correct ? 'bg-green-600 border-green-600' : 'border-slate-300 dark:border-slate-500'}`}>
+                      <span className={`flex-shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center ${opt.is_correct ? 'bg-green-600 border-green-600' : 'border-slate-300'}`}>
                         {opt.is_correct && <Check className="h-3 w-3 text-white" />}
                       </span>
                       <span>{String.fromCharCode(65 + oi)}. {opt.option_text}</span>

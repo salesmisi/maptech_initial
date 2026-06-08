@@ -21,11 +21,11 @@ class Lesson extends Model
         'order',
     ];
 
-    protected $appends = ['content_url', 'content_full_url', 'file_type'];
+    protected $appends = ['content_url', 'file_type'];
 
     public function getContentUrlAttribute(): ?string
     {
-        if (! $this->content_path) {
+        if (!$this->content_path) {
             return null;
         }
 
@@ -34,45 +34,32 @@ class Lesson extends Model
             return $this->content_path;
         }
 
-        // Return a relative /storage/ path so the frontend builds the absolute URL
-        // from the actual origin — avoids APP_URL misconfiguration on Railway.
-        return '/storage/'.ltrim($this->content_path, '/');
-    }
-
-    /**
-     * Get the full content URL attribute.
-     */
-    public function getContentFullUrlAttribute(): ?string
-    {
-        return $this->content_url;
+        return url('/storage/' . $this->content_path);
     }
 
     public function getFileTypeAttribute(): ?string
     {
-        if (! $this->content_path) {
+        if (!$this->content_path) {
             return null;
         }
 
         // If it's an external URL and the lesson type is Video, treat as video
         if (preg_match('#^https?://#i', $this->content_path)) {
-            if ($this->type === 'Video') {
-                return 'video';
-            }
-
+            if ($this->type === 'Video') return 'video';
             return 'file';
         }
 
         $extension = strtolower(pathinfo($this->content_path, PATHINFO_EXTENSION));
 
         $types = [
-            'pdf' => 'pdf',
-            'doc' => 'document',
+            'pdf'  => 'pdf',
+            'doc'  => 'document',
             'docx' => 'document',
-            'ppt' => 'presentation',
+            'ppt'  => 'presentation',
             'pptx' => 'presentation',
-            'mp4' => 'video',
-            'mp3' => 'audio',
-            'txt' => 'text',
+            'mp4'  => 'video',
+            'mp3'  => 'audio',
+            'txt'  => 'text',
         ];
 
         return $types[$extension] ?? 'file';
@@ -81,11 +68,6 @@ class Lesson extends Model
     public function module()
     {
         return $this->belongsTo(Module::class);
-    }
-
-    public function quizzes()
-    {
-        return $this->hasMany(Quiz::class);
     }
 
     /**

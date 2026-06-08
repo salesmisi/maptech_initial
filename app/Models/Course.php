@@ -6,8 +6,8 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /**
  * @property string $id
@@ -51,7 +51,7 @@ class Course extends Model
 
     protected $casts = [
         'start_date' => 'datetime',
-        'deadline' => 'datetime',
+        'deadline'   => 'datetime',
     ];
 
     /**
@@ -63,8 +63,8 @@ class Course extends Model
     protected function asDateTime($value): \Carbon\Carbon
     {
         if (is_string($value) && $value !== '' &&
-            ! str_contains($value, 'Z') &&
-            ! str_contains($value, '+') &&
+            !str_contains($value, 'Z') &&
+            !str_contains($value, '+') &&
             preg_match('/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/', $value)) {
             return \Carbon\Carbon::createFromFormat('Y-m-d H:i:s', substr($value, 0, 19), 'UTC');
         }

@@ -26,7 +26,7 @@ class PasswordResetSuccessMail extends Mailable
     /**
      * Create a new message instance.
      *
-     * @param  string  $userName  The user's display name
+     * @param string $userName The user's display name
      */
     public function __construct(string $userName)
     {

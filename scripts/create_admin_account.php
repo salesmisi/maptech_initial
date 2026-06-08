@@ -1,18 +1,14 @@
 <?php
-
 // Creates an admin user in the local SQLite database with a known password.
-$dbFile = __DIR__.'/../database/database.sqlite';
-if (! file_exists($dbFile)) {
-    echo "ERROR: database file not found\n";
-    exit(1);
-}
+$dbFile = __DIR__ . '/../database/database.sqlite';
+if (!file_exists($dbFile)) { echo "ERROR: database file not found\n"; exit(1); }
 
 $email = $argv[1] ?? 'admin@local.test';
 $passwordPlain = $argv[2] ?? 'Password123!';
 $fullname = $argv[3] ?? 'Local Admin';
 
 try {
-    $pdo = new PDO('sqlite:'.$dbFile);
+    $pdo = new PDO('sqlite:' . $dbFile);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     // Check for existing email
@@ -31,6 +27,6 @@ try {
     $id = $pdo->lastInsertId();
     echo "CREATED: id=$id email=$email password=$passwordPlain\n";
 } catch (Exception $e) {
-    echo 'ERROR: '.$e->getMessage()."\n";
+    echo "ERROR: " . $e->getMessage() . "\n";
     exit(1);
 }

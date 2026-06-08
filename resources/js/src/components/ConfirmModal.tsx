@@ -1,6 +1,5 @@
 import React from 'react';
 import { ExclamationTriangleIcon, XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
-import { actionButtonClasses } from '../utils/uiPalette';
 
 export default function ConfirmModal({ open, message, onConfirm, onCancel, title = 'Confirm Action', confirmText = 'Yes, Proceed', cancelText = 'Cancel', variant = 'primary' }: {
   open: boolean;
@@ -25,11 +24,11 @@ export default function ConfirmModal({ open, message, onConfirm, onCancel, title
     },
     info: {
       icon: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-      button: `${actionButtonClasses.info} focus:ring-blue-500`,
+      button: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500',
     },
     primary: {
-      icon: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400',
-      button: `${actionButtonClasses.primary} focus:ring-indigo-500`,
+      icon: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
+      button: 'bg-green-600 hover:bg-green-700 focus:ring-green-500',
     },
   };
 

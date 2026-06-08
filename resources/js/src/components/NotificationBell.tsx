@@ -26,8 +26,6 @@ type NotificationItem = {
   message: string;
   type: string;
   created_at: string;
-  is_read?: boolean;
-  read?: boolean;
   data?: {
     from_user_name?: string;
     from_role?: string;
@@ -37,16 +35,8 @@ type NotificationItem = {
   read_at: string | null;
 };
 
-function isNotificationRead(item: NotificationItem): boolean {
-  if (item.read_at !== null && item.read_at !== undefined) return true;
-  if (item.is_read === true) return true;
-  if (item.read === true) return true;
-  return false;
-}
-
 const PENDING_NOTIFICATION_ID_KEY = 'maptech_pending_notification_id';
 const PENDING_NOTIFICATION_ROLE_KEY = 'maptech_pending_notification_role';
-const PENDING_NOTIFICATION_ITEM_KEY = 'maptech_pending_notification_item';
 const OPEN_NOTIFICATION_EVENT = 'maptech-open-notification';
 const NOTIFICATION_READ_EVENT = 'maptech-notification-read';
 
@@ -70,16 +60,12 @@ function extractNotificationItems(payload: any): NotificationItem[] {
 }
 
 export function NotificationBell({ role, onOpenAll, className = '' }: NotificationBellProps) {
-  const MAX_LAYER_Z = 2147483647;
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [banner, setBanner] = useState<NotificationItem | null>(null);
-  const [dropdownTop, setDropdownTop] = useState<number>(56);
-  const [dropdownRight, setDropdownRight] = useState<number>(16);
   const [loading, setLoading] = useState(false);
   const [marking, setMarking] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const isCancelledRef = useRef(false);
   const fetchingRecentRef = useRef(false);
   const latestNotificationIdRef = useRef<number | null>(null);
@@ -282,15 +268,13 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
     return () => {
       isMounted = false;
       isCancelledRef.current = true;
-      try {
-        channel?.stopListening('NotificationCountUpdated');
-        channel?.stopListening('NotificationCreated');
-      } catch {
-        // ignore
-      }
-      if (bannerTimeoutRef.current !== null) {
-        window.clearTimeout(bannerTimeoutRef.current);
-        bannerTimeoutRef.current = null;
+      if (channel) {
+        try {
+          channel.stopListening('NotificationCountUpdated');
+          channel.stopListening('NotificationCreated');
+        } catch {
+          // ignore
+        }
       }
     };
   }, [role, fetchUnread, fetchRecent, showIncomingBanner]);
@@ -313,39 +297,39 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
     };
   }, [open, fetchUnread, fetchRecent]);
 
+  useEffect(() => {
+    // Poll as a fallback when websocket events are delayed or unavailable.
+    // fetchUnread already triggers fetchRecent when count increases (via fetchRecentForBannerRef)
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      fetchUnread();
+    }, 2000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [fetchUnread]);
+
+  useEffect(() => {
+    return () => {
+      if (bannerTimeoutRef.current !== null) {
+        window.clearTimeout(bannerTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const hasUnread = unreadCount > 0;
   const displayCount = unreadCount > 9 ? '9+' : unreadCount.toString();
-
-  const updateDropdownPosition = useCallback(() => {
-    if (!triggerRef.current || typeof window === 'undefined') return;
-    const rect = triggerRef.current.getBoundingClientRect();
-    setDropdownTop(Math.round(rect.bottom + 8));
-    setDropdownRight(Math.max(8, Math.round(window.innerWidth - rect.right)));
-  }, []);
 
   const toggleOpen = () => {
     const nextOpen = !open;
     setOpen(nextOpen);
     // Refresh data when opening dropdown to ensure count is up-to-date
     if (nextOpen) {
-      updateDropdownPosition();
       fetchUnread();
       fetchRecent({ silent: true });
     }
   };
-
-  useEffect(() => {
-    if (!open || typeof window === 'undefined') return;
-    const syncPosition = () => updateDropdownPosition();
-
-    window.addEventListener('resize', syncPosition);
-    window.addEventListener('scroll', syncPosition, true);
-
-    return () => {
-      window.removeEventListener('resize', syncPosition);
-      window.removeEventListener('scroll', syncPosition, true);
-    };
-  }, [open, updateDropdownPosition]);
 
   const handleMarkAllAsRead = async () => {
     if (unreadCount === 0 || marking) return;
@@ -382,41 +366,10 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
   };
 
   const handleItemClick = async (n: NotificationItem) => {
-    const wasUnread = !!n && !isNotificationRead(n);
-    const pendingNotification: NotificationItem = {
-      ...n,
-      read_at: n.read_at || new Date().toISOString(),
-    };
-
-    // Optimistically mark read before potential navigation/unmount.
-    if (wasUnread) {
-      setItems((prev) =>
-        prev.map((item) => (item.id === n.id ? { ...item, read_at: new Date().toISOString() } : item))
-      );
-      setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
-    }
-
-    // Trigger route switch first to reduce perceived click delay.
-    if (onOpenAll) {
-      onOpenAll();
-      setOpen(false);
-    }
-
     try {
       localStorage.setItem(PENDING_NOTIFICATION_ID_KEY, String(n.id));
       localStorage.setItem(PENDING_NOTIFICATION_ROLE_KEY, role);
-      localStorage.setItem(
-        PENDING_NOTIFICATION_ITEM_KEY,
-        JSON.stringify(pendingNotification),
-      );
-      window.dispatchEvent(
-        new CustomEvent(OPEN_NOTIFICATION_EVENT, {
-          detail: {
-            role,
-            notification: pendingNotification,
-          },
-        })
-      );
+      window.dispatchEvent(new CustomEvent(OPEN_NOTIFICATION_EVENT));
     } catch {
       // ignore storage errors
     }
@@ -429,17 +382,21 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
     // Only mark as read if currently unread
     if (!n || n.read_at !== null) return;
 
-    // Optimistically update UI
+    // Optimistically update UI — also sync prevUnreadCountRef so the background
+    // poll does not treat the server's (not-yet-updated) count as a new notification.
+    const optimisticCount = Math.max(0, unreadCount - 1);
+    prevUnreadCountRef.current = optimisticCount;
+    setUnreadCount(optimisticCount);
     setItems((prev) =>
       prev.map((item) => (item.id === n.id ? { ...item, read_at: new Date().toISOString() } : item))
     );
-    setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
 
     try {
       const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
       const xsrfToken = getCookie('XSRF-TOKEN');
       await fetch(`/api/${prefix}/notifications/${n.id}/read`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           'X-XSRF-TOKEN': decodeURIComponent(xsrfToken || ''),
@@ -459,8 +416,7 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
         <div
           role="alert"
           aria-live="polite"
-          className="fixed right-4 top-20 z-[10400] w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-2xl dark:border-emerald-700 dark:bg-slate-900"
-          style={{ zIndex: MAX_LAYER_Z }}
+          className="fixed right-4 top-20 z-[9999] w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-2xl dark:border-emerald-700 dark:bg-slate-900"
         >
           <div className="flex items-start gap-3 p-4">
             {banner.data?.from_user_profile_picture ? (
@@ -499,10 +455,9 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
       )}
 
       <button
-        ref={triggerRef}
         type="button"
         onClick={toggleOpen}
-        className="relative z-[2147483647] bg-white dark:bg-slate-800 p-1 rounded-full text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+        className="relative bg-white dark:bg-slate-800 p-1 rounded-full text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
       >
         <span className="sr-only">View notifications</span>
         <Bell className="h-6 w-6" />
@@ -513,11 +468,8 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
         )}
       </button>
 
-      {open && typeof document !== 'undefined' && createPortal(
-        <div
-          className="fixed w-[min(22rem,calc(100vw-2rem))] sm:w-96 rounded-xl shadow-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900 overflow-hidden"
-          style={{ top: dropdownTop, right: dropdownRight, zIndex: MAX_LAYER_Z }}
-        >
+      {open && (
+        <div className="absolute right-0 mt-2 w-[22rem] sm:w-96 rounded-xl shadow-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900 z-50 overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{prefixLabel} Notifications</p>
@@ -550,13 +502,10 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
             {!loading && items.length > 0 && (
               <ul className="divide-y divide-slate-100 dark:divide-slate-700">
                 {items.map((n) => (
-                  (() => {
-                    const isRead = isNotificationRead(n);
-                    return (
                   <li
                     key={n.id}
                     className={`px-4 py-3 cursor-pointer transition-all duration-150 hover:translate-x-[1px] ${
-                      isRead
+                      n.read_at
                         ? 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800'
                         : 'bg-emerald-100/75 dark:bg-emerald-900/35 border-l-2 border-emerald-500 dark:border-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/45'
                     }`}
@@ -579,7 +528,7 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
                       <div className="flex-1 min-w-0">
                         <p
                           className={`text-sm font-semibold line-clamp-1 ${
-                            isRead ? 'text-slate-800 dark:text-slate-100' : 'text-slate-900 dark:text-white'
+                            n.read_at ? 'text-slate-800 dark:text-slate-100' : 'text-slate-900 dark:text-white'
                           }`}
                         >
                           {n.title}
@@ -597,8 +546,6 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
                       </div>
                     </div>
                   </li>
-                    );
-                  })()
                 ))}
               </ul>
             )}
@@ -612,8 +559,7 @@ export function NotificationBell({ role, onOpenAll, className = '' }: Notificati
               View all
             </button>
           </div>
-        </div>,
-        document.body
+        </div>
       )}
     </div>
   );

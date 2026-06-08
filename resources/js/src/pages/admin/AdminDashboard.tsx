@@ -28,7 +28,9 @@ import {
   Legend,
 } from 'recharts';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { statIconContainerClasses, statIconGlyphClasses, chartColors, popularCourseColors } from '../../utils/uiPalette';
+
+const ANALYTICS_COLORS = ['#34b46c', '#c8a73a', '#7f90ab'];
+const POPULAR_COURSE_COLORS = ['#2ea85f', '#3abf6f', '#60ca88'];
 const CHART_CARD_CLASS = 'rounded-xl border border-slate-200/70 bg-white/95 p-6 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/70';
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTH_NAME_TO_INDEX: Record<string, number> = {
@@ -533,7 +535,7 @@ export function AdminDashboard({ onNavigate }: Props) {
     if (!active || !payload || payload.length === 0) return null;
 
     const value = Number(payload[0]?.value ?? 0);
-    const color = payload[0]?.color ?? popularCourseColors[0];
+    const color = payload[0]?.color ?? POPULAR_COURSE_COLORS[0];
 
     return (
       <div className={chartTooltipClass}>
@@ -573,8 +575,8 @@ export function AdminDashboard({ onNavigate }: Props) {
                 {loading ? '—' : stats?.total_employees ?? 0}
               </p>
             </div>
-            <div className={statIconContainerClasses.blue}>
-              <Users className={statIconGlyphClasses.blue} />
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-full">
+              <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
@@ -598,8 +600,8 @@ export function AdminDashboard({ onNavigate }: Props) {
                 {loading ? '—' : stats?.active_courses ?? 0}
               </p>
             </div>
-            <div className={statIconContainerClasses.green}>
-              <BookOpen className={statIconGlyphClasses.green} />
+            <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-full">
+              <BookOpen className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
@@ -621,8 +623,8 @@ export function AdminDashboard({ onNavigate }: Props) {
                 {loading ? '—' : `${stats?.completion_rate ?? 0}%`}
               </p>
             </div>
-            <div className={statIconContainerClasses.purple}>
-              <Award className={statIconGlyphClasses.purple} />
+            <div className="p-3 bg-purple-50 dark:bg-purple-900/30 rounded-full">
+              <Award className="h-6 w-6 text-purple-600 dark:text-purple-400" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
@@ -644,8 +646,8 @@ export function AdminDashboard({ onNavigate }: Props) {
                 {loading ? '—' : `${stats?.avg_quiz_score ?? 0}%`}
               </p>
             </div>
-            <div className={statIconContainerClasses.orange}>
-              <TrendingUp className={statIconGlyphClasses.orange} />
+            <div className="p-3 bg-orange-50 dark:bg-orange-900/30 rounded-full">
+              <TrendingUp className="h-6 w-6 text-orange-600 dark:text-orange-400" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
@@ -709,7 +711,7 @@ export function AdminDashboard({ onNavigate }: Props) {
                       strokeWidth={2}
                       dataKey="value">
                       {completionStatus.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+                        <Cell key={`cell-${index}`} fill={ANALYTICS_COLORS[index % ANALYTICS_COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip
@@ -738,6 +740,14 @@ export function AdminDashboard({ onNavigate }: Props) {
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={fullYearMonthlyTrends} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                  <defs>
+                    <marker id="trend-arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
+                      <path d="M 0 0 L 8 4 L 0 8 z" fill="#2db768" />
+                    </marker>
+                    <marker id="trend-arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
+                      <path d="M 0 0 L 8 4 L 0 8 z" fill="#5b8def" />
+                    </marker>
+                  </defs>
                   <CartesianGrid strokeDasharray="2 6" vertical={false} stroke={chartGridColor} />
                   <XAxis
                     dataKey="name"
@@ -807,7 +817,7 @@ export function AdminDashboard({ onNavigate }: Props) {
                   }}
                 >
                   {popularCourses.map((_, i) => (
-                    <Cell key={i} fill={popularCourseColors[i % popularCourseColors.length]} />
+                    <Cell key={i} fill={POPULAR_COURSE_COLORS[i % POPULAR_COURSE_COLORS.length]} />
                   ))}
                 </Bar>
               </BarChart>
@@ -895,7 +905,7 @@ export function AdminDashboard({ onNavigate }: Props) {
           <div className="p-4 border-t border-slate-100 dark:border-slate-700 text-center">
             <button
               onClick={openAllActivity}
-              className="text-sm text-green-600 dark:text-green-300 font-medium hover:text-green-700 dark:hover:text-green-200">
+              className="text-sm text-green-600 dark:text-emerald-300 font-medium hover:text-green-700 dark:hover:text-emerald-200">
               View All Activity
             </button>
           </div>
@@ -909,9 +919,9 @@ export function AdminDashboard({ onNavigate }: Props) {
           <div className="space-y-3">
             <button
               onClick={() => onNavigate?.('courses')}
-              className="w-full flex items-center p-3 text-left rounded-lg border border-slate-200 hover:border-green-500 hover:bg-green-50 dark:border-slate-700/70 dark:bg-slate-900/45 dark:hover:border-green-500/55 dark:hover:bg-green-500/10 transition-all group">
-              <div className="p-2 bg-green-100 rounded-md group-hover:bg-green-200 dark:bg-green-500/20 dark:group-hover:bg-green-500/30">
-                <BookOpen className="h-5 w-5 text-green-700 dark:text-green-300" />
+              className="w-full flex items-center p-3 text-left rounded-lg border border-slate-200 hover:border-green-500 hover:bg-green-50 dark:border-slate-700/70 dark:bg-slate-900/45 dark:hover:border-emerald-500/55 dark:hover:bg-emerald-500/10 transition-all group">
+              <div className="p-2 bg-green-100 rounded-md group-hover:bg-green-200 dark:bg-emerald-500/20 dark:group-hover:bg-emerald-500/30">
+                <BookOpen className="h-5 w-5 text-green-700 dark:text-emerald-300" />
               </div>
               <div className="ml-3">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
@@ -1132,8 +1142,8 @@ export function AdminDashboard({ onNavigate }: Props) {
                             : isDarkMode
                               ? 'hover:bg-slate-800/65'
                               : index % 2 === 0
-                                ? 'bg-white hover:bg-green-50/35'
-                                : 'bg-slate-50/45 hover:bg-green-50/45'
+                                ? 'bg-white hover:bg-emerald-50/35'
+                                : 'bg-slate-50/45 hover:bg-emerald-50/45'
                         }`}
                       >
                         <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>{item.user}</td>

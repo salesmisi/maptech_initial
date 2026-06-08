@@ -2,15 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CustomLesson;
-use App\Models\Lesson;
-use App\Models\Module;
 use App\Services\FileConversionService;
-use Exception;
+use App\Models\Module;
+use App\Models\Lesson;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Exception;
 
 class FileConversionController extends Controller
 {
@@ -26,15 +25,8 @@ class FileConversionController extends Controller
      */
     public function checkAvailability()
     {
-        $loAvailable = $this->conversionService->isLibreOfficeAvailable();
-
         return response()->json([
-            'libreoffice_available' => $loAvailable || $this->conversionService->isPowerPointAvailable(),
-            'engine'                => $this->conversionService->isPowerPointAvailable()
-                ? 'microsoft-office'
-                : ($loAvailable ? 'libreoffice' : 'none'),
-            'libreoffice_path'      => $this->conversionService->getLibreOfficePath(),
-            'libreoffice_exists'    => file_exists($this->conversionService->getLibreOfficePath()),
+            'libreoffice_available' => $this->conversionService->isLibreOfficeAvailable(),
             'supported_conversions' => $this->conversionService->getSupportedConversions(),
         ]);
     }
@@ -58,14 +50,14 @@ class FileConversionController extends Controller
 
                 // Ensure temp directory exists
                 $tempDir = storage_path('app/temp/conversions');
-                if (! is_dir($tempDir)) {
+                if (!is_dir($tempDir)) {
                     mkdir($tempDir, 0755, true);
                 }
 
                 // Store the uploaded file temporarily
-                $tempFileName = Str::uuid().'.pdf';
-                $tempPath = 'temp/conversions/'.$tempFileName;
-                $fullTempPath = storage_path('app/'.$tempPath);
+                $tempFileName = Str::uuid() . '.pdf';
+                $tempPath = 'temp/conversions/' . $tempFileName;
+                $fullTempPath = storage_path('app/' . $tempPath);
 
                 // Move uploaded file directly to temp location
                 $file->move($tempDir, $tempFileName);
@@ -75,7 +67,7 @@ class FileConversionController extends Controller
                     'exists' => file_exists($fullTempPath),
                 ]);
 
-                if (! file_exists($fullTempPath)) {
+                if (!file_exists($fullTempPath)) {
                     return response()->json([
                         'success' => false,
                         'error' => 'Failed to save uploaded file.',
@@ -88,7 +80,7 @@ class FileConversionController extends Controller
                 // Clean up temp input file
                 @unlink($fullTempPath);
 
-                if (! $result['success']) {
+                if (!$result['success']) {
                     return response()->json([
                         'success' => false,
                         'error' => $result['error'],
@@ -96,8 +88,8 @@ class FileConversionController extends Controller
                 }
 
                 // Move converted file to public storage
-                $outputFileName = $originalName.'.pptx';
-                $publicPath = 'conversions/'.Str::uuid().'/'.$outputFileName;
+                $outputFileName = $originalName . '.pptx';
+                $publicPath = 'conversions/' . Str::uuid() . '/' . $outputFileName;
 
                 Storage::disk('public')->put($publicPath, file_get_contents($result['output_path']));
 
@@ -107,8 +99,8 @@ class FileConversionController extends Controller
                 return response()->json([
                     'success' => true,
                     'file_name' => $outputFileName,
-                    'file_url' => asset('storage/'.$publicPath),
-                    'storage_path' => 'public/'.$publicPath,
+                    'file_url' => asset('storage/' . $publicPath),
+                    'storage_path' => 'public/' . $publicPath,
                 ]);
             } else {
                 // Convert existing file in storage
@@ -117,12 +109,12 @@ class FileConversionController extends Controller
                 // Handle public storage paths
                 if (Str::startsWith($storagePath, 'public/')) {
                     $storagePath = Str::after($storagePath, 'public/');
-                    $fullPath = storage_path('app/public/'.$storagePath);
+                    $fullPath = storage_path('app/public/' . $storagePath);
                 } else {
-                    $fullPath = storage_path('app/'.$storagePath);
+                    $fullPath = storage_path('app/' . $storagePath);
                 }
 
-                if (! file_exists($fullPath)) {
+                if (!file_exists($fullPath)) {
                     return response()->json([
                         'success' => false,
                         'error' => 'File not found at specified path.',
@@ -131,7 +123,7 @@ class FileConversionController extends Controller
 
                 $result = $this->conversionService->pdfToPptx($fullPath);
 
-                if (! $result['success']) {
+                if (!$result['success']) {
                     return response()->json([
                         'success' => false,
                         'error' => $result['error'],
@@ -139,8 +131,8 @@ class FileConversionController extends Controller
                 }
 
                 $originalName = pathinfo($fullPath, PATHINFO_FILENAME);
-                $outputFileName = $originalName.'.pptx';
-                $publicPath = 'conversions/'.Str::uuid().'/'.$outputFileName;
+                $outputFileName = $originalName . '.pptx';
+                $publicPath = 'conversions/' . Str::uuid() . '/' . $outputFileName;
 
                 Storage::disk('public')->put($publicPath, file_get_contents($result['output_path']));
 
@@ -150,8 +142,8 @@ class FileConversionController extends Controller
                 return response()->json([
                     'success' => true,
                     'file_name' => $outputFileName,
-                    'file_url' => asset('storage/'.$publicPath),
-                    'storage_path' => 'public/'.$publicPath,
+                    'file_url' => asset('storage/' . $publicPath),
+                    'storage_path' => 'public/' . $publicPath,
                 ]);
             }
         } catch (Exception $e) {
@@ -162,7 +154,7 @@ class FileConversionController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => 'An error occurred during conversion: '.$e->getMessage(),
+                'error' => 'An error occurred during conversion: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -175,7 +167,7 @@ class FileConversionController extends Controller
     {
         $lesson = Lesson::findOrFail($lessonId);
 
-        if (! $lesson->content_path) {
+        if (!$lesson->content_path) {
             return response()->json([
                 'success' => false,
                 'error' => 'Lesson has no content file attached.',
@@ -200,13 +192,13 @@ class FileConversionController extends Controller
                 ], 422);
             }
 
-            $fullPath = storage_path('app/public/'.$lesson->content_path);
-            if (! file_exists($fullPath)) {
+            $fullPath = storage_path('app/public/' . $lesson->content_path);
+            if (!file_exists($fullPath)) {
                 // Try without public prefix
-                $fullPath = storage_path('app/'.$lesson->content_path);
+                $fullPath = storage_path('app/' . $lesson->content_path);
             }
 
-            if (! file_exists($fullPath)) {
+            if (!file_exists($fullPath)) {
                 return response()->json([
                     'success' => false,
                     'error' => 'PDF file not found on server.',
@@ -216,7 +208,7 @@ class FileConversionController extends Controller
             // Convert
             $result = $this->conversionService->pdfToPptx($fullPath);
 
-            if (! $result['success']) {
+            if (!$result['success']) {
                 return response()->json([
                     'success' => false,
                     'error' => $result['error'],
@@ -225,8 +217,8 @@ class FileConversionController extends Controller
 
             // Move to lesson storage location
             $directory = pathinfo($lesson->content_path, PATHINFO_DIRNAME);
-            $newFileName = pathinfo($lesson->content_path, PATHINFO_FILENAME).'.pptx';
-            $newPath = $directory.'/'.$newFileName;
+            $newFileName = pathinfo($lesson->content_path, PATHINFO_FILENAME) . '.pptx';
+            $newPath = $directory . '/' . $newFileName;
 
             // Copy converted file to storage
             Storage::disk('public')->put($newPath, file_get_contents($result['output_path']));
@@ -236,7 +228,7 @@ class FileConversionController extends Controller
 
             // Update lesson
             $keepPdf = $request->boolean('keep_pdf', false);
-            if (! $keepPdf) {
+            if (!$keepPdf) {
                 // Delete original PDF
                 Storage::disk('public')->delete($lesson->content_path);
             }
@@ -259,7 +251,7 @@ class FileConversionController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => 'Conversion failed: '.$e->getMessage(),
+                'error' => 'Conversion failed: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -271,7 +263,7 @@ class FileConversionController extends Controller
     {
         $module = Module::findOrFail($moduleId);
 
-        if (! $module->content_path) {
+        if (!$module->content_path) {
             return response()->json([
                 'success' => false,
                 'error' => 'Module has no content file attached.',
@@ -295,12 +287,12 @@ class FileConversionController extends Controller
                 ], 422);
             }
 
-            $fullPath = storage_path('app/public/'.$module->content_path);
-            if (! file_exists($fullPath)) {
-                $fullPath = storage_path('app/'.$module->content_path);
+            $fullPath = storage_path('app/public/' . $module->content_path);
+            if (!file_exists($fullPath)) {
+                $fullPath = storage_path('app/' . $module->content_path);
             }
 
-            if (! file_exists($fullPath)) {
+            if (!file_exists($fullPath)) {
                 return response()->json([
                     'success' => false,
                     'error' => 'PDF file not found on server.',
@@ -310,7 +302,7 @@ class FileConversionController extends Controller
             // Convert
             $result = $this->conversionService->pdfToPptx($fullPath);
 
-            if (! $result['success']) {
+            if (!$result['success']) {
                 return response()->json([
                     'success' => false,
                     'error' => $result['error'],
@@ -319,8 +311,8 @@ class FileConversionController extends Controller
 
             // Move to module storage location
             $directory = pathinfo($module->content_path, PATHINFO_DIRNAME);
-            $newFileName = pathinfo($module->content_path, PATHINFO_FILENAME).'.pptx';
-            $newPath = $directory.'/'.$newFileName;
+            $newFileName = pathinfo($module->content_path, PATHINFO_FILENAME) . '.pptx';
+            $newPath = $directory . '/' . $newFileName;
 
             Storage::disk('public')->put($newPath, file_get_contents($result['output_path']));
 
@@ -329,7 +321,7 @@ class FileConversionController extends Controller
 
             // Update module
             $keepPdf = $request->boolean('keep_pdf', false);
-            if (! $keepPdf) {
+            if (!$keepPdf) {
                 Storage::disk('public')->delete($module->content_path);
             }
 
@@ -350,7 +342,7 @@ class FileConversionController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => 'Conversion failed: '.$e->getMessage(),
+                'error' => 'Conversion failed: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -375,13 +367,13 @@ class FileConversionController extends Controller
 
                 // Ensure temp directory exists
                 $tempDir = storage_path('app/temp/conversions');
-                if (! is_dir($tempDir)) {
+                if (!is_dir($tempDir)) {
                     mkdir($tempDir, 0755, true);
                 }
 
                 // Store temporarily
-                $tempFileName = Str::uuid().'.pptx';
-                $fullTempPath = $tempDir.DIRECTORY_SEPARATOR.$tempFileName;
+                $tempFileName = Str::uuid() . '.pptx';
+                $fullTempPath = $tempDir . DIRECTORY_SEPARATOR . $tempFileName;
                 $file->move($tempDir, $tempFileName);
 
                 // Convert
@@ -390,7 +382,7 @@ class FileConversionController extends Controller
                 // Clean up temp input
                 @unlink($fullTempPath);
 
-                if (! $result['success']) {
+                if (!$result['success']) {
                     return response()->json([
                         'success' => false,
                         'error' => $result['error'],
@@ -398,8 +390,8 @@ class FileConversionController extends Controller
                 }
 
                 // Move to public storage
-                $outputFileName = $originalName.'.pdf';
-                $publicPath = 'conversions/'.Str::uuid().'/'.$outputFileName;
+                $outputFileName = $originalName . '.pdf';
+                $publicPath = 'conversions/' . Str::uuid() . '/' . $outputFileName;
 
                 Storage::disk('public')->put($publicPath, file_get_contents($result['output_path']));
                 @unlink($result['output_path']);
@@ -407,8 +399,8 @@ class FileConversionController extends Controller
                 return response()->json([
                     'success' => true,
                     'file_name' => $outputFileName,
-                    'file_url' => asset('storage/'.$publicPath),
-                    'storage_path' => 'public/'.$publicPath,
+                    'file_url' => asset('storage/' . $publicPath),
+                    'storage_path' => 'public/' . $publicPath,
                 ]);
             } else {
                 // Convert existing file in storage
@@ -417,20 +409,20 @@ class FileConversionController extends Controller
                 // Resolve full path
                 if (Str::startsWith($storagePath, 'public/')) {
                     $storagePath = Str::after($storagePath, 'public/');
-                    $fullPath = storage_path('app/public/'.$storagePath);
+                    $fullPath = storage_path('app/public/' . $storagePath);
                 } elseif (Str::startsWith($storagePath, '/storage/')) {
                     $storagePath = Str::after($storagePath, '/storage/');
-                    $fullPath = storage_path('app/public/'.$storagePath);
+                    $fullPath = storage_path('app/public/' . $storagePath);
                 } else {
-                    $fullPath = storage_path('app/public/'.$storagePath);
+                    $fullPath = storage_path('app/public/' . $storagePath);
                 }
 
-                if (! file_exists($fullPath)) {
+                if (!file_exists($fullPath)) {
                     // Try app storage
-                    $fullPath = storage_path('app/'.$storagePath);
+                    $fullPath = storage_path('app/' . $storagePath);
                 }
 
-                if (! file_exists($fullPath)) {
+                if (!file_exists($fullPath)) {
                     return response()->json([
                         'success' => false,
                         'error' => 'File not found at specified path.',
@@ -438,20 +430,17 @@ class FileConversionController extends Controller
                 }
 
                 // Check if PDF version already exists
-                $pdfPath = pathinfo($fullPath, PATHINFO_DIRNAME).DIRECTORY_SEPARATOR.
-                           pathinfo($fullPath, PATHINFO_FILENAME).'.pdf';
+                $pdfPath = pathinfo($fullPath, PATHINFO_DIRNAME) . DIRECTORY_SEPARATOR .
+                           pathinfo($fullPath, PATHINFO_FILENAME) . '.pdf';
 
                 if (file_exists($pdfPath)) {
                     // Return existing PDF
                     $relativePath = str_replace(storage_path('app/public/'), '', $pdfPath);
-                    // Normalize directory separators for URLs
-                    $relativePath = str_replace('\\', '/', $relativePath);
-
                     return response()->json([
                         'success' => true,
                         'file_name' => basename($pdfPath),
-                        'file_url' => asset('storage/'.$relativePath),
-                        'storage_path' => 'public/'.$relativePath,
+                        'file_url' => asset('storage/' . $relativePath),
+                        'storage_path' => 'public/' . $relativePath,
                         'cached' => true,
                     ]);
                 }
@@ -459,7 +448,7 @@ class FileConversionController extends Controller
                 // Convert
                 $result = $this->conversionService->pptxToPdf($fullPath, $pdfPath);
 
-                if (! $result['success']) {
+                if (!$result['success']) {
                     return response()->json([
                         'success' => false,
                         'error' => $result['error'],
@@ -467,14 +456,12 @@ class FileConversionController extends Controller
                 }
 
                 $relativePath = str_replace(storage_path('app/public/'), '', $result['output_path']);
-                // Normalize directory separators for URLs
-                $relativePath = str_replace('\\', '/', $relativePath);
 
                 return response()->json([
                     'success' => true,
                     'file_name' => basename($result['output_path']),
-                    'file_url' => asset('storage/'.$relativePath),
-                    'storage_path' => 'public/'.$relativePath,
+                    'file_url' => asset('storage/' . $relativePath),
+                    'storage_path' => 'public/' . $relativePath,
                 ]);
             }
         } catch (Exception $e) {
@@ -484,7 +471,7 @@ class FileConversionController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => 'Conversion failed: '.$e->getMessage(),
+                'error' => 'Conversion failed: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -502,24 +489,34 @@ class FileConversionController extends Controller
         $url = $request->input('url');
 
         try {
-            $fullPath = $this->resolvePptxFullPathFromUrl($url);
+            // Parse URL to get storage path
+            $path = parse_url($url, PHP_URL_PATH);
 
-            if (! file_exists($fullPath)) {
+            // Remove /storage/ prefix if present
+            if (Str::startsWith($path, '/storage/')) {
+                $storagePath = Str::after($path, '/storage/');
+            } else {
+                $storagePath = ltrim($path, '/');
+            }
+
+            $fullPath = storage_path('app/public/' . $storagePath);
+
+            if (!file_exists($fullPath)) {
                 return response()->json([
                     'success' => false,
                     'error' => 'Original PPTX file not found.',
                 ], 404);
             }
 
-            // Check if a valid PDF already exists (>1 kB to avoid broken cached files)
-            $pdfPath = pathinfo($fullPath, PATHINFO_DIRNAME).DIRECTORY_SEPARATOR.
-                       pathinfo($fullPath, PATHINFO_FILENAME).'.pdf';
+            // Check if PDF exists
+            $pdfPath = pathinfo($fullPath, PATHINFO_DIRNAME) . DIRECTORY_SEPARATOR .
+                       pathinfo($fullPath, PATHINFO_FILENAME) . '.pdf';
 
-            if (! file_exists($pdfPath) || filesize($pdfPath) < 1024) {
+            if (!file_exists($pdfPath)) {
                 // Convert
                 $result = $this->conversionService->pptxToPdf($fullPath, $pdfPath);
 
-                if (! $result['success']) {
+                if (!$result['success']) {
                     return response()->json([
                         'success' => false,
                         'error' => $result['error'],
@@ -528,12 +525,10 @@ class FileConversionController extends Controller
             }
 
             $relativePath = str_replace(storage_path('app/public/'), '', $pdfPath);
-            // Normalize directory separators for URLs
-            $relativePath = str_replace('\\', '/', $relativePath);
 
             return response()->json([
                 'success' => true,
-                'pdf_url' => '/storage/'.$relativePath,
+                'pdf_url' => asset('storage/' . $relativePath),
             ]);
         } catch (Exception $e) {
             Log::error('Get PPTX as PDF failed', [
@@ -543,44 +538,8 @@ class FileConversionController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to get PDF version: '.$e->getMessage(),
+                'error' => 'Failed to get PDF version: ' . $e->getMessage(),
             ], 500);
         }
-    }
-
-    /**
-     * Resolve a lesson/file URL to a local storage path for conversion.
-     */
-    private function resolvePptxFullPathFromUrl(string $url): string
-    {
-        $path = parse_url($url, PHP_URL_PATH) ?: '';
-
-        if (preg_match('#^/lesson-files/(course|custom)/(\d+)$#', $path, $matches)) {
-            $lessonId = (int) $matches[2];
-            $lesson = $matches[1] === 'course'
-                ? Lesson::find($lessonId)
-                : CustomLesson::find($lessonId);
-
-            if ($lesson?->content_path) {
-                if (Str::startsWith($lesson->content_path, 'public/')) {
-                    return storage_path('app/'.$lesson->content_path);
-                }
-
-                if (Str::startsWith($lesson->content_path, '/storage/')) {
-                    return storage_path('app/public/'.Str::after($lesson->content_path, '/storage/'));
-                }
-
-                return storage_path('app/public/'.$lesson->content_path);
-            }
-        }
-
-        // Remove /storage/ prefix if present
-        if (Str::startsWith($path, '/storage/')) {
-            $storagePath = Str::after($path, '/storage/');
-        } else {
-            $storagePath = ltrim($path, '/');
-        }
-
-        return storage_path('app/public/'.$storagePath);
     }
 }

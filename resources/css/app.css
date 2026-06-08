@@ -2,36 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-html,
-body {
-	width: 100%;
-	overflow-x: hidden;
-}
-
-#app {
-	width: 100%;
-	overflow-x: clip;
-}
-
-/* Keep mobile viewport height stable across browser chrome changes. */
-@supports (height: 100dvh) {
-	.min-h-screen {
-		min-height: 100dvh;
-	}
-}
-
-/* Shared dashboard shell guards against accidental horizontal bleed from children. */
-.app-theme-scope {
-	width: 100%;
-	max-width: 100%;
-	overflow-x: clip;
-}
-
-.app-theme-scope main {
-	-webkit-overflow-scrolling: touch;
-	overscroll-behavior: contain;
-}
-
 /* Design tokens (global) — XLSX design system */
 :root {
 	--GREEN_DARK: #154734;
@@ -325,16 +295,6 @@ html.dark .shadow-lg {
 * {
 	scrollbar-width: thin;
 	scrollbar-color: var(--APP_SCROLLBAR_THUMB_TOP) var(--APP_SCROLLBAR_TRACK);
-}
-
-/* Ensure scrollable areas accept wheel/trackpad/touch input and don't get blocked by touch-action or overscroll defaults */
-.app-theme-scope .overflow-y-auto,
-.app-theme-scope .overflow-auto,
-.app-theme-scope main {
-	touch-action: auto !important;
-	-ms-touch-action: auto !important;
-	overscroll-behavior: auto !important;
-	-webkit-overflow-scrolling: touch !important;
 }
 
 *::-webkit-scrollbar {

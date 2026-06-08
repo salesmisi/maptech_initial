@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import { UserTimeLog } from '../../components/UserTimeLog';
 import { safeArray } from '../../utils/safe';
-import { actionButtonClasses, statIconContainerClasses, statIconGlyphClasses } from '../../utils/uiPalette';
 
 const API_BASE = '/api';
 const MAPTECH_LOGO_URL = '/assets/Maptech-Official-Logo.png';
@@ -595,7 +594,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
           <div className="w-full sm:w-auto">
             <button
               onClick={() => onNavigate?.('course-viewer', resumeCourse.id)}
-              className={`inline-flex w-full items-center justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium shadow-sm sm:w-auto ${actionButtonClasses.success}`}
+              className="btn btn-primary sm:w-auto"
             >
               Resume Learning
               <ArrowRight className="ml-2 h-4 w-4" />
@@ -608,8 +607,8 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
         <div className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
           <div className="flex items-center">
-            <div className={statIconContainerClasses.blue}>
-              <BookOpen className={statIconGlyphClasses.blue} />
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-full">
+              <BookOpen className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -622,8 +621,8 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
         <div className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
           <div className="flex items-center">
-            <div className={statIconContainerClasses.purple}>
-              <GraduationCap className={statIconGlyphClasses.purple} />
+            <div className="p-3 bg-purple-50 dark:bg-purple-900/30 rounded-full">
+              <GraduationCap className="h-6 w-6 text-purple-600 dark:text-purple-400" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Custom Modules</p>
@@ -634,8 +633,8 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
         <div className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
           <div className="flex items-center">
-            <div className={statIconContainerClasses.green}>
-              <CheckCircle className={statIconGlyphClasses.green} />
+            <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-full">
+              <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Completed</p>
@@ -646,8 +645,8 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
         <div className="bg-white dark:bg-slate-900/80 p-4 sm:p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
           <div className="flex items-center">
-            <div className={statIconContainerClasses.yellow}>
-              <Clock className={statIconGlyphClasses.yellow} />
+            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/30 rounded-full">
+              <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400">In Progress</p>
@@ -658,8 +657,8 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
         <div className="bg-white dark:bg-slate-900/80 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
           <div className="flex items-center">
-            <div className={statIconContainerClasses.purple}>
-              <Award className={statIconGlyphClasses.purple} />
+            <div className="p-3 bg-purple-50 dark:bg-purple-900/30 rounded-full">
+              <Award className="h-6 w-6 text-purple-600 dark:text-purple-400" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Certificates</p>
@@ -693,7 +692,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-900/40 dark:bg-green-950/25 dark:text-green-300">
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/25 dark:text-emerald-300">
                     You are not enrolled in a course yet. Here are available offerings for your subdepartment.
                   </div>
                   {courseOfferings.map((course) => (
@@ -712,7 +711,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                         <div className="mt-4">
                           <button
                             onClick={() => onNavigate?.('course-enroll', course.id)}
-                            className={`px-4 py-2 text-sm font-medium rounded-md ${actionButtonClasses.success}`}
+                            className="btn btn-primary btn-sm"
                           >
                             View Offering
                           </button>
@@ -794,7 +793,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                 {customModules.map((module) => (
                   <div
                     key={module.id}
-                    className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg border border-purple-200 p-4 hover:shadow-md transition-all cursor-pointer dark:from-purple-950/30 dark:to-blue-950/30 dark:border-purple-800"
+                    className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg border border-purple-200 p-4 hover:shadow-md transition-all cursor-pointer dark:from-purple-950/30 dark:to-indigo-950/30 dark:border-purple-800"
                     onClick={() => {
                       pushToast('Module Viewer', 'Custom module viewer coming soon!', 'info');
                     }}
@@ -830,7 +829,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                       </div>
                       <div className="w-full bg-white rounded-full h-1.5 dark:bg-slate-700">
                         <div
-                          className="bg-gradient-to-r from-purple-500 to-blue-500 h-1.5 rounded-full transition-all duration-500"
+                          className="bg-gradient-to-r from-purple-500 to-indigo-500 h-1.5 rounded-full transition-all duration-500"
                           style={{ width: `${module.progress}%` }}
                         />
                       </div>
@@ -857,7 +856,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             </h3>
             <div className="space-y-4">
               {upcomingCourseDeadlines.length === 0 ? (
-                <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-900/40 dark:bg-green-950/25 dark:text-green-300">
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/25 dark:text-emerald-300">
                   There is no pending task at the moment, take a rest!
                 </div>
               ) : (
@@ -894,7 +893,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
           </div>
 
           {/* Latest Achievement */}
-          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-md p-6 text-white">
+          <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg shadow-md p-6 text-white">
             <div className="flex items-center justify-between mb-4 gap-3">
               <div className="flex items-center min-w-0">
                 <Award className="h-8 w-8 text-yellow-300 flex-shrink-0" />

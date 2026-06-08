@@ -13,11 +13,9 @@ import {
   Sector,
   Cell,
   LineChart,
-  Line,
-} from
+  Line } from
 'recharts';
 import { Download, Calendar } from 'lucide-react';
-import { actionButtonClasses } from '../../utils/uiPalette';
 
 const COLORS = ['#34b46c', '#c8a73a', '#7f90ab'];
 const POPULAR_COURSE_COLORS = ['#2ea85f', '#3abf6f', '#60ca88'];
@@ -144,10 +142,7 @@ export function ReportsAnalytics() {
     setExporting(true);
     try {
       const res = await fetch('/api/admin/reports/export', {
-        headers: {
-          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-        },
+        headers: { 'Accept': 'text/csv', 'X-XSRF-TOKEN': getCookie('XSRF-TOKEN') },
         credentials: 'include',
       });
       const blob = await res.blob();
@@ -156,7 +151,7 @@ export function ReportsAnalytics() {
       a.href = url;
       const disposition = res.headers.get('Content-Disposition') ?? '';
       const match = disposition.match(/filename="?([^";\n]+)"?/);
-      a.download = match?.[1] ?? 'report.xlsx';
+      a.download = match?.[1] ?? 'report.csv';
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -182,6 +177,7 @@ export function ReportsAnalytics() {
   const chartLegendColor = isDarkMode ? '#b8c2d1' : '#475569';
   const completionSliceStroke = isDarkMode ? 'rgba(148, 163, 184, 0.5)' : 'rgba(100, 116, 139, 0.45)';
   const activeRingFill = isDarkMode ? 'rgba(226, 232, 240, 0.42)' : 'rgba(71, 85, 105, 0.28)';
+  const trendActiveDotStroke = isDarkMode ? '#0b1220' : '#ffffff';
   const chartTooltipClass = isDarkMode
     ? 'rounded-lg border border-slate-700/60 bg-slate-900/88 px-3 py-2 shadow-md backdrop-blur-sm'
     : 'rounded-lg border border-slate-200/90 bg-white/96 px-3 py-2 shadow-sm backdrop-blur-sm';
@@ -202,10 +198,6 @@ export function ReportsAnalytics() {
     enrollments: monthlyTrendsByMonth[index]?.enrollments ?? 0,
     completions: monthlyTrendsByMonth[index]?.completions ?? 0,
   }));
-  const compactMonthlyTrends = fullYearMonthlyTrends.filter(
-    (trend) => trend.enrollments > 0 || trend.completions > 0,
-  );
-  const monthlyTrendChartData = compactMonthlyTrends.length >= 2 ? compactMonthlyTrends : fullYearMonthlyTrends;
 
   const renderCompletionTooltip = ({ active, payload }: any) => {
     if (!active || !payload || payload.length === 0) return null;
@@ -297,7 +289,13 @@ export function ReportsAnalytics() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end items-center">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-slate-900">
+          Reports &amp; Analytics
+        </h1>
+        <div className="text-xs text-slate-500 mr-auto ml-4 hidden sm:block">
+          Live refresh every 20s{lastUpdated ? ` • Updated ${lastUpdated.toLocaleTimeString()}` : ''}
+        </div>
         <div className="flex space-x-3">
           {/* Range picker */}
           <div className="relative">
@@ -325,7 +323,7 @@ export function ReportsAnalytics() {
           <button
             onClick={handleExport}
             disabled={exporting}
-            className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium disabled:opacity-60 ${actionButtonClasses.success}`}>
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-60">
             <Download className="h-4 w-4 mr-2" />
             {exporting ? 'Exporting...' : 'Export Report'}
           </button>
@@ -399,10 +397,7 @@ export function ReportsAnalytics() {
               <div className="flex items-center justify-center h-full text-slate-400">No trend data yet</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={monthlyTrendChartData}
-                  margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
-                >
+                <LineChart data={fullYearMonthlyTrends} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="2 6" vertical={false} stroke={chartGridColor} />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} interval={0} padding={{ left: 8, right: 8 }} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: chartAxisTickColor, fontSize: 12 }} />
@@ -411,36 +406,8 @@ export function ReportsAnalytics() {
                     cursor={false}
                   />
                   <Legend wrapperStyle={{ color: chartLegendColor, fontSize: '12px', paddingTop: '8px' }} />
-                  <Line
-                    type="monotone"
-                    dataKey="enrollments"
-                    name="Enrollments"
-                    stroke="#2db768"
-                    strokeWidth={3}
-                    dot={{ r: 3, strokeWidth: 2, fill: '#2db768' }}
-                    activeDot={{ r: 5, stroke: '#ffffff', strokeWidth: 2 }}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    isAnimationActive
-                    animationBegin={120}
-                    animationDuration={1800}
-                    animationEasing="ease"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="completions"
-                    name="Completions"
-                    stroke="#5b8def"
-                    strokeWidth={3}
-                    dot={{ r: 3, strokeWidth: 2, fill: '#5b8def' }}
-                    activeDot={{ r: 5, stroke: '#ffffff', strokeWidth: 2 }}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    isAnimationActive
-                    animationBegin={120}
-                    animationDuration={1800}
-                    animationEasing="ease"
-                  />
+                  <Line type="monotone" dataKey="enrollments" stroke="#2db768" strokeWidth={2} dot={{ r: 2.5 }} activeDot={{ r: 5, stroke: trendActiveDotStroke, strokeWidth: 2 }} />
+                  <Line type="monotone" dataKey="completions" stroke="#5b8def" strokeWidth={2} dot={{ r: 2.5 }} activeDot={{ r: 5, stroke: trendActiveDotStroke, strokeWidth: 2 }} />
                 </LineChart>
               </ResponsiveContainer>
             )}

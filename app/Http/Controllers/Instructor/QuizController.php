@@ -4,15 +4,13 @@ namespace App\Http\Controllers\Instructor;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
-use App\Models\Lesson;
 use App\Models\Module;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
-use App\Models\QuizOption;
 use App\Models\QuizQuestion;
+use App\Models\QuizOption;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Schema;
 
 class QuizController extends Controller
 {
@@ -28,10 +26,10 @@ class QuizController extends Controller
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id == $user->id)
-            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (! $allowed) {
+        if (!$allowed) {
             abort(403, 'Forbidden.');
         }
 
@@ -49,10 +47,10 @@ class QuizController extends Controller
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id == $user->id)
-            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (! $allowed) {
+        if (!$allowed) {
             abort(403, 'Forbidden.');
         }
 
@@ -70,24 +68,14 @@ class QuizController extends Controller
         $assignedDept = $user->department;
 
         $allowed = ($course->instructor_id == $user->id)
-            || (! empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
+            || (!empty($assignedSubIds) && in_array($course->subdepartment_id, $assignedSubIds))
             || ($assignedDept && $course->department === $assignedDept);
 
-        if (! $allowed) {
+        if (!$allowed) {
             abort(403, 'Forbidden.');
         }
 
         return $module;
-    }
-
-    private function ensureLessonInModule(int $lessonId, int $moduleId): Lesson
-    {
-        $lesson = Lesson::findOrFail($lessonId);
-        if ((int) $lesson->module_id !== (int) $moduleId) {
-            abort(422, 'Selected lesson does not belong to this module.');
-        }
-
-        return $lesson;
     }
 
     // ─── Quiz CRUD ────────────────────────────────────────────────────────────
@@ -97,7 +85,7 @@ class QuizController extends Controller
     {
         $user = $request->user();
 
-        $quizzes = Quiz::with(['course.subdepartment', 'module', 'lesson', 'questions'])
+        $quizzes = Quiz::with(['course.subdepartment', 'module', 'questions'])
             ->whereHas('course', fn($q) => $q->where('instructor_id', $user->id))
             ->latest()
             ->get()
@@ -106,7 +94,6 @@ class QuizController extends Controller
                     'id'                 => $quiz->id,
                     'title'              => $quiz->title,
                     'description'        => $quiz->description,
-                    'quiz_type'          => $quiz->quiz_type ?? 'regular',
                     'pass_percentage'    => $quiz->pass_percentage,
                     'course_id'          => $quiz->course_id,
                     'course_title'       => $quiz->course->title,
@@ -115,8 +102,6 @@ class QuizController extends Controller
                     'subdepartment_name' => $quiz->course->subdepartment?->name,
                     'module_id'          => $quiz->module_id,
                     'module_title'       => $quiz->module?->title,
-                    'lesson_id'          => $quiz->lesson_id,
-                    'quiz_type'          => $quiz->quiz_type,
                     'question_count'     => $quiz->questions->count(),
                     'created_at'         => $quiz->created_at,
                 ];
@@ -142,12 +127,11 @@ class QuizController extends Controller
             'quiz:id,title,course_id,module_id,pass_percentage',
             'quiz.course:id,title,department,subdepartment_id,instructor_id',
             'quiz.module:id,title',
-            'quiz.lesson:id,title,module_id',
         ])->whereHas('quiz.course', function ($q) use ($user, $assignedSubIds, $assignedDept) {
             $q->where(function ($inner) use ($user, $assignedSubIds, $assignedDept) {
                 $inner->where('instructor_id', $user->id);
 
-                if (! empty($assignedSubIds)) {
+                if (!empty($assignedSubIds)) {
                     $inner->orWhereIn('subdepartment_id', $assignedSubIds);
                 }
 
@@ -157,7 +141,7 @@ class QuizController extends Controller
             });
         });
 
-        if (! empty($quizId)) {
+        if (!empty($quizId)) {
             $query->where('quiz_id', (int) $quizId);
         }
 
@@ -173,11 +157,8 @@ class QuizController extends Controller
                     'employee_department' => $attempt->user?->department,
                     'quiz_id' => $attempt->quiz_id,
                     'quiz_title' => $attempt->quiz?->title,
-                    'quiz_type' => $attempt->quiz?->quiz_type ?? 'regular',
                     'module_id' => $attempt->quiz?->module_id,
                     'module_title' => $attempt->quiz?->module?->title,
-                    'lesson_id' => $attempt->quiz?->lesson_id,
-                    'lesson_title' => $attempt->quiz?->lesson?->title,
                     'course_id' => $attempt->quiz?->course_id,
                     'course_title' => $attempt->quiz?->course?->title,
                     'pass_percentage' => $attempt->quiz?->pass_percentage,
@@ -198,7 +179,7 @@ class QuizController extends Controller
     {
         $course = $this->ownedCourse($courseId, $request);
 
-        $quizzes = Quiz::with(['questions', 'module', 'lesson'])
+        $quizzes = Quiz::with(['questions', 'module'])
             ->where('course_id', $courseId)
             ->latest()
             ->get()
@@ -206,12 +187,9 @@ class QuizController extends Controller
                 'id'              => $quiz->id,
                 'title'           => $quiz->title,
                 'description'     => $quiz->description,
-                'quiz_type'       => $quiz->quiz_type ?? 'regular',
                 'pass_percentage' => $quiz->pass_percentage,
                 'module_id'       => $quiz->module_id,
                 'module_title'    => $quiz->module?->title,
-                'lesson_id'       => $quiz->lesson_id,
-                'quiz_type'       => $quiz->quiz_type,
                 'question_count'  => $quiz->questions->count(),
                 'created_at'      => $quiz->created_at,
             ]);
@@ -224,7 +202,7 @@ class QuizController extends Controller
     {
         $module = $this->ownedModule($moduleId, $request);
 
-        $quizzes = Quiz::with(['questions', 'lesson'])
+        $quizzes = Quiz::with('questions')
             ->where('module_id', $moduleId)
             ->latest()
             ->get()
@@ -232,11 +210,8 @@ class QuizController extends Controller
                 'id'              => $quiz->id,
                 'title'           => $quiz->title,
                 'description'     => $quiz->description,
-                'quiz_type'       => $quiz->quiz_type ?? 'regular',
                 'pass_percentage' => $quiz->pass_percentage,
                 'module_id'       => $quiz->module_id,
-                'lesson_id'       => $quiz->lesson_id,
-                'lesson_title'    => $quiz->lesson?->title,
                 'question_count'  => $quiz->questions->count(),
                 'created_at'      => $quiz->created_at,
             ]);
@@ -253,35 +228,26 @@ class QuizController extends Controller
             'title'           => 'required|string|max:255',
             'description'     => 'nullable|string',
             'module_id'       => 'nullable|integer|exists:modules,id',
-            'lesson_id'       => 'nullable|integer|exists:lessons,id',
-            'quiz_type'       => 'nullable|string|in:pre-test,regular,post-test,final-assessment',
             'pass_percentage' => 'nullable|integer|min:1|max:100',
         ]);
 
         $quiz = Quiz::create([
             'course_id'       => $courseId,
             'module_id'       => $validated['module_id'] ?? null,
-            'lesson_id'       => $validated['lesson_id'] ?? null,
-            'quiz_type'       => $validated['quiz_type'] ?? 'regular',
             'title'           => $validated['title'],
             'description'     => $validated['description'] ?? null,
             'pass_percentage' => $validated['pass_percentage'] ?? 70,
-            'lesson_id'       => $validated['lesson_id'] ?? null,
-            'quiz_type'       => $validated['quiz_type'] ?? 'regular',
         ]);
 
         return response()->json([
             'id'              => $quiz->id,
             'title'           => $quiz->title,
             'description'     => $quiz->description,
-            'quiz_type'       => $quiz->quiz_type ?? 'regular',
             'pass_percentage' => $quiz->pass_percentage,
-            'course_id'      => $quiz->course_id,
-            'module_id'      => $quiz->module_id,
-            'lesson_id'      => $quiz->lesson_id,
-            'quiz_type'      => $quiz->quiz_type,
-            'question_count' => 0,
-            'created_at'     => $quiz->created_at,
+            'course_id'       => $quiz->course_id,
+            'module_id'       => $quiz->module_id,
+            'question_count'  => 0,
+            'created_at'      => $quiz->created_at,
         ], 201);
     }
 
@@ -290,38 +256,33 @@ class QuizController extends Controller
     {
         $module = $this->ownedModule($moduleId, $request);
 
+        if (Quiz::query()->where('module_id', $moduleId)->exists()) {
+            return response()->json(['message' => 'This module already has a quiz. Delete it first to create a new one.'], 422);
+        }
+
         $validated = $request->validate([
             'title'           => 'required|string|max:255',
             'description'     => 'nullable|string',
-            'lesson_id'       => 'nullable|integer|exists:lessons,id',
-            'quiz_type'       => 'nullable|string|in:pre-test,regular,post-test,final-assessment',
             'pass_percentage' => 'nullable|integer|min:1|max:100',
         ]);
 
         $quiz = Quiz::create([
             'course_id'       => $module->course_id,
             'module_id'       => $moduleId,
-            'lesson_id'       => $validated['lesson_id'] ?? null,
-            'quiz_type'       => $validated['quiz_type'] ?? 'regular',
             'title'           => $validated['title'],
             'description'     => $validated['description'] ?? null,
             'pass_percentage' => $validated['pass_percentage'] ?? 70,
-            'lesson_id'       => $validated['lesson_id'] ?? null,
-            'quiz_type'       => $validated['quiz_type'] ?? 'regular',
         ]);
 
         return response()->json([
             'id'              => $quiz->id,
             'title'           => $quiz->title,
             'description'     => $quiz->description,
-            'quiz_type'       => $quiz->quiz_type ?? 'regular',
             'pass_percentage' => $quiz->pass_percentage,
-            'course_id'      => $quiz->course_id,
-            'module_id'      => $quiz->module_id,
-            'lesson_id'      => $quiz->lesson_id,
-            'quiz_type'      => $quiz->quiz_type,
-            'question_count' => 0,
-            'created_at'     => $quiz->created_at,
+            'course_id'       => $quiz->course_id,
+            'module_id'       => $quiz->module_id,
+            'question_count'  => 0,
+            'created_at'      => $quiz->created_at,
         ], 201);
     }
 
@@ -330,20 +291,17 @@ class QuizController extends Controller
     {
         $quiz = $this->ownedQuiz($id, $request);
 
-        $quiz->load(['course', 'module', 'lesson', 'questions.options']);
+        $quiz->load(['course', 'module', 'questions.options']);
 
         return response()->json([
             'id'              => $quiz->id,
             'title'           => $quiz->title,
             'description'     => $quiz->description,
-            'quiz_type'       => $quiz->quiz_type ?? 'regular',
             'pass_percentage' => $quiz->pass_percentage,
             'course_id'       => $quiz->course_id,
             'course_title'    => $quiz->course->title,
             'module_id'       => $quiz->module_id,
             'module_title'    => $quiz->module?->title,
-            'lesson_id'       => $quiz->lesson_id,
-            'lesson_title'    => $quiz->lesson?->title,
             'questions'       => $quiz->questions->map(fn($q) => $this->formatQuestion($q))->values(),
             'created_at'      => $quiz->created_at,
         ]);
@@ -355,22 +313,12 @@ class QuizController extends Controller
         $quiz = $this->ownedQuiz($id, $request);
 
         $validated = $request->validate([
-            'title'           => 'sometimes|required|string|max:255',
-            'description'     => 'sometimes|nullable|string',
-            'pass_percentage' => 'sometimes|nullable|integer|min:1|max:100',
-            'lesson_id'       => 'sometimes|nullable|integer|exists:lessons,id',
-            'quiz_type'       => 'sometimes|nullable|string|in:pre-test,regular,post-test,final-assessment',
+            'title'           => 'required|string|max:255',
+            'description'     => 'nullable|string',
+            'pass_percentage' => 'nullable|integer|min:1|max:100',
         ]);
 
-        $updateData = $validated;
-        if (!Schema::hasColumn('quizzes', 'lesson_id')) {
-            unset($updateData['lesson_id']);
-        }
-        if (!Schema::hasColumn('quizzes', 'quiz_type')) {
-            unset($updateData['quiz_type']);
-        }
-
-        $quiz->update($updateData);
+        $quiz->update($validated);
 
         return response()->json(['message' => 'Quiz updated.', 'quiz' => $quiz]);
     }
@@ -382,12 +330,8 @@ class QuizController extends Controller
 
         // Delete uploaded media files
         foreach ($quiz->questions as $question) {
-            if ($question->image_path) {
-                Storage::disk('public')->delete($question->image_path);
-            }
-            if ($question->video_path) {
-                Storage::disk('public')->delete($question->video_path);
-            }
+            if ($question->image_path) Storage::disk('public')->delete($question->image_path);
+            if ($question->video_path) Storage::disk('public')->delete($question->video_path);
         }
 
         Quiz::destroy($quiz->id);
@@ -407,18 +351,18 @@ class QuizController extends Controller
         $quiz = $this->ownedQuiz($quizId, $request);
 
         $request->validate([
-            'question_text' => 'required|string',
-            'options' => 'required|array|min:2',
-            'options.*.text' => 'required|string',
-            'options.*.is_correct' => 'required|boolean',
-            'image' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp|max:10240',
-            'video' => 'nullable|file|mimes:mp4,webm,ogg,mov|max:102400',
+            'question_text'          => 'required|string',
+            'options'                => 'required|array|min:2',
+            'options.*.text'         => 'required|string',
+            'options.*.is_correct'   => 'required|boolean',
+            'image'                  => 'nullable|file|mimes:jpg,jpeg,png,gif,webp|max:10240',
+            'video'                  => 'nullable|file|mimes:mp4,webm,ogg,mov|max:102400',
         ]);
 
         $order = $quiz->questions()->max('order') + 1;
 
         $imagePath = null;
-        $videoPath = null;
+        $videoPath  = null;
 
         if ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store('quiz-media/images', 'public');
@@ -428,19 +372,19 @@ class QuizController extends Controller
         }
 
         $question = QuizQuestion::create([
-            'quiz_id' => $quizId,
+            'quiz_id'       => $quizId,
             'question_text' => $request->question_text,
-            'image_path' => $imagePath,
-            'video_path' => $videoPath,
-            'order' => $order,
+            'image_path'    => $imagePath,
+            'video_path'    => $videoPath,
+            'order'         => $order,
         ]);
 
         foreach ($request->options as $idx => $opt) {
             QuizOption::create([
                 'question_id' => $question->id,
                 'option_text' => $opt['text'],
-                'is_correct' => (bool) $opt['is_correct'],
-                'order' => $idx,
+                'is_correct'  => (bool) $opt['is_correct'],
+                'order'       => $idx,
             ]);
         }
 
@@ -455,22 +399,22 @@ class QuizController extends Controller
      */
     public function updateQuestion(Request $request, int $quizId, int $questionId)
     {
-        $quiz = $this->ownedQuiz($quizId, $request);
+        $quiz     = $this->ownedQuiz($quizId, $request);
         $question = QuizQuestion::query()->where('quiz_id', $quizId)->findOrFail($questionId);
 
         $request->validate([
-            'question_text' => 'required|string',
-            'options' => 'required|array|min:2',
-            'options.*.text' => 'required|string',
+            'question_text'        => 'required|string',
+            'options'              => 'required|array|min:2',
+            'options.*.text'       => 'required|string',
             'options.*.is_correct' => 'required|boolean',
-            'image' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp|max:10240',
-            'video' => 'nullable|file|mimes:mp4,webm,ogg,mov|max:102400',
-            'remove_image' => 'nullable|boolean',
-            'remove_video' => 'nullable|boolean',
+            'image'                => 'nullable|file|mimes:jpg,jpeg,png,gif,webp|max:10240',
+            'video'                => 'nullable|file|mimes:mp4,webm,ogg,mov|max:102400',
+            'remove_image'         => 'nullable|boolean',
+            'remove_video'         => 'nullable|boolean',
         ]);
 
         $imagePath = $question->image_path;
-        $videoPath = $question->video_path;
+        $videoPath  = $question->video_path;
 
         if ($request->boolean('remove_image') && $imagePath) {
             Storage::disk('public')->delete($imagePath);
@@ -481,22 +425,18 @@ class QuizController extends Controller
             $videoPath = null;
         }
         if ($request->hasFile('image')) {
-            if ($imagePath) {
-                Storage::disk('public')->delete($imagePath);
-            }
+            if ($imagePath) Storage::disk('public')->delete($imagePath);
             $imagePath = $request->file('image')->store('quiz-media/images', 'public');
         }
         if ($request->hasFile('video')) {
-            if ($videoPath) {
-                Storage::disk('public')->delete($videoPath);
-            }
+            if ($videoPath) Storage::disk('public')->delete($videoPath);
             $videoPath = $request->file('video')->store('quiz-media/videos', 'public');
         }
 
         $question->update([
             'question_text' => $request->question_text,
-            'image_path' => $imagePath,
-            'video_path' => $videoPath,
+            'image_path'    => $imagePath,
+            'video_path'    => $videoPath,
         ]);
 
         // Replace all options
@@ -505,8 +445,8 @@ class QuizController extends Controller
             QuizOption::create([
                 'question_id' => $question->id,
                 'option_text' => $opt['text'],
-                'is_correct' => (bool) $opt['is_correct'],
-                'order' => $idx,
+                'is_correct'  => (bool) $opt['is_correct'],
+                'order'       => $idx,
             ]);
         }
 
@@ -518,15 +458,11 @@ class QuizController extends Controller
     /** DELETE /instructor/quizzes/{quizId}/questions/{questionId} */
     public function deleteQuestion(Request $request, int $quizId, int $questionId)
     {
-        $quiz = $this->ownedQuiz($quizId, $request);
+        $quiz     = $this->ownedQuiz($quizId, $request);
         $question = QuizQuestion::query()->where('quiz_id', $quizId)->findOrFail($questionId);
 
-        if ($question->image_path) {
-            Storage::disk('public')->delete($question->image_path);
-        }
-        if ($question->video_path) {
-            Storage::disk('public')->delete($question->video_path);
-        }
+        if ($question->image_path) Storage::disk('public')->delete($question->image_path);
+        if ($question->video_path) Storage::disk('public')->delete($question->video_path);
 
         QuizQuestion::destroy($question->id);
 
@@ -538,18 +474,18 @@ class QuizController extends Controller
     private function formatQuestion(QuizQuestion $q): array
     {
         return [
-            'id' => $q->id,
+            'id'            => $q->id,
             'question_text' => $q->question_text,
-            'image_url' => $q->image_path ? Storage::url($q->image_path) : null,
-            'video_url' => $q->video_path ? Storage::url($q->video_path) : null,
-            'image_path' => $q->image_path,
-            'video_path' => $q->video_path,
-            'order' => $q->order,
-            'options' => $q->options->map(fn ($o) => [
-                'id' => $o->id,
-                'option_text' => $o->option_text,
+            'image_url'     => $q->image_path ? Storage::url($q->image_path) : null,
+            'video_url'     => $q->video_path ? Storage::url($q->video_path) : null,
+            'image_path'    => $q->image_path,
+            'video_path'    => $q->video_path,
+            'order'         => $q->order,
+            'options'       => $q->options->map(fn($o) => [
+                'id'         => $o->id,
+                'option_text'=> $o->option_text,
                 'is_correct' => $o->is_correct,
-                'order' => $o->order,
+                'order'      => $o->order,
             ]),
         ];
     }

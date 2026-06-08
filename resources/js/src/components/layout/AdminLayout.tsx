@@ -265,7 +265,6 @@ const getAdminPageTitle = (page: string) => {
     'audit-logs': 'Audit Logs',
     'business-details': 'Business Details',
     feedbacks: 'Feedbacks',
-    archives: 'Archives',
     'product-logos': 'Product Logo Manager',
     'custom-field': 'Custom Field Builder',
     settings: 'Settings',
@@ -289,7 +288,6 @@ const getAdminPageDescription = (page: string) => {
     'audit-logs': 'Review system actions and user activity trails.',
     'business-details': 'Configure company profile and organization details.',
     feedbacks: 'Review user feedback and improve learning experience.',
-    archives: 'Review and restore archived users and feedback entries.',
     'product-logos': 'Manage product logos and branding assets.',
     'custom-field': 'Create and maintain custom fields and modules.',
     settings: 'Update account preferences and profile settings.',
@@ -424,6 +422,11 @@ export function AdminLayout({
     icon: BookOpen
   },
   {
+    id: 'quiz-management',
+    label: 'Quiz Management',
+    icon: ClipboardList
+  },
+  {
     id: 'custom-field',
     label: 'Custom Field Builder',
     icon: Blocks
@@ -447,11 +450,6 @@ export function AdminLayout({
     id: 'feedbacks',
     label: 'Feedbacks',
     icon: Star
-  },
-  {
-    id: 'archives',
-    label: 'Archives',
-    icon: Archive
   },
   {
     id: 'notifications',
@@ -481,22 +479,22 @@ export function AdminLayout({
 
   // Merge custom UI component modules into navigation
   const allNavItems = [
-    ...navItems.slice(0, 6), // Dashboard to Q&A
+    ...navItems.slice(0, 6), // Dashboard to Custom Field Builder
     ...customNavItems.map((item: any) => ({
       id: item.route_path,
       label: item.title,
       icon: getIconByName(item.icon_name),
       isCustom: true,
     })),
-    ...navItems.slice(6), // Rest of the items (Enrollments onwards)
+    ...navItems.slice(6), // Rest of the items (Q&A onwards)
   ];
 
   return (
-    <div className={`app-theme-scope min-h-screen flex w-full min-w-0 overflow-x-clip ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 dark:bg-slate-900 text-slate-900'}`}>
+    <div className={`app-theme-scope min-h-screen flex ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 dark:bg-slate-900 text-slate-900'}`}>
       {!isDesktop && isMobileSidebarOpen && <button type="button" aria-label="Close sidebar" className="fixed inset-0 z-20 bg-slate-950/60" onClick={() => setIsMobileSidebarOpen(false)} />}
       {/* Sidebar (fixed on all viewports to avoid layout shift when zooming) */}
       <div
-        className={`fixed inset-y-0 left-0 z-30 flex ${sidebarWidthClass} flex-col border-r overflow-y-auto transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${sidebarTranslateClass} ${isDark ? 'border-slate-800/80 bg-slate-950/95 text-white' : 'border-slate-200 bg-white text-slate-800'}`}
+        className={`fixed inset-y-0 left-0 z-30 flex ${sidebarWidthClass} flex-col border-r transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${sidebarTranslateClass} ${isDark ? 'border-slate-800/80 bg-slate-950/95 text-white' : 'border-slate-200 bg-white text-slate-800'}`}
         onMouseEnter={() => { if (allowSidebarExpand) setIsSidebarHovered(true); }}
         onMouseLeave={() => { if (allowSidebarExpand) setIsSidebarHovered(false); }}
       >
@@ -507,9 +505,13 @@ export function AdminLayout({
               src={businessDetails.logo_url}
               alt="Maptech"
             />
-            {/* Company name intentionally hidden under the logo */}
+            <p
+              className={`overflow-hidden text-center text-sm font-medium leading-tight transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'text-slate-400' : 'text-slate-600'} ${isSidebarCompact ? 'mt-0 max-h-0 opacity-0 -translate-y-1' : 'mt-1 max-h-12 opacity-100 translate-y-0'}`}
+            >
+              {businessDetails.company_name}
+            </p>
           </div>
-          <div className="flex-1 flex flex-col pt-3 pb-3">
+          <div className="flex-1 flex flex-col overflow-y-auto md:overflow-y-hidden pt-3 pb-3">
             <nav className={`mt-3 flex-1 space-y-0.5 ${isSidebarCompact ? 'px-3' : 'px-2'}`}>
               {safeArray(allNavItems).map((item) => {
                 const Icon = item.icon;
@@ -520,13 +522,13 @@ export function AdminLayout({
                     onClick={() => handleSidebarNavigate(item.id)}
                     title={isSidebarCompact ? item.label : undefined}
                     aria-label={item.label}
-                    className={`sidebar-nav-item group flex w-full items-center justify-start rounded-lg text-[12px] font-semibold transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'px-2 py-2.5' : 'px-3 py-2'} ${isActive ? (isDark ? 'is-active bg-blue-500/20 text-blue-200 ring-1 ring-blue-500/50' : 'is-active bg-blue-600 text-white') : isDark ? 'text-slate-300 hover:bg-slate-800/80 hover:text-white' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'}`}>
+                    className={`sidebar-nav-item group flex w-full items-center justify-start rounded-lg text-[12px] font-semibold transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'px-2 py-2.5' : 'px-3 py-2'} ${isActive ? (isDark ? 'is-active bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/50' : 'is-active bg-emerald-600 text-white') : isDark ? 'text-slate-300 hover:bg-slate-800/80 hover:text-white' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'}`}>
 
                     <Icon
-                      className={`h-5 w-5 flex-shrink-0 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'mx-auto' : 'mr-3'} ${isActive ? (isDark ? 'text-blue-300' : 'text-white') : isDark ? 'text-slate-400 group-hover:text-slate-200' : 'text-slate-500 group-hover:text-slate-900'}`} />
+                      className={`h-5 w-5 flex-shrink-0 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'mx-auto' : 'mr-3'} ${isActive ? (isDark ? 'text-emerald-300' : 'text-white') : isDark ? 'text-slate-400 group-hover:text-slate-200' : 'text-slate-500 group-hover:text-slate-900'}`} />
 
                     <span
-                      className={`overflow-hidden whitespace-nowrap transition-[max-width,opacity,transform] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${isSidebarCompact ? 'max-w-0 opacity-0 -translate-x-2' : 'max-w-[170px] opacity-100 translate-x-0'}`}
+                      className={`overflow-hidden whitespace-nowrap transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCompact ? 'max-w-0 opacity-0 -translate-x-2' : 'max-w-[170px] opacity-100 translate-x-0'}`}
                     >
                       {item.label}
                     </span>
@@ -540,13 +542,10 @@ export function AdminLayout({
               <div className="flex items-center gap-3">
                 <button
                   onClick={onLogout}
-                  className={`flex w-full min-w-0 items-center gap-3 ${isDark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900'} transition-colors duration-300`}
+                  className={`flex-shrink-0 ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'} transition-colors duration-300`}
                   title="Logout"
                 >
                   <LogOut className="h-5 w-5" />
-                  <span className={`truncate text-sm font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                    {displayName ?? 'Admin'}
-                  </span>
                   <span className="sr-only">Sign out</span>
                 </button>
               </div>
@@ -557,7 +556,7 @@ export function AdminLayout({
 
       {/* Main content */}
       <div
-        className="flex w-full min-w-0 flex-col overflow-x-hidden transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        className="flex w-full flex-col transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
         style={isDesktop ? { paddingLeft: isSidebarHovered ? '16rem' : '5rem' } : undefined}
       >
         <div className={`sticky top-0 z-10 flex min-h-16 flex-wrap items-center border-b ${isDark ? 'bg-slate-900/75 backdrop-blur-md border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
@@ -570,7 +569,7 @@ export function AdminLayout({
               <Menu className="h-6 w-6" />
             </button>
           )}
-          <div className="flex min-w-0 flex-1 items-center justify-between gap-3 overflow-x-hidden px-3 py-3 sm:px-4">
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-3 sm:px-4">
             <div className="ml-2 md:ml-3 min-w-0">
               <h1 className={`truncate text-xl font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                 {pageTitle}
@@ -612,11 +611,11 @@ export function AdminLayout({
                   <img
                     src={user.profile_picture}
                     alt={user.name}
-                    className="h-9 w-9 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-blue-400 transition"
+                    className="h-9 w-9 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-green-400 transition"
                     onClick={() => setShowPicPreview(true)}
                   />
                 ) : (
-                  <div className="h-9 w-9 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
+                  <div className="h-9 w-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
                     {(displayName?.charAt(0) ?? 'U').toUpperCase()}
                   </div>
                 )}
@@ -629,7 +628,7 @@ export function AdminLayout({
           </div>
         </div>
 
-        <main className={`flex-1 min-w-0 overflow-x-auto overflow-y-auto p-4 sm:p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50 dark:bg-slate-900'}`}>
+        <main className={`flex-1 overflow-y-auto p-4 sm:p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50 dark:bg-slate-900'}`}>
           {children}
         </main>
       </div>

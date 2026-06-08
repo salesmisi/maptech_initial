@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('time_logs', function (Blueprint $table) {
-            if (! Schema::hasColumn('time_logs', 'archived')) {
+            if (!Schema::hasColumn('time_logs', 'archived')) {
                 $table->boolean('archived')->default(false)->after('note');
             }
         });

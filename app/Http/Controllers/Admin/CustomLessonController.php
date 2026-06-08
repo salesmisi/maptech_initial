@@ -3,15 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\CustomLesson;
 use App\Models\CustomModule;
-use Exception;
+use App\Models\CustomLesson;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Exception;
 
 class CustomLessonController extends Controller
 {
@@ -67,7 +67,7 @@ class CustomLessonController extends Controller
                 'content_type' => ['required', Rule::in(['text', 'video', 'file', 'link', 'quiz'])],
                 'text_content' => 'nullable|string',
                 'content_url' => 'nullable|url',
-                'content_file' => 'nullable|file|max:'.$maxFileSize,
+                'content_file' => 'nullable|file|max:' . $maxFileSize,
                 'quiz_id' => 'nullable|exists:quizzes,id',
                 'duration' => 'nullable|integer|min:0',
                 'status' => ['nullable', Rule::in(['draft', 'published'])],
@@ -120,14 +120,12 @@ class CustomLessonController extends Controller
             ], 201);
         } catch (ValidationException $e) {
             Log::error('Validation failed', $e->errors());
-
             return response()->json([
                 'message' => 'Validation failed',
                 'errors' => $e->errors(),
             ], 422);
         } catch (Exception $e) {
             Log::error('Error creating lesson', ['error' => $e->getMessage()]);
-
             return response()->json([
                 'message' => 'An error occurred while creating the lesson',
                 'error' => $e->getMessage(),
@@ -158,7 +156,7 @@ class CustomLessonController extends Controller
                 'content_type' => ['sometimes', Rule::in(['text', 'video', 'file', 'link', 'quiz'])],
                 'text_content' => 'nullable|string',
                 'content_url' => 'nullable|url',
-                'content_file' => 'nullable|file|max:'.$maxFileSize,
+                'content_file' => 'nullable|file|max:' . $maxFileSize,
                 'quiz_id' => 'nullable|exists:quizzes,id',
                 'duration' => 'nullable|integer|min:0',
                 'order' => 'nullable|integer|min:0',
@@ -168,7 +166,7 @@ class CustomLessonController extends Controller
             // Handle file upload
             if ($request->hasFile('content_file')) {
                 // Delete old file
-                if ($lesson->content_path && ! preg_match('#^https?://#i', $lesson->content_path)) {
+                if ($lesson->content_path && !preg_match('#^https?://#i', $lesson->content_path)) {
                     Storage::disk('public')->delete($lesson->content_path);
                 }
 
@@ -181,7 +179,7 @@ class CustomLessonController extends Controller
             // Handle file removal (without uploading new file)
             elseif ($request->input('remove_file')) {
                 // Delete existing file
-                if ($lesson->content_path && ! preg_match('#^https?://#i', $lesson->content_path)) {
+                if ($lesson->content_path && !preg_match('#^https?://#i', $lesson->content_path)) {
                     Storage::disk('public')->delete($lesson->content_path);
                 }
 
@@ -206,14 +204,12 @@ class CustomLessonController extends Controller
             ]);
         } catch (ValidationException $e) {
             Log::error('Validation failed', $e->errors());
-
             return response()->json([
                 'message' => 'Validation failed',
                 'errors' => $e->errors(),
             ], 422);
         } catch (Exception $e) {
             Log::error('Error updating lesson', ['error' => $e->getMessage()]);
-
             return response()->json([
                 'message' => 'An error occurred while updating the lesson',
                 'error' => $e->getMessage(),
@@ -231,7 +227,7 @@ class CustomLessonController extends Controller
 
         try {
             // Delete file
-            if ($lesson->content_path && ! preg_match('#^https?://#i', $lesson->content_path)) {
+            if ($lesson->content_path && !preg_match('#^https?://#i', $lesson->content_path)) {
                 Storage::disk('public')->delete($lesson->content_path);
             }
 
@@ -249,7 +245,6 @@ class CustomLessonController extends Controller
             ]);
         } catch (Exception $e) {
             Log::error('Error deleting lesson', ['error' => $e->getMessage()]);
-
             return response()->json([
                 'message' => 'An error occurred while deleting the lesson',
                 'error' => $e->getMessage(),
@@ -295,7 +290,7 @@ class CustomLessonController extends Controller
     {
         $lesson = CustomLesson::query()->where('custom_module_id', $moduleId)->findOrFail($lessonId);
 
-        if (! $lesson->content_path) {
+        if (!$lesson->content_path) {
             return response()->json(['message' => 'No content file'], 404);
         }
 
@@ -305,13 +300,13 @@ class CustomLessonController extends Controller
 
         $path = Storage::disk('public')->path($lesson->content_path);
 
-        if (! file_exists($path)) {
+        if (!file_exists($path)) {
             return response()->json(['message' => 'File not found'], 404);
         }
 
         return response()->file($path, [
             'Content-Type' => $lesson->file_type ?? 'application/octet-stream',
-            'Content-Disposition' => 'inline; filename="'.($lesson->file_name ?? basename($path)).'"',
+            'Content-Disposition' => 'inline; filename="' . ($lesson->file_name ?? basename($path)) . '"',
         ]);
     }
 }

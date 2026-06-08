@@ -101,7 +101,7 @@ class CustomModuleController extends Controller
                 ->where('user_id', $employee->id)
                 ->exists();
 
-            if (! $isAssigned) {
+            if (!$isAssigned) {
                 return response()->json([
                     'message' => 'This module is not assigned to you',
                 ], 403);

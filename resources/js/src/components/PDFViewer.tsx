@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-// Use locally served pdf.worker to avoid bundling and to pin the asset
-const pdfWorkerUrl = '/vendor/pdf.worker.min.js';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
   FileText,
   Download,
@@ -67,11 +66,9 @@ export function PDFViewer({
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [slideDirection, setSlideDirection] = useState<'next' | 'prev' | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<{containerW?:number,containerH?:number,viewportW?:number,viewportH?:number,computedScale?:number,outputScale?:number,canvasW?:number,canvasH?:number}|null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const slideRef = useRef<HTMLDivElement>(null);
-  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const playIntervalRef = useRef<number | null>(null);
   const controlsTimeoutRef = useRef<number | null>(null);
 
@@ -97,10 +94,8 @@ export function PDFViewer({
     }
   }, [isFullscreen, showThumbnails, showKeyboardHelp]);
 
-  // Load PDF document. We defer rendering of the main slide to `renderPage` which draws
-  // directly to a canvas sized to the slide container to preserve text/vector fidelity.
+  // Load PDF document
   useEffect(() => {
-    let cancelled = false;
     const loadPDF = async () => {
       setIsLoading(true);
       setError(null);
@@ -113,100 +108,43 @@ export function PDFViewer({
         const loadingTask = pdfjsLib.getDocument(url);
         const pdf = await loadingTask.promise;
 
-        if (cancelled) return;
-
         setPdfDoc(pdf);
         setTotalPages(pdf.numPages);
 
-        // Generate small thumbnails for overview asynchronously (low-res)
         const images: string[] = [];
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
-          const viewport = page.getViewport({ scale: 0.8 });
+          const viewport = page.getViewport({ scale: 2.5 });
+
           const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d')!;
-          canvas.width = Math.floor(viewport.width);
-          canvas.height = Math.floor(viewport.height);
-          await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+          const context = canvas.getContext('2d')!;
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+
+          await page.render({
+            canvasContext: context,
+            viewport: viewport,
+          }).promise;
+
           images.push(canvas.toDataURL('image/png'));
           setLoadingProgress(Math.round((i / pdf.numPages) * 100));
         }
 
-        if (cancelled) return;
         setPageImages(images);
         setIsLoading(false);
       } catch (err: any) {
         console.error('Error loading PDF:', err);
-        if (!cancelled) {
-          setError(err?.message || 'Failed to load PDF document');
-          setIsLoading(false);
-        }
+        setError(err?.message || 'Failed to load PDF document');
+        setIsLoading(false);
       }
     };
 
     loadPDF();
 
     return () => {
-      cancelled = true;
       if (playIntervalRef.current) clearInterval(playIntervalRef.current);
     };
   }, [url]);
-
-  // Render the current page into a canvas sized to the slide container to preserve vectors/text
-  const renderPage = useCallback(async (pageNumber: number) => {
-    if (!pdfDoc || !slideRef.current || !canvasContainerRef.current) return;
-
-    try {
-      const page = await pdfDoc.getPage(pageNumber);
-      const container = slideRef.current;
-      const pad = 32; // account for padding
-      const containerWidth = Math.max(200, container.clientWidth - pad);
-      const containerHeight = Math.max(200, container.clientHeight - pad);
-
-      const viewportUnscaled = page.getViewport({ scale: 1 });
-      const computedScale = Math.min(containerWidth / viewportUnscaled.width, containerHeight / viewportUnscaled.height);
-      const outputScale = window.devicePixelRatio || 1;
-      const finalScale = computedScale * scale; // include user zoom
-
-      const renderViewport = page.getViewport({ scale: finalScale * outputScale });
-
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d')!;
-      canvas.width = Math.floor(renderViewport.width);
-      canvas.height = Math.floor(renderViewport.height);
-      canvas.style.width = `${Math.floor(renderViewport.width / outputScale)}px`;
-      canvas.style.height = `${Math.floor(renderViewport.height / outputScale)}px`;
-      canvas.className = 'block mx-auto select-none';
-
-      // clear previous
-      canvasContainerRef.current.innerHTML = '';
-      canvasContainerRef.current.appendChild(canvas);
-
-      // set debug info for inspection
-      setDebugInfo({
-        containerW: container.clientWidth,
-        containerH: container.clientHeight,
-        viewportW: Math.floor(renderViewport.width / outputScale),
-        viewportH: Math.floor(renderViewport.height / outputScale),
-        computedScale: computedScale,
-        outputScale: outputScale,
-        canvasW: canvas.width,
-        canvasH: canvas.height,
-      });
-
-      await page.render({ canvasContext: context, viewport: renderViewport }).promise;
-    } catch (err) {
-      console.error('Error rendering page:', err);
-    }
-  }, [pdfDoc, scale]);
-
-  // Re-render on page change, fullscreen toggle, or resize
-  useEffect(() => {
-    renderPage(currentPage);
-    const handleResize = () => renderPage(currentPage);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [currentPage, isFullscreen, renderPage]);
 
   const goToPage = (page: number, direction?: 'next' | 'prev') => {
     if (page >= 1 && page <= totalPages && page !== currentPage) {
@@ -724,14 +662,21 @@ export function PDFViewer({
           </div>
         )}
 
-        {!isLoading && !error && pdfDoc && (
+        {!isLoading && !error && currentPageImage && (
           <>
-              {isFullscreen ? (
+            {isFullscreen ? (
               /* PowerPoint / Canva style: slide fills the entire screen, letterboxed */
-              <div className="absolute inset-0 flex items-center justify-center bg-black px-4">
-                  <div className={`transition-opacity duration-150 ease-out ${isTransitioning ? 'opacity-0' : 'opacity-100'}`} style={{maxWidth: '100%', maxHeight: '100%'}}>
-                    <div ref={canvasContainerRef} className="w-full h-full flex items-center justify-center" />
-                  </div>
+              <div className="absolute inset-0 flex items-center justify-center bg-black">
+                <img
+                  src={currentPageImage}
+                  alt={`Slide ${currentPage} of ${totalPages}`}
+                  className={`w-full h-full object-contain select-none transition-all duration-150 ease-out ${
+                    isTransitioning
+                      ? slideDirection === 'next' ? 'opacity-0 scale-[1.02]' : 'opacity-0 scale-[0.98]'
+                      : 'opacity-100 scale-100'
+                  }`}
+                  draggable={false}
+                />
               </div>
             ) : (
               /* Normal preview: contained with padding */
@@ -743,16 +688,19 @@ export function PDFViewer({
                       : 'opacity-100 translate-x-0'
                   }`}
                   style={{
+                    transform: `scale(${scale})`,
                     transformOrigin: 'center center',
                     maxWidth: '100%',
                     maxHeight: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '8px',
                   }}
                 >
-                  <div ref={canvasContainerRef} className="w-full h-full flex items-center justify-center" />
+                  <img
+                    src={currentPageImage}
+                    alt={`Page ${currentPage}`}
+                    className="block max-w-full h-auto select-none"
+                    style={{ maxHeight: '450px' }}
+                    draggable={false}
+                  />
                 </div>
               </div>
             )}
@@ -789,16 +737,6 @@ export function PDFViewer({
             {isFullscreen && (
               <div className="absolute bottom-16 right-6 px-3 py-1.5 bg-black/50 backdrop-blur-sm rounded-full text-white/70 text-sm font-medium pointer-events-none">
                 {currentPage} / {totalPages}
-              </div>
-            )}
-
-            {debugInfo && isFullscreen && (
-              <div className="absolute top-4 right-4 z-50 bg-white/10 text-white p-2 rounded font-mono text-xs leading-tight">
-                <div>container: {debugInfo.containerW}×{debugInfo.containerH}</div>
-                <div>viewport: {debugInfo.viewportW}×{debugInfo.viewportH}</div>
-                <div>computedScale: {debugInfo.computedScale?.toFixed(3)}</div>
-                <div>outputScale: {debugInfo.outputScale}</div>
-                <div>canvas: {debugInfo.canvasW}×{debugInfo.canvasH}</div>
               </div>
             )}
 

@@ -4,9 +4,10 @@ namespace App\Providers;
 
 use App\Models\CustomModule;
 use App\Policies\CustomModulePolicy;
+use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\ServiceProvider;
+
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -32,7 +33,7 @@ class AppServiceProvider extends ServiceProvider
         $envDriver = env('BROADCAST_DRIVER');
         $currentDefault = config('broadcasting.default') ?? $envDriver;
 
-        if (strtolower((string) $currentDefault) === 'pusher' && ! class_exists(\Pusher\Pusher::class)) {
+        if (strtolower((string) $currentDefault) === 'pusher' && !class_exists(\Pusher\Pusher::class)) {
             // Set fallback to `log` so the app continues to work without Pusher.
             config(['broadcasting.default' => 'log']);
             Log::warning('Pusher PHP SDK not found; falling back to log broadcaster. Install pusher/pusher-php-server to enable Pusher.');

@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (! Schema::hasColumn('modules', 'logo_path')) {
+        if (!Schema::hasColumn('modules', 'logo_path')) {
             Schema::table('modules', function (Blueprint $table) {
                 $table->string('logo_path')->nullable()->after('content_path');
             });

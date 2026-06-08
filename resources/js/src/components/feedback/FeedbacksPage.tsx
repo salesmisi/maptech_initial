@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
 import FeedbackList from '../FeedbackList';
 import useConfirm from '../../hooks/useConfirm';
 
@@ -10,115 +9,122 @@ interface FeedbacksPageProps {
   title?: string;
   description?: string;
   canDelete?: boolean;
-  canArchive?: boolean;
-  mode?: 'active' | 'archived';
-  onNavigate?: (page: string) => void;
-  activePage?: string;
-  archivedPage?: string;
 }
 
 export function FeedbacksPage({
   apiBase,
+  title = 'Feedbacks',
+  description = 'Review feedback on lessons and quizzes.',
   canDelete = false,
-  canArchive = false,
-  mode = 'active',
-  onNavigate,
-  activePage = 'feedbacks',
-  archivedPage = 'feedbacks-archived',
 }: FeedbacksPageProps) {
-  const [listMode, setListMode] = useState<'active' | 'archived'>(mode);
   const [type, setType] = useState<FeedbackType>('lesson');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [refreshToken, setRefreshToken] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const confirm = useConfirm();
 
   useEffect(() => {
-    // Trigger list refresh whenever feedback type changes.
-    setRefreshToken((prev) => prev + 1);
+    setSelectedIds([]);
   }, [type]);
 
   const endpoint = useMemo(() => `${apiBase}?type=${type}`, [apiBase, type]);
-  const archivedEndpoint = useMemo(() => `${apiBase}?type=${type}&archived=1`, [apiBase, type]);
+  const hasSelection = selectedIds.length > 0;
 
-  const handleArchiveToggle = async (item: { id: number; type?: FeedbackType }, archived: boolean) => {
-    if (!canArchive) return;
-
-    const executeToggle = async () => {
-      try {
-        await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-        const xsrf = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)?.[2];
-        const res = await fetch(`${apiBase}/${item.id}/archive`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-XSRF-TOKEN': xsrf ? decodeURIComponent(xsrf) : '',
-          },
-          body: JSON.stringify({ archived, type: item.type || type }),
-        });
-
-        if (!res.ok) {
-          const data = await res.json().catch(() => null);
-          throw new Error(data?.message || 'Failed to update feedback');
-        }
-
-        setRefreshToken((prev) => prev + 1);
-      } catch (e: any) {
-        alert(e?.message || 'Failed to update feedback');
-      }
-    };
+  const bulkDelete = () => {
+    if (!canDelete || !hasSelection) return;
 
     confirm.showConfirm(
-      archived ? 'Archive this feedback?' : 'Restore this feedback?',
-      executeToggle,
+      'Delete selected feedbacks? This action cannot be undone.',
+      async () => {
+        try {
+          await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+          const xsrf = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)?.[2];
+          const res = await fetch(`${apiBase}/bulk-delete`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-XSRF-TOKEN': xsrf ? decodeURIComponent(xsrf) : '',
+            },
+            body: JSON.stringify({ ids: selectedIds, type }),
+          });
+
+          if (res.ok) {
+            setSelectedIds([]);
+            window.location.reload();
+            return;
+          }
+
+          const data = await res.json().catch(() => null);
+          alert(data?.message || 'Failed to delete feedbacks');
+        } catch (e: any) {
+          alert(e?.message || 'Failed to delete feedbacks');
+        }
+      },
       {
-        title: archived ? 'Archive feedback' : 'Restore feedback',
-        confirmText: archived ? 'Archive' : 'Restore',
-        variant: archived ? 'danger' : 'info',
+        variant: 'danger',
+        title: 'Delete feedbacks',
+        confirmText: 'Delete',
       }
     );
   };
 
   return (
-    <div className="space-y-6 ui-pop-grid um-shell">
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 dark:bg-slate-900/80 dark:border-slate-700/80 ui-pop-in ui-force-pop um-filter-panel">
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">Feedback Type</label>
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value as FeedbackType)}
-          className="block h-10 w-full pl-3 pr-10 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 um-filter-select ui-select-custom-arrow"
-        >
-          <option value="lesson">Lesson</option>
-          <option value="quiz">Quiz</option>
-        </select>
-      </div>
-
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 dark:bg-slate-900/80 dark:border-slate-700/80 ui-pop-in ui-force-pop um-filter-panel">
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">Search in Feedback</label>
-        <div className="relative flex items-center gap-3">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search comments, users, or course titles"
-              className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white text-slate-900 placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400 um-search-input"
-            />
+    <div className="p-6">
+      <div className="rounded-2xl border border-slate-200/70 bg-white/70 p-5 shadow-sm backdrop-blur dark:border-slate-800/80 dark:bg-slate-900/60">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-500/90">
+              Feedback Center
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">{title}</h1>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{description}</p>
           </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/80 dark:text-slate-300">
+              <span>Type</span>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as FeedbackType)}
+                className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm outline-none transition focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              >
+                <option value="lesson">Lesson</option>
+                <option value="quiz">Quiz</option>
+              </select>
+            </div>
+
+            <div className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-500">
+              {type === 'lesson' ? 'Lesson feedback' : 'Quiz feedback'}
+            </div>
+
+            {canDelete && (
+              <button
+                type="button"
+                onClick={bulkDelete}
+                disabled={!hasSelection}
+                className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                  hasSelection
+                    ? 'bg-red-600 text-white hover:bg-red-700'
+                    : 'cursor-not-allowed bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-500'
+                }`}
+              >
+                Delete selected
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <span className="rounded-full border border-slate-200/70 bg-white/60 px-3 py-1 font-semibold dark:border-slate-700/70 dark:bg-slate-900/60">
+            {hasSelection ? `${selectedIds.length} selected` : 'No feedback selected'}
+          </span>
+          <span className="rounded-full border border-slate-200/70 bg-white/60 px-3 py-1 font-semibold dark:border-slate-700/70 dark:bg-slate-900/60">
+            Auto refresh enabled
+          </span>
         </div>
       </div>
 
-      <div className="mt-4">
-        <FeedbackList
-          url={listMode === 'archived' ? archivedEndpoint : endpoint}
-          showSelection={false}
-          searchQuery={searchQuery}
-          onArchiveToggle={handleArchiveToggle}
-          showArchiveAction={canArchive}
-          isArchivedList={listMode === 'archived'}
-          refreshToken={refreshToken}
-        />
+      <div className="mt-6">
+        <FeedbackList url={endpoint} onSelectionChange={setSelectedIds} />
       </div>
 
       {confirm.ConfirmModalRenderer()}

@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::table('modules', function (Blueprint $table) {
             $table->string('content_path')->nullable()->change();
-            if (! Schema::hasColumn('modules', 'order')) {
+            if (!Schema::hasColumn('modules', 'order')) {
                 $table->integer('order')->default(0)->after('course_id');
             }
         });

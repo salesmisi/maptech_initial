@@ -1,17 +1,17 @@
 <?php
-
-require __DIR__.'/vendor/autoload.php';
-$app = require_once __DIR__.'/bootstrap/app.php';
+require __DIR__ . '/vendor/autoload.php';
+$app = require_once __DIR__ . '/bootstrap/app.php';
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
+use Illuminate\Support\Carbon;
 use App\Models\AuditLog;
 use App\Models\User;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 $uid = 1;
 $user = User::find($uid);
-if (! $user) {
+if (!$user) {
     echo json_encode(['error' => 'user not found']);
     exit(1);
 }
@@ -39,7 +39,6 @@ $logs = $logs->map(function ($log) {
         }
     }
     $log->time_log = $timeLog;
-
     return $log;
 });
 
@@ -59,4 +58,4 @@ $data = $logs->map(function ($log) {
     ];
 });
 
-echo json_encode(['data' => $data], JSON_PRETTY_PRINT).PHP_EOL;
+echo json_encode(['data' => $data], JSON_PRETTY_PRINT) . PHP_EOL;

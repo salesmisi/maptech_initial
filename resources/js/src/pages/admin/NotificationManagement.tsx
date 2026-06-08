@@ -7,7 +7,6 @@ import InfoModal from '../../components/InfoModal';
 import { RichTextEditor } from '../../components/RichTextEditor';
 import { sanitizeHtml, RICH_CONTENT_STYLES } from '../../components/RichTextEditor';
 import { useToast } from '../../components/ToastProvider';
-import { actionButtonClasses } from '../../utils/uiPalette';
 
 interface Notification {
   id: number;
@@ -127,12 +126,7 @@ const PENDING_NOTIFICATION_ROLE_KEY = 'maptech_pending_notification_role';
 const OPEN_NOTIFICATION_EVENT = 'maptech-open-notification';
 const NOTIFICATION_READ_EVENT = 'maptech-notification-read';
 
-type NotificationManagementProps = {
-  initialTab?: 'received' | 'sent' | 'deleted';
-  showOnlyDeleted?: boolean;
-};
-
-export function NotificationManagement({ initialTab = 'received', showOnlyDeleted = false }: NotificationManagementProps) {
+export function NotificationManagement() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [sentHistory, setSentHistory] = useState<SentNotification[]>([]);
   const [recentlyDeleted, setRecentlyDeleted] = useState<RecentlyDeletedNotification[]>([]);
@@ -144,7 +138,7 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
   const [isSendingOne, setIsSendingOne] = useState(false);
   const [showSendDropdown, setShowSendDropdown] = useState(false);
   const sendDropdownRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<'received' | 'sent' | 'deleted'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'received' | 'sent' | 'deleted'>('received');
   const [selectedAnnouncementDetail, setSelectedAnnouncementDetail] = useState<AnnouncementDetail | null>(null);
   const [previewModal, setPreviewModal] = useState<{ open: boolean; recipientCount: number | null; recipients?: { id: number; fullname: string }[]; error?: string }>({ open: false, recipientCount: null });
   const [isAdminTargetModalOpen, setIsAdminTargetModalOpen] = useState(false);
@@ -203,6 +197,85 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
   const confirm = useConfirm();
   const { showConfirm } = confirm;
   const { pushToast } = useToast();
+
+  // Helper to read cookie value
+  const getCookie = (name: string) => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
+  };
+
+  const getXsrfToken = async (): Promise<string> => {
+    await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+    return decodeURIComponent(getCookie('XSRF-TOKEN') || '');
+  };
+
+  const fetchOptions = async (method: 'GET' | 'POST' | 'DELETE', body?: unknown): Promise<RequestInit> => {
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    };
+
+    if (method !== 'GET') {
+      headers['X-XSRF-TOKEN'] = await getXsrfToken();
+    }
+
+    return {
+      method,
+      credentials: 'include',
+      headers,
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    };
+  };
+
+  // Load notifications and sent history
+  useEffect(() => {
+    console.debug('NotificationManagement mounted', { formData });
+    fetchNotifications();
+    fetchUnreadCount();
+    fetchSentAnnouncements();
+    fetchRecentlyDeleted();
+
+    // Subscribe to realtime notifications if Echo is available
+    let cleanup: (() => void) | undefined;
+    (async () => {
+      try {
+        const Echo = (window as any).Echo;
+        if (!Echo || typeof Echo.private !== 'function') return;
+        // Fetch current user id
+        const res = await fetch('/user', { credentials: 'include', headers: { 'Accept': 'application/json' } });
+        if (!res.ok) return;
+        const me = await res.json();
+        if (!me?.id) return;
+        const channel = Echo.private('notifications.' + me.id);
+        const createdHandler = (payload: any) => {
+          const n = payload?.notification || payload;
+          if (!n) return;
+          setNotifications(prev => [n, ...prev.filter(p => p.id !== n.id)]);
+          setUnreadCount(c => c + 1);
+        };
+        const countHandler = (payload: any) => {
+          setUnreadCount(payload?.count ?? 0);
+        };
+        channel.listen('NotificationCreated', createdHandler);
+        channel.listen('NotificationCountUpdated', countHandler);
+
+        cleanup = () => {
+          try {
+            channel.stopListening('NotificationCreated');
+            channel.stopListening('NotificationCountUpdated');
+          } catch (e) {}
+        };
+      } catch (e) {
+        // ignore
+      }
+    })();
+
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, []);
 
   const fetchNotifications = async () => {
     try {
@@ -272,19 +345,6 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
       console.error('Failed to load recently deleted:', err);
     }
   };
-
-  useEffect(() => {
-    if (showOnlyDeleted) {
-      setLoading(false);
-      fetchRecentlyDeleted();
-      return;
-    }
-
-    fetchNotifications();
-    fetchUnreadCount();
-    fetchSentAnnouncements();
-    fetchRecentlyDeleted();
-  }, [showOnlyDeleted]);
 
   const deleteSentHistory = async (id: number) => {
     showConfirm('Move this announcement to recently deleted?', async () => {
@@ -579,66 +639,63 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
       return;
     }
 
+    setIsSending(true);
+    try {
+      const xsrf = await getXsrfToken();
+      const payload = new FormData();
+      payload.append('title', formData.title);
+      payload.append('message', formData.message);
+      payload.append('announcement_mode', 'group');
 
-    showConfirm('Send this announcement now?', async () => {
-      setIsSending(true);
-      try {
-        const xsrf = await getXsrfToken();
-        const payload = new FormData();
-        payload.append('title', formData.title);
-        payload.append('message', formData.message);
-        payload.append('announcement_mode', 'group');
+      rolesArray.forEach((role) => payload.append('roles[]', role));
 
-        rolesArray.forEach((role) => payload.append('roles[]', role));
+      if (formData.course_id) payload.append('course_id', formData.course_id);
+      if (selectedDepartment) payload.append('department_id', String(Number(selectedDepartment)));
+      if (selectedSubdepartment) payload.append('subdepartment_id', String(Number(selectedSubdepartment)));
 
-        if (formData.course_id) payload.append('course_id', formData.course_id);
-        if (selectedDepartment) payload.append('department_id', String(Number(selectedDepartment)));
-        if (selectedSubdepartment) payload.append('subdepartment_id', String(Number(selectedSubdepartment)));
-
-        if (formData.target_user_ids && formData.target_user_ids.length > 0) {
-          formData.target_user_ids.forEach((id) => payload.append('target_user_ids[]', String(id)));
-        }
-
-        announcementImages.forEach((file) => {
-          payload.append('message_images[]', file);
-        });
-
-        const res = await fetch('/api/admin/notifications/announce', {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Accept': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-XSRF-TOKEN': xsrf,
-          },
-          body: payload,
-        });
-
-        const data = await res.json();
-
-        if (res.ok) {
-          pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} recipient${data.recipients_count !== 1 ? 's' : ''}!`, 'success');
-          setIsModalOpen(false);
-          setFormData({ title: '', message: '', roles: [], course_id: '', target_user_ids: [] });
-          setSelectedUsers([]);
-          setSelectedDepartment('');
-          setSelectedSubdepartment('');
-          setAnnouncementImages([]);
-          setAdminRecipientMode('employees');
-
-          // Refresh sent history from server
-          fetchSentAnnouncements();
-        } else {
-          const msg = data?.message || `Failed to send announcement (status ${res.status})`;
-          alert(msg);
-        }
-      } catch (err) {
-        console.error('Failed to send announcement:', err);
-        alert('Failed to send announcement');
-      } finally {
-        setIsSending(false);
+      if (formData.target_user_ids && formData.target_user_ids.length > 0) {
+        formData.target_user_ids.forEach((id) => payload.append('target_user_ids[]', String(id)));
       }
-    });
+
+      announcementImages.forEach((file) => {
+        payload.append('message_images[]', file);
+      });
+
+      const res = await fetch('/api/admin/notifications/announce', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-XSRF-TOKEN': xsrf,
+        },
+        body: payload,
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        pushToast('Sent Successfully', `Notification sent to ${data.recipients_count} recipient${data.recipients_count !== 1 ? 's' : ''}!`, 'success');
+        setIsModalOpen(false);
+        setFormData({ title: '', message: '', roles: [], course_id: '', target_user_ids: [] });
+        setSelectedUsers([]);
+        setSelectedDepartment('');
+        setSelectedSubdepartment('');
+        setAnnouncementImages([]);
+        setAdminRecipientMode('employees');
+
+        // Refresh sent history from server
+        fetchSentAnnouncements();
+      } else {
+        const msg = data?.message || `Failed to send announcement (status ${res.status})`;
+        alert(msg);
+      }
+    } catch (err) {
+      console.error('Failed to send announcement:', err);
+      alert('Failed to send announcement');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handlePreview = async () => {
@@ -663,40 +720,26 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
       return;
     }
 
-    setIsSending(true);
     try {
-      const xsrf = await getXsrfToken();
-      const payload = new FormData();
-      payload.append('title', formData.title);
-      payload.append('message', formData.message);
-      payload.append('announcement_mode', 'group');
-      payload.append('preview', '1');
+      // Ensure we have a fresh CSRF cookie when not using token fallback
+      const payload = {
+        title: formData.title,
+        message: formData.message,
+        roles: rolesArray,
+        course_id: formData.course_id || null,
+        department_id: selectedDepartment ? Number(selectedDepartment) : null,
+        subdepartment_id: selectedSubdepartment ? Number(selectedSubdepartment) : null,
+        target_user_ids: hasSelectedUsers ? formData.target_user_ids : null,
+        preview: true,
+      };
+      console.debug('Preview announce payload', payload);
 
-      rolesArray.forEach((role) => payload.append('roles[]', role));
-
-      if (formData.course_id) payload.append('course_id', formData.course_id);
-      if (selectedDepartment) payload.append('department_id', String(Number(selectedDepartment)));
-      if (selectedSubdepartment) payload.append('subdepartment_id', String(Number(selectedSubdepartment)));
-
-      if (formData.target_user_ids && formData.target_user_ids.length > 0) {
-        formData.target_user_ids.forEach((id) => payload.append('target_user_ids[]', String(id)));
-      }
-
-      const res = await fetch('/api/admin/notifications/announce', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-XSRF-TOKEN': xsrf,
-        },
-        body: payload,
-      });
+      const res = await fetch('/api/admin/notifications/announce', await fetchOptions('POST', payload));
 
       let data: any = null;
       try {
         data = await res.json();
-      } catch {
+      } catch (parseErr) {
         const text = await res.text().catch(() => null);
         console.error('Failed to parse preview response JSON', { status: res.status, text });
       }
@@ -709,8 +752,6 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
     } catch (err) {
       console.error('Preview failed:', err);
       setPreviewModal({ open: true, recipientCount: null, error: 'Preview failed' });
-    } finally {
-      setIsSending(false);
     }
   };
 
@@ -933,88 +974,84 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
 
   return (
     <div className="space-y-6">
-      {!showOnlyDeleted && (
-        <>
-          <div className="flex justify-between items-center">
-            <div>
-              {unreadCount > 0 && (
-                <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">
-                  You have {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
-                </p>
-              )}
-            </div>
-            <div className="flex gap-2">
-              {unreadCount > 0 && (
-                <button
-                  onClick={markAllAsRead}
-                  className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Mark All Read
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  fetchNotifications();
-                  fetchUnreadCount();
-                }}
-                className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
-              >
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Refresh
-              </button>
-              <button
-                onClick={async () => {
-                  setIsModalOpen(true);
-                }}
-                className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium ${actionButtonClasses.primary}`}
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Send Announcement
-              </button>
-            </div>
-          </div>
+      <div className="flex justify-between items-center">
+        <div>
+          {unreadCount > 0 && (
+            <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">
+              You have {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
+          <div className="flex gap-2">
+          {unreadCount > 0 && (
+            <button
+              onClick={markAllAsRead}
+              className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Mark All Read
+            </button>
+          )}
+          <button
+            onClick={() => {
+              fetchNotifications();
+              fetchUnreadCount();
+            }}
+            className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
+          >
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Refresh
+          </button>
+          <button
+            onClick={async () => {
+              setIsModalOpen(true);
+            }}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
+          >
+            <Send className="h-4 w-4 mr-2" />
+            Send Announcement
+          </button>
+        </div>
+      </div>
 
-          {/* Tabs */}
-          <div className="border-b border-slate-200 dark:border-slate-700">
-            <nav className="-mb-px flex space-x-8">
-              <button
-                onClick={() => setActiveTab('received')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'received'
-                    ? 'border-green-500 text-green-600'
-                    : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
-                }`}
-              >
-                <Bell className="h-4 w-4 inline mr-2" />
-                Received ({safeArray(notifications).length})
-              </button>
-              <button
-                onClick={() => setActiveTab('sent')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'sent'
-                    ? 'border-green-500 text-green-600'
-                    : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
-                }`}
-              >
-                <Send className="h-4 w-4 inline mr-2" />
-                Sent History ({safeArray(sentHistory).length}/{HISTORY_LIMIT})
-              </button>
-              <button
-                onClick={() => setActiveTab('deleted')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'deleted'
-                    ? 'border-green-500 text-green-600'
-                    : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
-                }`}
-              >
-                <Archive className="h-4 w-4 inline mr-2" />
-                Recently Deleted ({recentlyDeleted.length})
-              </button>
-            </nav>
-          </div>
-        </>
-      )}
+      {/* Tabs */}
+      <div className="border-b border-slate-200 dark:border-slate-700">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('received')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'received'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
+            }`}
+          >
+            <Bell className="h-4 w-4 inline mr-2" />
+            Received ({safeArray(notifications).length})
+          </button>
+          <button
+            onClick={() => setActiveTab('sent')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'sent'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
+            }`}
+          >
+            <Send className="h-4 w-4 inline mr-2" />
+            Sent History ({safeArray(sentHistory).length}/{HISTORY_LIMIT})
+          </button>
+          <button
+            onClick={() => setActiveTab('deleted')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'deleted'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-700 hover:border-slate-300 dark:hover:text-slate-100 dark:hover:border-slate-500'
+            }`}
+          >
+            <Archive className="h-4 w-4 inline mr-2" />
+            Recently Deleted ({recentlyDeleted.length})
+          </button>
+        </nav>
+      </div>
 
       <div className="max-w-xl">
         <div className="relative">
@@ -1024,11 +1061,11 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
             value={listSearchQuery}
             onChange={(e) => setListSearchQuery(e.target.value)}
             placeholder={
-              showOnlyDeleted || activeTab === 'deleted'
-                ? 'Search recently deleted notifications'
-                : activeTab === 'received'
-                  ? 'Search received notifications'
-                  : 'Search sent history'
+              activeTab === 'received'
+                ? 'Search received notifications'
+                : activeTab === 'sent'
+                  ? 'Search sent history'
+                  : 'Search recently deleted notifications'
             }
             className="w-full rounded-md border border-slate-300 bg-white py-2 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400"
           />
@@ -1036,7 +1073,7 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
       </div>
 
       {/* Received Notifications */}
-      {!showOnlyDeleted && activeTab === 'received' && (
+      {activeTab === 'received' && (
         <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
           {loading ? (
             <LoadingState message="Loading notifications" className="p-8" />
@@ -1053,9 +1090,9 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
                   onClick={() => openReceivedDetail(notification)}
                   className={`p-4 cursor-pointer transition-colors ${
                     !notification.read_at
-                      ? 'bg-green-50 dark:bg-green-950 border-l-4 border-green-500'
+                      ? 'bg-emerald-50 dark:bg-emerald-950 border-l-4 border-emerald-500'
                       : 'bg-white dark:bg-slate-900 border-l-4 border-transparent'
-                  } hover:bg-slate-100 dark:hover:bg-slate-800${notification.id === highlightedNotificationId ? ' ring-2 ring-inset ring-green-400 dark:ring-green-500' : ''}`}
+                  } hover:bg-slate-100 dark:hover:bg-slate-800${notification.id === highlightedNotificationId ? ' ring-2 ring-inset ring-emerald-400 dark:ring-emerald-500' : ''}`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3 flex-1">
@@ -1093,7 +1130,7 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
                             </span>
                           )}
                           {!notification.read_at && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
                               New
                             </span>
                           )}
@@ -1113,7 +1150,7 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
                       {!notification.read_at && (
                         <button
                           onClick={() => markAsRead(notification.id)}
-                          className="text-slate-400 dark:text-slate-500 hover:text-green-600 dark:hover:text-green-400"
+                          className="text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400"
                           title="Mark as read"
                         >
                           <Eye className="h-5 w-5" />
@@ -1121,10 +1158,10 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
                       )}
                       <button
                         onClick={() => deleteNotification(notification.id)}
-                        className="btn-icon btn-icon-delete um-icon-btn"
+                        className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
                         title="Delete"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-5 w-5" />
                       </button>
                     </div>
                   </div>
@@ -1136,7 +1173,7 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
       )}
 
       {/* Sent History */}
-      {!showOnlyDeleted && activeTab === 'sent' && (
+      {activeTab === 'sent' && (
         <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
           {filteredSentHistory.length === 0 ? (
             <div className="p-8 text-center text-slate-500 dark:text-slate-300">
@@ -1178,10 +1215,10 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
                             e.stopPropagation();
                             deleteSentHistory(item.id);
                           }}
-                          className="btn-icon btn-icon-delete um-icon-btn"
+                          className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
                           title="Move to Recently Deleted"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-5 w-5" />
                         </button>
                       </td>
                     </tr>
@@ -1194,7 +1231,7 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
       )}
 
       {/* Recently Deleted */}
-      {(showOnlyDeleted || activeTab === 'deleted') && (
+      {activeTab === 'deleted' && (
         <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
           {filteredRecentlyDeleted.length === 0 ? (
             <div className="p-8 text-center text-slate-500 dark:text-slate-300">
@@ -1262,20 +1299,20 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
                               e.stopPropagation();
                               item.item_type === 'sent' ? restoreFromDeleted(item.id) : restoreReceivedNotification(item.id);
                             }}
-                            className="btn-icon btn-icon-view um-icon-btn"
+                            className="text-slate-400 dark:text-slate-500 hover:text-green-600 dark:hover:text-green-400"
                             title="Restore"
                           >
-                            <RotateCcw className="h-4 w-4" />
+                            <RotateCcw className="h-5 w-5" />
                           </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               item.item_type === 'sent' ? permanentlyDelete(item.id) : permanentlyDeleteReceived(item.id);
                             }}
-                            className="btn-icon btn-icon-delete um-icon-btn"
+                            className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
                             title="Permanently Delete"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-5 w-5" />
                           </button>
                         </div>
                       </td>
@@ -1383,7 +1420,7 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
                       <span className="flex items-center gap-2">
                         {adminRecipientMode === 'everyone' && <><Users className="h-4 w-4 text-green-500 flex-shrink-0" /><span>Everyone</span></>}
                         {adminRecipientMode === 'instructors' && <><User className="h-4 w-4 text-blue-500 flex-shrink-0" /><span>Instructors</span></>}
-                        {adminRecipientMode === 'employees' && <><Users className="h-4 w-4 text-green-500 flex-shrink-0" /><span>Employees</span></>}
+                        {adminRecipientMode === 'employees' && <><Users className="h-4 w-4 text-emerald-500 flex-shrink-0" /><span>Employees</span></>}
                         {adminRecipientMode === 'specific_instructor' && (
                           <>
                             <User className="h-4 w-4 text-blue-400 flex-shrink-0" />
@@ -1538,7 +1575,7 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
                   {([
                     { value: 'everyone',           label: 'Everyone',            icon: <Users className="h-4 w-4 text-green-500" /> },
                     { value: 'instructors',         label: 'Instructors',         icon: <User className="h-4 w-4 text-blue-500" /> },
-                    { value: 'employees',           label: 'Employees',           icon: <Users className="h-4 w-4 text-green-500" /> },
+                    { value: 'employees',           label: 'Employees',           icon: <Users className="h-4 w-4 text-emerald-500" /> },
                     { value: 'specific_instructor', label: 'Specific Instructor', icon: <User className="h-4 w-4 text-blue-400" /> },
                     { value: 'specific_employee',   label: 'Specific Employee',   icon: <User className="h-4 w-4 text-orange-500" /> },
                   ] as const).map(({ value, label, icon }) => (
@@ -1630,7 +1667,7 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
                       {selectedAnnouncementDetail.title}
                     </h2>
                     {selectedAnnouncementDetail.source === 'received' && !selectedAnnouncementDetail.read_at && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 mt-2">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 mt-2">
                         New
                       </span>
                     )}
@@ -1751,7 +1788,7 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
                           markAsRead(selectedAnnouncementDetail.id);
                           setSelectedAnnouncementDetail(null);
                         }}
-                        className="inline-flex items-center px-4 py-2 border border-green-300 dark:border-green-700 rounded-md shadow-sm text-sm font-medium text-green-700 dark:text-green-200 bg-white dark:bg-slate-700 hover:bg-green-50 dark:hover:bg-slate-600">
+                        className="inline-flex items-center px-4 py-2 border border-emerald-300 dark:border-emerald-700 rounded-md shadow-sm text-sm font-medium text-emerald-700 dark:text-emerald-200 bg-white dark:bg-slate-700 hover:bg-emerald-50 dark:hover:bg-slate-600">
                         <CheckCircle className="h-4 w-4 mr-2" />
                         Mark as Read
                       </button>
@@ -1787,7 +1824,7 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
                               : restoreReceivedNotification(selectedAnnouncementDetail.id);
                             setSelectedAnnouncementDetail(null);
                           }}
-                          className="inline-flex items-center px-4 py-2 border border-sky-300 dark:border-sky-700 rounded-md shadow-sm text-sm font-medium text-sky-700 dark:text-sky-200 bg-white dark:bg-slate-700 hover:bg-sky-50 dark:hover:bg-slate-600">
+                          className="inline-flex items-center px-4 py-2 border border-emerald-300 dark:border-emerald-700 rounded-md shadow-sm text-sm font-medium text-emerald-700 dark:text-emerald-200 bg-white dark:bg-slate-700 hover:bg-emerald-50 dark:hover:bg-slate-600">
                           <RotateCcw className="h-4 w-4 mr-2" />
                           Restore
                         </button>
@@ -1834,8 +1871,8 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
               </div>
               <div className="bg-white dark:bg-slate-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="p-2 rounded-full bg-green-100 dark:bg-green-900">
-                    <User className="h-5 w-5 text-green-600 dark:text-green-300" />
+                  <div className="p-2 rounded-full bg-emerald-100 dark:bg-emerald-900">
+                    <User className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
                   </div>
                   <h3 className="text-lg leading-6 font-medium text-slate-900 dark:text-white">Send to One Person</h3>
                 </div>
@@ -1971,7 +2008,7 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
                     <button
                       type="submit"
                       disabled={isSendingOne}
-                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:opacity-50 sm:text-sm"
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 disabled:opacity-50 sm:text-sm"
                     >
                       <Send className="h-4 w-4 mr-2" />
                       {isSendingOne ? 'Sending...' : 'Send'}
@@ -2015,9 +2052,6 @@ export function NotificationManagement({ initialTab = 'received', showOnlyDelete
       />
 
 
-
     </div>
   );
 }
-
-export default NotificationManagement;

@@ -36,14 +36,8 @@ interface Course {
 const NOTIFICATION_LIMIT = 50;
 const PENDING_NOTIFICATION_ID_KEY = 'maptech_pending_notification_id';
 const PENDING_NOTIFICATION_ROLE_KEY = 'maptech_pending_notification_role';
-const PENDING_NOTIFICATION_ITEM_KEY = 'maptech_pending_notification_item';
 const OPEN_NOTIFICATION_EVENT = 'maptech-open-notification';
 const NOTIFICATION_READ_EVENT = 'maptech-notification-read';
-
-type PendingNotificationEventDetail = {
-  role?: string;
-  notification?: Notification;
-};
 
 function extractNotificationItems(payload: any): Notification[] {
   const candidates = [
@@ -144,7 +138,6 @@ export function EmployeeNotifications() {
     fetchEmployeeProfile();
 
     // Subscribe to realtime notifications if Echo is available
-    let cleanup: (() => void) | undefined;
     (async () => {
       try {
         const Echo = (window as any).Echo;
@@ -176,7 +169,7 @@ export function EmployeeNotifications() {
         channel.listen('NotificationCreated', createdHandler);
         channel.listen('NotificationCountUpdated', countHandler);
 
-        cleanup = () => {
+        return () => {
           try {
             channel.stopListening('NotificationCreated');
             channel.stopListening('NotificationCountUpdated');
@@ -190,35 +183,7 @@ export function EmployeeNotifications() {
     })();
 
     return () => {
-      if (cleanup) {
-        cleanup();
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const Echo = (window as any).Echo;
-    const hasRealtime = !!Echo && typeof Echo.private === 'function';
-    if (hasRealtime) return;
-
-    const syncFallback = () => {
-      if (document.visibilityState !== 'visible') return;
-      fetchNotifications({ silent: true });
-      fetchUnreadCount();
-    };
-
-    const handleVisibilityChange = () => {
-      syncFallback();
-    };
-
-    window.addEventListener('focus', syncFallback);
-    window.addEventListener('online', syncFallback);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener('focus', syncFallback);
-      window.removeEventListener('online', syncFallback);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      // no-op cleanup
     };
   }, []);
 
@@ -242,12 +207,9 @@ export function EmployeeNotifications() {
     }
   };
 
-  const fetchNotifications = async (options?: { silent?: boolean }) => {
-    const silent = options?.silent ?? false;
+  const fetchNotifications = async () => {
     try {
-      if (!silent) {
-        setLoading(true);
-      }
+      setLoading(true);
       const res = await fetch('/api/employee/notifications', fetchOptions('GET'));
       if (!res.ok) {
         throw new Error(`Failed to fetch employee notifications: ${res.status}`);
@@ -271,9 +233,7 @@ export function EmployeeNotifications() {
     } catch (err) {
       console.error('Failed to load notifications:', err);
     } finally {
-      if (!silent) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   };
 
@@ -303,42 +263,28 @@ export function EmployeeNotifications() {
     }
   };
 
-  const openNotificationDetail = (notification: Notification) => {
+  const openNotificationDetail = async (notification: Notification) => {
     setSelectedNotification(notification);
     // Mark as read when opening if not already read
     if (!notification.read_at) {
-      void markAsRead(notification.id);
+      await markAsRead(notification.id);
     }
   };
 
   const tryOpenPendingNotification = React.useCallback(() => {
     const pendingIdRaw = localStorage.getItem(PENDING_NOTIFICATION_ID_KEY);
     const pendingRole = localStorage.getItem(PENDING_NOTIFICATION_ROLE_KEY);
-    const pendingItemRaw = localStorage.getItem(PENDING_NOTIFICATION_ITEM_KEY);
     if (!pendingIdRaw || pendingRole !== 'Employee') return;
 
     const pendingId = Number(pendingIdRaw);
     if (!Number.isFinite(pendingId)) {
       localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
       localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
-      localStorage.removeItem(PENDING_NOTIFICATION_ITEM_KEY);
       return;
     }
 
     const target = notifications.find((item) => item.id === pendingId);
-    let pendingItem: Notification | null = null;
-    if (!target && pendingItemRaw) {
-      try {
-        const parsed = JSON.parse(pendingItemRaw);
-        if (parsed && Number(parsed.id) === pendingId) {
-          pendingItem = parsed as Notification;
-        }
-      } catch {
-        pendingItem = null;
-      }
-    }
-
-    if (!target && !pendingItem) return;
+    if (!target) return;
 
     setActiveTab('received');
     const targetIdx = notifications.findIndex((item) => item.id === pendingId);
@@ -346,22 +292,7 @@ export function EmployeeNotifications() {
     setHighlightedNotificationId(pendingId);
     localStorage.removeItem(PENDING_NOTIFICATION_ID_KEY);
     localStorage.removeItem(PENDING_NOTIFICATION_ROLE_KEY);
-    localStorage.removeItem(PENDING_NOTIFICATION_ITEM_KEY);
-
-    const notificationToApply = target ?? pendingItem;
-    if (!notificationToApply) return;
-
-    if (!target && pendingItem) {
-      setNotifications((prev) => {
-        if (prev.some((item) => item.id === pendingItem!.id)) return prev;
-        return [pendingItem!, ...prev];
-      });
-    }
-
-    // Route pre-open should be immediate but should not force-open the detail modal.
-    if (!notificationToApply.read_at) {
-      void markAsRead(notificationToApply.id);
-    }
+    openNotificationDetail(target);
   }, [notifications]);
 
   useEffect(() => {
@@ -369,32 +300,9 @@ export function EmployeeNotifications() {
   }, [notifications, tryOpenPendingNotification]);
 
   useEffect(() => {
-    const handler = (event: Event) => {
-      const customEvent = event as CustomEvent<PendingNotificationEventDetail>;
-      const detail = customEvent?.detail;
-
-      if (detail?.role === 'Employee' && detail.notification) {
-        const incoming = detail.notification;
-        setActiveTab('received');
-        setNotifications((prev) => {
-          const exists = prev.some((item) => item.id === incoming.id);
-          if (exists) {
-            return prev.map((item) => (item.id === incoming.id ? { ...item, ...incoming } : item));
-          }
-          return [incoming, ...prev];
-        });
-
-        if (!incoming.read_at) {
-          void markAsRead(incoming.id);
-        }
-        return;
-      }
-
-      tryOpenPendingNotification();
-    };
-
-    window.addEventListener(OPEN_NOTIFICATION_EVENT, handler as EventListener);
-    return () => window.removeEventListener(OPEN_NOTIFICATION_EVENT, handler as EventListener);
+    const handler = () => tryOpenPendingNotification();
+    window.addEventListener(OPEN_NOTIFICATION_EVENT, handler);
+    return () => window.removeEventListener(OPEN_NOTIFICATION_EVENT, handler);
   }, [tryOpenPendingNotification]);
 
   // When the bell marks a notification as read, immediately reflect it in the received list.
@@ -765,8 +673,8 @@ export function EmployeeNotifications() {
                   ref={el => { notifRowRefs.current[notification.id] = el; }}
                   onClick={() => openNotificationDetail(notification)}
                   className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer ${
-                    !notification.read_at ? 'bg-green-50 dark:bg-green-950/40' : 'bg-white dark:bg-slate-900'
-                  }${notification.id === highlightedNotificationId ? ' ring-2 ring-inset ring-green-400 dark:ring-green-500' : ''}`}
+                    !notification.read_at ? 'bg-emerald-50 dark:bg-emerald-950/40' : 'bg-white dark:bg-slate-900'
+                  }${notification.id === highlightedNotificationId ? ' ring-2 ring-inset ring-emerald-400 dark:ring-emerald-500' : ''}`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3">
@@ -785,7 +693,7 @@ export function EmployeeNotifications() {
                         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">
                           {notification.title}
                           {!notification.read_at && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/60 text-green-800 dark:text-green-200">
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
                               New
                             </span>
                           )}
@@ -818,7 +726,7 @@ export function EmployeeNotifications() {
                       {!notification.read_at && (
                         <button
                           onClick={(e) => { e.stopPropagation(); markAsRead(notification.id); }}
-                          className="text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-300"
+                          className="text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-300"
                           title="Mark as read"
                         >
                           <Eye className="h-5 w-5" />
@@ -826,10 +734,10 @@ export function EmployeeNotifications() {
                       )}
                       <button
                         onClick={(e) => { e.stopPropagation(); deleteNotification(notification.id); }}
-                        className="btn-icon btn-icon-delete um-icon-btn"
+                        className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                         title="Delete notification"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-5 w-5" />
                       </button>
                     </div>
                   </div>
@@ -909,17 +817,17 @@ export function EmployeeNotifications() {
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={(e) => { e.stopPropagation(); restoreNotification(notification.id); }}
-                        className="btn-icon btn-icon-view um-icon-btn"
+                        className="text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-300"
                         title="Restore"
                       >
-                        <RotateCcw className="h-4 w-4" />
+                        <RotateCcw className="h-5 w-5" />
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); permanentlyDeleteNotification(notification.id); }}
-                        className="btn-icon btn-icon-delete um-icon-btn"
+                        className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"
                         title="Delete permanently"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-5 w-5" />
                       </button>
                     </div>
                   </div>

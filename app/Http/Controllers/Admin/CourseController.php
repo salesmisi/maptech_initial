@@ -4,18 +4,21 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
-use App\Models\Enrollment;
 use App\Models\Module;
-use App\Models\Notification;
-use App\Models\Subdepartment;
 use App\Models\User;
-use Exception;
+use App\Models\Enrollment;
+use App\Models\Subdepartment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Exception;
+use App\Models\Notification;
 
 class CourseController extends Controller
 {
@@ -28,7 +31,7 @@ class CourseController extends Controller
         $query = Course::with([
             'instructor:id,fullname,email,profile_picture',
             'subdepartment:id,name,department_id',
-            'modules',
+            'modules'
         ])
             ->withCount(['enrollments', 'modules']);
 
@@ -102,10 +105,10 @@ class CourseController extends Controller
             $courseDepartment = strtolower(trim((string) ($validated['department'] ?? '')));
             $selectedSubdepartment = null;
 
-            if (! empty($validated['subdepartment_id'])) {
+            if (!empty($validated['subdepartment_id'])) {
                 $selectedSubdepartment = Subdepartment::with('department:id,name,code')->find((int) $validated['subdepartment_id']);
 
-                if (! $selectedSubdepartment) {
+                if (!$selectedSubdepartment) {
                     return response()->json([
                         'message' => 'Invalid subdepartment selected.',
                         'errors' => ['subdepartment_id' => ['The selected subdepartment is invalid.']],
@@ -117,7 +120,7 @@ class CourseController extends Controller
                 $deptMatches = $courseDepartment === $subDeptDepartmentName
                     || ($subDeptDepartmentCode !== '' && $courseDepartment === $subDeptDepartmentCode);
 
-                if (! $deptMatches) {
+                if (!$deptMatches) {
                     return response()->json([
                         'message' => 'Selected subdepartment does not belong to the selected department.',
                         'errors' => ['subdepartment_id' => ['Subdepartment must belong to the selected department.']],
@@ -125,11 +128,11 @@ class CourseController extends Controller
                 }
             }
 
-            if (! empty($validated['instructor_id'])) {
+            if (!empty($validated['instructor_id'])) {
                 $instructor = User::with('subdepartments:id')->find((int) $validated['instructor_id']);
                 $role = strtolower((string) ($instructor->role ?? ''));
 
-                if (! $instructor || $role !== 'instructor') {
+                if (!$instructor || $role !== 'instructor') {
                     return response()->json([
                         'message' => 'Invalid instructor selected.',
                         'errors' => ['instructor_id' => ['The selected instructor is invalid.']],
@@ -147,10 +150,10 @@ class CourseController extends Controller
                 if ($selectedSubdepartment) {
                     $selectedSubId = (int) $selectedSubdepartment->id;
                     $isPrimarySub = (int) ($instructor->subdepartment_id ?? 0) === $selectedSubId;
-                    $isAssignedSub = $instructor->subdepartments->contains(fn ($s) => (int) $s->id === $selectedSubId);
+                    $isAssignedSub = $instructor->subdepartments->contains(fn($s) => (int) $s->id === $selectedSubId);
                     $isSubHead = (int) ($selectedSubdepartment->head_id ?? 0) === (int) $instructor->id;
 
-                    if (! $isPrimarySub && ! $isAssignedSub && ! $isSubHead) {
+                    if (!$isPrimarySub && !$isAssignedSub && !$isSubHead) {
                         return response()->json([
                             'message' => 'Instructor must be assigned to the selected subdepartment.',
                             'errors' => ['instructor_id' => ['Instructor does not belong to the selected subdepartment.']],
@@ -179,7 +182,7 @@ class CourseController extends Controller
 
             Log::info('Course created', $course->toArray());
 
-            if (! empty($validated['modules'])) {
+            if (!empty($validated['modules'])) {
                 Log::info('Processing modules', ['count' => count($validated['modules'])]);
                 foreach ($validated['modules'] as $index => $module) {
                     Log::info("Processing module {$index}", [
@@ -188,9 +191,7 @@ class CourseController extends Controller
                     ]);
 
                     if (isset($module['content']) && $module['content'] instanceof \Illuminate\Http\UploadedFile) {
-                        $uploadedMod = $module['content'];
-                        $modExt = strtolower($uploadedMod->getClientOriginalExtension());
-                        $filePath = $uploadedMod->storeAs('course-content', \Illuminate\Support\Str::random(40).($modExt ? '.'.$modExt : ''), 'public');
+                        $filePath = $module['content']->store('course-content', 'public');
                         Log::info("File stored at: {$filePath}");
                         $course->modules()->create([
                             'title' => $module['title'] ?? 'Untitled Module',
@@ -206,18 +207,16 @@ class CourseController extends Controller
 
             return response()->json([
                 'message' => 'Course created successfully',
-                'course' => $course->load('instructor:id,fullname,email,profile_picture', 'modules'),
+                'course' => $course->load('instructor:id,fullname,email,profile_picture', 'modules')
             ], 201);
         } catch (ValidationException $e) {
             Log::error('Validation failed', $e->errors());
-
             return response()->json([
                 'message' => 'Validation failed',
                 'errors' => $e->errors(),
             ], 422);
         } catch (Exception $e) {
             Log::error('An error occurred', ['error' => $e->getMessage()]);
-
             return response()->json([
                 'message' => 'An error occurred while creating the course',
                 'error' => $e->getMessage(),
@@ -294,10 +293,10 @@ class CourseController extends Controller
                 : $course->instructor_id;
 
             $selectedSubdepartment = null;
-            if (! empty($effectiveSubdepartmentId)) {
+            if (!empty($effectiveSubdepartmentId)) {
                 $selectedSubdepartment = Subdepartment::with('department:id,name,code')->find((int) $effectiveSubdepartmentId);
 
-                if (! $selectedSubdepartment) {
+                if (!$selectedSubdepartment) {
                     return response()->json([
                         'message' => 'Invalid subdepartment selected.',
                         'errors' => ['subdepartment_id' => ['The selected subdepartment is invalid.']],
@@ -309,7 +308,7 @@ class CourseController extends Controller
                 $deptMatches = $effectiveDepartment === $subDeptDepartmentName
                     || ($subDeptDepartmentCode !== '' && $effectiveDepartment === $subDeptDepartmentCode);
 
-                if (! $deptMatches) {
+                if (!$deptMatches) {
                     return response()->json([
                         'message' => 'Selected subdepartment does not belong to the selected department.',
                         'errors' => ['subdepartment_id' => ['Subdepartment must belong to the selected department.']],
@@ -317,11 +316,11 @@ class CourseController extends Controller
                 }
             }
 
-            if (! empty($effectiveInstructorId)) {
+            if (!empty($effectiveInstructorId)) {
                 $instructor = User::with('subdepartments:id')->find((int) $effectiveInstructorId);
                 $role = strtolower((string) ($instructor->role ?? ''));
 
-                if (! $instructor || $role !== 'instructor') {
+                if (!$instructor || $role !== 'instructor') {
                     return response()->json([
                         'message' => 'Invalid instructor selected.',
                         'errors' => ['instructor_id' => ['The selected instructor is invalid.']],
@@ -339,10 +338,10 @@ class CourseController extends Controller
                 if ($selectedSubdepartment) {
                     $selectedSubId = (int) $selectedSubdepartment->id;
                     $isPrimarySub = (int) ($instructor->subdepartment_id ?? 0) === $selectedSubId;
-                    $isAssignedSub = $instructor->subdepartments->contains(fn ($s) => (int) $s->id === $selectedSubId);
+                    $isAssignedSub = $instructor->subdepartments->contains(fn($s) => (int) $s->id === $selectedSubId);
                     $isSubHead = (int) ($selectedSubdepartment->head_id ?? 0) === (int) $instructor->id;
 
-                    if (! $isPrimarySub && ! $isAssignedSub && ! $isSubHead) {
+                    if (!$isPrimarySub && !$isAssignedSub && !$isSubHead) {
                         return response()->json([
                             'message' => 'Instructor must be assigned to the selected subdepartment.',
                             'errors' => ['instructor_id' => ['Instructor does not belong to the selected subdepartment.']],
@@ -369,7 +368,7 @@ class CourseController extends Controller
                 return in_array($k, ['title', 'description', 'department', 'subdepartment_id', 'instructor_id', 'status', 'start_date', 'deadline', 'logo_path']);
             }, ARRAY_FILTER_USE_KEY));
 
-            if (! empty($validated['modules'])) {
+            if (!empty($validated['modules'])) {
                 Log::info('Processing modules for update', ['count' => count($validated['modules'])]);
                 foreach ($validated['modules'] as $index => $module) {
                     Log::info("Processing module {$index}", [
@@ -378,9 +377,7 @@ class CourseController extends Controller
                     ]);
 
                     if (isset($module['content']) && $module['content'] instanceof \Illuminate\Http\UploadedFile) {
-                        $uploadedMod = $module['content'];
-                        $modExt = strtolower($uploadedMod->getClientOriginalExtension());
-                        $filePath = $uploadedMod->storeAs('course-content', \Illuminate\Support\Str::random(40).($modExt ? '.'.$modExt : ''), 'public');
+                        $filePath = $module['content']->store('course-content', 'public');
                         Log::info("File stored at: {$filePath}");
                         $course->modules()->create([
                             'title' => $module['title'] ?? 'Untitled Module',
@@ -396,18 +393,16 @@ class CourseController extends Controller
 
             return response()->json([
                 'message' => 'Course updated successfully',
-                'course' => $course->load('instructor:id,fullname,email,profile_picture', 'modules'),
+                'course' => $course->load('instructor:id,fullname,email,profile_picture', 'modules')
             ]);
         } catch (ValidationException $e) {
             Log::error('Validation failed on update', $e->errors());
-
             return response()->json([
                 'message' => 'Validation failed',
                 'errors' => $e->errors(),
             ], 422);
         } catch (Exception $e) {
             Log::error('An error occurred on update', ['error' => $e->getMessage()]);
-
             return response()->json([
                 'message' => 'An error occurred while updating the course',
                 'error' => $e->getMessage(),
@@ -451,7 +446,7 @@ class CourseController extends Controller
                 if ($instructor) {
                     $assignedCourses = DB::table('courses')->whereIn('id', $courseIds)->pluck('title')->toArray();
                     $title = 'Courses assigned to you';
-                    $message = 'You have been assigned '.count($assignedCourses).' course(s): '.implode(', ', array_slice($assignedCourses, 0, 5));
+                    $message = 'You have been assigned ' . count($assignedCourses) . ' course(s): ' . implode(', ', array_slice($assignedCourses, 0, 5));
 
                     Notification::create([
                         'user_id' => $instructor->id,
@@ -479,7 +474,6 @@ class CourseController extends Controller
             ]);
         } catch (Exception $e) {
             Log::error('Bulk assign failed', ['error' => $e->getMessage(), 'course_ids' => $courseIds, 'instructor_id' => $instructorId]);
-
             return response()->json(['message' => 'Bulk assignment failed', 'error' => $e->getMessage()], 500);
         }
     }
@@ -500,23 +494,23 @@ class CourseController extends Controller
 
         $enrollments = $query->orderBy('enrolled_at', 'desc')->get()->map(function ($e) {
             $mismatchReason = null;
-            $isMismatched = ! ($e->user && $e->course)
-                || ! $this->employeeCanEnrollInCourse($e->user, $e->course, $mismatchReason);
+            $isMismatched = !($e->user && $e->course)
+                || !$this->employeeCanEnrollInCourse($e->user, $e->course, $mismatchReason);
 
             return [
-                'id' => $e->id,
-                'user_id' => $e->user_id,
-                'course_id' => $e->course_id,
-                'employee_name' => $e->user->fullname ?? 'Unknown',
-                'employee_email' => $e->user->email ?? '',
-                'department' => $e->user->department ?? '',
-                'course_title' => $e->course->title ?? 'Unknown',
+                'id'                => $e->id,
+                'user_id'           => $e->user_id,
+                'course_id'         => $e->course_id,
+                'employee_name'     => $e->user->fullname ?? 'Unknown',
+                'employee_email'    => $e->user->email ?? '',
+                'department'        => $e->user->department ?? '',
+                'course_title'      => $e->course->title ?? 'Unknown',
                 'course_department' => $e->course->department ?? '',
-                'enrolled_at' => $e->enrolled_at?->toDateString(),
-                'progress' => $e->progress ?? 0,
-                'status' => $e->status ?? 'Not Started',
-                'is_mismatched' => $isMismatched,
-                'mismatch_reason' => $isMismatched ? ($mismatchReason ?? 'Missing employee or course record.') : null,
+                'enrolled_at'       => $e->enrolled_at?->toDateString(),
+                'progress'          => $e->progress ?? 0,
+                'status'            => $e->status ?? 'Not Started',
+                'is_mismatched'     => $isMismatched,
+                'mismatch_reason'   => $isMismatched ? ($mismatchReason ?? 'Missing employee or course record.') : null,
             ];
         });
 
@@ -587,13 +581,12 @@ class CourseController extends Controller
         // Remove stale rows that became invalid after employee department/subdepartment changes.
         $invalidUserIds = $course->enrollments
             ->filter(function ($enrollment) use ($course) {
-                if (! $enrollment->user) {
+                if (!$enrollment->user) {
                     return true;
                 }
 
                 $reason = null;
-
-                return ! $this->employeeCanEnrollInCourse($enrollment->user, $course, $reason);
+                return !$this->employeeCanEnrollInCourse($enrollment->user, $course, $reason);
             })
             ->pluck('user_id')
             ->map(fn ($id) => (int) $id)
@@ -642,16 +635,16 @@ class CourseController extends Controller
             ->get()
             ->map(function ($user) {
                 return [
-                    'id' => $user->id,
-                    'fullname' => $user->fullname,
-                    'email' => $user->email,
-                    'department' => $user->department,
-                    'role' => $user->role,
-                    'status' => $user->status,
+                    'id'          => $user->id,
+                    'fullname'    => $user->fullname,
+                    'email'       => $user->email,
+                    'department'  => $user->department,
+                    'role'        => $user->role,
+                    'status'      => $user->status,
                     'enrolled_at' => $user->pivot->enrolled_at,
-                    'progress' => $user->pivot->progress,
+                    'progress'    => $user->pivot->progress,
                     'enrollment_status' => $user->pivot->status,
-                    'locked' => $user->pivot->locked ?? false,
+                    'locked'      => $user->pivot->locked ?? false,
                     'unlocked_until' => $user->pivot->unlocked_until ?? null,
                 ];
             });
@@ -668,7 +661,7 @@ class CourseController extends Controller
         $module = Module::with('course:id,title,department')->findOrFail($moduleId);
         $course = $module->course;
 
-        if (! $course) {
+        if (!$course) {
             return response()->json(['message' => 'Course not found for module'], 404);
         }
 
@@ -695,7 +688,7 @@ class CourseController extends Controller
             ->whereRaw('LOWER(role) = ?', ['employee'])
             ->orderBy('fullname');
 
-        if (! empty($enrolledIds)) {
+        if (!empty($enrolledIds)) {
             $notEnrolledQuery->whereNotIn('id', $enrolledIds);
         }
 
@@ -713,12 +706,8 @@ class CourseController extends Controller
             if ($deptRecord) {
                 $deptName = strtolower(trim((string) ($deptRecord->name ?? '')));
                 $deptCode = strtolower(trim((string) ($deptRecord->code ?? '')));
-                if ($deptName !== '') {
-                    $acceptedDepartments[] = $deptName;
-                }
-                if ($deptCode !== '') {
-                    $acceptedDepartments[] = $deptCode;
-                }
+                if ($deptName !== '') $acceptedDepartments[] = $deptName;
+                if ($deptCode !== '') $acceptedDepartments[] = $deptCode;
             }
             $acceptedDepartments = array_values(array_unique($acceptedDepartments));
 
@@ -764,7 +753,7 @@ class CourseController extends Controller
         }
 
         $eligibilityReason = null;
-        if (! $this->employeeCanEnrollInCourse($employee, $course, $eligibilityReason)) {
+        if (!$this->employeeCanEnrollInCourse($employee, $course, $eligibilityReason)) {
             return response()->json([
                 'message' => $eligibilityReason ?? 'Employee is not eligible for the selected course.',
             ], 422);
@@ -775,14 +764,14 @@ class CourseController extends Controller
         }
 
         $course->enrollments()->create([
-            'user_id' => $request->user_id,
-            'progress' => 0,
+            'user_id'     => $request->user_id,
+            'progress'    => 0,
             'enrolled_at' => now(),
         ]);
 
         return response()->json([
             'message' => 'User enrolled successfully',
-            'user' => $employee,
+            'user'    => $employee,
         ], 201);
     }
 
@@ -824,15 +813,13 @@ class CourseController extends Controller
         $employeeDepartment = $this->normalizeDepartmentValue($employee->department);
         $acceptedDepartments = $this->acceptedCourseDepartments($course->department);
 
-        if ($employeeDepartment === '' || empty($acceptedDepartments) || ! in_array($employeeDepartment, $acceptedDepartments, true)) {
+        if ($employeeDepartment === '' || empty($acceptedDepartments) || !in_array($employeeDepartment, $acceptedDepartments, true)) {
             $reason = 'Employee department does not match the selected course department.';
-
             return false;
         }
 
-        if (! empty($course->subdepartment_id) && (int) ($employee->subdepartment_id ?? 0) !== (int) $course->subdepartment_id) {
+        if (!empty($course->subdepartment_id) && (int) ($employee->subdepartment_id ?? 0) !== (int) $course->subdepartment_id) {
             $reason = 'Employee subdepartment does not match the selected course subdepartment.';
-
             return false;
         }
 
@@ -847,7 +834,7 @@ class CourseController extends Controller
         $course = Course::findOrFail($courseId);
         $deleted = $course->enrollments()->where('user_id', $userId)->delete();
 
-        if (! $deleted) {
+        if (!$deleted) {
             return response()->json(['message' => 'Enrollment not found'], 404);
         }
 
@@ -860,9 +847,9 @@ class CourseController extends Controller
     public function addModule(Request $request, string $id)
     {
         $request->validate([
-            'title' => 'required|string|max:255',
+            'title'       => 'required|string|max:255',
             'description' => 'nullable|string',
-            'content' => 'nullable|file|max:102400',
+            'content'     => 'nullable|file|max:102400',
         ]);
 
         $course = Course::findOrFail($id);
@@ -870,15 +857,13 @@ class CourseController extends Controller
         $nextOrder = $course->modules()->max('order') + 1;
 
         $data = [
-            'title' => $request->input('title'),
+            'title'       => $request->input('title'),
             'description' => $request->input('description'),
-            'order' => $nextOrder,
+            'order'       => $nextOrder,
         ];
 
         if ($request->hasFile('content')) {
-            $uploadedFile = $request->file('content');
-            $ext = strtolower($uploadedFile->getClientOriginalExtension());
-            $data['content_path'] = $uploadedFile->storeAs('course-content', \Illuminate\Support\Str::random(40).($ext ? '.'.$ext : ''), 'public');
+            $data['content_path'] = $request->file('content')->store('course-content', 'public');
         }
 
         $module = $course->modules()->create($data);
@@ -920,7 +905,7 @@ class CourseController extends Controller
 
         return response()->json([
             'message' => 'Module added successfully',
-            'module' => $module,
+            'module'  => $module,
         ], 201);
     }
 
@@ -944,31 +929,28 @@ class CourseController extends Controller
         $module = Module::findOrFail($moduleId);
 
         $request->validate([
-            'title' => 'required|string|max:255',
+            'title'        => 'required|string|max:255',
             'text_content' => 'nullable|string',
             // Allow large video files (up to ~5 GB)
-            'content' => 'nullable|file|max:5242880',
-            'content_url' => 'nullable|url|max:2000',
-            'type' => 'nullable|in:Video,Document,Text',
-            'status' => 'nullable|in:Published,Draft',
+            'content'      => 'nullable|file|max:5242880',
+            'content_url'  => 'nullable|url|max:2000',
+            'type'         => 'nullable|in:Video,Document,Text',
+            'status'       => 'nullable|in:Published,Draft',
         ]);
 
         $nextOrder = $module->lessons()->max('order') + 1;
 
         $data = [
-            'title' => $request->input('title'),
+            'title'        => $request->input('title'),
             'text_content' => $request->input('text_content'),
-            'order' => $nextOrder,
+            'order'        => $nextOrder,
         ];
 
         // If provided an external content URL (YouTube embed), save it directly
         if ($request->filled('content_url')) {
             $data['content_path'] = $request->input('content_url');
         } elseif ($request->hasFile('content')) {
-            $uploadedFile = $request->file('content');
-            $ext = strtolower($uploadedFile->getClientOriginalExtension());
-            $filename = \Illuminate\Support\Str::random(40).($ext ? '.'.$ext : '');
-            $data['content_path'] = $uploadedFile->storeAs('course-content', $filename, 'public');
+            $data['content_path'] = $request->file('content')->store('course-content', 'public');
         }
 
         if ($request->filled('type')) {
@@ -1046,7 +1028,7 @@ class CourseController extends Controller
         $module = $course->modules()->findOrFail($moduleId);
 
         $validated = $request->validate([
-            'title' => 'sometimes|string|max:255',
+            'title'       => 'sometimes|string|max:255',
             'description' => 'nullable|string',
         ]);
 
@@ -1064,36 +1046,33 @@ class CourseController extends Controller
         $lesson = $module->lessons()->findOrFail($lessonId);
 
         $request->validate([
-            'title' => 'sometimes|string|max:255',
+            'title'        => 'sometimes|string|max:255',
             'text_content' => 'nullable|string',
             // Allow large video files (up to ~5 GB)
-            'content' => 'nullable|file|max:5242880',
-            'content_url' => 'nullable|url|max:2000',
+            'content'      => 'nullable|file|max:5242880',
+            'content_url'  => 'nullable|url|max:2000',
         ]);
 
-        if ($request->has('title')) {
-            $lesson->title = $request->input('title');
-        }
-        if ($request->has('text_content')) {
-            $lesson->text_content = $request->input('text_content');
-        }
+        if ($request->has('title')) $lesson->title = $request->input('title');
+        if ($request->has('text_content')) $lesson->text_content = $request->input('text_content');
 
         if ($request->has('content_url')) {
-            if ($lesson->content_path && ! preg_match('#^https?://#i', $lesson->content_path)) {
+            if ($lesson->content_path && !preg_match('#^https?://#i', $lesson->content_path)) {
                 Storage::disk('public')->delete($lesson->content_path);
             }
             $lesson->content_path = $request->filled('content_url') ? $request->input('content_url') : null;
         }
 
         if ($request->hasFile('content')) {
-            if ($lesson->content_path && ! preg_match('#^https?://#i', $lesson->content_path)) {
+            if ($lesson->content_path && !preg_match('#^https?://#i', $lesson->content_path)) {
                 Storage::disk('public')->delete($lesson->content_path);
             }
-            $uploadedFile = $request->file('content');
-            $ext = strtolower($uploadedFile->getClientOriginalExtension());
-            $filename = \Illuminate\Support\Str::random(40).($ext ? '.'.$ext : '');
-            $lesson->content_path = $uploadedFile->storeAs('course-content', $filename, 'public');
+            $lesson->content_path = $request->file('content')->store('course-content', 'public');
         }
+
+        $lesson->save();
+
+        return response()->json(['message' => 'Lesson updated', 'lesson' => $lesson->fresh()]);
     }
 
     /**
@@ -1104,7 +1083,7 @@ class CourseController extends Controller
         $course = Course::findOrFail($courseId);
 
         $request->validate([
-            'order' => 'required|array',
+            'order'   => 'required|array',
             'order.*' => 'integer|exists:modules,id',
         ]);
 
@@ -1123,7 +1102,7 @@ class CourseController extends Controller
         $module = Module::findOrFail($moduleId);
 
         $request->validate([
-            'order' => 'required|array',
+            'order'   => 'required|array',
             'order.*' => 'integer|exists:lessons,id',
         ]);
 
@@ -1143,11 +1122,11 @@ class CourseController extends Controller
 
         /** @var \App\Models\Enrollment|null $enrollment */
         $enrollment = $course->enrollments()->where('user_id', $userId)->first();
-        if (! $enrollment) {
+        if (!$enrollment) {
             return response()->json(['message' => 'Enrollment not found'], 404);
         }
 
-        $enrollment->update(['locked' => true, 'unlocked_until' => null]);
+        $enrollment->update(['locked' => true]);
 
         return response()->json(['message' => 'Enrollment locked']);
     }
@@ -1160,14 +1139,13 @@ class CourseController extends Controller
         $request->validate([
             'duration_minutes' => 'nullable|integer|min:1',
             'expires_at' => 'nullable|date',
-            'permanent' => 'nullable|boolean',
         ]);
 
         $course = Course::findOrFail($courseId);
 
         /** @var \App\Models\Enrollment|null $enrollment */
         $enrollment = $course->enrollments()->where('user_id', $userId)->first();
-        if (! $enrollment) {
+        if (!$enrollment) {
             return response()->json(['message' => 'Enrollment not found'], 404);
         }
 
@@ -1179,16 +1157,10 @@ class CourseController extends Controller
             $until = \Carbon\Carbon::parse($request->input('expires_at'))->setTimezone('UTC');
         }
 
-        if ($request->boolean('permanent') && !$until) {
-            // Persist a far-future timestamp so employee-side lock logic can
-            // reliably detect a manual permanent unlock.
-            $until = now()->addYears(100);
-        }
+        $data = ['locked' => false];
+        if ($until) $data['unlocked_until'] = $until;
 
-        $enrollment->update([
-            'locked' => false,
-            'unlocked_until' => $until,
-        ]);
+        $enrollment->update($data);
 
         return response()->json(['message' => 'Enrollment unlocked']);
     }
@@ -1201,9 +1173,7 @@ class CourseController extends Controller
         $course = Course::findOrFail($courseId);
 
         $module = Module::query()->where('course_id', $course->id)->where('id', $moduleId)->first();
-        if (! $module) {
-            return response()->json(['message' => 'Module not found'], 404);
-        }
+        if (!$module) return response()->json(['message' => 'Module not found'], 404);
 
         DB::table('module_user')->updateOrInsert(
             ['module_id' => $module->id, 'user_id' => $userId],
@@ -1226,9 +1196,7 @@ class CourseController extends Controller
         $course = Course::findOrFail($courseId);
 
         $module = Module::query()->where('course_id', $course->id)->where('id', $moduleId)->first();
-        if (! $module) {
-            return response()->json(['message' => 'Module not found'], 404);
-        }
+        if (!$module) return response()->json(['message' => 'Module not found'], 404);
 
         // Upsert pivot
         $until = null;
@@ -1239,9 +1207,7 @@ class CourseController extends Controller
         }
 
         $payload = ['unlocked' => true, 'unlocked_at' => now(), 'updated_at' => now(), 'created_at' => now()];
-        if ($until) {
-            $payload['unlocked_until'] = $until;
-        }
+        if ($until) $payload['unlocked_until'] = $until;
 
         DB::table('module_user')->updateOrInsert(
             ['module_id' => $module->id, 'user_id' => $userId],

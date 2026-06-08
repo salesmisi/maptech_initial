@@ -18,7 +18,6 @@ class QuizFeedback extends Model
 
     protected $casts = [
         'rating' => 'integer',
-        'archived_at' => 'datetime',
     ];
 
     public function user(): BelongsTo

@@ -449,7 +449,7 @@ export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          {/* Heading removed: redundant in module context */}
+          <h1 className="text-2xl font-bold text-slate-900">Lessons &amp; Video Upload</h1>
           <p className="text-sm text-slate-500 mt-1">Manage learning content for your courses</p>
         </div>
         <div className="flex gap-3">
@@ -467,7 +467,7 @@ export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
           <button
             onClick={openUploadModal}
             disabled={modules.length === 0}
-            className="inline-flex items-center px-5 py-2.5 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:opacity-50"
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
           >
             <Upload className="h-4 w-4 mr-2" />
             Upload Content
@@ -533,7 +533,7 @@ export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
               setNewModuleTitle('');
               setShowAddModule(true);
             }}
-            className="mt-4 inline-flex items-center px-5 py-2.5 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add First Module
@@ -747,7 +747,7 @@ export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
                   <button
                     onClick={handleAddModule}
                     disabled={!newModuleTitle.trim() || addingModule}
-                    className="inline-flex items-center px-5 py-2.5 rounded-md border border-transparent text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:opacity-50"
+                    className="inline-flex items-center px-4 py-2 rounded-md border border-transparent text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
                   >
                     {addingModule && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     Add Module
@@ -947,7 +947,7 @@ export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
                       (uploadType !== 'Text' && !uploadFile) ||
                       (uploadType === 'Text' && !uploadText.trim())
                     }
-                    className="inline-flex items-center px-5 py-2.5 rounded-md border border-transparent text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:opacity-50"
+                    className="inline-flex items-center px-4 py-2 rounded-md border border-transparent text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
                   >
                     {uploading ? (
                       <>
@@ -1018,7 +1018,7 @@ export function LessonVideoUpload({ apiPrefix = 'instructor' }: Props) {
                           href={previewLesson.content_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center px-5 py-2.5 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+                          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
                         >
                           Download File
                         </a>

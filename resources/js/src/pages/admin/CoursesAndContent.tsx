@@ -18,9 +18,8 @@ import {
 } from 'lucide-react';
 import { safeArray } from '../../utils/safe';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { lazy, Suspense } from 'react';
-const PDFViewer = lazy(() => import('../../components/PDFViewer'));
-const PresentationViewer = lazy(() => import('../../components/PresentationViewer'));
+import PDFViewer from '../../components/PDFViewer';
+import PresentationViewer from '../../components/PresentationViewer';
 
 interface Course {
   id: string;
@@ -180,17 +179,6 @@ interface ModuleDetail {
   isOpen?: boolean;
 }
 
-interface CourseQuizSummary {
-  id: number;
-  title: string;
-  description: string | null;
-  pass_percentage: number;
-  module_id: number | null;
-  lesson_id: number | null;
-  quiz_type: string | null;
-  question_count: number;
-}
-
 interface UserOption {
   id: number;
   fullName: string;
@@ -251,7 +239,6 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
   const editInstructorPhotoRef = useRef<HTMLInputElement>(null);
   // Module management state
   const [courseModules, setCourseModules] = useState<ModuleDetail[]>([]);
-  const [courseQuizzes, setCourseQuizzes] = useState<CourseQuizSummary[]>([]);
   const [loadingModules, setLoadingModules] = useState(false);
   const [activePanel, setActivePanel] = useState<'modules' | 'upload' | 'quiz' | 'enroll'>('modules');
   const [selectedModuleId, setSelectedModuleId] = useState<number | null>(null);
@@ -555,7 +542,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     }
   };
 
-  const loadEnrolledStudents = async (courseId: number | string) => {
+  const loadEnrolledStudents = async (courseId: number) => {
     try {
       const response = await fetch(`/api/admin/courses/${courseId}/students`, {
         credentials: 'include',
@@ -826,8 +813,6 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       const payload: Record<string, unknown> = {};
       if (!unlockPermanent) {
         payload.expires_at = toUtcIsoFromManilaInput(unlockUntil) ?? undefined;
-      } else {
-        payload.permanent = true;
       }
 
       const response = await fetch(`/api/admin/courses/${courseUnlockTarget.id}/enrollments/${selectedUnlockEmployeeId}/unlock`, {
@@ -900,21 +885,6 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       console.error('Failed to load modules:', err);
     } finally {
       setLoadingModules(false);
-    }
-  };
-
-  const loadCourseQuizzes = async (courseId: number | string) => {
-    try {
-      const res = await fetch(`/api/admin/courses/${courseId}/quizzes`, {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCourseQuizzes(safeArray<CourseQuizSummary>(data));
-      }
-    } catch (err) {
-      console.error('Failed to load course quizzes:', err);
     }
   };
 
@@ -1229,7 +1199,6 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
     setSendQuizModuleId(null);
     await Promise.all([
       loadModules(course.id),
-      loadCourseQuizzes(course.id),
       loadEnrolledStudents(course.id),
     ]);
   };
@@ -1293,7 +1262,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
 
   const getStatusBadge = (status: string) => {
     const badges = {
-      Active: 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300',
+      Active: 'bg-green-100 text-green-800 dark:bg-emerald-500/20 dark:text-emerald-300',
       Draft: 'bg-yellow-100 text-yellow-800 dark:bg-amber-500/20 dark:text-amber-300',
       Inactive: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
     };
@@ -1331,6 +1300,10 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
         </div>
         {/* Continue with regular interface */}
         <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Course Management</h1>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-md transition-shadow border border-gray-200 dark:border-slate-700">
               <div className="h-32 bg-gradient-to-br from-green-400 to-green-600 rounded-t-lg flex items-center justify-center">
@@ -1360,7 +1333,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                   <div>Instructor: Admin</div>
                 </div>
                 <button
-                  className="w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 transition-colors"
+                  className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors"
                 >
                   Manage Content →
                 </button>
@@ -1402,7 +1375,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
       )}
 
       {/* Header */}
-      <div className="flex justify-end items-center mb-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Course Management</h1>
         <button
           type="button"
           onClick={() => {
@@ -1411,7 +1385,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             setCreateInstructorId(null);
             setShowCreateModal(true);
           }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 transition-colors"
+          className="btn btn-primary"
         >
           <PlusIcon className="h-4 w-4 mr-2" />
           Create Course
@@ -1471,23 +1445,23 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
             style={{ animationDelay: `${Math.min(index * 45, 360)}ms` }}
           >
             {/* Course Icon */}
-            <div className="h-28 bg-gradient-to-br from-green-400 to-green-600 dark:from-green-500 dark:to-teal-500 rounded-t-lg flex items-center justify-center relative">
+            <div className="h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-teal-500 rounded-t-lg flex items-center justify-center relative">
               <span className={`absolute top-3 left-3 z-10 text-xs font-semibold px-2 py-0.5 rounded-full pointer-events-none ${badgeClass}`}>
                 {badgeLabel}
               </span>
               <div className="absolute top-2 right-2 px-2.5 h-7 rounded-full bg-white/95 text-slate-800 text-xs font-semibold flex items-center justify-center border border-white/70 shadow z-10 pointer-events-none" title={`${modulesCount} modules`}>
-                <span className="mr-1 text-green-600">●</span>
+                <span className="mr-1 text-emerald-600">●</span>
                 {modulesCount} Modules
               </div>
               <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full overflow-hidden flex items-center justify-center border-4 border-white/80 dark:border-slate-300/40 shadow-md relative">
                 {course.instructor_profile_picture ? (
                   <img src={course.instructor_profile_picture} alt={course.instructor} className="w-full h-full object-cover" />
                 ) : course.instructor !== 'Unassigned' ? (
-                  <span className="text-2xl font-bold text-green-700 dark:text-green-300">
+                  <span className="text-2xl font-bold text-green-700 dark:text-emerald-300">
                     {course.instructor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                   </span>
                 ) : (
-                  <AcademicCapIcon className="h-8 w-8 text-green-700 dark:text-green-300" />
+                  <AcademicCapIcon className="h-8 w-8 text-green-700 dark:text-emerald-300" />
                 )}
               </div>
             </div>
@@ -1498,14 +1472,14 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 <div className="flex space-x-1">
                   <button
                     onClick={() => handleEditCourse(course)}
-                    className="course-card-icon-btn btn-icon btn-icon-edit um-icon-btn"
+                    className="course-card-icon-btn p-1.5 rounded-md text-slate-600 hover:text-amber-700 hover:bg-amber-50 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800"
                     title="Edit"
                   >
                     <PencilIcon className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteCourse(course)}
-                    className="course-card-icon-btn btn-icon btn-icon-delete um-icon-btn"
+                    className="course-card-icon-btn p-1.5 rounded-md text-slate-600 hover:text-rose-700 hover:bg-rose-50 dark:text-slate-300 dark:hover:text-rose-300 dark:hover:bg-slate-800"
                     title="Delete"
                   >
                     <TrashIcon className="h-4 w-4" />
@@ -1533,8 +1507,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                     className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-600 flex-shrink-0"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-500/20 border border-slate-200 dark:border-slate-600 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                  <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-emerald-500/20 border border-slate-200 dark:border-slate-600 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-semibold text-green-700 dark:text-emerald-300">
                       {course.instructor !== 'Unassigned'
                         ? course.instructor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
                         : '?'}
@@ -1583,7 +1557,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
         {filteredCustomModules.map((module) => (
           <div key={`custom-${module.id}`} className="relative bg-white border border-slate-200 rounded-lg shadow hover:shadow-lg transition-all dark:bg-slate-900/90 dark:border-slate-700/80 dark:shadow-[0_12px_32px_rgba(2,6,23,0.35)] flex flex-col">
             {/* Custom Module Icon */}
-            <div className="h-28 bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-500 dark:to-blue-500 rounded-t-lg flex items-center justify-center relative">
+            <div className="h-28 bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-500 dark:to-indigo-500 rounded-t-lg flex items-center justify-center relative">
               {/* Custom Module Badge */}
               <div className="absolute top-2 left-2 px-2 py-0.5 bg-white/90 dark:bg-slate-800/90 rounded-full text-xs font-medium text-purple-700 dark:text-purple-300">
                 Custom Module
@@ -1620,7 +1594,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
               <div className="flex justify-between items-start mb-3">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
                   module.status === 'published'
-                    ? 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300'
+                    ? 'bg-green-100 text-green-800 dark:bg-emerald-500/20 dark:text-emerald-300'
                     : module.status === 'draft'
                     ? 'bg-yellow-100 text-yellow-800 dark:bg-amber-500/20 dark:text-amber-300'
                     : 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200'
@@ -1845,58 +1819,40 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                               )}
                               {safeArray(mod.lessons).length > 0 ? (
                                 safeArray(mod.lessons).map((lesson: any) => (
-                                  <div key={lesson.id} className="space-y-2">
-                                    <div className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => setPreviewLesson(lesson)}>
-                                      <div className="flex items-center gap-2">
-                                        {lesson.type === 'Video' ? (
-                                          <VideoCameraIcon className="h-4 w-4 text-purple-500" />
-                                        ) : lesson.type === 'Document' ? (
-                                          <DocumentPlusIcon className="h-4 w-4 text-blue-500" />
-                                        ) : (
-                                          <DocumentPlusIcon className="h-4 w-4 text-slate-500 dark:text-slate-300" />
-                                        )}
-                                        <span className="text-sm text-slate-800 dark:text-slate-100">{lesson.title}</span>
-                                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                                          lesson.status === 'Published' || lesson.status === 'published'
-                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                            : 'bg-yellow-100 text-yellow-700 dark:bg-amber-900/30 dark:text-amber-300'
-                                        }`}>{lesson.status || 'Draft'}</span>
-                                        {lesson.duration && <span className="text-xs text-slate-400 dark:text-slate-300">• {lesson.duration}</span>}
-                                        {lesson.file_size && <span className="text-xs text-slate-400 dark:text-slate-300">• {lesson.file_size}</span>}
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); setPreviewLesson(lesson); }}
-                                          className="p-1 text-slate-400 dark:text-slate-400 hover:text-blue-600 dark:hover:text-sky-300"
-                                          title="Preview"
-                                        >
-                                          <EyeIcon className="h-4 w-4" />
-                                        </button>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleDeleteLesson(lesson.id); }}
-                                          className="p-1 text-slate-400 dark:text-slate-400 hover:text-red-600 dark:hover:text-rose-300"
-                                          title="Delete Lesson"
-                                        >
-                                          <TrashIcon className="h-4 w-4" />
-                                        </button>
-                                      </div>
+                                  <div key={lesson.id} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => setPreviewLesson(lesson)}>
+                                    <div className="flex items-center gap-2">
+                                      {lesson.type === 'Video' ? (
+                                        <VideoCameraIcon className="h-4 w-4 text-purple-500" />
+                                      ) : lesson.type === 'Document' ? (
+                                        <DocumentPlusIcon className="h-4 w-4 text-blue-500" />
+                                      ) : (
+                                        <DocumentPlusIcon className="h-4 w-4 text-slate-500 dark:text-slate-300" />
+                                      )}
+                                      <span className="text-sm text-slate-800 dark:text-slate-100">{lesson.title}</span>
+                                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                        lesson.status === 'Published' || lesson.status === 'published'
+                                          ? 'bg-green-100 text-green-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                          : 'bg-yellow-100 text-yellow-700 dark:bg-amber-900/30 dark:text-amber-300'
+                                      }`}>{lesson.status || 'Draft'}</span>
+                                      {lesson.duration && <span className="text-xs text-slate-400 dark:text-slate-300">• {lesson.duration}</span>}
+                                      {lesson.file_size && <span className="text-xs text-slate-400 dark:text-slate-300">• {lesson.file_size}</span>}
                                     </div>
-                                    {(() => {
-                                      const lessonQuizzes = safeArray<CourseQuizSummary>(courseQuizzes).filter((quiz) => quiz.lesson_id === lesson.id);
-                                      return lessonQuizzes.length > 0 ? (
-                                        <div className="pl-6 space-y-2">
-                                          {lessonQuizzes.map((quiz) => (
-                                            <div key={quiz.id} className="flex items-center justify-between rounded border border-blue-100 bg-blue-50 px-3 py-2 text-sm">
-                                              <div className="min-w-0">
-                                                <p className="font-medium text-slate-900 truncate">{quiz.title}</p>
-                                                <p className="text-xs text-slate-500">{quiz.question_count} question{quiz.question_count !== 1 ? 's' : ''}</p>
-                                              </div>
-                                              <span className="text-xs text-slate-500 uppercase tracking-wide">{quiz.quiz_type || 'Quiz'}</span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      ) : null;
-                                    })()}
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setPreviewLesson(lesson); }}
+                                        className="p-1 text-slate-400 dark:text-slate-400 hover:text-blue-600 dark:hover:text-sky-300"
+                                        title="Preview"
+                                      >
+                                        <EyeIcon className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteLesson(lesson.id); }}
+                                        className="p-1 text-slate-400 dark:text-slate-400 hover:text-red-600 dark:hover:text-rose-300"
+                                        title="Delete Lesson"
+                                      >
+                                        <TrashIcon className="h-4 w-4" />
+                                      </button>
+                                    </div>
                                   </div>
                                 ))
                               ) : (
@@ -2529,18 +2485,18 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                         <img
                           src={sel.profile_picture}
                           alt={sel.fullname}
-                          className="w-12 h-12 rounded-full object-cover border-2 border-green-300 dark:border-green-600 flex-shrink-0"
+                          className="w-12 h-12 rounded-full object-cover border-2 border-green-300 dark:border-emerald-600 flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-full bg-green-200 dark:bg-green-800/50 border-2 border-green-300 dark:border-green-600 flex items-center justify-center flex-shrink-0">
-                          <span className="text-base font-bold text-green-800 dark:text-green-300">
+                        <div className="w-12 h-12 rounded-full bg-green-200 dark:bg-emerald-800/50 border-2 border-green-300 dark:border-emerald-600 flex items-center justify-center flex-shrink-0">
+                          <span className="text-base font-bold text-green-800 dark:text-emerald-300">
                             {sel.fullname.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                           </span>
                         </div>
                       )}
                       <div>
                         <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{sel.fullname}</p>
-                        <p className="text-xs text-green-600 dark:text-green-400">Assigned Instructor</p>
+                        <p className="text-xs text-green-600 dark:text-emerald-400">Assigned Instructor</p>
                       </div>
                     </div>
                   ) : null;
@@ -2698,8 +2654,8 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full bg-green-200 dark:bg-green-800/50 flex items-center justify-center">
-                            <span className="text-base font-bold text-green-800 dark:text-green-300">
+                          <div className="w-full h-full bg-green-200 dark:bg-emerald-800/50 flex items-center justify-center">
+                            <span className="text-base font-bold text-green-800 dark:text-emerald-300">
                               {sel.fullname.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                             </span>
                           </div>
@@ -2727,7 +2683,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{sel.fullname}</p>
-                        <p className="text-xs text-green-600 dark:text-green-400">Assigned Instructor</p>
+                        <p className="text-xs text-green-600 dark:text-emerald-400">Assigned Instructor</p>
                         {editInstructorPhotoFile && (
                           <p className="text-xs text-blue-600 mt-0.5">📷 New photo ready to save</p>
                         )}
@@ -2917,21 +2873,17 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                 {previewLesson.type === 'Document' && previewLesson.content_url && (
                   <div className="space-y-4">
                     {previewLesson.content_url.match(/\.pdf$/i) ? (
-                      <Suspense fallback={<div className="p-4">Loading document...</div>}>
-                        <PDFViewer
-                          url={previewLesson.content_url}
-                          title={previewLesson.title}
-                          lessonId={previewLesson.id}
-                          showConvertButton={true}
-                        />
-                      </Suspense>
+                      <PDFViewer
+                        url={previewLesson.content_url}
+                        title={previewLesson.title}
+                        lessonId={previewLesson.id}
+                        showConvertButton={true}
+                      />
                     ) : previewLesson.content_url.match(/\.pptx?$/i) ? (
-                      <Suspense fallback={<div className="p-4">Loading presentation...</div>}>
-                        <PresentationViewer
-                          url={previewLesson.content_url}
-                          title={previewLesson.title}
-                        />
-                      </Suspense>
+                      <PresentationViewer
+                        url={previewLesson.content_url}
+                        title={previewLesson.title}
+                      />
                     ) : (
                       <div className="text-center py-8">
                         <DocumentPlusIcon className="mx-auto h-16 w-16 text-slate-300 mb-4" />
@@ -2940,7 +2892,7 @@ export function CoursesAndContent({ onNavigate }: { onNavigate?: (page: string, 
                           href={previewLesson.content_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+                          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
                         >
                           Download File
                         </a>

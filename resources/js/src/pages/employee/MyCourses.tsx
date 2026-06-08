@@ -9,7 +9,6 @@ import {
   XCircle,
   PlusCircle,
 } from 'lucide-react';
-import { actionButtonClasses } from '../../utils/uiPalette';
 
 const API_BASE = '/api';
 
@@ -27,7 +26,6 @@ interface Course {
   deadline?: string | null;
   locked?: boolean;
   has_manual_unlock?: boolean;
-  has_enrollment_unlock?: boolean;
 }
 
 interface Department {
@@ -95,7 +93,6 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
     deadline: c.deadline ?? null,
     locked: c.locked ?? false,
     has_manual_unlock: c.has_manual_unlock ?? false,
-    has_enrollment_unlock: c.has_enrollment_unlock ?? false,
   });
 
   const loadMyCourses = async () => {
@@ -167,13 +164,13 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
     const notStartedYet = course.start_date && new Date(course.start_date) > new Date();
     // If the course is expired but instructor manually unlocked modules
     // for this employee, treat it as unlocked for expiry purposes.
-    const isLockedByExpiry = isExpired && !course.has_manual_unlock && !course.has_enrollment_unlock;
+    const isLockedByExpiry = isExpired && !course.has_manual_unlock;
     // Final locked state combines server-side locked flag, deadline lock,
     // and not-started-yet state.
     const isLocked = (course.locked ?? false) || isLockedByExpiry || !!notStartedYet;
     const headerClass = isLocked
       ? 'bg-gray-400'
-      : 'bg-gradient-to-r from-green-400 to-green-500';
+      : 'bg-gradient-to-r from-emerald-400 to-green-500';
 
     return (
       <div className={`rounded-lg shadow-sm border overflow-hidden transition-shadow flex flex-col ${
@@ -252,7 +249,7 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
                 <button
                   onClick={() => onNavigate('course-viewer', course.id)}
                   className={`w-full flex justify-center items-center py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white transition-colors ${
-                    course.status === 'Completed' ? 'bg-slate-600 hover:bg-slate-700 dark:bg-slate-600 dark:hover:bg-slate-700' : actionButtonClasses.success
+                    course.status === 'Completed' ? 'bg-slate-600 hover:bg-slate-700' : 'bg-green-600 hover:bg-green-700'
                   }`}
                 >
                   {course.status === 'Not Started' ? 'Start Course' :
@@ -267,7 +264,7 @@ export function MyCourses({ onNavigate, globalSearch = '' }: MyCoursesProps) {
                 onClick={() => !isLocked && onNavigate('course-enroll', course.id)}
                 disabled={isLocked}
                 className={`w-full flex justify-center items-center py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white transition-colors ${
-                  isLocked ? 'bg-gray-400 cursor-not-allowed' : actionButtonClasses.success
+                  isLocked ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700'
                 }`}
               >
                 View &amp; Enroll

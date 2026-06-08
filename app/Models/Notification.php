@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
-use App\Events\NotificationCountUpdated;
-use App\Events\NotificationCreated;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Cache;
+use App\Events\NotificationCreated;
+use App\Events\NotificationCountUpdated;
 
 class Notification extends Model
 {
@@ -65,11 +65,13 @@ class Notification extends Model
     protected static function booted()
     {
         static::created(function (Notification $notification) {
-            // Clear cached unread count and broadcast the new notification.
-            // Avoid per-create unread recount + count broadcast because it adds
-            // significant latency during bulk sends.
+            // Clear cached unread count and broadcast the new notification
             Cache::forget("user:{$notification->user_id}:notifications:unread_count");
             event(new NotificationCreated($notification));
+
+            // broadcast updated count
+            $count = Notification::where('user_id', $notification->user_id)->whereNull('read_at')->count();
+            event(new NotificationCountUpdated($notification->user_id, $count));
         });
 
         static::updated(function (Notification $notification) {
@@ -85,7 +87,7 @@ class Notification extends Model
     /**
      * Enforce trash limit: if recently deleted count >= 50, permanently delete oldest half.
      *
-     * @param  int  $userId  The user's ID
+     * @param int $userId The user's ID
      * @return int Number of permanently deleted entries
      */
     public static function enforceTrashLimit(int $userId): int

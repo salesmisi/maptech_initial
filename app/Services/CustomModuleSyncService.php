@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
-use App\Models\Course;
-use App\Models\CustomLesson;
 use App\Models\CustomModule;
-use App\Models\Lesson;
+use App\Models\CustomLesson;
 use App\Models\Module;
+use App\Models\Lesson;
+use App\Models\Course;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -41,7 +41,6 @@ class CustomModuleSyncService
 
             if ($existingModule) {
                 $this->syncModuleContent($customModule, $existingModule);
-
                 return $existingModule->fresh(['lessons']);
             }
 
@@ -175,7 +174,7 @@ class CustomModuleSyncService
             ->where('custom_module_id', $customModule->id)
             ->first();
 
-        if (! $module) {
+        if (!$module) {
             return false;
         }
 

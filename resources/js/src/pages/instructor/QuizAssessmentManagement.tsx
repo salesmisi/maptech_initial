@@ -22,8 +22,6 @@ import {
 interface Props {
   onOpenQuiz?: (quizId: number) => void;
   apiPrefix?: string;
-  courseId?: string;
-  focusQuizId?: number | null;
 }
 
 const getCookie = (name: string) => {
@@ -47,8 +45,6 @@ interface QuizSummary {
   course_dept: string;
   subdepartment_id: number | null;
   subdepartment_name: string | null;
-  module_id?: number | null;
-  module_title?: string | null;
   question_count: number;
   created_at: string;
 }
@@ -68,7 +64,7 @@ interface QuizQuestionItem {
 const DEPT_HEADER_COLORS: Record<string, string> = {
   IT: 'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/30 dark:border-blue-700/60 dark:text-blue-200',
   HR: 'bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-900/30 dark:border-purple-700/60 dark:text-purple-200',
-  Operations: 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-700/60 dark:text-green-200',
+  Operations: 'bg-green-50 border-green-200 text-green-800 dark:bg-emerald-900/30 dark:border-emerald-700/60 dark:text-emerald-200',
   Finance: 'bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-amber-900/30 dark:border-amber-700/60 dark:text-amber-200',
   Marketing: 'bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-900/30 dark:border-orange-700/60 dark:text-orange-200',
 };
@@ -196,7 +192,7 @@ function PickerModal({ title, items, emptyMessage, onSelect, onClose }: PickerMo
   );
 }
 
-export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor', courseId, focusQuizId = null }: Props) {
+export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor' }: Props) {
   const API_BASE = `/api/${apiPrefix}`;
   const [quizzes, setQuizzes] = useState<QuizSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -231,30 +227,22 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor',
   const [draftSubdept, setDraftSubdept] = useState('');
   const [draftCourseId, setDraftCourseId] = useState('');
   const [activePicker, setActivePicker] = useState<'department' | 'subdepartment' | 'course' | null>(null);
-  const quizRowRefs = useRef<Record<number, HTMLDivElement | null>>({});
-  const lastAutoOpenedQuizId = useRef<number | null>(null);
   const confirm = useConfirm();
   const { showConfirm } = confirm;
 
   const loadQuizzes = async () => {
     setLoading(true);
     try {
-      const url = courseId ? `${API_BASE}/courses/${courseId}/quizzes` : `${API_BASE}/quizzes`;
-      const res = await fetch(url, {
+      const res = await fetch(`${API_BASE}/quizzes`, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
       if (!res.ok) throw new Error('Failed to load quizzes.');
       const data = await res.json();
       setQuizzes(data);
-      // Auto-expand groups on first load (departments or modules depending on scope)
-      if (courseId) {
-        const modules = new Set<string>(data.map((q: QuizSummary) => q.module_title ?? (q.module_id != null ? `Module ${q.module_id}` : 'Final Assessment')));
-        setExpandedDepts(modules);
-      } else {
-        const depts = new Set<string>(data.map((q: QuizSummary) => q.course_dept));
-        setExpandedDepts(depts);
-      }
+      // Auto-expand all departments on first load
+      const depts = new Set<string>(data.map((q: QuizSummary) => q.course_dept));
+      setExpandedDepts(depts);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -263,21 +251,6 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor',
   };
 
   useEffect(() => { loadQuizzes(); }, []);
-
-  useEffect(() => {
-    if (focusQuizId == null) return;
-    if (lastAutoOpenedQuizId.current === focusQuizId) return;
-    const target = quizzes.find((quiz) => quiz.id === focusQuizId);
-    if (!target) return;
-
-    const timer = window.setTimeout(() => {
-      quizRowRefs.current[focusQuizId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      startEdit(target);
-      lastAutoOpenedQuizId.current = focusQuizId;
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [focusQuizId, quizzes]);
 
 
   const loadQuizQuestions = async (quizId: number) => {
@@ -622,28 +595,8 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor',
     (q.subdepartment_name || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  // Group quizzes. If `courseId` is provided, group by module within the course (including final assessment group).
-  type ModuleGroup = { id: number | null; name: string; quizzes: QuizSummary[] };
-
-  const grouped: DeptGroup[] | ModuleGroup[] = (() => {
-    if (courseId) {
-      const moduleMap = new Map<number | null, ModuleGroup>();
-      for (const quiz of filtered) {
-        const mid = quiz.module_id ?? null;
-        const mname = mid === null ? 'Final Assessment' : (quiz.module_title || `Module ${mid}`);
-        if (!moduleMap.has(mid)) moduleMap.set(mid, { id: mid, name: mname, quizzes: [] });
-        moduleMap.get(mid)!.quizzes.push(quiz);
-      }
-      // Sort modules by name (Final Assessment last)
-      const modules = Array.from(moduleMap.values()).sort((a, b) => {
-        if (a.id === null) return 1;
-        if (b.id === null) return -1;
-        return a.name.localeCompare(b.name);
-      });
-      return modules;
-    }
-
-    // Fallback: keep original Department → Subdepartment grouping
+  // Group quizzes: Department → Subdepartment → Quizzes
+  const grouped: DeptGroup[] = (() => {
     const deptMap = new Map<string, Map<string, SubdeptGroup>>();
 
     for (const quiz of filtered) {
@@ -676,19 +629,37 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor',
 
   return (
     <div className="space-y-6">
-      {/* Header: title + search aligned where filter used to be */}
-      <div className="flex items-center justify-between">
-        <div />
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by quiz, course, or subdepartment..."
-            className="pl-9 pr-4 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg text-sm w-full focus:ring-green-500 focus:border-green-500"
-          />
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Manage Quizzes</h1>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            setDraftDept(scopeDept);
+            setDraftSubdept(scopeSubdept);
+            setDraftCourseId(scopeCourseId);
+            setShowScopeModal(true);
+          }}
+          className="btn btn-primary"
+        >
+          <Filter className="h-4 w-4 mr-2" />
+          Filter Quiz
+        </button>
+      </div>
+
+
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by quiz, course, or subdepartment..."
+          className="pl-9 pr-4 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg text-sm w-full focus:ring-green-500 focus:border-green-500"
+        />
       </div>
 
       {/* Content */}
@@ -711,175 +682,111 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor',
         </div>
       ) : (
         <div className="space-y-4">
-          {courseId
-            ? (grouped as ModuleGroup[]).map((mod) => {
-                const isExpanded = expandedDepts.has(mod.name);
-                return (
-                  <div key={String(mod.id ?? 'final')} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-                    <button
-                      onClick={() => toggleDept(mod.name)}
-                      className={`w-full flex items-center gap-3 px-5 py-3.5 text-left font-semibold border-b transition-colors hover:brightness-95 bg-slate-50 dark:bg-slate-800/30`}
-                    >
-                      <FolderOpen className="h-5 w-5 flex-shrink-0" />
-                      <span className="flex-1">{mod.name}</span>
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-white/60 dark:bg-slate-900/60">
-                        {mod.quizzes.length} quiz{mod.quizzes.length !== 1 ? 'zes' : ''}
-                      </span>
-                      {isExpanded ? <ChevronDown className="h-4 w-4 flex-shrink-0" /> : <ChevronRight className="h-4 w-4 flex-shrink-0" />}
-                    </button>
+          {grouped.map((dept) => {
+            const isDeptExpanded = expandedDepts.has(dept.name);
+            const headerColor = DEPT_HEADER_COLORS[dept.name] || 'bg-slate-50 border-slate-200 text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200';
 
-                    {isExpanded && (
-                      <div className="bg-slate-50/50 dark:bg-slate-800/35 divide-y divide-slate-100 dark:divide-slate-700">
-                        {mod.quizzes.map((quiz) => (
-                          <div
-                            key={quiz.id}
-                            ref={(el) => { quizRowRefs.current[quiz.id] = el; }}
-                            className={`flex items-center gap-4 px-6 py-3 pl-8 hover:bg-slate-100/60 dark:hover:bg-slate-700/55 transition-colors ${focusQuizId === quiz.id ? 'bg-emerald-50/80 dark:bg-emerald-900/20 ring-2 ring-emerald-500/60 ring-inset' : ''}`}
+            return (
+              <div key={dept.name} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                {/* Department header */}
+                <button
+                  onClick={() => toggleDept(dept.name)}
+                  className={`w-full flex items-center gap-3 px-5 py-3.5 text-left font-semibold border-b transition-colors hover:brightness-95 ${headerColor}`}
+                >
+                  <Building2 className="h-5 w-5 flex-shrink-0" />
+                  <span className="flex-1">{dept.name}</span>
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-white/60 dark:bg-slate-900/60">
+                    {dept.totalQuizzes} quiz{dept.totalQuizzes !== 1 ? 'zes' : ''}
+                  </span>
+                  {isDeptExpanded
+                    ? <ChevronDown className="h-4 w-4 flex-shrink-0" />
+                    : <ChevronRight className="h-4 w-4 flex-shrink-0" />}
+                </button>
+
+                {/* Subdepartments */}
+                {isDeptExpanded && (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                    {dept.subdepartments.map((subdept) => {
+                      const subdeptKey = `${dept.name}__${subdept.id ?? 'none'}`;
+                      const isSubdeptExpanded = expandedSubdepts.has(subdeptKey);
+
+                      return (
+                        <div key={subdeptKey}>
+                          {/* Subdepartment header */}
+                          <button
+                            onClick={() => toggleSubdept(subdeptKey)}
+                            className="w-full flex items-center gap-3 px-5 py-3 pl-10 text-left text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                           >
-                            <div className="flex-shrink-0 h-9 w-9 rounded-full bg-blue-100 dark:bg-blue-900/45 text-blue-700 dark:text-blue-300 flex items-center justify-center">
-                              <HelpCircle className="h-4 w-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{quiz.title}</p>
-                              <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-500 dark:text-slate-300">
-                                <BookOpen className="h-3.5 w-3.5" />
-                                <span className="truncate">{quiz.course_title}</span>
-                                <span>&middot;</span>
-                                <span>{quiz.question_count} question{quiz.question_count !== 1 ? 's' : ''}</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => startEdit(quiz)}
-                                className="btn btn-primary btn-sm"
-                              >
-                                <Edit2 className="h-3.5 w-3.5 mr-1.5" />
-                                Edit
-                              </button>
-                              {/* Manage button removed: Edit is sufficient */}
-                              <button
-                                onClick={() => handleDelete(quiz.id)}
-                                disabled={deletingId === quiz.id}
-                                className="p-1.5 text-red-400 dark:text-red-300 hover:text-red-600 dark:hover:text-red-200 hover:bg-red-50 dark:hover:bg-red-900/25 rounded disabled:opacity-40"
-                              >
-                                {deletingId === quiz.id
-                                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                                  : <Trash2 className="h-4 w-4" />}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            : (grouped as DeptGroup[]).map((dept) => {
-                const isDeptExpanded = expandedDepts.has(dept.name);
-                const headerColor = DEPT_HEADER_COLORS[dept.name] || 'bg-slate-50 border-slate-200 text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200';
+                            <FolderOpen className="h-4 w-4 text-slate-400 dark:text-slate-400 flex-shrink-0" />
+                            <span className="flex-1">{subdept.name}</span>
+                            <span className="text-xs text-slate-400 dark:text-slate-400">
+                              {subdept.quizzes.length} quiz{subdept.quizzes.length !== 1 ? 'zes' : ''}
+                            </span>
+                            {isSubdeptExpanded
+                              ? <ChevronDown className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                              : <ChevronRight className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />}
+                          </button>
 
-                return (
-                  <div key={dept.name} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-                    {/* Department header */}
-                    <button
-                      onClick={() => toggleDept(dept.name)}
-                      className={`w-full flex items-center gap-3 px-5 py-3.5 text-left font-semibold border-b transition-colors hover:brightness-95 ${headerColor}`}
-                    >
-                      <Building2 className="h-5 w-5 flex-shrink-0" />
-                      <span className="flex-1">{dept.name}</span>
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-white/60 dark:bg-slate-900/60">
-                        {dept.totalQuizzes} quiz{dept.totalQuizzes !== 1 ? 'zes' : ''}
-                      </span>
-                      {isDeptExpanded
-                        ? <ChevronDown className="h-4 w-4 flex-shrink-0" />
-                        : <ChevronRight className="h-4 w-4 flex-shrink-0" />}
-                    </button>
-
-                    {/* Subdepartments */}
-                    {isDeptExpanded && (
-                      <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                        {dept.subdepartments.map((subdept) => {
-                          const subdeptKey = `${dept.name}__${subdept.id ?? 'none'}`;
-                          const isSubdeptExpanded = expandedSubdepts.has(subdeptKey);
-
-                          return (
-                            <div key={subdeptKey}>
-                              {/* Subdepartment header */}
-                              <button
-                                onClick={() => toggleSubdept(subdeptKey)}
-                                className="w-full flex items-center gap-3 px-5 py-3 pl-10 text-left text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                              >
-                                <FolderOpen className="h-4 w-4 text-slate-400 dark:text-slate-400 flex-shrink-0" />
-                                <span className="flex-1">{subdept.name}</span>
-                                <span className="text-xs text-slate-400 dark:text-slate-400">
-                                  {subdept.quizzes.length} quiz{subdept.quizzes.length !== 1 ? 'zes' : ''}
-                                </span>
-                                {isSubdeptExpanded
-                                  ? <ChevronDown className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-                                  : <ChevronRight className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />}
-                              </button>
-
-                              {/* Quiz list */}
-                              {isSubdeptExpanded && (
-                                <div className="bg-slate-50/50 dark:bg-slate-800/35 divide-y divide-slate-100 dark:divide-slate-700">
-                                  {subdept.quizzes.map((quiz) => (
-                                    <div
-                                      key={quiz.id}
-                                      ref={(el) => { quizRowRefs.current[quiz.id] = el; }}
-                                      className={`flex items-center gap-4 px-6 py-3 pl-16 hover:bg-slate-100/60 dark:hover:bg-slate-700/55 transition-colors ${focusQuizId === quiz.id ? 'bg-emerald-50/80 dark:bg-emerald-900/20 ring-2 ring-emerald-500/60 ring-inset' : ''}`}
-                                    >
-                                      <div className="flex-shrink-0 h-9 w-9 rounded-full bg-blue-100 dark:bg-blue-900/45 text-blue-700 dark:text-blue-300 flex items-center justify-center">
-                                        <HelpCircle className="h-4 w-4" />
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{quiz.title}</p>
-                                        <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-500 dark:text-slate-300">
-                                          <BookOpen className="h-3.5 w-3.5" />
-                                          <span className="truncate">{quiz.course_title}</span>
-                                          <span>&middot;</span>
-                                          <span>{quiz.question_count} question{quiz.question_count !== 1 ? 's' : ''}</span>
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <button
-                                          onClick={() => startEdit(quiz)}
-                                          className="btn btn-primary btn-sm"
-                                        >
-                                          <Edit2 className="h-3.5 w-3.5 mr-1.5" />
-                                          Edit
-                                        </button>
-                                        {onOpenQuiz && (
-                                          <button
-                                            onClick={() => onOpenQuiz(quiz.id)}
-                                            className="btn btn-primary btn-sm"
-                                          >
-                                            <Edit2 className="h-3.5 w-3.5 mr-1.5" />
-                                            Manage
-                                            <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                                          </button>
-                                        )}
-                                        <button
-                                          onClick={() => handleDelete(quiz.id)}
-                                          disabled={deletingId === quiz.id}
-                                          className="p-1.5 text-red-400 dark:text-red-300 hover:text-red-600 dark:hover:text-red-200 hover:bg-red-50 dark:hover:bg-red-900/25 rounded disabled:opacity-40"
-                                        >
-                                          {deletingId === quiz.id
-                                            ? <Loader2 className="h-4 w-4 animate-spin" />
-                                            : <Trash2 className="h-4 w-4" />}
-                                        </button>
-                                      </div>
+                          {/* Quiz list */}
+                          {isSubdeptExpanded && (
+                            <div className="bg-slate-50/50 dark:bg-slate-800/35 divide-y divide-slate-100 dark:divide-slate-700">
+                              {subdept.quizzes.map((quiz) => (
+                                <div
+                                  key={quiz.id}
+                                  className="flex items-center gap-4 px-6 py-3 pl-16 hover:bg-slate-100/60 dark:hover:bg-slate-700/55 transition-colors"
+                                >
+                                  <div className="flex-shrink-0 h-9 w-9 rounded-full bg-indigo-100 dark:bg-indigo-900/45 text-indigo-700 dark:text-indigo-300 flex items-center justify-center">
+                                    <HelpCircle className="h-4 w-4" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{quiz.title}</p>
+                                    <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-500 dark:text-slate-300">
+                                      <BookOpen className="h-3.5 w-3.5" />
+                                      <span className="truncate">{quiz.course_title}</span>
+                                      <span>&middot;</span>
+                                      <span>{quiz.question_count} question{quiz.question_count !== 1 ? 's' : ''}</span>
                                     </div>
-                                  ))}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => startEdit(quiz)}
+                                      className="btn btn-primary btn-sm"
+                                    >
+                                      <Edit2 className="h-3.5 w-3.5 mr-1.5" />
+                                      Edit
+                                    </button>
+                                    {onOpenQuiz && (
+                                      <button
+                                        onClick={() => onOpenQuiz(quiz.id)}
+                                        className="btn btn-primary btn-sm"
+                                      >
+                                        <Edit2 className="h-3.5 w-3.5 mr-1.5" />
+                                        Manage
+                                        <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => handleDelete(quiz.id)}
+                                      disabled={deletingId === quiz.id}
+                                      className="p-1.5 text-red-400 dark:text-red-300 hover:text-red-600 dark:hover:text-red-200 hover:bg-red-50 dark:hover:bg-red-900/25 rounded disabled:opacity-40"
+                                    >
+                                      {deletingId === quiz.id
+                                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                                        : <Trash2 className="h-4 w-4" />}
+                                    </button>
+                                  </div>
                                 </div>
-                              )}
+                              ))}
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -1079,7 +986,7 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor',
                     <button
                       onClick={handleAddQuestion}
                       disabled={addingQuestion}
-                      className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white rounded-md shadow-sm disabled:opacity-50"
+                      className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 disabled:opacity-50"
                     >
                       {addingQuestion ? 'Adding...' : 'Add Question'}
                     </button>
@@ -1103,7 +1010,7 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor',
                       <div key={q.id} className="border-2 border-slate-200 dark:border-slate-600 rounded-lg p-4 bg-white dark:bg-slate-700 shadow-sm">
                         <div className="flex items-start justify-between gap-2 mb-3">
                           <div className="flex items-start gap-2">
-                            <span className="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-xs font-bold rounded-full">
+                            <span className="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-indigo-600 dark:bg-indigo-500 text-white text-xs font-bold rounded-full">
                               {idx + 1}
                             </span>
                             <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 pt-1">{q.question_text}</p>
@@ -1126,7 +1033,7 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor',
                         </div>
                         <div className="ml-9 space-y-1.5 border-l-2 border-slate-200 dark:border-slate-500 pl-3">
                           {q.options.map((opt, optIdx) => (
-                            <div key={opt.id} className={`flex items-center gap-2 text-xs ${opt.is_correct ? 'text-green-700 dark:text-green-300 font-semibold bg-green-50 dark:bg-green-900/30 rounded px-2 py-1' : 'text-slate-600 dark:text-slate-300'}`}>
+                            <div key={opt.id} className={`flex items-center gap-2 text-xs ${opt.is_correct ? 'text-green-700 dark:text-emerald-300 font-semibold bg-green-50 dark:bg-emerald-900/30 rounded px-2 py-1' : 'text-slate-600 dark:text-slate-300'}`}>
                               <span className="w-5 h-5 flex items-center justify-center rounded-full border text-[10px] font-medium ${opt.is_correct ? 'border-green-500 bg-green-100' : 'border-slate-300 bg-slate-100'}">
                                 {String.fromCharCode(97 + optIdx)}
                               </span>
@@ -1164,7 +1071,7 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor',
                               <button
                                 onClick={handleSaveQuestionEdit}
                                 disabled={savingQuestionEdit}
-                                className="px-3 py-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white rounded disabled:opacity-50"
+                                className="px-2.5 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
                               >
                                 {savingQuestionEdit ? 'Saving...' : 'Save Question'}
                               </button>
@@ -1195,7 +1102,7 @@ export function QuizAssessmentManagement({ onOpenQuiz, apiPrefix = 'instructor',
               <button
                 onClick={handleSaveEdit}
                 disabled={savingEdit}
-                className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white rounded-md shadow-sm disabled:opacity-50"
+                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
               >
                 {savingEdit ? 'Saving...' : 'Save Changes'}
               </button>

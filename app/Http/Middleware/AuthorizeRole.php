@@ -18,9 +18,9 @@ class AuthorizeRole
     {
         $user = $request->user();
 
-        if (! $user) {
+        if (!$user) {
             return response()->json([
-                'message' => 'Unauthenticated',
+                'message' => 'Unauthenticated'
             ], 401);
         }
 
@@ -28,17 +28,17 @@ class AuthorizeRole
         $allowedRoles = array_map('strtolower', $roles);
         $userRole = strtolower($user->role);
 
-        if (! in_array($userRole, $allowedRoles)) {
+        if (!in_array($userRole, $allowedRoles)) {
             // Special-case: allow `employee` in the `IT` department to act as Instructor
             if ($userRole === 'employee' && in_array('instructor', $allowedRoles) &&
-                ! empty($user->department) && strtolower($user->department) === 'it') {
+                !empty($user->department) && strtolower($user->department) === 'it') {
                 return $next($request);
             }
 
             return response()->json([
                 'message' => 'Forbidden. You do not have permission to access this resource.',
                 'required_role' => $roles,
-                'your_role' => $user->role,
+                'your_role' => $user->role
             ], 403);
         }
 

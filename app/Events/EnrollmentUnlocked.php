@@ -2,9 +2,12 @@
 
 namespace App\Events;
 
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Broadcasting\PresenceChannel;
+use Illuminate\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -13,7 +16,6 @@ class EnrollmentUnlocked implements ShouldBroadcastNow
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public int $userId;
-
     public int $courseId;
 
     /**
@@ -42,6 +44,6 @@ class EnrollmentUnlocked implements ShouldBroadcastNow
      */
     public function broadcastOn()
     {
-        return new PrivateChannel('user.'.$this->userId);
+        return new PrivateChannel('user.' . $this->userId);
     }
 }

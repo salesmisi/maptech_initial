@@ -1,15 +1,15 @@
 <?php
 
-require __DIR__.'/vendor/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
 
-$app = require_once __DIR__.'/bootstrap/app.php';
+$app = require_once __DIR__ . '/bootstrap/app.php';
 $kernel = $app->make('Illuminate\Contracts\Console\Kernel');
 $kernel->bootstrap();
 
 // Find the first custom module
 $customModule = App\Models\CustomModule::first();
 
-if (! $customModule) {
+if (!$customModule) {
     echo "No custom modules found. Creating a test module...\n";
     exit(1);
 }
@@ -37,5 +37,5 @@ foreach ($employees as $emp) {
         ->where('user_id', $emp->id)
         ->exists();
 
-    echo "- {$emp->fullname} ({$emp->email}) - {$emp->status}".($isPushed ? ' [ALREADY PUSHED]' : '')."\n";
+    echo "- {$emp->fullname} ({$emp->email}) - {$emp->status}" . ($isPushed ? " [ALREADY PUSHED]" : "") . "\n";
 }
