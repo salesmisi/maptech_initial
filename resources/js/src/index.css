@@ -7,6 +7,17 @@
 
 /* END TAILWIND IMPORTS — ALL OTHER CSS MUST GO BELOW THIS LINE */
 
+html,
+body,
+#root {
+	min-height: 100%;
+}
+
+body {
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
 /*
 	Theme compatibility layer:
 	Many pages still use light-first utility classes.

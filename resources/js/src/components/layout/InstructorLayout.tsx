@@ -113,12 +113,25 @@ export function InstructorLayout({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, []);
   const isSidebarCompact = isDesktop && !isSidebarHovered;
   const sidebarWidthClass = isDesktop ? (isSidebarHovered ? 'w-64' : 'w-20') : 'w-[86vw] max-w-xs';
   const sidebarTranslateClass = isDesktop || isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full';
   const handleSidebarNavigate = (page: string) => {
     onNavigate(page);
     if (!isDesktop) setIsMobileSidebarOpen(false);
+  };
+  const forwardWheelToWindow = (event: React.WheelEvent<HTMLElement>) => {
+    window.scrollBy({ top: event.deltaY, left: 0, behavior: 'auto' });
   };
   const navItems = [
   {
@@ -158,12 +171,13 @@ export function InstructorLayout({
   }];
 
   return (
-    <div className={`app-theme-scope min-h-screen flex w-full min-w-0 overflow-x-clip ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 dark:bg-slate-900 text-slate-900'}`}>
+    <div className={`app-theme-scope min-h-screen flex w-full min-w-0 ${isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100' : 'bg-slate-50 dark:bg-slate-900 text-slate-900'}`}>
       {!isDesktop && isMobileSidebarOpen && <button type="button" aria-label="Close sidebar" className="fixed inset-0 z-20 bg-slate-950/60" onClick={() => setIsMobileSidebarOpen(false)} />}
       <div
         className={`fixed inset-y-0 left-0 z-30 flex ${sidebarWidthClass} flex-col border-r transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${sidebarTranslateClass} ${isDark ? 'border-slate-800/80 bg-slate-950/95 text-white' : 'border-slate-200 bg-white text-slate-800'}`}
         onMouseEnter={() => { if (isDesktop) setIsSidebarHovered(true); }}
         onMouseLeave={() => { if (isDesktop) setIsSidebarHovered(false); }}
+        onWheel={forwardWheelToWindow}
       >
         <div className="flex-1 flex flex-col min-h-0">
           <div className={`flex flex-col items-center border-b transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'bg-slate-950 border-transparent' : 'bg-slate-50 border-slate-200'} ${isSidebarCompact ? 'px-2 pt-4 pb-3' : 'px-4 pt-5 pb-4'}`}>
@@ -218,10 +232,10 @@ export function InstructorLayout({
       </div>
 
       <div
-        className="flex w-full min-w-0 flex-col overflow-x-hidden transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        className="flex w-full min-w-0 flex-col transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
         style={isDesktop ? { paddingLeft: isSidebarHovered ? '16rem' : '5rem' } : undefined}
       >
-        <div className={`sticky top-0 z-10 flex min-h-16 flex-wrap items-center border-b ${isDark ? 'bg-slate-900/75 backdrop-blur-md border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+        <div className={`sticky top-0 z-10 flex min-h-16 flex-wrap items-center border-b ${isDark ? 'bg-slate-900/75 backdrop-blur-md border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`} onWheel={forwardWheelToWindow}>
           {!isDesktop && (
             <button
               type="button"
@@ -289,7 +303,7 @@ export function InstructorLayout({
             </div>
           </div>
         </div>
-        <main className={`flex-1 min-w-0 overflow-x-auto overflow-y-auto p-4 sm:p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50 dark:bg-slate-900'}`}>
+        <main className={`flex-1 min-w-0 p-4 sm:p-6 ${isDark ? 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-50 dark:bg-slate-900'}`}>
           {children}
         </main>
       </div>
